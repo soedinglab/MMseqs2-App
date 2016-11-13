@@ -1,0 +1,12 @@
+{
+    "name": "uniclust-web",
+    "authors": [
+        {
+            "name": "Milot Mirdita",
+            "email": "milot@mirdita.de"
+        }
+    ],
+    "require": {
+        "klein/klein": "^2.1"
+    }
+}

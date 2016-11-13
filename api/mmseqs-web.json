@@ -1,0 +1,4 @@
+{
+	"pdoDSN" : "pgsql:host=localhost;dbname=mirdita",
+	"tmp" : "/Users/mirdita/tmp"
+}
