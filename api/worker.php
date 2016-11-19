@@ -9,7 +9,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 define('APP_PATH', __DIR__ . '/../api/');
 set_include_path(APP_PATH . PATH_SEPARATOR . get_include_path());
 
-require_once 'lib/uniclust.php';
+require_once 'lib/mmseqs-web.php';
 
 function getJobTicket() {
     $statement = DB::getInstance()->prepare(
@@ -85,7 +85,7 @@ class Search extends Job {
     protected $databases = array(
         "uc90" => "/Users/mirdita/tmp/uniprot_db",
         "uc50" => "/Users/mirdita/tmp/uniprot_db",
-        "uc90" => "/Users/mirdita/tmp/uniprot_db"
+        "uc30" => "/Users/mirdita/tmp/uniprot_db"
     );
 
     protected $presets = array(
@@ -114,8 +114,8 @@ class Search extends Job {
             throw new Exception("Could not create mmseqs database");
         }
 
-        $database = $this->databases[$his->params["database"]];
-        $preset = $this->presets[$his->params["preset"]];
+        $database = $this->databases[$this->params["database"]];
+        $preset = $this->presets[$this->params["preset"]];
         if (system("mmseqs search {$workdir}/querydb {$database} {$workdir}/aln_result {$workdir}/tmp {$preset}") === FALSE) {
             throw new Exception("Search failed");
         }
@@ -154,11 +154,11 @@ function processJob() {
         $result = $task->execute();
         setJobStatus($uuid, "COMPLETED", (string) $result);
     } catch (Exception $e) {
-        setJobStatus($uuid, "FAILED", (string) $e);
+        setJobStatus($uuid, "FAILED", (string) $e->getMessage());
     }
 }
 
 while(true) {
-    sleep(2);
     processJob();
+    sleep(2);
 }

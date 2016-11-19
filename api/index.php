@@ -11,7 +11,7 @@ define('BASE_URL', '/mmseqs/api');
 define('APP_PATH', __DIR__ . '/../api/');
 set_include_path(APP_PATH . PATH_SEPARATOR . get_include_path());
 
-require_once 'lib/uniclust.php';
+require_once 'lib/mmseqs-web.php';
 
 $klein = new \Klein\Klein();
 
@@ -49,6 +49,7 @@ $klein->respond('POST', '/ticket', function ($request, $response, $service, $app
     $statement->bindParam(':params', $params);
     $statement->execute();
     $result = $statement->fetch(PDO::FETCH_ASSOC);
+
     $response->json($result["uuid"]);
 });
 

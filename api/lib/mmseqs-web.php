@@ -6,7 +6,7 @@ class Config {
 
     public static function getInstance() {
         if (static::$instance === null) {
-            static::$instance = json_decode(file_get_contents(APP_PATH . 'uniclust.json'), true);
+            static::$instance = json_decode(file_get_contents(APP_PATH . 'mmseqs-web.json'), true);
         }
 
         return static::$instance;
