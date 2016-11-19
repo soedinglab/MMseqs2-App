@@ -28,11 +28,9 @@ function getJobTicket() {
 
 function setJobStatus($uuid, $status, $result) {
     $statement = DB::getInstance()->prepare("UPDATE tickets SET status = :status, result = :result WHERE uuid = :uuid");
-    $statement->bindParam(':uuid', $uuid);
-    $s = $status;
-    $statement->bindParam(':status', $s);
-    $r = $result;
-    $statement->bindParam(':result', $r);
+    $statement->bindValue(':uuid', $uuid);
+    $statement->bindValue(':status', $status);
+    $statement->bindValue(':result', $result);
     $statement->execute();
 }
 
@@ -154,7 +152,7 @@ function processJob() {
         $result = $task->execute();
         setJobStatus($uuid, "COMPLETED", (string) $result);
     } catch (Exception $e) {
-        setJobStatus($uuid, "FAILED", (string) $e->getMessage());
+        setJobStatus($uuid, "FAILED", json_encode(array("message" => $e->getMessage())));
     }
 }
 
