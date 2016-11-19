@@ -95,7 +95,7 @@ class Search extends Job {
 
     function perform() {
         $config = Config::getInstance();
-        $workdir = $config["tmp"] + "/" + $this->uuid;
+        $workdir = $config["tmp"] . "/" . $this->uuid;
         if (is_dir($workdir) || is_file($workdir) || is_link($workdir)) {
             throw new Exception("Work directory exists already");
         }

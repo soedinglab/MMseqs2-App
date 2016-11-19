@@ -108,7 +108,7 @@ export default {
 
       this.inSearch = true;
       this.items = [];
-      this.$http.post('/mmseqs/api/ticket', { q: this.query, database: this.database, preset: this.searchPreset }, { emulateJSON : true }).then(function(response) {
+      this.$http.post('api/ticket', { q: this.query, database: this.database, preset: this.searchPreset }, { emulateJSON : true }).then(function(response) {
         this.status.message = this.status.class = "";
         this.inSearch = false;
 

@@ -7,7 +7,7 @@ error_reporting(E_ALL);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-define('BASE_URL', '/mmseqs/api');
+define('BASE_URL', '/api');
 define('APP_PATH', __DIR__ . '/../api/');
 set_include_path(APP_PATH . PATH_SEPARATOR . get_include_path());
 

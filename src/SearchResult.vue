@@ -50,7 +50,6 @@
 				<ul class="nav nav-stacked" id="sidebar" v-for="entries in items" v-bind:item="entries">
 					<li><a :href="'#item-' + entries.key">{{ entries.key }}</a></li>
 				</ul>
-				<bootstrap-pagination :pagination="pagination" />
 			</div>
 		</div>
 	</div>
@@ -58,13 +57,12 @@
 
 <script>
 import SearchResultItem from './SearchResultItem.vue';
-import BootstrapPagination from 'vue-bootstrap-pagination';
 import ScaleLoader from '../node_modules/vue-spinner/src/ScaleLoader.vue';
 import GridLoader from '../node_modules/vue-spinner/src/GridLoader.vue';
 
 export default {
 	name: 'search',
-	components: { SearchResultItem, ScaleLoader, GridLoader, BootstrapPagination },
+	components: { SearchResultItem, ScaleLoader, GridLoader },
 	data() {
 		return {
 			status : "wait",
@@ -87,7 +85,7 @@ export default {
 		fetchData () {
 			this.error = "";
 			var ticket = this.$route.params.ticket;
-			this.$http.get("/mmseqs/api/ticket/" + ticket).then(function(response) {
+			this.$http.get("api/ticket/" + ticket).then(function(response) {
 				response.json().then(function(data) {
 					this.status = data.status;
 					this.error = "";
