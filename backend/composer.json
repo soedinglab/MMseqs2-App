@@ -1,0 +1,19 @@
+{
+    "name": "mmseqs-web",
+    "authors": [
+        {
+            "name": "Milot Mirdita",
+            "email": "milot@mirdita.de"
+        }
+    ],
+    "autoload": {
+        "psr-0": {
+            "": "src/"
+        }
+    },
+    "require": {
+        "predis/predis": "^1.1",
+        "klein/klein": "^2.1",
+        "symfony/process": "^3.2"
+    }
+}
