@@ -2,7 +2,7 @@
 	<div id="search-results" class="container">
 		<div class="row">
 			<div class="col-xs-12">
-				<div v-if="status == 'WAITING'">
+				<div v-if="status == 'PENDING'">
 					<div class="panel panel-default">
 						<div class="panel-heading">Job Status: <strong>Waiting for worker</strong></div>
 						<div class="panel-body">
@@ -88,19 +88,19 @@ export default {
 			this.$http.get("api/ticket/" + ticket).then(function(response) {
 				response.json().then(function(data) {
 					this.status = data.status;
-					this.error = "";
-
-					switch(data.status) {
-					case "WAITING":
-					case "RUNNING":
-						setTimeout(this.fetchData.bind(this), 1000);
-						break;
-					case "FAILED":
-						this.error = data.result;
-						break;
-					case "COMPLETED":
-						this.items = JSON.parse(data.result);
-						break;
+					console.log(data);
+					switch(this.status) {
+						case "PENDING":
+						case "RUNNING":
+							setTimeout(this.fetchData.bind(this), 1000);
+							break;
+						case "FAILED":
+						console.log("oh well");
+							this.error = data.error;
+							break;
+						case "COMPLETED":
+							this.items = JSON.parse(data);
+							break;
 					}
 				}.bind(this));
 			},

@@ -5,7 +5,7 @@ import VueResource from 'vue-resource';
 Vue.use(VueRouter);
 Vue.use(VueResource);
 
-const Bar = { template: '<div>bar</div>' }
+Vue.http.options.root = 'http://localhost:8080'
 
 import App from './App.vue';
 import Search from './Search.vue';
