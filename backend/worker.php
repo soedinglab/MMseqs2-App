@@ -7,7 +7,9 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-function processJob($redis) {
+define('APP_PATH', __DIR__);
+
+function processJob($redis, $config) {
     $result = $redis->zpop('mmseqs:pending');
     if (count($result) == 0) {
         return;
@@ -17,7 +19,15 @@ function processJob($redis) {
     try {
         $redis->set('mmseqs:status:' . $uuid, "{ status : 'RUNNING' }"); 
 
-        $process = new Symfony\Component\Process\Process('false');
+        $basedir = $config["jobdir"] . "/" . $uuid;
+        $params = json_decode(file_get_contents($basedir . ".json"), true);
+        $command = '"' . $config["search-pipeline"]
+            . '" "' . $uuid
+            . '" "' . $basedir . '.fasta'
+            . '" "' . $params['database']
+            . '" "' . implode(" ", $params['annotations']) . '"';
+
+        $process = new Symfony\Component\Process\Process($command);
         $process->mustRun();
 
         $redis->set('mmseqs:status:' . $uuid, "{ status: 'COMPLETED' }");
@@ -27,7 +37,8 @@ function processJob($redis) {
 }
 
 $redis = PredisWrapper::wrap();
+$config = Config::getInstance();
 while(true) {
-    processJob($redis);
+    processJob($redis, $config);
     usleep(500);
 }

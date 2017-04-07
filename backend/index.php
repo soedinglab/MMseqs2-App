@@ -12,7 +12,9 @@ define('APP_PATH', __DIR__);
 $klein = new \Klein\Klein();
 
 $klein->respond(function ($request, $response, $service, $app) use ($klein) {
-    $service->config = Config::getInstance();
+    $app->register('config', function() use ($service) {
+        return Config::getInstance();
+    });
 
     $app->register('redis', function() use ($service) {
         return PredisWrapper::wrap();
@@ -20,6 +22,15 @@ $klein->respond(function ($request, $response, $service, $app) use ($klein) {
 
     $service->addValidator('in', function ($element, $array) {
         return in_array($element, $array);
+    });
+
+    $service->addValidator('eachIn', function ($elements, $array) {
+        foreach ($elements as $element) {
+            if (!in_array($element, $array)) {
+                return false;
+            }
+        }
+        return true;
     });
 
     $service->addValidator('fasta', function ($element) {
@@ -50,13 +61,24 @@ $klein->respond('GET', '/', function($request, $response, $service, $app) {
 
 $klein->respond('POST', '/ticket', function ($request, $response, $service, $app) {
     $service->validateParam('q')->fasta();
-    $service->validateParam('database')->in(array("uc90", "uc50", "uc30"));
+    $service->validateParam('database')->in(array("uc90", "uc30"));
     $service->validateParam('preset')->in(array("very-fast", "fast", "normal", "sensitive"));
+    $service->validateParam('annotations')->eachIn(array("pfam", "pdb70", "eggnog"));
 
     $jobid = Uuid::generate();
-    $app->redis->zadd('mmseqs:pending', 1, $jobid);
-    $app->redis->set('mmseqs:status:' . $jobid, "{ status: 'PENDING' }");
-    
+    $params = [
+        "database" => preg_replace("/[^0-9]/","", $request->database),
+        "annotations" => $request->annotations,
+        "preset" => $request->preset
+    ];
+    file_put_contents($app->config["jobdir"] . "/" . $jobid . ".json", json_encode($params));
+    file_put_contents($app->config["jobdir"] . "/" . $jobid . ".fasta", $request->q);
+
+    $app->redis->transaction()
+        ->zadd('mmseqs:pending', 1, $jobid)
+        ->set('mmseqs:status:' . $jobid, "{ status: 'PENDING' }")
+        ->execute();
+
     $response->json($jobid);
 });
 

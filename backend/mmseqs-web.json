@@ -1,4 +1,4 @@
 {
-	"pdoDSN" : "pgsql:host=localhost;dbname=mirdita",
-	"tmp" : "/Users/mirdita/tmp"
+    "jobdir" : "/big/search.mmseqs.org/jobs",
+    "search-pipeline" : "/big/search.mmseqs.org/pipeline/run_job.sh"
 }
