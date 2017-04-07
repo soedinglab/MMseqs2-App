@@ -5,7 +5,7 @@ import VueResource from 'vue-resource';
 Vue.use(VueRouter);
 Vue.use(VueResource);
 
-Vue.http.options.root = 'http://localhost:8080'
+Vue.http.options.root = 'https://search.mmseqs.com';
 
 import App from './App.vue';
 import Search from './Search.vue';
