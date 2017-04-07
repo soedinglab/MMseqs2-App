@@ -1,33 +1,40 @@
 <template>
-	<div id="search-results" class="container">
+	<div id="search-results"
+	     class="container">
 		<div class="row">
 			<div class="col-xs-12">
 				<div v-if="status == 'PENDING'">
 					<div class="panel panel-default">
 						<div class="panel-heading">Job Status: <strong>Waiting for worker</strong></div>
 						<div class="panel-body">
-							<scale-loader class="loader" color="#000000" />
+							<scale-loader class="loader"
+							              color="#000000" />
 						</div>
 					</div>
 				</div>
-
+	
 				<div v-if="status == 'RUNNING'">
 					<div class="panel panel-default">
 						<div class="panel-heading">Job Status: <strong>In Progress</strong></div>
 						<div class="panel-body">
-							<grid-loader class="loader" color="#000000" />
+							<grid-loader class="loader"
+							             color="#000000" />
 						</div>
 					</div>
 				</div>
-
-				<div v-if="status == 'FAILED'" class="alert alert-danger">
+	
+				<div v-if="status == 'FAILED'"
+				     class="alert alert-danger">
 					{{ error }}
 				</div>
 			</div>
 		</div>
-
-		<div class="row" v-if="status == 'COMPLETED'">
-			<div :class="items.length > 1 ? col-md-9 : col-xs-12" v-for="entries in items" v-bind:item="entries">
+	
+		<div class="row"
+		     v-if="status == 'COMPLETED'">
+			<div :class="items.length > 1 ? col-md-9 : col-xs-12"
+			     v-for="entries in items"
+			     v-bind:item="entries">
 				<h2 :id="'item-' + entries.key">Query: <strong>{{ entries.key }}</strong></h2>
 				<table class="table table-responsive">
 					<thead>
@@ -42,12 +49,17 @@
 						</tr>
 					</thead>
 					<tbody>
-						<search-result-item v-for="entry in entries.data" v-bind:item="entry"></search-result-item>
+						<search-result-item v-for="entry in entries.data"
+						                    v-bind:item="entry"></search-result-item>
 					</tbody>
 				</table>
 			</div>
-			<div v-if="items.length > 1" class="col-md-3">
-				<ul class="nav nav-stacked" id="sidebar" v-for="entries in items" v-bind:item="entries">
+			<div v-if="items.length > 1"
+			     class="col-md-3">
+				<ul class="nav nav-stacked"
+				    id="sidebar"
+				    v-for="entries in items"
+				    v-bind:item="entries">
 					<li><a :href="'#item-' + entries.key">{{ entries.key }}</a></li>
 				</ul>
 			</div>
@@ -65,9 +77,9 @@ export default {
 	components: { SearchResultItem, ScaleLoader, GridLoader },
 	data() {
 		return {
-			status : "wait",
-			error : "",
-			items : [],
+			status: "wait",
+			error: "",
+			items: [],
 			pagination: {
 				per_page: 12,    // required
 				current_page: 1, // required
@@ -75,26 +87,26 @@ export default {
 			},
 		};
 	},
-	created () {
+	created() {
 		this.fetchData();
 	},
 	watch: {
 		'$route': 'fetchData'
 	},
 	methods: {
-		fetchData () {
+		fetchData() {
 			this.error = "";
 			var ticket = this.$route.params.ticket;
-			this.$http.get("api/ticket/" + ticket).then(function(response) {
-				response.json().then(function(data) {
+			this.$http.get("api/ticket/" + ticket).then(function (response) {
+				response.json().then(function (data) {
 					this.status = data.status;
-					switch(this.status) {
+					switch (this.status) {
 						case "PENDING":
 						case "RUNNING":
 							setTimeout(this.fetchData.bind(this), 1000);
 							break;
 						case "FAILED":
-						console.log("oh well");
+							console.log("oh well");
 							this.error = data.error;
 							break;
 						case "COMPLETED":
@@ -103,17 +115,17 @@ export default {
 					}
 				}.bind(this));
 			},
-			function() {
-				this.status = "error";
-				this.error = "Failed";
-			})
+				function () {
+					this.status = "error";
+					this.error = "Failed";
+				})
 		}
 	}
 };
 </script>
 
 <style>
-	.loader {
-		margin: 25px auto;
-	}
+.loader {
+	margin: 25px auto;
+}
 </style>

@@ -9,6 +9,6 @@
 import Navigation from './Navigation.vue';
 
 export default {
-    components : { Navigation }
+    components: { Navigation }
 }
 </script>

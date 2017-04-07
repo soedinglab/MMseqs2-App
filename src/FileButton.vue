@@ -1,6 +1,10 @@
 <template>
-    <label v-bind:id="id" class="btn btn-default btn-file">
-        {{ label }} <input type="file" style="display: none;" v-on:change="upload">
+    <label v-bind:id="id"
+           class="btn btn-default btn-file">
+        {{ label }}
+        <input type="file"
+               style="display: none;"
+               v-on:change="upload">
     </label>
 </template>
 
@@ -22,6 +26,7 @@ export default {
     position: relative;
     overflow: hidden;
 }
+
 .btn-file input[type=file] {
     position: absolute;
     top: 0;

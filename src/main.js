@@ -13,11 +13,11 @@ import SearchResult from './SearchResult.vue';
 
 const router = new VueRouter({
     mode: 'history',
-    routes : [
+    routes: [
         { path: '/', component: Search },
-        { name : 'search-result', path: '/search/:ticket', component: SearchResult }
+        { name: 'search-result', path: '/search/:ticket', component: SearchResult }
     ],
-    linkActiveClass : 'active'
+    linkActiveClass: 'active'
 });
 
 const app = new Vue({
