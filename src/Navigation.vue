@@ -10,8 +10,8 @@
                     <span class="icon-bar"></span>
                 </button>
 				<a class="navbar-brand" href="#">
-                	<object type="image/svg+xml" data="/dist/marv1.svg" aria-hidden="true">
-						<img src="/dist/marv1.png" />
+                	<object type="image/svg+xml" data="marv1.svg" aria-hidden="true">
+						<img src="marv1.png" />
 					</object>
 					<span>MMseqs</span>
 				</a>
