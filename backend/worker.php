@@ -17,7 +17,7 @@ function processJob($redis, $config) {
 
     $uuid = $result[0];
     try {
-        $redis->set('mmseqs:status:' . $uuid, "{ status : 'RUNNING' }"); 
+        $redis->set('mmseqs:status:' . $uuid, '{ "status" : "RUNNING" }');
 
         $basedir = $config["jobdir"] . "/" . $uuid;
         $params = json_decode(file_get_contents($basedir . ".json"), true);
@@ -30,7 +30,7 @@ function processJob($redis, $config) {
         $process = new Symfony\Component\Process\Process($command);
         $process->mustRun();
 
-        $redis->set('mmseqs:status:' . $uuid, "{ status: 'COMPLETED' }");
+        $redis->set('mmseqs:status:' . $uuid, '{ "status" : "COMPLETED" }');
     } catch (Exception $e) {
         $redis->set('mmseqs:status:' . $uuid, json_encode(["status" => "FAILED", "error" => $e->getMessage()]));
     }

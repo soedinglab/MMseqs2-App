@@ -18,6 +18,7 @@ module.exports = {
 				test: /\.vue$/,
 				loader: 'vue-loader',
 				options: {
+                    transformToRequire : { img: 'src', image: 'xlink:href', object: 'data' },
 					loaders: {
 						css: ExtractTextPlugin.extract({
 							loader: 'css-loader',
@@ -59,7 +60,8 @@ module.exports = {
 		// }),
 		new HtmlWebpackPlugin({
 			template: './src/index.hbs',
-			title: 'MMseqs Search Service'
+			title: 'MMseqs Search Service',
+            attrs: ['img:src', 'object:data']
 		}),
 		new ExtractTextPlugin('style.css'),
 	],

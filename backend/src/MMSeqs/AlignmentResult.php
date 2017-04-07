@@ -30,18 +30,18 @@ class AlignmentResult {
     }
 
     static function parseDB($db) {
-        if (!file_exists($db) || !file_exists($workdir . ".index")) {
-            throw new Exception("Alignment result was not found");
+        if (!file_exists($db) || !file_exists($db . ".index")) {
+            throw new \Exception("Alignment result was not found");
         }
 
         $result = array();
-        $reader =  new IntDBReader($db, $db . ".index", 1);
+        $reader =  new \IntDBReader($db, $db . ".index", 1);
         for($i = 0; $i < $reader->getSize(); ++$i) {
             $entry = trim($reader->getData($i), "\n");
         
             $record = array();
             foreach(explode("\n", $entry) as $line) {
-                $record[] = AlignmentResult::parse($line);
+                $record[] = AlignmentResult::parseLine($line);
             }
 
             $result[] = array("key" => $reader->getDbKey($i), "data" => $record);

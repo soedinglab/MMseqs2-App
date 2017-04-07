@@ -9,12 +9,12 @@
                     <span class="icon-bar"></span>
                     <span class="icon-bar"></span>
                 </button>
-				<a class="navbar-brand" href="#">
-                	<object type="image/svg+xml" data="marv1.svg" aria-hidden="true">
-						<img src="marv1.png" />
-					</object>
-					<span>MMseqs</span>
-				</a>
+                <a class="navbar-brand" href="#">
+                    <object type="image/svg+xml" data="./assets/marv1.svg" aria-hidden="true">
+                        <img src="./assets/marv1.png" />
+                    </object>
+                    <span>MMseqs</span>
+                </a>
 			</div>
 			<div id="navbar" class="collapse navbar-collapse">
 				<ul class="nav navbar-nav">

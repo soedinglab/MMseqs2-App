@@ -6,7 +6,7 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-define('BASE_URL', '/backend');
+define('BASE_URL', '/api');
 define('APP_PATH', __DIR__);
 
 $klein = new \Klein\Klein();
@@ -76,7 +76,7 @@ $klein->respond('POST', '/ticket', function ($request, $response, $service, $app
 
     $app->redis->transaction()
         ->zadd('mmseqs:pending', 1, $jobid)
-        ->set('mmseqs:status:' . $jobid, "{ status: 'PENDING' }")
+        ->set('mmseqs:status:' . $jobid, '{ "status": "PENDING" }')
         ->execute();
 
     $response->json($jobid);
@@ -86,9 +86,14 @@ $klein->respond('GET', '/ticket/[:ticket]', function ($request, $response, $serv
     $service->validateParam('ticket')->uuid();
     $json = $app->redis->get('mmseqs:status:' . $request->ticket);
 
-    // $result = json_decode($json);
-
-    $response->body($json);
+    $result = json_decode($json, true);
+    if ($result['status'] == 'COMPLETED') {
+        $resultPath = $app->config["jobdir"] . "/" . $request->ticket . "/result_uniclust30";
+        $result['items'] = MMSeqs\AlignmentResult::parseDB($resultPath);
+        $response->json($result);
+    } else {
+        $response->body($json);
+    }
 });
 
 $request = \Klein\Request::createFromGlobals();
