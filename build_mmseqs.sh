@@ -1,8 +1,8 @@
 #!/bin/bash -e
 TYPE=${1:-Release}
 
-OUTDIR=/cbscratch/mmirdit/mmseqs-webserver/pipeline/mmseqs
-REPO=/cbscratch/mmirdit/mmseqs
+OUTDIR=/big/search.mmseqs.org/mmseqs
+REPO=/big/mmirdit/mmseqs
 rm -rf $OUTDIR
 mkdir $OUTDIR
 cd $OUTDIR

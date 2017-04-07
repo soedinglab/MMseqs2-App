@@ -1,15 +1,8 @@
 #!/bin/bash -ex
-MMSEQS="mmseqs"
-BASE="/cbscratch/mmirdit/mmseqs-webserver"
-WORKBASE="${BASE}/jobs"
-DATABASES="${BASE}/databases"
-JOBTHREADS="16"
-
-PATH="${BASE}/pipeline/mmseqs/bin:$PATH"
+source "$(dirname $(cd $(dirname ${BASH_SOURCE}) && pwd))/paths.sh"
 
 function fail() {
-    notify_job "$1" ERROR
-    echo "$2" > "$3/error.log"
+    echo "$1"
     exit 1
 }
 
@@ -27,17 +20,6 @@ function abspath() {
     fi
 }
 
-function make_database() {
-    local WORKDIR="$(mktemp -d "${WORKBASE}/merge.XXXXXX")"
-	local FASTA="$(abspath $1)"
-	local FASTABASE="$(basename "$FASTA")"
-	local DBNAME="${FASTABASE%.*}"
-
-	"${MMSEQS}" createdb "${FASTA}" "${WORKDIR}/${DBNAME}_db"
-	"${MMSEQS}" createindex "${WORKDIR}/${DBNAME}_db" --mask 2 --split 1
-	mv -f "${WORKDIR}/${DBNAME}_db"* "${DATABASES}"
-}
-
 function notify_job() {
     echo TODO implement
 }
@@ -46,14 +28,10 @@ function queue_email() {
     echo TODO implement
 }
 
-function force_dbs_page_cache() {
-    echo TODO implement
-}
-
 function run_job() {
     local JOBID="$1"
     local WORKDIR="$(abspath "${WORKBASE}/${JOBID}")"
-    local ANNOTATION_DATABASES="pfam pdb70 eggnog"
+    local JOBTHREADS="16"
 
     if [[ -d $WORKDIR ]]; then
         fail "${JOBID}" "job directory already exists" "${WORKDIR}"
@@ -61,11 +39,14 @@ function run_job() {
         mkdir -p "${WORKDIR}"
     fi
 
-    local MMTMP="$(mktemp -d "${WORKDIR}/tmp.XXXXXX")"
+    local MMTMP="${WORKDIR}/tmp"
+    mkdir -p "${MMTMP}"
+
 	local QUERYFASTA="$(abspath $2)"
 	local QUERYDB="${WORKDIR}/input"
 
-    local DATABASE="${DATABASES}/$3"
+    local SEQIDS="${3:-"30"}"
+    local ANNOTATION_DATABASES="${4:-"pfam pdb70 eggnog"}"
 
     local ALIS=()
     local TYPES=()
@@ -73,55 +54,59 @@ function run_job() {
     local INPUT="${QUERYDB}"
 
     "${MMSEQS}" createdb "${QUERYFASTA}" "${QUERYDB}" -v 0 \
-        || fail "${JOBID}" "createdb failed" "${WORKDIR}"
+        || fail "createdb failed"
 
-    #if [[ ! -z ${ANNOTATIONS_ONLY} ]]; then
-    if true; then
-        "${MMSEQS}" search "${QUERYDB}" "${DATABASE}" "${WORKDIR}/result_uc" "${MMTMP}" \
-            --no-preload --early-exit --remove-tmp-files --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
-            -s 1 \
-            || fail "${JOBID}" "search failed" "${WORKDIR}"
+    if [[ -n ${SEQIDS} ]]; then
+        for SEQID in ${SEQIDS}; do
+            mkdir -p "${MMTMP}/${SEQID}"
+            "${MMSEQS}" search "${QUERYDB}" "${DATABASES}/current_uniclust${SEQID}" "${WORKDIR}/result_uniclust${SEQID}" "${MMTMP}/${SEQID}" \
+                --no-preload --early-exit --remove-tmp-files --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
+                -s 1 \
+                || fail "search failed"
 
-        ALIS+=("${QUERYDB} ${DATABASE} ${WORKDIR}/result_uc")
-        TYPES+=("uc")
-        notify_job "${JOBID}" SEARCH_DONE
-		# maybe later when we have profile-profile searches
-        #INPUT="${WORKDIR}/result_uc"
+            ALIS+=("${QUERYDB} ${DATABASES}/current_uniclust${SEQID} ${WORKDIR}/result_uniclust${SEQID}")
+            TYPES+=("uc${SEQID}")
+            # maybe later when we have profile-profile searches
+            #INPUT="${WORKDIR}/result_uc"
+        done
+
+        notify_job "${JOBID}" UNICLUST_DONE
     fi
 
-    for i in ${ANNOTATION_DATABASES}; do
-        mkdir -p "${MMTMP}/${i}"
-        "${MMSEQS}" search "${INPUT}" "${DATABASES}/current_${i}" "${WORKDIR}/result_${i}" "${MMTMP}/${i}" \
-            --no-preload --early-exit --remove-tmp-files --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
-            --target-profile -s 1 \
-            || fail "${JOBID}" "search failed" "${WORKDIR}"
+    if [[ -n ${ANNOTATION_DATABASES} ]]; then
+        for i in ${ANNOTATION_DATABASES}; do
+            mkdir -p "${MMTMP}/${i}"
+            "${MMSEQS}" search "${INPUT}" "${DATABASES}/current_${i}" "${WORKDIR}/result_${i}" "${MMTMP}/${i}" \
+                --no-preload --early-exit --remove-tmp-files --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
+                --target-profile -s 1 \
+                || fail "search failed" 
 
-        #ALIS+=("\"${QUERYDB}\" \"${DATABASES}/current_${i}\" \"${WORKDIR}/result_${i}\"")
-        ALIS+=("${QUERYDB} ${DATABASES}/current_${i} ${WORKDIR}/result_${i}")
-        TYPES+=("${i}")
-    done
+            ALIS+=("${QUERYDB} ${DATABASES}/current_${i} ${WORKDIR}/result_${i}")
+            TYPES+=("${i}")
+        done
 
-    notify_job "${JOBID}" ANNOTATIONS_DONE
+        notify_job "${JOBID}" ANNOTATIONS_DONE
+    fi
 
     if (( $(head -n 2 "${QUERYDB}.index" | wc -l) == 1 )); then
         exit 0
     fi
 
-    local M8S=""
-    for i in "${!ALIS[@]}"; do
-        local M8="${WORKDIR}/${JOBID}_${TYPES[$i]}.m8"
-        mmseqs convertalis ${ALIS[$i]} "${M8}"
-        M8S="${M8S} ${M8}"
-    done
+    if (( ${#ALIS[@]} > 0 )); then
+        local M8S=""
+        for i in "${!ALIS[@]}"; do
+            local M8="${WORKDIR}/${JOBID}_${TYPES[$i]}.m8"
+            "${MMSEQS}" convertalis ${ALIS[$i]} "${M8}" \
+                || fail "convertalis failed"
+            M8S="${M8S} ${M8}"
+        done
 
-    tar -cv --use-compress-program=pigz \
-        --show-transformed-names --transform "s|${WORKDIR:1}/|mmseqs_results_${JOBID}/|g" \
-        -f "${WORKDIR}/mmseqs_results_${JOBID}.tar.gz" ${M8S}
+        tar -cv --use-compress-program=pigz \
+            --show-transformed-names --transform "s|${WORKDIR:1}/|mmseqs_results_${JOBID}/|g" \
+            -f "${WORKDIR}/mmseqs_results_${JOBID}.tar.gz" ${M8S}
 
-	queue_email "${JOBID}"
+        queue_email "${JOBID}"
+    fi
 }
 
-#make_database /cbscratch/mmirdit/uniclust/pipeline/sprot_trembl_martin/2017_02/tmp/uniclust30_2017_02_seed.fasta
-#make_database /cbscratch/mmirdit/uniclust/pipeline/sprot_trembl_martin/2017_02/tmp/uniclust90_2017_02_seed.fasta
-
-run_job TEST /cbscratch/mmirdit/mmseqs-webserver/pipeline/QUERY.fasta uniclust30_2017_02_seed_db 
+run_job "$1" "$2" "$3" "$4"
