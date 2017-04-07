@@ -151,13 +151,14 @@ export default {
         this.status.message = this.status.class = "";
         this.inSearch = false;
 
-        var ticket = response.body;
-        
-        this.$router.push({ name : 'search-result', params : { ticket : ticket }});
+        const result = response.body;
+        if (result.status == "PENDING") {
+            this.$router.push({ name : 'search-result', params : { ticket : result.ticket }});
+        } else {
+            this.error("Error loading search result");
+        }
       }, function() {
-        this.status.message = "Error loading search result";
-        this.status.class = "alert alert-danger";
-        this.inSearch = false;
+          this.error("Error loading search result");
       });
     },
     upload(files) {
@@ -166,6 +167,11 @@ export default {
         this.query = e.target.result;
       }.bind(this);
       reader.readAsText(files[0]);
+    },
+    error(message) {
+        this.status.message = message;
+        this.status.class = "alert alert-danger";
+        this.inSearch = false;
     }
   }
 };

@@ -25,6 +25,9 @@ $klein->respond(function ($request, $response, $service, $app) use ($klein) {
     });
 
     $service->addValidator('eachIn', function ($elements, $array) {
+        if ($elements == null)
+            return false;
+
         foreach ($elements as $element) {
             if (!in_array($element, $array)) {
                 return false;
@@ -47,10 +50,9 @@ $klein->respond(function ($request, $response, $service, $app) use ($klein) {
 
     });
 
-    // $klein->onError(function ($response, $msg, $type, $err) {
-    //     $response->json('test');
-
-    // });
+    $klein->onError(function ($klein, $msg, $type, $err) {
+        $klein->response()->json([ "status" => "ERROR", "code" => $type, "message" => $msg ]);
+    });
 
     $response->header('Access-Control-Allow-Origin', '*');
 });
@@ -61,25 +63,29 @@ $klein->respond('GET', '/', function($request, $response, $service, $app) {
 
 $klein->respond('POST', '/ticket', function ($request, $response, $service, $app) {
     $service->validateParam('q')->fasta();
-    $service->validateParam('database')->in(array("uc90", "uc30"));
-    $service->validateParam('preset')->in(array("very-fast", "fast", "normal", "sensitive"));
+    $service->validateParam('database')->in(array("", "uc90", "uc30"));
     $service->validateParam('annotations')->eachIn(array("pfam", "pdb70", "eggnog"));
 
-    $jobid = Uuid::generate();
+    $uuid = Uuid::generate();
+
     $params = [
         "database" => preg_replace("/[^0-9]/","", $request->database),
         "annotations" => $request->annotations,
-        "preset" => $request->preset
     ];
-    file_put_contents($app->config["jobdir"] . "/" . $jobid . ".json", json_encode($params));
-    file_put_contents($app->config["jobdir"] . "/" . $jobid . ".fasta", $request->q);
 
-    $app->redis->transaction()
-        ->zadd('mmseqs:pending', 1, $jobid)
-        ->set('mmseqs:status:' . $jobid, '{ "status": "PENDING" }')
-        ->execute();
+    $result = [ "status" => "PENDING" ];
+    if ((file_put_contents($app->config["jobdir"] . "/" . $uuid . ".json", json_encode($params)) === FALSE)
+        || (file_put_contents($app->config["jobdir"] . "/" . $uuid . ".fasta", $request->q) === FALSE)) {
+        $result["status"] = "ERROR";
+    } else {
+        $app->redis->transaction()
+            ->zadd('mmseqs:pending', 1, $uuid)
+            ->set('mmseqs:status:' . $uuid, '{ "status": "PENDING" }')
+            ->execute();
+        $result["ticket"] = $uuid;
+    }
 
-    $response->json($jobid);
+    $response->json($result);
 });
 
 $klein->respond('GET', '/ticket/[:ticket]', function ($request, $response, $service, $app) {
@@ -90,10 +96,8 @@ $klein->respond('GET', '/ticket/[:ticket]', function ($request, $response, $serv
     if ($result['status'] == 'COMPLETED') {
         $resultPath = $app->config["jobdir"] . "/" . $request->ticket . "/result_uniclust30";
         $result['items'] = MMSeqs\AlignmentResult::parseDB($resultPath);
-        $response->json($result);
-    } else {
-        $response->body($json);
     }
+    $response->json($result);
 });
 
 $request = \Klein\Request::createFromGlobals();
