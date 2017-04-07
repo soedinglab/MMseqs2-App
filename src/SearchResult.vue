@@ -88,7 +88,6 @@ export default {
 			this.$http.get("api/ticket/" + ticket).then(function(response) {
 				response.json().then(function(data) {
 					this.status = data.status;
-					console.log(data);
 					switch(this.status) {
 						case "PENDING":
 						case "RUNNING":
@@ -99,7 +98,7 @@ export default {
 							this.error = data.error;
 							break;
 						case "COMPLETED":
-							this.items = JSON.parse(data);
+							this.items = data.items;
 							break;
 					}
 				}.bind(this));

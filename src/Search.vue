@@ -17,65 +17,91 @@
 					</div>
 
 					<div class="form-group">
-						<button class="btn btn-primary" v-on:click="search" v-bind:disabled="inSearch">
+						<button class="btn btn-primary" v-on:click="search" v-bind:disabled="searchDisabled">
                 			<span v-if="inSearch" class="spinner">Spin</span>
                 			Search
 						</button>
-						<file-button id="file" class="pull-right" label="Upload" v-on:upload="upload" />
+						<file-button id="file" class="pull-right" label="Upload FASTA File" v-on:upload="upload" />
 					</div>
 				</div>
 				<div class="col-xs-12 col-md-5">
-					<fieldset>
-						<div class="form-group">
-							<legend>Search Presets</legend>
-							<div class="radio">
-								<label>
-									<input type="radio" id="preset-very-fast" value="very-fast" v-model="searchPreset">
-									Very fast
-								</label>
-							</div>
-							<div class="radio">
-								<label>
-									<input type="radio" id="preset-fast" value="fast" v-model="searchPreset">
-									Fast
-								</label>
-							</div>
-							<div class="radio">
-								<label>
-									<input type="radio" id="preset-normal" value="normal" v-model="searchPreset">
-									Normal
-								</label>
-							</div>
-							<div class="radio">
-								<label>
-									<input type="radio" id="preset-sensitive" value="sensitive" v-model="searchPreset">
-									Sensitive
-								</label>
-							</div>
-						</div>
-
-						<div class="form-group">
-							<legend>Database</legend>
-							<div class="radio">
-								<label>
-									<input type="radio" id="database-uc90" value="uc90" v-model="database">
-									Uniclust90
-								</label>
-							</div>
-							<div class="radio">
-								<label>
-									<input type="radio" id="database-uc50" value="uc50" v-model="database">
-									Uniclust50
-								</label>
-							</div>
-							<div class="radio">
-								<label>
-									<input type="radio" id="database-uc30" value="uc30" v-model="database">
-									Uniclust30
-								</label>
-							</div>
-						</div>
-					</fieldset>
+<fieldset>
+	<div class="row">
+		<div class="col-md-6">
+			<div class="form-group">
+				<legend>Database</legend>
+				<div class="radio">
+					<label>
+						<input type="radio" id="database-uc90" value="uc90" v-model="database">
+						Uniclust90
+					</label>
+				</div>
+				<div class="radio">
+					<label>
+						<input type="radio" id="database-uc30" value="uc30" v-model="database">
+						Uniclust30
+					</label>
+				</div>
+				<div class="radio">
+					<label>
+						<input type="radio" id="database-none" value="" v-model="database">
+						Annotations Only
+					</label>
+				</div>
+			</div>
+		</div>
+		<div class="col-md-6">
+			<div class="form-group">
+				<legend>Annotations</legend>
+				<div class="radio">
+					<label>
+						<input type="checkbox" id="annotations" value="eggnog" v-model="annotations">
+						EggNOG
+					</label>
+				</div>
+				<div class="radio">
+					<label>
+						<input type="checkbox" id="annotations" value="pfam" v-model="annotations">
+						Pfam
+					</label>
+				</div>
+				<div class="radio">
+					<label>
+						<input type="checkbox" id="annotations" value="pdb70" v-model="annotations">
+						PDB70
+					</label>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="form-group">
+		<legend>Search Presets</legend>
+		<div class="radio">
+			<label>
+				<input type="radio" id="preset-very-fast" value="very-fast" v-model="searchPreset">
+				Very fast
+			</label>
+		</div>
+		<div class="radio">
+			<label>
+				<input type="radio" id="preset-fast" value="fast" v-model="searchPreset">
+				Fast
+			</label>
+		</div>
+		<div class="radio">
+			<label>
+				<input type="radio" id="preset-normal" value="normal" v-model="searchPreset">
+				Normal
+			</label>
+		</div>
+		<div class="radio">
+			<label>
+				<input type="radio" id="preset-sensitive" value="sensitive" v-model="searchPreset">
+				Sensitive
+			</label>
+		</div>
+	</div>
+</fieldset>
 				</div>
 			</form>
 		</div>
@@ -93,6 +119,7 @@ export default {
     return {
 	  searchPreset : 'normal',		
 	  database : 'uc30',
+		annotations : ['pfam', 'pdb70', 'eggnog'],
       inSearch : false,
       query : ">TEST\nMPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC",
       status : {
@@ -101,14 +128,26 @@ export default {
       }
     };
   },
+	computed: {
+		searchDisabled: function () {
+			return this.inSearch 
+							|| (this.database.length == 0 && this.annotations.length == 0) 
+							|| this.query.length == 0;
+		}
+	},
   methods: {
     search(event) {
       if (this.query.length == 0)
         return false;
 
       this.inSearch = true;
-      this.items = [];
-      this.$http.post('api/ticket', { q: this.query, database: this.database, preset: this.searchPreset }, { emulateJSON : true }).then(function(response) {
+			const data = { 
+				q: this.query, 
+				database: this.database, 
+				annotations: this.annotations,
+				preset: this.searchPreset
+			};
+      this.$http.post('api/ticket', data, { emulateJSON : true }).then(function(response) {
         this.status.message = this.status.class = "";
         this.inSearch = false;
 
