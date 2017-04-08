@@ -96,7 +96,7 @@ export default {
 	methods: {
 		fetchData() {
 			this.error = "";
-			var ticket = this.$route.params.ticket;
+			const ticket = this.$route.params.ticket;
 			this.$http.get("api/ticket/" + ticket).then(function (response) {
 				response.json().then(function (data) {
 					this.status = data.status;

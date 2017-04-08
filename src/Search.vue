@@ -12,7 +12,8 @@
 						<label for="query">FASTA-Query</label>
 						<textarea class="form-control fasta"
 						          v-model="query"
-						          placeholder="Please start a Search"></textarea>
+						          placeholder="Please start a Search"
+								  spellcheck="false"></textarea>
 					</div>
 	
 					<div class="form-group">
@@ -93,7 +94,7 @@
 									</div>
 								</div>
 							</div>
-						</div>	
+						</div>
 					</fieldset>
 				</div>
 			</form>
@@ -122,7 +123,7 @@ export default {
 		};
 	},
 	computed: {
-		searchDisabled: function () {
+		searchDisabled() {
 			return this.inSearch
 				|| (this.database.length == 0 && this.annotations.length == 0)
 				|| this.query.length == 0;
