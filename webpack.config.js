@@ -4,13 +4,14 @@ const ExtractTextPlugin = require('extract-text-webpack-plugin');
 const FaviconsWebpackPlugin = require('favicons-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CompressionPlugin = require("compression-webpack-plugin");
+const SriPlugin = require('webpack-subresource-integrity');
 
 module.exports = {
 	entry: './src/main.js',
 	output: {
 		path: path.resolve(__dirname, './dist'),
 		publicPath: '/',
-		filename: 'build.js',
+		filename: 'build.[hash:7].js',
 		crossOriginLoading: 'anonymous',
 	},
 	module: {
@@ -22,8 +23,8 @@ module.exports = {
                     transformToRequire : { img: 'src', image: 'xlink:href', object: 'data' },
 					loaders: {
 						css: ExtractTextPlugin.extract({
-							loader: 'css-loader',
-							fallbackLoader: 'vue-style-loader'
+							use: 'css-loader',
+							fallback: 'vue-style-loader'
 						})
 					}
 				}
@@ -31,40 +32,35 @@ module.exports = {
 			{
 				test: /\.js$/,
 				loader: 'babel-loader',
-				exclude: /node_modules/
+                include: [ path.resolve(__dirname, './src') ]
 			},
 			{
-				test: /\.(png|jpg|gif|svg)$/,
+				test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
 				loader: 'file-loader',
 				options: {
-					name: '[name].[ext]?[hash]'
+					name: '[name].[hash:7].[ext]'
 				}
 			},
-			{
-				test: /\.hbs$/,
-				loader: 'handlebars-loader'
-			}
 		]
 	},
 	resolve: {
 		alias: {
-			'vue$': 'vue/dist/vue'
+			'vue$': 'vue/dist/vue.esm.js'
 		}
 	},
 	plugins: [
+		new SriPlugin({
+		 	hashFuncNames: ['sha256', 'sha384'],
+            enabled: process.env.NODE_ENV === 'production',
+		}),
 		new FaviconsWebpackPlugin({ 
 			logo: './src/assets/marv1.svg'
 		}),
-		// new SriPlugin({
-		// 	hashFuncNames: ['sha256', 'sha384'],
-		// 	enabled: process.env.NODE_ENV === 'production',
-		// }),
 		new HtmlWebpackPlugin({
-			template: './src/index.hbs',
-			title: 'MMseqs Search Service',
+			template: './src/index.html',
             attrs: ['img:src', 'object:data']
 		}),
-		new ExtractTextPlugin('style.css'),
+		new ExtractTextPlugin('style.[hash:7].css'),
 	],
 	devServer: {
 		historyApiFallback: true,
@@ -101,7 +97,7 @@ if (process.env.NODE_ENV === 'production') {
             asset: "[path].gz[query]",
             algorithm: "gzip",
             test: /\.(js|html|css|svg)$/,
-            minRatio: 0.8
+            minRatio: 0
         }),
 	])
 }
