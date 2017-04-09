@@ -32,7 +32,10 @@ module.exports = {
 			{
 				test: /\.js$/,
 				loader: 'babel-loader',
-                include: [ path.resolve(__dirname, './src') ]
+                include: [ 
+					path.resolve(__dirname, './src'),
+					path.resolve(__dirname, './node_modules/vue-strap/src'),
+				]
 			},
 			{
 				test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
