@@ -18,7 +18,7 @@
     "vue-resource": "^1.0.3",
     "vue-router": "^2.0.1",
     "vue-spinner": "^1.0.2",
-    "vue-strap": "github:wffranco/vue-strap"
+    "vue-strap": "github:wffranco/vue-strap#02b471c"
   },
   "devDependencies": {
     "babel-core": "^6.0.0",

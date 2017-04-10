@@ -22,7 +22,7 @@
 </template>
 
 <script>
-import navbar from '../node_modules/vue-strap/src/navbar.vue';
+import navbar from '../node_modules/vue-strap/src/Navbar.vue';
 
 export default {
     components: { navbar }
