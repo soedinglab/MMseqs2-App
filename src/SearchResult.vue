@@ -50,6 +50,7 @@
 					</thead>
 					<tbody>
 						<search-result-item v-for="entry in entries.data"
+											v-bind:key="entry.id"
 						                    v-bind:item="entry"></search-result-item>
 					</tbody>
 				</table>

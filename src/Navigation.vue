@@ -11,13 +11,13 @@
                     aria-hidden="true">
                 <img src="./assets/marv1.png" />
             </object>
-            <span>MMseqs</span>
+            <span>MMseqs Search Server</span>
         </a>
     
         <router-link slot="left"
                      to="/"
                      tag="li"
-                     exact><a>Home</a></router-link>
+                     exact><a>Search</a></router-link>
     </navbar>
 </template>
 
@@ -30,6 +30,9 @@ export default {
 </script>
 
 <style>
+.navbar-brand {
+        width: 310px;
+}
 #app .navbar .nav {
     padding-left: 15px;
 }
