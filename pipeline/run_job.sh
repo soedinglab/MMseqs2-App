@@ -45,8 +45,8 @@ function run_job() {
 	local QUERYFASTA="$(abspath $2)"
 	local QUERYDB="${WORKDIR}/input"
 
-    local SEQIDS="${3:-"30"}"
-    local ANNOTATION_DATABASES="${4:-"pfam pdb70 eggnog"}"
+    local SEQIDS="$3"
+    local ANNOTATION_DATABASES="$4"
 
     local ALIS=()
     local TYPES=()
@@ -66,8 +66,6 @@ function run_job() {
 
             ALIS+=("${QUERYDB} ${DATABASES}/current_uniclust${SEQID} ${WORKDIR}/result_uniclust${SEQID}")
             TYPES+=("uc${SEQID}")
-            # maybe later when we have profile-profile searches
-            #INPUT="${WORKDIR}/result_uc"
         done
 
         notify_job "${JOBID}" UNICLUST_DONE

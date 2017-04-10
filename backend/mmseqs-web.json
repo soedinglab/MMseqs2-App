@@ -1,4 +1,0 @@
-{
-    "jobdir" : "/big/search.mmseqs.org/jobs",
-    "search-pipeline" : "/big/search.mmseqs.org/pipeline/run_job.sh"
-}
