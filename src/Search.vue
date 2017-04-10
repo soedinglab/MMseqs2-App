@@ -12,6 +12,8 @@
 						<label for="query">FASTA-Query</label>
 						<textarea class="form-control fasta"
 						          v-model="query"
+								  @dragover.prevent
+								  @drop="fileDrop($event)"
 						          placeholder="Please start a Search"
 								  spellcheck="false"></textarea>
 					</div>
@@ -153,6 +155,16 @@ export default {
 			}, function () {
 				this.error("Error loading search result");
 			});
+		},
+		fileDrop(event) {
+			console.log(event);
+			event.preventDefault();
+			event.stopPropagation();
+
+            var dataTransfer = event.dataTransfer || event.target;
+            if (dataTransfer && dataTransfer.files && dataTransfer.files.length > 0) {
+                this.upload(dataTransfer.files);
+            }
 		},
 		upload(files) {
 			var reader = new FileReader();

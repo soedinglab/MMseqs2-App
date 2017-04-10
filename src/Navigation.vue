@@ -1,43 +1,36 @@
 <template>
-    <nav class="navbar navbar-default navbar-fixed-top">
-        <div class="container">
-            <div class="navbar-header">
-                <a class="navbar-brand"
-                   href="#">
-                    <object type="image/svg+xml"
-                            data="./assets/marv1.svg"
-                            aria-hidden="true">
-                        <img src="./assets/marv1.png" />
-                    </object>
-                    <span>MMseqs</span>
-                </a>
-                <button type="button"
-                        class="navbar-toggle collapsed"
-                        data-toggle="collapse"
-                        data-target="#navbar"
-                        aria-expanded="false"
-                        aria-controls="navbar">
-                    <span class="sr-only">Toggle navigation</span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                </button>
-            </div>
+    <navbar placement="top"
+            type="default">
 
-            <div id="navbar"
-                 class="collapse navbar-collapse">
-                <ul class="nav navbar-nav">
-                    <router-link to="/"
-                                 tag="li"
-                                 exact><a>Home</a></router-link>
-                </ul>
-            </div>
-        </div>
-    </nav>
+        <a slot="brand"
+           href="/"
+           title="Home"
+           class="navbar-brand">
+            <object type="image/svg+xml"
+                    data="./assets/marv1.svg"
+                    aria-hidden="true">
+                <img src="./assets/marv1.png" />
+            </object>
+            <span>MMseqs</span>
+        </a>
+    
+        <router-link slot="left"
+                     to="/"
+                     tag="li"
+                     exact><a>Home</a></router-link>
+    </navbar>
 </template>
 
+<script>
+import navbar from '../node_modules/vue-strap/src/navbar.vue';
+
+export default {
+    components: { navbar }
+}
+</script>
+
 <style>
-#navbar > .nav {
+#app .navbar .nav {
     padding-left: 15px;
 }
 </style>
