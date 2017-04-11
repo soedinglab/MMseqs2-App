@@ -1,0 +1,36 @@
+@font-size-base: 18px;
+@font-size-tiny: ceil((@font-size-base * 0.7225));
+
+@border-radius-base:        1px;
+@border-radius-large:       0px;
+@border-radius-small:       0px;
+
+
+// Allows for customizing button radius independently from global border radius
+@btn-border-radius-base:         2px;
+@btn-border-radius-large:        4px;
+@btn-border-radius-small:        2px;
+
+// TODO: Rename `@input-border-radius` to `@input-border-radius-base` in v4
+//** Default `.form-control` border radius
+// This has no effect on `<select>`s in some browsers, due to the limited stylability of `<select>`s in CSS.
+@input-border-radius:            @btn-border-radius-base;
+//** Large `.form-control` border radius
+@input-border-radius-large:      @btn-border-radius-large;
+//** Small `.form-control` border radius
+@input-border-radius-small:      @btn-border-radius-small;
+
+
+@padding-large-vertical:    8px;
+@padding-large-horizontal:  14px;
+
+@grid-gutter-width:         15px;
+
+@panel-body-padding:          10px;
+@panel-heading-padding:       10px 10px;
+
+@font-family-sans-serif:  'Open Sans', "Helvetica Neue", Helvetica, Arial, sans-serif;
+@font-family-serif:       Georgia, "Times New Roman", Times, serif;
+@font-family-monospace:   Inconsolata, Menlo, Monaco, Consolas, "Courier New", monospace;
+
+@navbar-default-bg:       #fefefe;

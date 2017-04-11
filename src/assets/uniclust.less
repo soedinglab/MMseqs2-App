@@ -1,0 +1,222 @@
+// Core variables and mixins
+@import "~bootstrap/less/variables";
+@import "uniclust-variables";
+@import "~bootstrap/less/mixins";
+
+// Reset and dependencies
+@import "~bootstrap/less/normalize";
+@import "~bootstrap/less/print";
+@import "~bootstrap/less/glyphicons";
+
+// Core CSS
+@import "~bootstrap/less/scaffolding";
+@import "~bootstrap/less/type";
+//@import "code";
+@import "~bootstrap/less/grid";
+@import "~bootstrap/less/tables";
+@import "~bootstrap/less/forms";
+@import "~bootstrap/less/buttons";
+
+// Components
+@import "~bootstrap/less/component-animations";
+@import "~bootstrap/less/dropdowns";
+@import "~bootstrap/less/button-groups";
+@import "~bootstrap/less/input-groups";
+@import "~bootstrap/less/navs";
+@import "~bootstrap/less/navbar";
+
+//@import "~bootstrap/less/breadcrumbs";
+// @import "~bootstrap/less/pagination";
+//@import "~bootstrap/less/pager";
+//@import "~bootstrap/less/labels";
+//@import "~bootstrap/less/badges";
+// @import "~bootstrap/less/jumbotron";
+//@import "thumbnails";
+@import "~bootstrap/less/alerts";
+//@import "progress-bars";
+@import "~bootstrap/less/media";
+@import "~bootstrap/less/list-group";
+@import "~bootstrap/less/panels";
+@import "~bootstrap/less/responsive-embed";
+@import "~bootstrap/less/wells";
+@import "~bootstrap/less/close";
+
+// Components w/ JavaScript
+// @import "~bootstrap/less/modals";
+// @import "~bootstrap/less/tooltip";
+@import "~bootstrap/less/popovers";
+// @import "~bootstrap/less/carousel";
+
+// Utility classes
+@import "~bootstrap/less/utilities";
+@import "~bootstrap/less/responsive-utilities";
+
+
+@import "svg";
+
+.monospace {
+	font-family: Inconsolata, Consolas, monospace;
+}
+
+body {
+  padding-top: 70px;
+}
+
+pre {
+    .monospace;
+}
+
+a.text-muted, .text-muted a {
+	.text-muted;
+}
+
+.panel-heading .panel-title {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: normal;
+	width: 75%;
+	padding-top: 8px;
+}
+
+.panel-body {
+    overflow-x:scroll;
+    .msa & {
+        overflow-x:hidden;
+    }
+
+    svg {
+        display: block;
+        margin: 0 auto;
+    }
+}
+
+.download table {
+    .table;
+    .table-striped;
+
+    tr td:last-child {
+        display:none;
+    }
+}
+
+.input-group-addon label {
+    margin:0 0 0 5px;
+}
+
+.msa .biojs_msa_stage {
+    .monospace
+}
+
+.navbar {
+    border-bottom: 1px solid #eee;
+}
+
+.navbar-brand {
+    position: relative;
+    width: 145px;
+    line-height:21px;
+
+    img, object {
+		width: 48px;
+		height: 48px;
+		position: absolute;
+		top: 0;
+    }
+
+	span {
+		position: absolute;
+		left: 55px;
+	}
+}
+
+footer {
+    margin-top:38px;
+    margin-bottom:16px;
+}
+
+.dummy {
+    visibility: hidden;
+}
+
+.page-header {
+    margin-top:20px;
+}
+
+.panel-heading .panel-title {
+    width: auto;
+}
+
+.loading {
+    -webkit-animation: spin 1000ms infinite linear;
+    animation: spin 1000ms infinite linear;
+}
+
+@-webkit-keyframes spin {
+    0% {
+        -webkit-transform: rotate(0deg);
+        transform: rotate(0deg);
+    }
+    100% {
+        -webkit-transform: rotate(359deg);
+        transform: rotate(359deg);
+    }
+}
+@keyframes spin {
+    0% {
+        -webkit-transform: rotate(0deg);
+        transform: rotate(0deg);
+    }
+    100% {
+        -webkit-transform: rotate(359deg);
+        transform: rotate(359deg);
+    }
+}
+
+@media (max-width: 480px) {
+    .main {
+        .input-group-addon {
+            border-right: 1px solid #ccc !important;
+        }
+
+        .input-group-addon, .input-group-btn, .input-group .form-control {
+            display: block;
+            margin-bottom: 10px;
+            clear: both;
+            width: 100%;
+        }
+        .input-group {
+            display: block;
+        }
+    }
+}
+
+.dropdown-menu>li>a.text-muted {
+    .text-muted;
+}
+
+.biojs_msa_overviewbox_wrapper {
+    overflow-x:auto;
+}
+.biojs_msa_overviewbox {
+    overflow:hidden !important;
+}
+
+@media (min-width: @screen-sm-min) {
+    .annotation-category {
+        position:relative;
+
+        h3 {
+            position: absolute;
+            margin:0;
+        }
+    }
+
+    .user-guide {
+        .panel {
+            margin-bottom: 0
+        }
+    }
+}
+
+

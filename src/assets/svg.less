@@ -1,0 +1,110 @@
+svg {
+	text {
+		font-size: @font-size-small;
+		font-family: @font-family-sans-serif;
+
+		&.tiny {
+			font-size: @font-size-tiny;
+		}
+	}
+
+	.axis path,
+	.axis line {
+			fill: none;
+			stroke: black;
+			shape-rendering: crispEdges;
+	}
+
+	&.logoplot {
+		#glyph-G,#glyph-S,#glyph-T,#glyph-Y,#glyph-C {
+			fill: green;
+		}
+		#glyph-Q,#glyph-N {
+			fill: purple;
+		}
+		#glyph-K,#glyph-R,#glyph-H {
+			fill: blue;
+		}
+		#glyph-D,#glyph-E {
+			fill: red;
+		}
+		#glyph-A,#glyph-V,#glyph-L,#glyph-I,#glyph-P,#glyph-W,#glyph-F,#glyph-M {
+			fill: black;
+		}
+	}
+
+	&.phylogram {
+		& line {
+			stroke: #ddd;
+		}
+
+		& .rule {
+			text-anchor: middle;
+			fill: #ccc;
+		}
+
+		& .link {
+			fill: none;
+			stroke: #aaa;
+			stroke-width: 4px;
+		}
+
+		&.radial, &.vertical {
+			.node {
+				circle {
+					stroke-width: 0;
+				}
+
+				& text {
+					display: none;
+				}
+
+				&:hover text {
+					display: block;
+				}
+
+			}
+
+			.node.inner.depth1 text {
+				display: block;
+			}
+
+			.link {
+				stroke-width: 2px;
+			}
+		}
+
+		.node {
+			circle {
+				stroke-width: 2px;
+			}
+			text {
+				fill: black;
+			}
+			&.leaf circle {
+				stroke: #aaa;
+				fill: #2ca02c;
+			}
+
+			&.inner circle {
+				stroke: #aaa;
+				fill: #ff7f0e;
+			}
+/*
+			&.inner text {
+				text-anchor: end;
+			}
+
+			&.leaf text {
+				text-anchor: start;
+			}*/
+
+			&.root {
+				stroke: #369;
+				fill: steelblue;
+			}
+
+            cursor: pointer;
+		}
+	}
+}

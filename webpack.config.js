@@ -38,12 +38,16 @@ module.exports = {
 				]
 			},
 			{
-				test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
+				test: /\.(png|jpe?g|gif|svg|ttf|woff2?|eot)(\?.*)?$/,
 				loader: 'file-loader',
 				options: {
 					name: '[name].[hash:7].[ext]'
 				}
 			},
+            {
+                test: /\.less$/,
+                use: ExtractTextPlugin.extract([ 'css-loader', 'less-loader' ])
+            },
 		]
 	},
 	resolve: {
