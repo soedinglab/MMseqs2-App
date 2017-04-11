@@ -55,7 +55,10 @@ function run_job() {
     "${MMSEQS}" createdb "${QUERYFASTA}" "${QUERYDB}" -v 0 \
         || fail "createdb failed"
 
+    local ALIS=""
+    local MSAS=""
     local M8S=""
+    local SKIPQUERY=""
     for DB in ${TARGETS}; do
         mkdir -p "${MMTMP}/${DB}"
 
@@ -65,7 +68,6 @@ function run_job() {
         if [[ -f "${DATABASES}/${DB}.params" ]]; then
             source "${DATABASES}/${DB}.params";
         fi
-
 
         PROFPARAM=""
         if [[ ! -z "$PROFILE" ]]; then
@@ -78,30 +80,51 @@ function run_job() {
                 ${SEARCH_PARAMS} ${PROFPARAM} \
             || fail "search failed"
         
-        SEQDB="${DATABASES}/${DB}"
+        local SEQDB="${DATABASES}/${DB}"
         if [[ ! -z "$PROFILE" ]]; then
             SEQDB="${DATABASES}/${DB}_seq"
-        fi  
-        "${MMSEQS}" result2msa "${QUERYDB}" "${SEQDB}" \
-                "${WORKDIR}/result_${DB}" "${WORKDIR}/msa_${DB}" \
-                -v 0 --threads "${JOBTHREADS}" \
-                ${MSA_PARAMS} \
-            || fail "result2msa failed"
+        fi
 
+        local MSA="${WORKDIR}/msa_${DB}"
+        "${MMSEQS}" result2msa "${QUERYDB}" "${SEQDB}" \
+                "${WORKDIR}/result_${DB}" "${MSA}" \
+                -v 0 --threads "${JOBTHREADS}" \
+                ${MSA_PARAMS} ${SKIPQUERY} \
+            || fail "result2msa failed"
+        MSAS="${MSAS} ${MSA}"
+
+        local ALI="${WORKDIR}/alis_${DB}"
         "${MMSEQS}" convertalis "${QUERYDB}" "${SEQDB}" \
-                "${WORKDIR}/result_${DB}" "${WORKDIR}/alis_${DB}" \
+                "${WORKDIR}/result_${DB}" "${ALI}" \
                 --no-preload --early-exit --db-output -v 0 \
                 --threads "${JOBTHREADS}" ${ALIS_PARAMS} \
             || fail "convertalis failed"
 
+        ALIS="${ALIS} ${ALI}"
+
+        rm -f "${WORKDIR}/result_${DB}" "${WORKDIR}/result_${DB}.index"
+
         local M8="${WORKDIR}/${JOBID}_${DB}.m8"
         tr -d '\000' < "${WORKDIR}/alis_${DB}" > "${M8}"
         M8S="${M8S} ${M8}"     
+        SKIPQUERY="--skip-query"
+    done
+
+    "${MMSEQS}" mergedbs "${QUERYDB}" "${WORKDIR}/msa" ${MSAS}
+    for i in ${MSAS}; do
+        rm -f "${i}" "${i}.index"
+    done
+
+    "${MMSEQS}" mergedbs "${QUERYDB}" "${WORKDIR}/alis" ${ALIS}
+    for i in ${ALIS}; do
+        rm -f "${i}" "${i}.index"
     done
 
     tar -cv --use-compress-program=pigz \
         --show-transformed-names --transform "s|${WORKDIR:1}/|mmseqs_results_${JOBID}/|g" \
         -f "${WORKDIR}/mmseqs_results_${JOBID}.tar.gz" ${M8S}
+
+    rm -f ${M8S}
 
     #send_email "${JOBID}"
 }

@@ -110,16 +110,12 @@ $klein->respond('GET', '/result/[:ticket]', function ($request, $response, $serv
     $result = json_decode($json, true);
     if ($result['status'] == 'COMPLETED') {
         $base = $app->config["workbase"] . "/" . $request->ticket;
-        $baseregex = preg_quote($base . "/result_", '/');
-        $databases = [];
-        foreach (glob($base . "/result_*.index") as $filename) {
-            $matches = [];
-            preg_match_all("/${baseregex}(.*)\.index/", $filename, $matches);
-            $databases[] = $matches[1][0];
-        }
-
-        $resultPath = $base . "/result_" . $databases[0];
-        $result['items'] = MMseqs\AlignmentResult::parseDB($resultPath);
+        $alipath = $base . '/alis';
+        $result['items'] = MMseqs\AlignmentResult::parseEntry($alipath, 0);
+        $msapath = $base . '/msa';
+        $reader = new \IntDBReader($msapath, $msapath . ".index", 1);
+        $result['msa'] = $reader->getData(0);
+        unset($reader);
     }
     $response->json($result);
 });

@@ -24,8 +24,7 @@ function processJob($redis, $config) {
         $command = '"' . $config["search-pipeline"]
             . '" "' . $uuid
             . '" "' . $basedir . '.fasta'
-            . '" "' . $params['database']
-            . '" "' . implode(" ", $params['annotations']) . '"';
+            . '" "' . $params['database'] . '"';
 
         $process = new Symfony\Component\Process\Process($command);
         $process->mustRun();

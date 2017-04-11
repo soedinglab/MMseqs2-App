@@ -34,6 +34,23 @@ class AlignmentResult {
         return $aln;
     }
 
+    static function parseEntry($db, $entry) {
+        if (!file_exists($db) || !file_exists($db . ".index")) {
+            throw new \Exception("Alignment result was not found");
+        }
+
+        $result = array();
+        $reader =  new \IntDBReader($db, $db . ".index", 1);
+		$entry = trim($reader->getData($entry), "\n");
+
+		$record = array();
+		foreach(explode("\n", $entry) as $line) {
+			$record[] = AlignmentResult::parseLine($line);
+		}
+
+        return $record;
+    }
+
     static function parseDB($db) {
         if (!file_exists($db) || !file_exists($db . ".index")) {
             throw new \Exception("Alignment result was not found");
