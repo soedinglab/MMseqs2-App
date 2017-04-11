@@ -2,7 +2,7 @@
 	<div id="search"
 	     class="container">
 		<div class="row">
-			<form>
+			<form>								
 				<div class="col-xs-12 col-md-7">
 					<fieldset>
 						<legend>Queries
@@ -51,49 +51,44 @@
 							</div>
 						</legend>
 						<div class="row">
-							<div class="col-md-6">
+							<div class="col-sm-6">
 								<h4>Sequences</h4>
 								<div class="checkbox">
 									<label>
 										<input type="checkbox"
-										       id="databases"
-										       value="uc90"
+										       value="uniclust90_2017_02"
 										       v-model="database"> Uniclust90
 									</label>
 								</div>
 								<div class="checkbox">
 									<label>
 										<input type="checkbox"
-										       id="databases"
-										       value="uc30"
+										       value="uniclust30_2017_02"
 										       v-model="database"> Uniclust30
 									</label>
 								</div>
 							</div>
-							<div class="col-md-6">
+							<div class="col-sm-6">
 								<h4>Domains</h4>
 								<div class="checkbox">
 									<label>
 										<input type="checkbox"
-										       id="annotations"
-										       value="eggnog"
-										       v-model="annotations"> EggNOG
+										       value="eggnog_4.5"
+										       v-model="database"> EggNOG
 									</label>
 								</div>
 								<div class="checkbox">
 									<label>
 										<input type="checkbox"
-										       id="annotations"
-										       value="pfam"
-										       v-model="annotations"> Pfam
+										       value="pfam_30.0"
+										       v-model="database"> Pfam
 									</label>
 								</div>
 								<div class="checkbox">
 									<label>
 										<input type="checkbox"
-										       id="annotations"
-										       value="pdb70"
-										       v-model="annotations"> PDB70
+										       value="pdb70_17Mar17"
+										       v-model="database"> PDB70
 									</label>
 								</div>
 							</div>
@@ -115,8 +110,8 @@
 									<div class="input-group"
 									     style="width: 100%">
 										<span class="input-group-addon">
-															<input type="radio" value="accept" v-model="mode">
-													</span>
+												<input type="radio" value="accept" v-model="mode">
+										</span>
 										<input id="accept"
 										       type="text"
 										       class="form-control"
@@ -163,7 +158,7 @@
 						</div>
 					</fieldset>
 				</div>
-			</form>
+			</form>				
 		</div>
 	</div>
 </template>
@@ -179,8 +174,7 @@ export default {
 	data() {
 		return {
 			searchPreset: 'normal',
-			database: ['uc30'],
-			annotations: ['pfam', 'pdb70', 'eggnog'],
+			database: ['uniclust30_2017_02'],
 			mode: 'accept',
 			accept: 300,
 			eval: 0.001,
@@ -196,7 +190,7 @@ export default {
 	computed: {
 		searchDisabled() {
 			return this.inSearch
-				|| (this.database.length == 0 && this.annotations.length == 0)
+				|| this.database.length == 0
 				|| this.query.length == 0;
 		},
 		error() {
@@ -206,6 +200,12 @@ export default {
 			return this.query.match(/>.*[\s\S]+>/m) !== null;
 		}
 	},
+	localStorage: {
+        history: {
+            type: Array,
+            default: []
+        }
+    },
 	methods: {
 		search(event) {
 			if (this.query.length == 0)
@@ -214,17 +214,19 @@ export default {
 			this.inSearch = true;
 			const data = {
 				q: this.query,
-				database: this.database,
-				annotations: this.annotations
+				database: this.database
 			};
 			this.$http.post('api/ticket', data, { emulateJSON: true })
 				.then(function (response) {
 					this.status.message = this.status.type = "";
 					this.inSearch = false;
-
 					const result = response.body;
-					if (result.status == "PENDING") {
-						this.$router.push({ name: 'search-result', params: { ticket: result.ticket } });
+					if (result.status == "PENDING" || result.status == "RUNNING") {
+						this.addToHistory(result.ticket);						
+						this.$router.push({ name: 'queue', params: { ticket: result.ticket } });
+					} else if (result.status == "COMPLETED") {
+						this.addToHistory(result.ticket);
+						this.$router.push({ name: 'result', params: { ticket: result.ticket } });
 					} else {
 						this.status.type = "error";
 						this.status.message = "Error loading search result";
@@ -251,17 +253,28 @@ export default {
 				this.query = e.target.result;
 			}.bind(this);
 			reader.readAsText(files[0]);
-		}
+		},
+		addToHistory(uuid) {
+            let history = this.$localStorage.get('history');
+            history.unshift({ time: +(new Date()), ticket: uuid });
+            this.$localStorage.set('history', history);
+        }
 	}
 };
 </script>
 
 <style>
-.fasta {
+textarea.fasta {
 	font-family: Inconsolata, Consolas, Inconsolata-dz, Courier New, Courier, monospace;
-	min-height: 273px;
-	resize: both;
+	min-height: 250px;
+	resize: vertical;
 	font-size: 16px;
+}
+
+@media (min-width: 768px) {
+	textarea.fasta {
+		height:65vh;
+	}
 }
 
 fieldset h4 {
@@ -294,5 +307,4 @@ a.help:hover {
 	color:#999;
 	text-decoration: none;
 }
-
 </style>

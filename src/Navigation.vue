@@ -2,8 +2,8 @@
     <navbar placement="top"
             type="default">
 
-        <a slot="brand"
-           href="/"
+        <router-link slot="brand"
+           to="/"
            title="Home"
            class="navbar-brand">
             <object type="image/svg+xml"
@@ -12,12 +12,16 @@
                 <img src="./assets/marv1.png" />
             </object>
             <span>MMseqs Search Server</span>
-        </a>
+        </router-link>
     
         <router-link slot="left"
                      to="/"
                      tag="li"
                      exact><a>Search</a></router-link>
+        <router-link slot="left"
+                     to="/history"
+                     tag="li"
+                     exact><a>History</a></router-link>
     </navbar>
 </template>
 
