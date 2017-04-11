@@ -63,8 +63,7 @@ $klein->respond('GET', '/', function($request, $response, $service, $app) {
 
 $klein->respond('POST', '/ticket', function ($request, $response, $service, $app) {
     $service->validateParam('q')->fasta();
-    $service->validateParam('database')->in(array("", "uc90", "uc30"));
-    $service->validateParam('annotations')->eachIn(array("pfam", "pdb70", "eggnog"));
+    $service->validateParam('database')->eachIn($app->config["search-databases"]);
 
     $uuid = Uuid::generate();
 
@@ -74,8 +73,8 @@ $klein->respond('POST', '/ticket', function ($request, $response, $service, $app
     ];
 
     $result = [ "status" => "PENDING" ];
-    if ((file_put_contents($app->config["jobdir"] . "/" . $uuid . ".json", json_encode($params)) === FALSE)
-        || (file_put_contents($app->config["jobdir"] . "/" . $uuid . ".fasta", $request->q) === FALSE)) {
+    if ((file_put_contents($app->config["workbase"] . "/" . $uuid . ".json", json_encode($params)) === FALSE)
+        || (file_put_contents($app->config["workbase"] . "/" . $uuid . ".fasta", $request->q) === FALSE)) {
         $result["status"] = "ERROR";
     } else {
         $app->redis->transaction()
@@ -88,17 +87,44 @@ $klein->respond('POST', '/ticket', function ($request, $response, $service, $app
     $response->json($result);
 });
 
+$klein->respond('POST', '/tickets', function ($request, $response, $service, $app) {
+    $tickets = [];
+    foreach ($request->tickets as $ticket) {
+        $service->validate($ticket)->uuid();
+        $tickets[] = 'mmseqs:status:' . $ticket;
+    }
+
+    $response->json($app->redis->mget($tickets));
+});
+
 $klein->respond('GET', '/ticket/[:ticket]', function ($request, $response, $service, $app) {
+    $service->validateParam('ticket')->uuid();
+    $json = $app->redis->get('mmseqs:status:' . $request->ticket);
+    $response->body($json);
+});
+
+$klein->respond('GET', '/result/[:ticket]', function ($request, $response, $service, $app) {
     $service->validateParam('ticket')->uuid();
     $json = $app->redis->get('mmseqs:status:' . $request->ticket);
 
     $result = json_decode($json, true);
     if ($result['status'] == 'COMPLETED') {
-        $resultPath = $app->config["jobdir"] . "/" . $request->ticket . "/result_uniclust30";
+        $base = $app->config["workbase"] . "/" . $request->ticket;
+        $baseregex = preg_quote($base . "/result_", '/');
+        $databases = [];
+        foreach (glob($base . "/result_*.index") as $filename) {
+            $matches = [];
+            preg_match_all("/${baseregex}(.*)\.index/", $filename, $matches);
+            $databases[] = $matches[1][0];
+        }
+
+        $resultPath = $base . "/result_" . $databases[0];
         $result['items'] = MMSeqs\AlignmentResult::parseDB($resultPath);
     }
     $response->json($result);
 });
+
+
 
 $request = \Klein\Request::createFromGlobals();
 $uri = $request->server()->get('REQUEST_URI');

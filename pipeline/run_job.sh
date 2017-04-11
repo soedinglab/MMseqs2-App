@@ -21,11 +21,16 @@ function abspath() {
 }
 
 function notify_job() {
-    echo TODO implement
+    "${REDISCLI}" set "mmseqs:status:$1" "{ \"status\": \"$2\" }"
 }
 
-function queue_email() {
-    echo TODO implement
+function send_mail() {
+	curl -s --user 'api:key-ef51bf0689b99e7aaa73942306e9adff' \
+		https://api.mailgun.net/v3/mail.mmseqs.com/messages \
+		-F from='MMseqs Search Service <mailgun@mail.mmseqs.com>' \
+		-F to="$1" \
+		-F subject="$2" \
+		-F text="$3"
 }
 
 function run_job() {
@@ -45,66 +50,60 @@ function run_job() {
 	local QUERYFASTA="$(abspath $2)"
 	local QUERYDB="${WORKDIR}/input"
 
-    local SEQIDS="$3"
-    local ANNOTATION_DATABASES="$4"
-
-    local ALIS=()
-    local TYPES=()
-
-    local INPUT="${QUERYDB}"
+    local TARGETS="$3"
 
     "${MMSEQS}" createdb "${QUERYFASTA}" "${QUERYDB}" -v 0 \
         || fail "createdb failed"
 
-    if [[ -n ${SEQIDS} ]]; then
-        for SEQID in ${SEQIDS}; do
-            mkdir -p "${MMTMP}/${SEQID}"
-            "${MMSEQS}" search "${QUERYDB}" "${DATABASES}/current_uniclust${SEQID}" "${WORKDIR}/result_uniclust${SEQID}" "${MMTMP}/${SEQID}" \
-                --no-preload --early-exit --remove-tmp-files --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
-                -s 1 \
-                || fail "search failed"
+    local M8S=""
+    for DB in ${TARGETS}; do
+        mkdir -p "${MMTMP}/${DB}"
 
-            ALIS+=("${QUERYDB} ${DATABASES}/current_uniclust${SEQID} ${WORKDIR}/result_uniclust${SEQID}")
-            TYPES+=("uc${SEQID}")
-        done
+        local SEARCH_PARAMS=""
+        local MSA_PARAMS=""
+        local ALIS_PARAMS=""
+        if [[ -f "${DATABASES}/${DB}.params" ]]; then
+            source "${DATABASES}/${DB}.params";
+        fi
 
-        notify_job "${JOBID}" UNICLUST_DONE
-    fi
 
-    if [[ -n ${ANNOTATION_DATABASES} ]]; then
-        for i in ${ANNOTATION_DATABASES}; do
-            mkdir -p "${MMTMP}/${i}"
-            "${MMSEQS}" search "${INPUT}" "${DATABASES}/current_${i}" "${WORKDIR}/result_${i}" "${MMTMP}/${i}" \
-                --no-preload --early-exit --remove-tmp-files --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
-                --target-profile -s 1 \
-                || fail "search failed" 
+        PROFPARAM=""
+        if [[ ! -z "$PROFILE" ]]; then
+            PROFPARAM="--target-profile"
+        fi  
+        "${MMSEQS}" search "${QUERYDB}" "${DATABASES}/${DB}" \
+                "${WORKDIR}/result_${DB}" "${MMTMP}/${DB}" \
+                --no-preload --early-exit --remove-tmp-files \
+                --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
+                ${SEARCH_PARAMS} ${PROFPARAM} \
+            || fail "search failed"
+        
+        SEQDB="${DATABASES}/${DB}"
+        if [[ ! -z "$PROFILE" ]]; then
+            SEQDB="${DATABASES}/${DB}_seq"
+        fi  
+        "${MMSEQS}" result2msa "${QUERYDB}" "${SEQDB}" \
+                "${WORKDIR}/result_${DB}" "${WORKDIR}/msa_${DB}" \
+                -v 0 --threads "${JOBTHREADS}" \
+                ${MSA_PARAMS} \
+            || fail "result2msa failed"
 
-            ALIS+=("${QUERYDB} ${DATABASES}/current_${i} ${WORKDIR}/result_${i}")
-            TYPES+=("${i}")
-        done
+        "${MMSEQS}" convertalis "${QUERYDB}" "${SEQDB}" \
+                "${WORKDIR}/result_${DB}" "${WORKDIR}/alis_${DB}" \
+                --no-preload --early-exit --db-output -v 0 \
+                --threads "${JOBTHREADS}" ${ALIS_PARAMS} \
+            || fail "convertalis failed"
 
-        notify_job "${JOBID}" ANNOTATIONS_DONE
-    fi
+        local M8="${WORKDIR}/${JOBID}_${DB}.m8"
+        tr -d '\000' < "${WORKDIR}/alis_${DB}" > "${M8}"
+        M8S="${M8S} ${M8}"     
+    done
 
-    if (( $(head -n 2 "${QUERYDB}.index" | wc -l) == 1 )); then
-        exit 0
-    fi
+    tar -cv --use-compress-program=pigz \
+        --show-transformed-names --transform "s|${WORKDIR:1}/|mmseqs_results_${JOBID}/|g" \
+        -f "${WORKDIR}/mmseqs_results_${JOBID}.tar.gz" ${M8S}
 
-    if (( ${#ALIS[@]} > 0 )); then
-        local M8S=""
-        for i in "${!ALIS[@]}"; do
-            local M8="${WORKDIR}/${JOBID}_${TYPES[$i]}.m8"
-            "${MMSEQS}" convertalis ${ALIS[$i]} "${M8}" \
-                || fail "convertalis failed"
-            M8S="${M8S} ${M8}"
-        done
-
-        tar -cv --use-compress-program=pigz \
-            --show-transformed-names --transform "s|${WORKDIR:1}/|mmseqs_results_${JOBID}/|g" \
-            -f "${WORKDIR}/mmseqs_results_${JOBID}.tar.gz" ${M8S}
-
-        queue_email "${JOBID}"
-    fi
+    #send_email "${JOBID}"
 }
 
 run_job "$1" "$2" "$3" "$4"

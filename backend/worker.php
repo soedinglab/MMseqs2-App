@@ -19,7 +19,7 @@ function processJob($redis, $config) {
     try {
         $redis->set('mmseqs:status:' . $uuid, '{ "status" : "RUNNING" }');
 
-        $basedir = $config["jobdir"] . "/" . $uuid;
+        $basedir = $config["workbase"] . "/" . $uuid;
         $params = json_decode(file_get_contents($basedir . ".json"), true);
         $command = '"' . $config["search-pipeline"]
             . '" "' . $uuid
