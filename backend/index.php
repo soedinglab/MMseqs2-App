@@ -119,7 +119,7 @@ $klein->respond('GET', '/result/[:ticket]', function ($request, $response, $serv
         }
 
         $resultPath = $base . "/result_" . $databases[0];
-        $result['items'] = MMSeqs\AlignmentResult::parseDB($resultPath);
+        $result['items'] = MMseqs\AlignmentResult::parseDB($resultPath);
     }
     $response->json($result);
 });

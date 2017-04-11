@@ -1,36 +1,31 @@
 <?php
 namespace MMseqs;
 
-class AlignmentResult {
-    public $query;
-    public $target;
+class SearchResult {
+    public $dbKey;
+    public $score;
     public $seqId;
+    public $eval;
     public $alnLength;
-    public $missmatches;
-    public $gapsopened;
     public $qStartPos;
     public $qEndPos;
+    public $qLen;
     public $dbStartPos;
     public $dbEndPos;
-    public $eval;
-    public $score;
 
     static function parseLine($line) {
         $values = explode("\t", $line);
         $aln = new AlignmentResult();
-        $aln->query = $values[0];
-        $aln->target = $values[1];
+        $aln->dbKey = $values[0];
+        $aln->score = $values[1];
         $aln->seqId = $values[2];
-        $aln->alnLength = $values[3];
-        $aln->missmatches = $values[4];
-        $aln->gapsopened = $values[5];
-        $aln->qStartPos = $values[6];
-        $aln->qEndPos = $values[7];
+        $aln->eval = $values[3];
+        $aln->alnLength = $values[4];
+        $aln->qStartPos = $values[5];
+        $aln->qEndPos = $values[6];
+        $aln->qLen = $values[7];
         $aln->dbStartPos = $values[8];
         $aln->dbEndPos = $values[9];
-        $aln->eval = $values[10];
-        $aln->score = $values[11];
-        
         return $aln;
     }
 
