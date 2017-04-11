@@ -7,8 +7,8 @@
 					<fieldset>
 						<legend>Queries
 							<div class="pull-right">
-								<popover effect="fade" placement="bottom" title="Title" content="content">
-									<a><small>Help</small></a>
+								<popover effect="fade" placement="left" content="Enter your queries here or drag-and-drop a fasta file containing your queries into the textbox.">
+									<a class="help" role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
 								</popover>
 							</div>
 						</legend>
@@ -43,7 +43,13 @@
 				</div>
 				<div class="col-xs-12 col-md-5">
 					<fieldset>
-						<legend>Databases</legend>
+						<legend>Databases
+							<div class="pull-right">
+								<popover effect="fade" placement="left" content="Select the databases you want to search against.">
+									<a class="help" role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
+								</popover>
+							</div>
+						</legend>
 						<div class="row">
 							<div class="col-md-6">
 								<h4>Sequences</h4>
@@ -94,7 +100,14 @@
 						</div>
 					</fieldset>
 					<fieldset>
-						<legend>Result Mode</legend>
+						<legend>
+							Result Mode
+							<div class="pull-right">
+								<popover effect="fade" placement="left" content="Select the search mode.">
+									<a class="help" role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
+								</popover>
+							</div>
+						</legend>
 						<div class="row">
 							<div class="col-md-12">
 								<div class="form-group">
@@ -271,4 +284,15 @@ fieldset+fieldset {
 	display: inline-block;
 	vertical-align: bottom;
 }
+
+a.help {
+	color:#ccc;
+	text-decoration: none;
+}
+
+a.help:hover {
+	color:#999;
+	text-decoration: none;
+}
+
 </style>
