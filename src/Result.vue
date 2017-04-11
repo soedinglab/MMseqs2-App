@@ -63,6 +63,8 @@ export default {
 							this.items = data.items;
 							this.msa = data.msa;
 							break;
+						case "ERROR":
+							break;
 						default:
 							this.$router.push({ name: 'queue', params: { ticket: this.ticket } });
 							break;

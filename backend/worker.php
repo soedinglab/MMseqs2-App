@@ -24,9 +24,10 @@ function processJob($redis, $config) {
         $command = '"' . $config["search-pipeline"]
             . '" "' . $uuid
             . '" "' . $basedir . '.fasta'
-            . '" "' . $params['database'] . '"';
+            . '" "' . implode(" ", $params['database']) . '"';
 
         $process = new Symfony\Component\Process\Process($command);
+        $process->setTimeout(3600);
         $process->mustRun();
 
         $redis->set('mmseqs:status:' . $uuid, '{ "status" : "COMPLETED" }');

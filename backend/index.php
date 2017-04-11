@@ -68,7 +68,7 @@ $klein->respond('POST', '/ticket', function ($request, $response, $service, $app
     $uuid = Uuid::generate();
 
     $params = [
-        "database" => preg_replace("/[^0-9]/","", $request->database),
+        "database" => $request->database,
         "annotations" => $request->annotations,
     ];
 

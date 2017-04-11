@@ -68,7 +68,7 @@ export default {
 							break;
 						case "COMPLETED":
 						default:
-							this.$router.push({ name: 'result', params: { ticket: result.ticket } });
+							this.$router.push({ name: 'result', params: { ticket: ticket } });
 							break;
 					}
 				}.bind(this));

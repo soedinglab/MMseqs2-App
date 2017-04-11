@@ -103,7 +103,7 @@ export default {
         },
     },
     destroyed() {
-        $(this.$refs.msa).off().empty();
+        msa.$(this.$refs.msa).off().empty();
     },
     methods: {
         clear() {
