@@ -5,6 +5,8 @@ const FaviconsWebpackPlugin = require('favicons-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CompressionPlugin = require("compression-webpack-plugin");
 const SriPlugin = require('webpack-subresource-integrity');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
+const HtmlWebpackIncludeAssetsPlugin = require('html-webpack-include-assets-plugin');
 
 module.exports = {
 	entry: './src/main.js',
@@ -35,6 +37,10 @@ module.exports = {
                 include: [ 
 					path.resolve(__dirname, './src'),
 					path.resolve(__dirname, './node_modules/vue-strap/src'),
+					path.resolve(__dirname, './node_modules/vue-localstorage'),
+				],
+				exclude: [
+					path.resolve(__dirname, './src/msa.min.js'),
 				]
 			},
 			{
@@ -55,6 +61,9 @@ module.exports = {
 			'vue$': 'vue/dist/vue.esm.js'
 		}
 	},
+	externals: {
+		msa: 'msa'
+	},
 	plugins: [
 		new SriPlugin({
 		 	hashFuncNames: ['sha256', 'sha384'],
@@ -63,9 +72,22 @@ module.exports = {
 		new FaviconsWebpackPlugin({ 
 			logo: './src/assets/marv1.svg'
 		}),
+		new CopyWebpackPlugin([
+			{ 
+				from: process.env.NODE_ENV === 'production'
+						? './src/msa.min.js'
+						: './src/msa.js',
+				to: 'msa.js'
+			}
+		]),
 		new HtmlWebpackPlugin({
 			template: './src/index.html',
             attrs: ['img:src', 'object:data']
+		}),
+		new HtmlWebpackIncludeAssetsPlugin({
+			assets: ['msa.js'],
+			append: false,
+			hash: true
 		}),
 		new ExtractTextPlugin('style.[hash:7].css'),
 	],
