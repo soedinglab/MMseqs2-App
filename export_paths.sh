@@ -41,9 +41,5 @@
         exit 1
     fi
 
-    echo -e "${JSON}"
-
-    if [[ -f "${BASE}/backend/config-cache.json" ]]; then
-        rm -f "${BASE}/backend/config-cache.json"
-    fi
+    echo -e "${JSON}" | tee "${BASE}/backend/config-cache.json" | jq -r --argjson keys '["search-databases"]' 'with_entries(select(.key as $k | $keys | index($k)))' > "${BASE}/src/config-cache.json"
 )
