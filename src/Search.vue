@@ -53,42 +53,21 @@
 						<div class="row">
 							<div class="col-sm-6">
 								<h4>Sequences</h4>
-								<div class="checkbox">
+								<div class="checkbox" v-for="db in databaseSettings.sequence">
 									<label>
 										<input type="checkbox"
-										       value="uniclust90_2017_02"
-										       v-model="database"> Uniclust90
-									</label>
-								</div>
-								<div class="checkbox">
-									<label>
-										<input type="checkbox"
-										       value="uniclust30_2017_02"
-										       v-model="database"> Uniclust30
+										       :value="db"
+										       v-model="database"> {{db}}
 									</label>
 								</div>
 							</div>
 							<div class="col-sm-6">
 								<h4>Domains</h4>
-								<div class="checkbox">
+								<div class="checkbox" v-for="db in databaseSettings.domain">
 									<label>
 										<input type="checkbox"
-										       value="eggnog_4.5"
-										       v-model="database"> EggNOG
-									</label>
-								</div>
-								<div class="checkbox">
-									<label>
-										<input type="checkbox"
-										       value="pfam_30.0"
-										       v-model="database"> Pfam
-									</label>
-								</div>
-								<div class="checkbox">
-									<label>
-										<input type="checkbox"
-										       value="pdb70_17Mar17"
-										       v-model="database"> PDB70
+										       :value="db"
+										       v-model="database"> {{db}}
 									</label>
 								</div>
 							</div>
@@ -167,13 +146,21 @@
 import SearchResultItem from './SearchResultItem.vue';
 import FileButton from './FileButton.vue';
 import Popover from '../node_modules/vue-strap/src/Popover.vue';
+import Config from './config-cache.json';
+
+var databaseSettings = {'sequence': [], 'domain': []};
+for (var i in Config["search-databases"]) {
+	var type = Config["search-databases-types"][i];
+	databaseSettings[type].push(Config["search-databases"][i]);
+}
+
 
 export default {
 	name: 'search',
 	components: { SearchResultItem, FileButton, Popover },
 	data() {
 		return {
-			searchPreset: 'normal',
+			databaseSettings: databaseSettings,
 			database: ['uniclust30_2017_02'],
 			mode: 'accept',
 			accept: 300,
@@ -208,14 +195,15 @@ export default {
     },
 	methods: {
 		search(event) {
-			if (this.query.length == 0)
-				return false;
-
-			this.inSearch = true;
 			const data = {
 				q: this.query,
-				database: this.database
+				database: this.database,
+				mode: this.mode,
+				accept: this.accept,
+				eval: this.eval,
+
 			};
+			this.inSearch = true;
 			this.$http.post('api/ticket', data, { emulateJSON: true })
 				.then(function (response) {
 					this.status.message = this.status.type = "";
