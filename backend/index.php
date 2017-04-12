@@ -24,6 +24,10 @@ $klein->respond(function ($request, $response, $service, $app) use ($klein) {
         return in_array($element, $array);
     });
 
+    $service->addValidator('fasta', function ($element) {
+        return true;
+    });
+
     $service->addValidator('eachIn', function ($elements, $array) {
         if ($elements == null)
             return false;
@@ -109,22 +113,39 @@ $klein->respond('GET', '/ticket/[:ticket]', function ($request, $response, $serv
     $response->body($json);
 });
 
-$klein->respond('GET', '/result/[:ticket]', function ($request, $response, $service, $app) {
+$klein->respond('GET', '/result/queries/[:ticket]/[i:limit]/[i:page]', function ($request, $response, $service, $app) {
     $service->validateParam('ticket')->uuid();
+    $service->validateParam('limit')->int()->positive();
+    $service->validateParam('page')->int()->positive();
+
+    $json = $app->redis->get('mmseqs:status:' . $request->ticket);
+
+    $result = json_decode($json, true);
+    if ($result['status'] == 'COMPLETED') {
+        $base = $app->config["workbase"] . "/" . $request->ticket;
+        $result['data'] = MMseqs\Lookup::read($base . '/input.lookup', $request->limit, $request->page);
+    }
+    $response->json($result);
+});
+
+$klein->respond('GET', '/result/[:ticket]/[:entry]', function ($request, $response, $service, $app) {
+    $service->validateParam('ticket')->uuid();
+    $service->validateParam('entry')->int()->positive();
     $json = $app->redis->get('mmseqs:status:' . $request->ticket);
 
     $result = json_decode($json, true);
     if ($result['status'] == 'COMPLETED') {
         $base = $app->config["workbase"] . "/" . $request->ticket;
         $alipath = $base . '/alis';
-        $result['items'] = MMseqs\AlignmentResult::parseEntry($alipath, 0);
+        $result['items'] = MMseqs\AlignmentResult::parseEntry($alipath, $request->entry);
         $msapath = $base . '/msa';
         $reader = new \IntDBReader($msapath, $msapath . ".index", 1);
-        $result['msa'] = $reader->getData(0);
+        $result['msa'] = $reader->getData($request->entry);
         unset($reader);
     }
     $response->json($result);
 });
+
 
 $request = \Klein\Request::createFromGlobals();
 $uri = $request->server()->get('REQUEST_URI');
