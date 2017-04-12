@@ -48,6 +48,8 @@ class AlignmentResult {
 			$record[] = AlignmentResult::parseLine($line);
 		}
 
+        unset($reader);
+
         return $record;
     }
 
@@ -65,6 +67,8 @@ class AlignmentResult {
             foreach(explode("\n", $entry) as $line) {
                 $record[] = AlignmentResult::parseLine($line);
             }
+
+            unset($reader);
 
             $result[] = array("key" => $reader->getDbKey($i), "data" => $record);
         }
