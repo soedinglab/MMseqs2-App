@@ -51,6 +51,25 @@ function run_job() {
 	local QUERYDB="${WORKDIR}/input"
 
     local TARGETS="$3"
+    local MODE="$4"
+    local ACCEPT=""
+    local EVAl=""
+
+    case "${MODE}" in
+        accept)
+            ACCEPT="--max-accept $5"
+            ;;
+
+        summary)
+            EVAl="$6"
+            ;;
+
+        *)
+            echo "Invalid mode!"
+            exit 1
+            ;;
+
+    esac
 
     "${MMSEQS}" createdb "${QUERYFASTA}" "${QUERYDB}" -v 0 \
         || fail "createdb failed"
@@ -65,19 +84,21 @@ function run_job() {
         local SEARCH_PARAMS=""
         local MSA_PARAMS=""
         local ALIS_PARAMS=""
+
         if [[ -f "${DATABASES}/${DB}.params" ]]; then
             source "${DATABASES}/${DB}.params";
         fi
 
+        INPUT="${WORKDIR}/result_${DB}"
         PROFPARAM=""
         if [[ ! -z "$PROFILE" ]]; then
             PROFPARAM="--target-profile"
         fi  
         "${MMSEQS}" search "${QUERYDB}" "${DATABASES}/${DB}" \
-                "${WORKDIR}/result_${DB}" "${MMTMP}/${DB}" \
+                "${INPUT}" "${MMTMP}/${DB}" \
                 --no-preload --early-exit --remove-tmp-files \
                 --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
-                ${SEARCH_PARAMS} ${PROFPARAM} \
+                ${SEARCH_PARAMS} ${PROFPARAM} ${ACCEPT} \
             || fail "search failed"
         
         local SEQDB="${DATABASES}/${DB}"
@@ -85,9 +106,16 @@ function run_job() {
             SEQDB="${DATABASES}/${DB}_seq"
         fi
 
+        if [[ ! -z "$EVAL" ]]; then
+            "${MMSEQS}" summarizeresult "${INPUT}" "${WORKDIR}/summarized_${DB}" \
+                    -a -e "${EVAL}" -v 0 --threads "${JOBTHREADS}"
+                || fail "summarizeresult failed"
+            INPUT="${WORKDIR}/summarized_${DB}"
+        fi
+
         local MSA="${WORKDIR}/msa_${DB}"
         "${MMSEQS}" result2msa "${QUERYDB}" "${SEQDB}" \
-                "${WORKDIR}/result_${DB}" "${MSA}" \
+                "${INPUT}" "${MSA}" \
                 -v 0 --threads "${JOBTHREADS}" \
                 ${MSA_PARAMS} ${SKIPQUERY} \
             || fail "result2msa failed"
@@ -129,4 +157,4 @@ function run_job() {
     #send_email "${JOBID}"
 }
 
-run_job "$1" "$2" "$3" "$4"
+run_job "$1" "$2" "$3" "$4" "$5" "$6"

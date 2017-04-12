@@ -24,7 +24,11 @@ function processJob($redis, $config) {
         $command = '"' . $config["search-pipeline"]
             . '" "' . $uuid
             . '" "' . $basedir . '.fasta'
-            . '" "' . implode(" ", $params['database']) . '"';
+            . '" "' . implode(" ", $params['database'])
+            . '" "' . $params['mode']
+            . '" "' . $params['accept']
+            . '" "' . $params['eval']
+            . '"';
 
         $process = new Symfony\Component\Process\Process($command);
         $process->setTimeout(3600);
