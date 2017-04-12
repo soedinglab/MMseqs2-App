@@ -2,7 +2,7 @@
 	<div id="queue"
 	     class="container">
 		<div class="row">
-			<div class="col-xs-12">
+			<div class="col-sm-offset-2 col-sm-8 col-md-offset-3 col-md-6">
 				<div v-if="status == 'PENDING'">
 					<div class="panel panel-default">
 						<div class="panel-heading">Job Status: <strong>Waiting for worker</strong></div>
@@ -59,16 +59,14 @@ export default {
 					this.status = data.status;
 
 					switch (this.status) {
-						case "PENDING":
-						case "RUNNING":
-							setTimeout(this.fetchData.bind(this), 1000);
-							break;
 						case "FAILED":
 							this.error = data.error;
 							break;
 						case "COMPLETED":
+							this.$router.push({ name: 'result', params: { ticket: ticket, entry: 0 } });
+							break;
 						default:
-							this.$router.push({ name: 'result', params: { ticket: ticket } });
+							setTimeout(this.fetchData.bind(this), 1000);
 							break;
 					}
 				}.bind(this));

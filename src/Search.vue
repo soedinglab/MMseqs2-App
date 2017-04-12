@@ -201,7 +201,6 @@ export default {
 				mode: this.mode,
 				accept: this.accept,
 				eval: this.eval,
-
 			};
 			this.inSearch = true;
 			this.$http.post('api/ticket', data, { emulateJSON: true })
@@ -294,5 +293,14 @@ a.help {
 a.help:hover {
 	color:#999;
 	text-decoration: none;
+}
+
+legend a.help span {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.popover.left .arrow {
+	margin-top: -15px;
 }
 </style>

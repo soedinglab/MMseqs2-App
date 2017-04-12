@@ -2,46 +2,64 @@
     <div class="panel panel-default msa">
         <div class="panel-heading">
             <h2 class="panel-title pull-left">Multiple Sequence Alignment</h2>
-            <div class="btn-group pull-right">
-                <button v-if="selection && !plaintext"
-                        @click="clear"
-                        class="btn btn-default"
-                        aria-hidden="true">Clear Selection</button>
     
-                <button v-if="plaintext"
-                        class="btn btn-default"
-                        @click="showFancy">Show Fancy</button>
-                <button v-else
-                        class="btn btn-default"
-                        @click="showPlain">Show Plain</button>
+            <div class="btn-toolbar"
+                 role="toolbar"
+                 aria-label="toolbar">
     
-                <button v-if="overview"
-                        v-show="!plaintext"
-                        class="btn btn-default"
-                        @click="hideOverview">Hide Overview</button>
-                <button v-else
-                        v-show="!plaintext"
-                        class="btn btn-default"
-                        @click="showOverview">Show Overview</button>
+                <div class="btn-group pull-right">
     
-                <dropdown text="Export">
-                    <ul slot="dropdown-menu"
-                        class="dropdown-menu pull-right">
-                        <li><a v-if="msaDownloadUrl"
-                               :download="'msa-' + ticket + '.fasta'"
-                               :href="msaDownloadUrl">Download MSA</a></li>
-                        <li><a @click="exportSelection"
-                               v-if="selection && !plaintext"
-                               href="#">Export Selection</a></li>
-                    </ul>
-                </dropdown>
+                    <popover effect="fade"
+                             placement="bottom"
+                             content="The MSA shows a filtered alignment of your target hits.">
+                        <button class="btn btn-default help"
+                                role="button"><span class="glyphicon glyphicon-question-sign"
+                                  aria-hidden="true"></span></button>
+                    </popover>
+                </div>
+                <div class="btn-group pull-right">
+    
+                    <button v-if="selection && !plaintext"
+                            @click="clear"
+                            class="btn btn-default"
+                            aria-hidden="true">Clear Selection</button>
+    
+                    <button v-if="plaintext"
+                            class="btn btn-default"
+                            @click="showFancy">Show Fancy</button>
+                    <button v-else
+                            class="btn btn-default"
+                            @click="showPlain">Show Plain</button>
+    
+                    <button v-if="overview"
+                            v-show="!plaintext"
+                            class="btn btn-default"
+                            @click="hideOverview">Hide Overview</button>
+                    <button v-else
+                            v-show="!plaintext"
+                            class="btn btn-default"
+                            @click="showOverview">Show Overview</button>
+    
+                    <dropdown text="Export">
+                        <ul slot="dropdown-menu"
+                            class="dropdown-menu pull-right">
+                            <li><a v-if="msaDownloadUrl"
+                                   :download="'msa-' + ticket + '.fasta'"
+                                   :href="msaDownloadUrl">Download MSA</a></li>
+                            <li><a @click="exportSelection"
+                                   v-if="selection && !plaintext"
+                                   href="#">Export Selection</a></li>
+                        </ul>
+                    </dropdown>
+                </div>
             </div>
-            <div class="clearfix"></div>
         </div>
+    
         <div class="panel-body"
              style="padding:5px 2px">
             <pre v-show="plaintext">{{ msa }}</pre>
-            <div v-show="!plaintext" ref="msa">
+            <div v-show="!plaintext"
+                 ref="msa">
             </div>
         </div>
     </div>
@@ -49,12 +67,13 @@
 
 <script>
 import Dropdown from '../node_modules/vue-strap/src/Dropdown.vue';
+import Popover from '../node_modules/vue-strap/src/Popover.vue';
 import msa from 'msa';
 
 var fasta = msa.io.fasta;
 export default {
     props: ['msa', 'ticket'],
-    components: { Dropdown },
+    components: { Dropdown, Popover },
     data() {
         return {
             selection: false,
@@ -69,13 +88,8 @@ export default {
             return URL.createObjectURL(blob);
         }
     },
-    ready: function () {
-    },
-
     mounted() {
-        console.log(this.msa);
         var seqs = fasta.parse(this.msa);
-        console.log(seqs);
         this.m = new msa({
             el: this.$refs.msa,
             conf: {
@@ -88,11 +102,11 @@ export default {
             seqs: seqs
         });
         this.m.render();
-        this.m.g.selcol.on("add reset change", function() {
+        this.m.g.selcol.on("add reset change", function () {
             this.selection = this.m.g.selcol.length
         }.bind(this));
 
-        window.addEventListener('resize', this.resize);        
+        window.addEventListener('resize', this.resize);
     },
     beforeDestroy() {
         window.removeEventListener('resize', this.resize)
@@ -100,7 +114,6 @@ export default {
     watch: {
         msa(msa) {
             var seqs = fasta.parse(this.msa);
-            console.log(seqs);
             this.m.seqs.reset(seqs);
         },
     },
@@ -108,6 +121,10 @@ export default {
         msa.$(this.$refs.msa).off().empty();
     },
     methods: {
+        // hack, msa doesn't update after in the multiquery case and is too wide
+        fixWidth() {
+            this.m.g.zoomer.set('alignmentWidth', 'auto');
+        },
         clear() {
             this.m.g.selcol.reset();
         },

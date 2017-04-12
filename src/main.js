@@ -22,7 +22,7 @@ const router = new VueRouter({
     routes: [
         { path: '/', component: Search },
         { name: 'queue', path: '/queue/:ticket', component: Queue },
-        { name: 'result', path: '/result/:ticket', component: Result },
+        { name: 'result', path: '/result/:ticket/:entry', component: Result },
         { name: 'history', path: '/history', component: TicketHistory }
     ],
     linkActiveClass: 'active'
