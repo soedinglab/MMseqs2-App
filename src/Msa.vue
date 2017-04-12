@@ -3,7 +3,7 @@
         <div class="panel-heading">
             <h2 class="panel-title pull-left">Multiple Sequence Alignment</h2>
             <div class="btn-group pull-right">
-                <button v-if="selection"
+                <button v-if="selection && !plaintext"
                         @click="clear"
                         class="btn btn-default"
                         aria-hidden="true">Clear Selection</button>
@@ -16,9 +16,11 @@
                         @click="showPlain">Show Plain</button>
     
                 <button v-if="overview"
+                        v-show="!plaintext"
                         class="btn btn-default"
                         @click="hideOverview">Hide Overview</button>
                 <button v-else
+                        v-show="!plaintext"
                         class="btn btn-default"
                         @click="showOverview">Show Overview</button>
     
@@ -29,7 +31,7 @@
                                :download="'msa-' + ticket + '.fasta'"
                                :href="msaDownloadUrl">Download MSA</a></li>
                         <li><a @click="exportSelection"
-                               v-if="selection"
+                               v-if="selection && !plaintext"
                                href="#">Export Selection</a></li>
                     </ul>
                 </dropdown>
