@@ -31,7 +31,6 @@
 import SearchResultItem from './SearchResultItem.vue';
 import GridLoader from '../node_modules/vue-spinner/src/GridLoader.vue';
 import Msa from './Msa.vue';
-import msa from 'msa';
 
 export default {
 	name: 'result',
