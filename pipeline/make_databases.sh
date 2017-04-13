@@ -1,12 +1,4 @@
 #!/bin/bash -ex
-source "$(dirname $(cd $(dirname ${BASH_SOURCE}) && pwd))/paths.sh"
-JOBTHREADS="16"
-
-function fail() {
-    notify_job "$1" ERROR
-    echo "$2" > "$3/error.log"
-    exit 1
-}
 
 function abspath() {
     if [ -d "$1" ]; then
@@ -22,101 +14,80 @@ function abspath() {
     fi
 }
 
-function make_database() {
-    local WORKDIR="$(mktemp -d "${WORKBASE}/merge.XXXXXX")"
-	local FASTA="$(abspath $1)"
-	local FASTABASE="$(basename "$FASTA")"
-	local DBNAME="${FASTABASE%.*}"
+function make_database_from_fasta() {
+	local INPUT="$(abspath $1)"
+	local OUTPUT="$(abspath $2)"
 
-	"${MMSEQS}" createdb "${FASTA}" "${WORKDIR}/${DBNAME}_db"
-	"${MMSEQS}" createindex "${WORKDIR}/${DBNAME}_db" --mask 2 --split 1
-	mv -f "${WORKDIR}/${DBNAME}_db"* "${DATABASES}"
+	local SPLIT="--split 1"
+	while getopts ":x" opt; do
+		case $opt in
+			x)
+				SPLIT=""
+				;;
+			\?)
+				echo "Invalid option: -$OPTARG" >&2
+				;;
+		esac
+	done
+
+	"${MMSEQS}" createdb "${FASTA}" "${OUTPUT}"
+	"${MMSEQS}" createindex "${OUTPUT}" --mask 2 ${SPLIT}
+    printf "%s\n%s\n%s\n" \
+            '#!/bin/bash' \
+            "export SEARCH_PARAMS=\"\"" \
+            "export SPLIT=\"${SPLIT}\"" \
+        > "${OUTPUT}.params"
 }
 
-function notify_job() {
-    echo TODO implement
+function make_database_from_db() {
+	local INPUTDATA="$(abspath $1)"
+	local INPUTINDEX="$(abspath $2)"
+	local OUTPUT="$(abspath $3)"
+
+	local MAXSENS="4"
+	local MPIPROCS="2"
+	local SPLIT="--split 1"
+	while getopts ":s:p:x" opt; do
+		case $opt in
+			s)
+				MAXSENS="$OPTARG"
+				;;
+			p)
+				MPIPROCS="$OPTARG"
+				;;
+			x)
+				SPLIT=""
+			\?)
+				echo "Invalid option: -$OPTARG" >&2
+				;;
+		esac
+	done
+
+	if [[ $MPIPROCS -lt 2 ]]; then
+		MPIPROCS=2
+	fi
+	mpirun -np "${MPIPROCS}" ffindex_apply_mpi -d "${OUTPUT}_hhm" -i "${OUTPUT}_hhm.index" \
+		"${INPUTDATA}" "${INPUTINDEX}" \
+		-- hhmake -i stdin -o stdout -pcm 2 -nocontxt -v 0
+
+	grep -v -E '[[:space:]][0-1]$' "${OUTPUT}_hhm.index" \
+		> "${OUTPUT}_hhm.index_nobroken"
+
+	sort -k2,2 -n "${OUTPUT}_hhm.index_nobroken" \
+		| awk -v outfile="${OUTPUT}.lookup" \
+			'{ n=n+1; print n"\t"$2"\t"$3; print n"\t"$1 >> outfile; }' \
+			> "${OUTOUT}_hhm.index"
+
+	"${MMSEQS}" convertprofiledb "${OUTPUT}_hhm" "${OUTPUT}"
+	"${MMSEQS}" createindex "${OUTPUT}" -s "${MAXSENS}" ${SPLIT} --target-profile
+
+    printf "%s\n%s\n%s\n%s\n" \
+            '#!/bin/bash' \
+            "export SEARCH_PARAMS=\"-s ${MAXSENS}\"" \
+            "export SPLIT=\"${SPLIT}\"" \
+            'export PROFILE=1' \
+        > "${OUTPUT}.params"
+
+	rm -f "${OUTPUT}_hhm" "${OUTPUT}_hhm.index" "${OUTPUT}_hhm.index_nobroken"
 }
 
-function queue_email() {
-    echo TODO implement
-}
-
-function force_dbs_page_cache() {
-    echo TODO implement
-}
-
-function run_job() {
-    local JOBID="$1"
-    local WORKDIR="$(abspath "${WORKBASE}/${JOBID}")"
-    local ANNOTATION_DATABASES="pfam pdb70 eggnog"
-
-    if [[ -d $WORKDIR ]]; then
-        fail "${JOBID}" "job directory already exists" "${WORKDIR}"
-    else
-        mkdir -p "${WORKDIR}"
-    fi
-
-    local MMTMP="$(mktemp -d "${WORKDIR}/tmp.XXXXXX")"
-	local QUERYFASTA="$(abspath $2)"
-	local QUERYDB="${WORKDIR}/input"
-
-    local DATABASE="${DATABASES}/$3"
-
-    local ALIS=()
-    local TYPES=()
-
-    local INPUT="${QUERYDB}"
-
-    "${MMSEQS}" createdb "${QUERYFASTA}" "${QUERYDB}" -v 0 \
-        || fail "${JOBID}" "createdb failed" "${WORKDIR}"
-
-    #if [[ ! -z ${ANNOTATIONS_ONLY} ]]; then
-    if true; then
-        "${MMSEQS}" search "${QUERYDB}" "${DATABASE}" "${WORKDIR}/result_uc" "${MMTMP}" \
-            --no-preload --early-exit --remove-tmp-files --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
-            -s 1 \
-            || fail "${JOBID}" "search failed" "${WORKDIR}"
-
-        ALIS+=("${QUERYDB} ${DATABASE} ${WORKDIR}/result_uc")
-        TYPES+=("uc")
-        notify_job "${JOBID}" SEARCH_DONE
-		# maybe later when we have profile-profile searches
-        #INPUT="${WORKDIR}/result_uc"
-    fi
-
-    for i in ${ANNOTATION_DATABASES}; do
-        mkdir -p "${MMTMP}/${i}"
-        "${MMSEQS}" search "${INPUT}" "${DATABASES}/current_${i}" "${WORKDIR}/result_${i}" "${MMTMP}/${i}" \
-            --no-preload --early-exit --remove-tmp-files --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
-            --target-profile -s 1 \
-            || fail "${JOBID}" "search failed" "${WORKDIR}"
-
-        #ALIS+=("\"${QUERYDB}\" \"${DATABASES}/current_${i}\" \"${WORKDIR}/result_${i}\"")
-        ALIS+=("${QUERYDB} ${DATABASES}/current_${i} ${WORKDIR}/result_${i}")
-        TYPES+=("${i}")
-    done
-
-    notify_job "${JOBID}" ANNOTATIONS_DONE
-
-    if (( $(head -n 2 "${QUERYDB}.index" | wc -l) == 1 )); then
-        exit 0
-    fi
-
-    local M8S=""
-    for i in "${!ALIS[@]}"; do
-        local M8="${WORKDIR}/${JOBID}_${TYPES[$i]}.m8"
-        mmseqs convertalis ${ALIS[$i]} "${M8}"
-        M8S="${M8S} ${M8}"
-    done
-
-    tar -cv --use-compress-program=pigz \
-        --show-transformed-names --transform "s|${WORKDIR:1}/|mmseqs_results_${JOBID}/|g" \
-        -f "${WORKDIR}/mmseqs_results_${JOBID}.tar.gz" ${M8S}
-
-	queue_email "${JOBID}"
-}
-
-#make_database /cbscratch/mmirdit/uniclust/pipeline/sprot_trembl_martin/2017_02/tmp/uniclust30_2017_02_seed.fasta
-#make_database /cbscratch/mmirdit/uniclust/pipeline/sprot_trembl_martin/2017_02/tmp/uniclust90_2017_02_seed.fasta
-
-run_job TEST /cbscratch/mmirdit/mmseqs-webserver/pipeline/QUERY.fasta uniclust30_2017_02_seed_db 
