@@ -1,0 +1,24 @@
+FROM phpdockerio/php7-fpm:latest
+
+RUN apt-get update \
+    && apt-get -y --no-install-recommends install build-essential cmake php7.0-dev wget git php7.0-redis \
+    && apt-get clean; rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
+
+RUN mkdir source && cd source \
+    && wget -qO- https://api.github.com/repos/CopernicaMarketingSoftware/PHP-CPP/tarball/v2.0.0 | tar -xzv --strip-components=1 \
+    && sed -i 's/sudo //g' Makefile \ 
+    && make && make install \
+    && cd .. && rm -rf source
+
+RUN mkdir source && cd source \
+    && git clone https://github.com/milot-mirdita/php-dbreader.git \
+    && cd php-dbreader/ && mkdir build && cd build \
+    && cmake -DCMAKE_BUILD_TYPE=Release .. \
+    && make && make install \
+    && cd ../../.. && rm -rf source
+
+RUN apt-get -y remove build-essential cmake php7.0-dev wget git \
+    && apt-get autoremove \
+    && apt-get clean; rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
+
+WORKDIR "/var/www/mmseqs-web"

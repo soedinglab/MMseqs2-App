@@ -1,0 +1,36 @@
+FROM phpdockerio/php7-cli:latest
+
+RUN apt-get update \
+    && apt-get -y --no-install-recommends install build-essential cmake ninja-build wget git vim-common gawk openmpi-bin libopenmpi-dev php7.0-redis redis-tools \
+    && apt-get clean; rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
+
+RUN mkdir source && cd source \
+    && git clone https://github.com/soedinglab/hh-suite.git . \
+    && git submodule init && git submodule update \
+    && mkdir build && cd build \
+    && cmake -G Ninja -DCMAKE_BUILD_TYPE=Release .. \
+    && ninja && ninja install \
+    && cd ../.. && rm -rf source
+
+RUN mkdir source && cd source \
+    && git clone https://github.com/milot-mirdita/mmseqs2.git . \ 
+    && mkdir build_sse && cd build_sse \
+    && cmake -G Ninja -DHAVE_SSE4_1=1 -DHAVE_MPI=0 -DHAVE_TESTS=0 -DCMAKE_BUILD_TYPE=Release .. \
+    && ninja && ninja install && mv /usr/local/bin/mmseqs /usr/local/bin/mmseqs_sse42 \
+    && cd .. && rm -rf build_sse \
+    && mkdir build_avx && cd build_avx \
+    && cmake -G Ninja -DHAVE_AVX2=1 -DHAVE_MPI=0 -DHAVE_TESTS=0 -DCMAKE_BUILD_TYPE=Release .. \
+    && ninja && cp src/mmseqs /usr/local/bin/mmseqs_avx2 \
+    && cd .. && rm -rf build_avx \
+    && cd .. && rm -rf source
+ 
+ADD mmseqs_wrapper.sh /usr/local/bin/mmseqs
+
+RUN apt-get -y remove cmake wget git \
+    && apt-get -y autoremove \
+    && apt-get clean; rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
+
+env PATH /usr/local/scripts::$PATH
+env HHLIB /usr/local
+
+WORKDIR "/var/www/mmseqs-web"
