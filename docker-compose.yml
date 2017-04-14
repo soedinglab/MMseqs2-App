@@ -1,0 +1,28 @@
+version: '2'
+services:
+  mmseqs-web-redis:
+    image: redis:alpine
+    container_name: mmseqs-web-redis
+
+  mmseqs-web-webserver:
+    build:
+      context: ./frontend
+    container_name: mmseqs-web-webserver
+    ports:
+      - "80:80"
+
+  mmseqs-web-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    container_name: mmseqs-web-api
+      - ./jobs:/var/mmseqs-web/jobs
+
+  mmseqs-web-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: mmseqs-web-worker
+    volumes:
+      - ./jobs:/var/mmseqs-web/jobs
+      - ./databases:/var/mmseqs-web/jobs

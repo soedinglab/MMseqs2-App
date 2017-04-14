@@ -21,4 +21,9 @@ RUN apt-get -y remove build-essential cmake php7.0-dev wget git \
     && apt-get autoremove \
     && apt-get clean; rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
 
+ADD . /var/www/mmseqs-web
+ADD php-ini-overrides.ini /etc/php/7.0/fpm/conf.d/99-overrides.ini
+
+RUN cd /var/www/mmseqs-web && composer install
+
 WORKDIR "/var/www/mmseqs-web"

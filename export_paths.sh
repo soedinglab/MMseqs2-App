@@ -41,5 +41,5 @@
         exit 1
     fi
 
-    echo -e "${JSON}" | tee "${BASE}/backend/config-cache.json" | jq -r --argjson keys '["search-databases", "search-databases-types"]' 'with_entries(select(.key as $k | $keys | index($k)))' > "${BASE}/src/config-cache.json"
+    echo -e "${JSON}" | tee "${BASE}/backend/config-cache.json" | jq -r --argjson keys '["search-databases", "search-databases-types"]' 'with_entries(select(.key as $k | $keys | index($k)))' > "${BASE}/frontend/src/config-cache.json"
 )

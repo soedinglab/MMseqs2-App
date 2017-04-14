@@ -33,4 +33,7 @@ RUN apt-get -y remove cmake wget git \
 env PATH /usr/local/scripts::$PATH
 env HHLIB /usr/local
 
+ADD . /var/www/mmseqs-web
+RUN cd /var/www/mmseqs-web && composer install
+
 WORKDIR "/var/www/mmseqs-web"
