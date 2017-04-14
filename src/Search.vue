@@ -2,7 +2,6 @@
 	<div id="search"
 	     class="container">
 		<div class="row">
-			<form>								
 				<div class="col-xs-12 col-md-7">
 					<fieldset>
 						<legend>Queries
@@ -137,7 +136,6 @@
 						</div>
 					</fieldset>
 				</div>
-			</form>				
 		</div>
 	</div>
 </template>
