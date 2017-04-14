@@ -54,6 +54,10 @@ export default {
 		fetchData() {
 			this.error = "";
 			const ticket = this.$route.params.ticket;
+			if (typeof(ticket) === "undefined") {
+				return;
+			}
+
 			this.$http.get("api/ticket/" + ticket).then(function (response) {
 				response.json().then(function (data) {
 					this.status = data.status;
