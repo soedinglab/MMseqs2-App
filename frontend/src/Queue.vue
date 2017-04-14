@@ -1,9 +1,8 @@
 <template>
 	<div id="queue"
 	     class="container">
-		<div class="row">
-			<div class="col-sm-offset-2 col-sm-8 col-md-offset-3 col-md-6">
-				<div v-if="status == 'PENDING'">
+		<div class="row queue-status"  v-if="status == 'PENDING'">
+				<div class="col-sm-6 status">
 					<div class="panel panel-default">
 						<div class="panel-heading">Job Status: <strong>Waiting for worker</strong></div>
 						<div class="panel-body">
@@ -12,21 +11,34 @@
 						</div>
 					</div>
 				</div>
-	
-				<div v-if="status == 'RUNNING'">
-					<div class="panel panel-default">
-						<div class="panel-heading">Job Status: <strong>In Progress</strong></div>
-						<div class="panel-body">
-							<grid-loader class="loader"
-							             color="#000000" />
-						</div>
+				<div class="col-sm-offset-1 col-sm-4">
+					<img style="width:100%" src="/assets/marv-search_2x.png" src-set="/assets/marv-search_2x.png 2x, /assets/marv-search_3x.png 3x" />
+				</div>
+		</div>
+
+		<div class="row queue-status" v-if="status == 'RUNNING'">
+			<div class="col-sm-6 status">
+				<div class="panel panel-default">
+					<div class="panel-heading">Job Status: <strong>In Progress</strong></div>
+					<div class="panel-body">
+						<grid-loader class="loader"
+										color="#000000" />
 					</div>
 				</div>
-	
-				<div v-if="status == 'FAILED'"
-				     class="alert alert-danger">
-					{{ error }}
+			</div>
+			<div class="col-sm-offset-1 col-sm-4">
+				<img style="width:100%" src="/assets/marv-result_2x.png" src-set="/assets/marv-result_2x.png 2x, /assets/marv-result_3x.png 3x" />
+			</div>
+		</div>
+
+		<div class="row queue-status" v-if="status == 'FAILED'">
+			<div class="col-sm-6 status">
+				<div class="alert alert-danger">
+				{{ error }}
 				</div>
+			</div>
+			<div class="col-sm-offset-1 col-sm-4">
+				<img style="width:100%" src="/assets/marv-error_2x.png" src-set="/assets/marv-error_2x.png 2x, /assets/marv-error_3x.png 3x" />
 			</div>
 		</div>
 	</div>
@@ -40,7 +52,7 @@ export default {
 	components: { ScaleLoader, GridLoader },
 	data() {
 		return {
-			status: "wait",
+			status: "PENDING",
 			error: "",
 		};
 	},
@@ -90,5 +102,16 @@ export default {
 
 #queue {
 	margin-top: 20px;
+}
+
+.queue-status .status {
+	margin-top:50px;
+}
+.queue-status .panel-body {
+	height:175px;
+}
+
+.queue-status .loader {
+	margin:50px auto;
 }
 </style>

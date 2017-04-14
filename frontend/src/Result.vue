@@ -4,9 +4,8 @@
 		<div class="row">
 			<div :class="{'col-md-10' : multiquery, 'col-xs-12' : !multiquery }">
 				<h2>
-					Results for Job:				
-					<br>
-					<strong>{{ ticket }}</strong>
+					Results for Job				
+					<small>{{ ticket }}</small>
 				</h2>
 
 				<msa ref="msa"
@@ -111,9 +110,5 @@ export default {
 <style>
 .loader {
 	margin: 25px auto;
-}
-
-#result {
-	margin-top: 20px;
 }
 </style>

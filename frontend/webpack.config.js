@@ -78,6 +78,11 @@ module.exports = {
 						? './src/msa.min.js'
 						: './src/msa.js',
 				to: 'msa.js'
+			},
+			{
+				from: './src/assets/*x.png',
+				to: 'assets',
+				flatten: true
 			}
 		]),
 		new HtmlWebpackPlugin({
