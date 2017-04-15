@@ -108,7 +108,7 @@ function run_job() {
 
         if [[ ! -z "$EVAL" ]]; then
             "${MMSEQS}" summarizeresult "${INPUT}" "${WORKDIR}/summarized_${DB}" \
-                    -a -e "${EVAL}" -v 0 --threads "${JOBTHREADS}"
+                    -a -e "${EVAL}" -v 0 --threads "${JOBTHREADS}" \
                 || fail "summarizeresult failed"
             INPUT="${WORKDIR}/summarized_${DB}"
         fi
@@ -157,4 +157,5 @@ function run_job() {
     #send_email "${JOBID}"
 }
 
-run_job "$1" "$2" "$3" "$4" "$5" "$6"
+#run_job "$1" "$2" "$3" "$4" "$5" "$6"
+run_job "$1" "$2" "$3" "$4" "300" "0.001"

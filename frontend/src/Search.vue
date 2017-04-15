@@ -159,7 +159,7 @@ export default {
 	data() {
 		return {
 			databaseSettings: databaseSettings,
-			database: ['uniclust30_2017_02'],
+			database: [],
 			mode: 'accept',
 			inSearch: false,
 			email: '',

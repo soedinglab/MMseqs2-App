@@ -69,17 +69,13 @@ $klein->respond('POST', '/ticket', function ($request, $response, $service, $app
     $service->validateParam('q')->fasta();
     $service->validateParam('database')->eachIn($app->config["search-databases"]);
     $service->validateParam('mode')->in(['accept', 'summary']);
-    $service->validateParam('accept')->int()->positive();
-    $service->validateParam('eval')->float()->positive();
 
     $uuid = Uuid::generate();
 
     $params = [
         "database" => $request->database,
         "annotations" => $request->annotations,
-        "mode" => $request->mode,
-        "accept" => $request->accept,
-        "eval" => $request->eval
+        "mode" => $request->mode
     ];
 
     $result = [ "status" => "PENDING" ];

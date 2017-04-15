@@ -94,7 +94,8 @@ export default {
 							this.msa = data.msa;
 							break;
 						default:
-							this.$router.push({ name: 'queue', params: { ticket: this.ticket } });
+							this.status = "error";
+							this.error = "Failed";
 							break;
 					}
 				}.bind(this));
