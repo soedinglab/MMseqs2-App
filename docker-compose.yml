@@ -16,13 +16,23 @@ services:
       context: ./backend
       dockerfile: Dockerfile.api
     container_name: mmseqs-web-api
-      - ./jobs:/var/mmseqs-web/jobs
+    volumes:
+      - ./jobs:/var/www/mmseqs-web/jobs
+
+  mmseqs-web-mmseqs:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.mmseqs
+    container_name: mmseqs-web-mmseqs
 
   mmseqs-web-worker:
     build:
       context: ./backend
       dockerfile: Dockerfile.worker
     container_name: mmseqs-web-worker
+    depends_on:
+      - mmseqs-web-mmseqs
     volumes:
-      - ./jobs:/var/mmseqs-web/jobs
-      - ./databases:/var/mmseqs-web/jobs
+      - ./paths.sh:/var/www/mmseqs-web/paths.sh:ro
+      - ./jobs:/var/www/mmseqs-web/jobs
+      - ./databases:/var/www/mmseqs-web/databases

@@ -19,7 +19,22 @@ LUA;
 
 class PredisWrapper {
     public static function wrap() {
-        $client = new Predis\Client();
+        $config = Config::getInstance();  
+        $redis = [];
+        if (isset($config['redis-scheme'])) {
+            $redis['scheme'] = $config['redis-scheme'];
+        }
+        if (isset($config['redis-host'])) {
+            $redis['host'] = $config['redis-host'];
+        }
+        if (isset($config['redis-port'])) {
+            $redis['port'] = $config['redis-port'];
+        }
+        if (isset($config['redis-database'])) {
+            $redis['database'] = $config['redis-database'];
+        }
+
+        $client = new Predis\Client($redis);
         $client->getProfile()->defineCommand('zpop', 'SortedSetPop');
         return $client;
     }

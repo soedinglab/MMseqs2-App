@@ -26,8 +26,6 @@ function processJob($redis, $config) {
             . '" "' . $basedir . '.fasta'
             . '" "' . implode(" ", $params['database'])
             . '" "' . $params['mode']
-            . '" "' . $params['accept']
-            . '" "' . $params['eval']
             . '"';
 
         $process = new Symfony\Component\Process\Process($command);

@@ -4,7 +4,8 @@
         env | awk -F'=' '/^\w/ { print $1 }' | grep -v '^PATH$' | grep -v '^LC_' | grep -v '^_$' | tr '\n' ' '
     }
     unset $(getenv)
-    source "$(cd $(dirname ${BASH_SOURCE}) && pwd)/paths.sh"
+    BASE="$(cd $(dirname ${BASH_SOURCE}) && pwd)"
+    source "${BASE}/paths.sh"
     JSON="{\n"
     NAMES=()
     CNT=0
