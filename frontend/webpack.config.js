@@ -83,6 +83,11 @@ module.exports = {
 				from: './src/assets/*x.png',
 				to: 'assets',
 				flatten: true
+			},
+            {
+				from: './src/assets/marv-search-gray.png',
+				to: 'assets',
+				flatten: true
 			}
 		]),
 		new HtmlWebpackPlugin({

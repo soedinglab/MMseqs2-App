@@ -1,10 +1,10 @@
 <template>
 	<div id="search"
 	     class="container">
-		<div class="row">
+		<div class="row ">
 			<div class="col-xs-12 col-md-7">
 				<fieldset>
-					<legend>Queries
+					<h4>Queries
 						<div class="pull-right">
 							<popover effect="fade"
 							         placement="left"
@@ -13,7 +13,7 @@
 								   role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
 							</popover>
 						</div>
-					</legend>
+					</h4>
 	
 					<p v-if="error"
 					   class="alert alert-danger">
@@ -45,21 +45,23 @@
 			</div>
 			<div class="col-xs-12 col-md-5">
 				<fieldset>
-					<legend>Databases
-						<div class="pull-right">
-							<popover effect="fade"
-							         placement="left"
-							         content="Select the databases you want to search against.">
-								<a class="help"
-								   role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
-							</popover>
-						</div>
-					</legend>
 					<div class="row">
-						<div class="col-sm-6">
-							<h4>Sequences</h4>
+						<div class="col-md-12">
+							<h4>Databases
+								<div class="pull-right">
+									<popover effect="fade"
+											placement="left"
+											content="Select the databases you want to search against.">
+										<a class="help"
+										role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
+									</popover>
+								</div>
+							</h4>
+						</div>
+						<div class="col-md-6">
 							<div class="checkbox"
-							     v-for="db in databaseSettings.sequence">
+							     v-for="(db, index) in databases"
+							     v-if="index % 2 == 0">
 								<label>
 									<input type="checkbox"
 									       :value="db"
@@ -67,10 +69,10 @@
 								</label>
 							</div>
 						</div>
-						<div class="col-sm-6">
-							<h4>Domains</h4>
+						<div class="col-md-6">
 							<div class="checkbox"
-							     v-for="db in databaseSettings.domain">
+							     v-for="(db, index) in databases"
+							     v-if="index % 2 != 0">
 								<label>
 									<input type="checkbox"
 									       :value="db"
@@ -79,20 +81,20 @@
 							</div>
 						</div>
 					</div>
-				</fieldset>
-				<fieldset>
-					<legend>
-						Result Mode
-						<div class="pull-right">
-							<popover effect="fade"
-							         placement="left"
-							         content="Select the search mode.">
-								<a class="help"
-								   role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
-							</popover>
-						</div>
-					</legend>
 					<div class="row">
+						<div class="col-md-12">
+							<h4>
+									Result Mode
+									<div class="pull-right">
+										<popover effect="fade"
+												placement="left"
+												content="Select the search mode.">
+											<a class="help"
+											role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
+										</popover>
+									</div>
+								</h4>
+						</div>
 						<div class="col-md-6">
 							<div class="form-group">
 								<div class="radio">
@@ -116,19 +118,17 @@
 							</div>
 						</div>
 					</div>
-				</fieldset>
-				<fieldset>
-					<legend>Notify</legend>
 					<div class="row">
 						<div class="col-md-12">
+							<h4>Notify per Email</h4>
 							<div class="form-group">
-								<label for="email">E-mail</label>
+								<label class="sr-only" for="email">E-mail</label>
 								<div class="input-group"
 								     style="width: 100%">
 									<input id="email"
 									       type="text"
 									       class="form-control"
-									       placeholder="you@example.org"
+									       placeholder="you@example.org (optional)"
 									       v-model="email" />
 								</div>
 							</div>
@@ -146,20 +146,14 @@ import FileButton from './FileButton.vue';
 import Popover from '../node_modules/vue-strap/src/Popover.vue';
 import Config from './config-cache.json';
 
-var databaseSettings = { 'sequence': [], 'domain': [] };
-for (var i in Config["search-databases"]) {
-	var type = Config["search-databases-types"][i];
-	databaseSettings[type].push(Config["search-databases"][i]);
-}
-
-
+var databases = Config["search-databases"];
 export default {
 	name: 'search',
 	components: { SearchResultItem, FileButton, Popover },
 	data() {
 		return {
-			databaseSettings: databaseSettings,
-			database: ['uniclust30_2017_02'],
+			databases: databases,
+			database: [],
 			mode: 'accept',
 			inSearch: false,
 			email: '',
@@ -255,10 +249,6 @@ textarea.fasta {
 	}
 }
 
-fieldset h4 {
-	margin-top: 0;
-}
-
 legend {
 	margin-bottom: 10px;
 }
@@ -296,7 +286,7 @@ legend a.help span {
 }
 
 .marv-bg {
-	background-image: url('/assets/marv-search_1x.png');
+	background-image: url('/assets/marv-search-gray.png');
 	background-repeat: no-repeat;
 	background-position: right 15px bottom -10px;
 	background-size: 200px;

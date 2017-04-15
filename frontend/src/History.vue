@@ -5,13 +5,11 @@
             <div class="col-xs-12">
                 <div class="panel panel-default">
                     <div class="panel-heading">Previous Submissions</div>
-                    <div class="panel-body">
-                        <div v-if="items.length == 0"
-                             class="alert alert-info">
+                    <div class="panel-body" v-if="items.length == 0">
+                        <div class="alert alert-info">
                             No jobs
                         </div>
 
-                        Here you can see your previously submitted jobs.
                     </div>
                     <table v-if="items.length > 0"
                            class="table table-striped">
