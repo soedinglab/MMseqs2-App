@@ -21,7 +21,8 @@ function abspath() {
 }
 
 function json2export() {
-    jq -r 'paths(scalars) as $p | ($p | join("_") | ascii_upcase) as $k | getpath($p) | tostring as $v | "export " + $k + "=" + "\"" + $v + "\""'
+    # leaf paths and explode ... implode for 1.4 compatibility
+    jq -r 'leaf_paths as $p | ($p | join("_") | explode | map( if 97 <= . and . <= 122 then . - 32  else . end) | implode) as $k | getpath($p) | tostring as $v | "export " + $k + "=" + "\"" + $v + "\""'
 }
 
 function send_mail() {
@@ -63,7 +64,7 @@ function run_job() {
             ;;
     esac
 
-    "${MMSEQS}" createdb "${QUERYFASTA}" "${QUERYDB}" -v 0 \
+    "${MMSEQS}" createdb "${QUERYFASTA}" "${QUERYDB}" -v "${VERBOSITY}" \
         || fail "createdb failed"
 
     local ALIS=""
@@ -86,7 +87,7 @@ function run_job() {
         "${MMSEQS}" search "${QUERYDB}" "${DATABASES}/${DB}" \
                 "${INPUT}" "${MMTMP}/${DB}" \
                 --no-preload --early-exit --remove-tmp-files \
-                --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
+                --split-mode 1 -a -v "${VERBOSITY}" --threads "${JOBTHREADS}" \
                 ${PARAMS_SEARCH} \
             || fail "search failed"
         
@@ -95,9 +96,9 @@ function run_job() {
             SEQDB="${DATABASES}/${DB}_seq"
         fi
 
-        if [[ "${MODE}" -eq "summary" ]]; then
+        if [[ "${MODE}" == "summary" ]]; then
             "${MMSEQS}" summarizeresult "${INPUT}" "${WORKDIR}/summarized_${DB}" \
-                    -a -v 0 --threads "${JOBTHREADS}" \
+                    -a -v "${VERBOSITY}" --threads "${JOBTHREADS}" \
                     ${PARAMS_SUMMARIZERESULT} \
                 || fail "summarizeresult failed"
             INPUT="${WORKDIR}/summarized_${DB}"
@@ -106,7 +107,7 @@ function run_job() {
         local MSA="${WORKDIR}/msa_${DB}"
         "${MMSEQS}" result2msa "${QUERYDB}" "${SEQDB}" \
                 "${INPUT}" "${MSA}" \
-                -v 0 --threads "${JOBTHREADS}" \
+                -v "${VERBOSITY}" --threads "${JOBTHREADS}" \
                 ${PARAMS_RESULT2MSA} ${SKIPQUERY} \
             || fail "result2msa failed"
         MSAS="${MSAS} ${MSA}"
@@ -114,7 +115,7 @@ function run_job() {
         local ALI="${WORKDIR}/alis_${DB}"
         "${MMSEQS}" convertalis "${QUERYDB}" "${SEQDB}" \
                 "${WORKDIR}/result_${DB}" "${ALI}" \
-                --no-preload --early-exit --db-output -v 0 \
+                --no-preload --early-exit --db-output -v "${VERBOSITY}" \
                 --threads "${JOBTHREADS}" ${PARAMS_CONVERTALIS} \
             || fail "convertalis failed"
         ALIS="${ALIS} ${ALI}"

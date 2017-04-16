@@ -17,6 +17,7 @@ services:
       dockerfile: Dockerfile.api
     container_name: mmseqs-web-api
     volumes:
+      - ./databases:/var/www/mmseqs-web/databases:ro
       - ./jobs:/var/www/mmseqs-web/jobs
 
   mmseqs-web-mmseqs:
