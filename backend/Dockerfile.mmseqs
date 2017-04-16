@@ -1,7 +1,7 @@
 FROM phpdockerio/php7-cli:latest
 
 RUN apt-get update \
-    && apt-get -y --no-install-recommends install build-essential cmake ninja-build wget git vim-common gawk openmpi-bin libopenmpi-dev php7.0-redis redis-tools \
+    && apt-get -y --no-install-recommends install build-essential cmake ninja-build wget git vim-common gawk openmpi-bin libopenmpi-dev php7.0-redis redis-tools jq \
     && apt-get clean; rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
 
 RUN mkdir source && cd source \
