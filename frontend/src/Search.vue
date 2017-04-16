@@ -2,146 +2,141 @@
 	<div id="search"
 	     class="container">
 		<div class="row ">
-			<div class="col-xs-12 col-md-7">
-				<fieldset>
-					<h4>Queries
-						<div class="pull-right">
+			<div class="form form-horizontal">
+	
+				<div class="col-xs-12 col-md-7">
+					<fieldset>
+						<legend>Queries
+							<div class="pull-right">
+								<popover effect="fade"
+								         trigger="hover"
+								         placement="left"
+								         content="Enter your queries here or drag-and-drop a fasta file containing your queries into the textbox.">
+									<a class="help"
+									   role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
+								</popover>
+							</div>
+						</legend>
+	
+						<p v-if="error"
+						   class="alert alert-danger">
+							{{ status.message }}
+						</p>
+	
+						<div class="form-group">
+							<textarea class="form-control fasta marv-bg"
+							          v-model="query"
+							          @dragover.prevent
+							          @drop="fileDrop($event)"
+							          placeholder="Please start a Search"
+							          spellcheck="false"></textarea>
+						</div>
+	
+						<div class="form-group">
+							<button class="btn btn-primary"
+							        v-on:click="search"
+							        v-bind:disabled="searchDisabled">
+								<span v-if="inSearch"
+								      class="spinner">Spin</span> Search
+							</button>
+							<file-button id="file"
+							             class="pull-right"
+							             label="Upload FASTA File"
+							             v-on:upload="upload" />
+						</div>
+					</fieldset>
+				</div>
+				<div class="col-xs-12 col-md-5">
+					<fieldset>
+						<legend>Search Settings
+							<div class="pull-right">
+								<popover effect="fade"
+								         trigger="hover"
+								         placement="left"
+								         content="Enter your queries here or drag-and-drop a fasta file containing your queries into the textbox.">
+									<a class="help"
+									   role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
+								</popover>
+							</div>
+						</legend>
+						<div class="form-group">
 							<popover effect="fade"
-							         placement="left"
-							         content="Enter your queries here or drag-and-drop a fasta file containing your queries into the textbox.">
-								<a class="help"
-								   role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
+							         placement="right"
+							         trigger="hover"
+							         content="Select the databases you want to search against.">
+								<label class="control-label col-sm-3">Databases</label>
 							</popover>
-						</div>
-					</h4>
 	
-					<p v-if="error"
-					   class="alert alert-danger">
-						{{ status.message }}
-					</p>
-	
-					<div class="form-group">
-						<textarea class="form-control fasta marv-bg"
-						          v-model="query"
-						          @dragover.prevent
-						          @drop="fileDrop($event)"
-						          placeholder="Please start a Search"
-						          spellcheck="false"></textarea>
-					</div>
-	
-					<div class="form-group">
-						<button class="btn btn-primary"
-						        v-on:click="search"
-						        v-bind:disabled="searchDisabled">
-							<span v-if="inSearch"
-							      class="spinner">Spin</span> Search
-						</button>
-						<file-button id="file"
-						             class="pull-right"
-						             label="Upload FASTA File"
-						             v-on:upload="upload" />
-					</div>
-				</fieldset>
-			</div>
-			<div class="col-xs-12 col-md-5">
-				<fieldset>
-					<div class="row">
-						<div class="col-md-12">
-							<h4>Databases
-								<div class="pull-right">
-									<popover effect="fade"
-											placement="left"
-											content="Select the databases you want to search against.">
-										<a class="help"
-										role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
-									</popover>
-								</div>
-							</h4>
-						</div>
-						<div v-if="databases.length == 0" class="col-md-12">
-							<div :class="['alert', { 'alert-info': !dberror }, { 'alert-danger': dberror }]">
-								<scale-loader v-if="!dberror" class="loader"
-							              color="#000000" />
+							<div v-if="databases.length == 0"
+							     :class="['alert', { 'alert-info': !dberror }, { 'alert-danger': dberror }]">
+								<scale-loader v-if="!dberror"
+								              class="loader"
+								              color="#000000" />
 								<span v-else>Could not query available databases!</span>
 							</div>
-						</div>
-						<div v-if="databases.length > 0" class="col-md-6">
-							<div class="checkbox"
-							     v-for="(db, index) in databases"
-							     v-if="index % 2 == 0">
-								<label>
-									<input type="checkbox"
-									       :value="db.db"
-									       v-model="database"> {{db.params.name}} <small class="text-muted">{{db.params.version}}</small>
-								</label>
+							<div v-else
+							     class="col-sm-9">
+								<div class="checkbox"
+								     v-for="(db, index) in databases">
+									<label>
+										<input type="checkbox"
+										       :value="db.db"
+										       v-model="database"> {{db.params.name}} <small class="text-muted">{{db.params.version}}</small>
+									</label>
+								</div>
 							</div>
 						</div>
-						<div v-if="databases.length > 0" class="col-md-6">
-							<div class="checkbox"
-							     v-for="(db, index) in databases"
-							     v-if="index % 2 != 0">
-								<label>
-									<input type="checkbox"
-									       :value="db.db"
-									       v-model="database"> {{db.params.name}} <small v-if="db.params.version" class="text-muted">{{db.params.version}}</small>
-								</label>
-							</div>
-						</div>
-					</div>
-					<div class="row">
-						<div class="col-md-12">
-							<h4>
-									Result Mode
-									<div class="pull-right">
-										<popover effect="fade"
-												placement="left"
-												content="Select the search mode.">
-											<a class="help"
-											role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
-										</popover>
-									</div>
-								</h4>
-						</div>
-						<div class="col-md-6">
-							<div class="form-group">
+	
+						<div class="form-group">
+							<popover effect="fade"
+							         placement="right"
+							         trigger="hover"
+							         content="Select the databases you want to search against.">
+								<label class="control-label col-sm-3">Result
+									<br class="hidden-xs hidden-sm"> Mode</label>
+							</popover>
+							<div class="col-sm-9">
 								<div class="radio">
 									<label>
 										<input type="radio"
 										       value="accept"
-										       v-model="mode"> Max <i>N</i>-Hits
+										       v-model="mode"> All
 									</label>
 								</div>
-							</div>
-						</div>
-						<div class="col-md-6">
-							<div class="form-group">
 								<div class="radio">
 									<label>
 										<input type="radio"
 										       value="summary"
-										       v-model="mode"> Annotate
+										       v-model="mode"> Annotations
 									</label>
 								</div>
 							</div>
 						</div>
-					</div>
-					<div class="row">
-						<div class="col-md-12">
-							<h4>Notify per Email</h4>
-							<div class="form-group">
-								<label class="sr-only" for="email">E-mail</label>
-								<div class="input-group"
-								     style="width: 100%">
-									<input id="email"
-									       type="text"
-									       class="form-control"
-									       placeholder="you@example.org (optional)"
-									       v-model="email" />
-								</div>
+	
+						<div class="form-group">
+							<popover effect="fade"
+							         placement="right"
+							         trigger="hover"
+							         content="Send an Email on completion.">
+								<label class="control-label col-sm-3"
+								       for="email">Email</label>
+							</popover>
+							<div class="col-sm-9">
+								<input id="email"
+								       type="text"
+								       class="form-control input-sm"
+								       placeholder="you@example.org (Optional)"
+								       v-model="email" />
+								<p class="help-block"></p>
 							</div>
 						</div>
-					</div>
-				</fieldset>
+					</fieldset>
+					<fieldset>
+						<legend>Reference</legend>
+						<p>Mirdita M., Söding J.#, and Steinegger M.#, <a href="#">MMseqs Webserver: Instant deployement, Instant searches</a>, <i>XXXX.</i> 201X.</p>
+						<small class="text-muted"># corresponding authors</small>
+					</fieldset>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -269,7 +264,7 @@ export default {
 <style>
 textarea.fasta {
 	font-family: Inconsolata, Consolas, Inconsolata-dz, Courier New, Courier, monospace;
-	min-height: 250px;
+	min-height: 200px;
 	resize: vertical;
 	font-size: 16px;
 }
