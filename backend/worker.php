@@ -1,4 +1,5 @@
 <?php
+setlocale(LC_CTYPE, "en_US.UTF-8");
 
 require_once 'vendor/autoload.php';
 
@@ -26,6 +27,7 @@ function processJob($redis, $config) {
             . '" "' . $basedir . '.fasta'
             . '" "' . implode(" ", $params['database'])
             . '" "' . $params['mode']
+            . '" "' . escapeshellarg($params['email'])
             . '"';
 
         $process = new Symfony\Component\Process\Process($command);

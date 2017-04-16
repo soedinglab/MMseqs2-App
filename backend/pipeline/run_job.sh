@@ -63,6 +63,8 @@ function run_job() {
             ;;
     esac
 
+    local EMAIL="$5"
+
     "${MMSEQS}" createdb "${QUERYFASTA}" "${QUERYDB}" -v 0 \
         || fail "createdb failed"
 
@@ -143,7 +145,9 @@ function run_job() {
 
     rm -f ${M8S}
 
-    #send_email "${JOBID}"
+    if [[ ! -z "${EMAIL}" ]]; then
+        send_email "${EMAIL}" "MMseqs Job done: ${JOBID}" "${JOBID}"
+    fi
 }
 
-run_job "$1" "$2" "$3" "$4"
+run_job "$1" "$2" "$3" "$4" "$5"
