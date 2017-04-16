@@ -20,8 +20,8 @@ function abspath() {
     fi
 }
 
-function notify_job() {
-    "${REDISCLI}" set "mmseqs:status:$1" "{ \"status\": \"$2\" }"
+function json2export() {
+    jq -r 'paths(scalars) as $p | ($p | join("_") | ascii_upcase) as $k | getpath($p) | tostring as $v | "export " + $k + "=" + "\"" + $v + "\""'
 }
 
 function send_mail() {
@@ -39,7 +39,7 @@ function run_job() {
     local JOBTHREADS="16"
 
     if [[ -d $WORKDIR ]]; then
-        fail "${JOBID}" "job directory already exists" "${WORKDIR}"
+        fail "job directory already exists" "${WORKDIR}"
     else
         mkdir -p "${WORKDIR}"
     fi
@@ -51,24 +51,16 @@ function run_job() {
 	local QUERYDB="${WORKDIR}/input"
 
     local TARGETS="$3"
-    local MODE="$4"
-    local ACCEPT=""
-    local EVAl=""
 
+    local MODE="$4"
     case "${MODE}" in
         accept)
-            ACCEPT="--max-accept $5"
             ;;
-
         summary)
-            EVAl="$6"
             ;;
-
         *)
-            echo "Invalid mode!"
-            exit 1
+            fail "Invalid mode!"
             ;;
-
     esac
 
     "${MMSEQS}" createdb "${QUERYFASTA}" "${QUERYDB}" -v 0 \
@@ -81,34 +73,32 @@ function run_job() {
     for DB in ${TARGETS}; do
         mkdir -p "${MMTMP}/${DB}"
 
-        local SEARCH_PARAMS=""
-        local MSA_PARAMS=""
-        local ALIS_PARAMS=""
+        local PARAMS_SEARCH=""
+        local PARAMS_SUMMARIZERESULT=""
+        local PARAMS_RESULT2MSA=""
+        local PARAMS_CONVERTALIS=""
 
         if [[ -f "${DATABASES}/${DB}.params" ]]; then
-            source "${DATABASES}/${DB}.params";
+            eval "$(cat ${DATABASES}/${DB}.params | json2export)";
         fi
 
         INPUT="${WORKDIR}/result_${DB}"
-        PROFPARAM=""
-        if [[ ! -z "$PROFILE" ]]; then
-            PROFPARAM="--target-profile"
-        fi  
         "${MMSEQS}" search "${QUERYDB}" "${DATABASES}/${DB}" \
                 "${INPUT}" "${MMTMP}/${DB}" \
                 --no-preload --early-exit --remove-tmp-files \
                 --split-mode 1 -a -v 0 --threads "${JOBTHREADS}" \
-                ${SEARCH_PARAMS} ${PROFPARAM} ${ACCEPT} \
+                ${PARAMS_SEARCH} \
             || fail "search failed"
         
         local SEQDB="${DATABASES}/${DB}"
-        if [[ ! -z "$PROFILE" ]]; then
+        if [[ -f "${DATABASES}/${DB}_seq" ]]; then
             SEQDB="${DATABASES}/${DB}_seq"
         fi
 
-        if [[ ! -z "$EVAL" ]]; then
+        if [[ "${MODE}" -eq "summary" ]]; then
             "${MMSEQS}" summarizeresult "${INPUT}" "${WORKDIR}/summarized_${DB}" \
-                    -a -e "${EVAL}" -v 0 --threads "${JOBTHREADS}" \
+                    -a -v 0 --threads "${JOBTHREADS}" \
+                    ${PARAMS_SUMMARIZERESULT} \
                 || fail "summarizeresult failed"
             INPUT="${WORKDIR}/summarized_${DB}"
         fi
@@ -117,7 +107,7 @@ function run_job() {
         "${MMSEQS}" result2msa "${QUERYDB}" "${SEQDB}" \
                 "${INPUT}" "${MSA}" \
                 -v 0 --threads "${JOBTHREADS}" \
-                ${MSA_PARAMS} ${SKIPQUERY} \
+                ${PARAMS_RESULT2MSA} ${SKIPQUERY} \
             || fail "result2msa failed"
         MSAS="${MSAS} ${MSA}"
 
@@ -125,9 +115,8 @@ function run_job() {
         "${MMSEQS}" convertalis "${QUERYDB}" "${SEQDB}" \
                 "${WORKDIR}/result_${DB}" "${ALI}" \
                 --no-preload --early-exit --db-output -v 0 \
-                --threads "${JOBTHREADS}" ${ALIS_PARAMS} \
+                --threads "${JOBTHREADS}" ${PARAMS_CONVERTALIS} \
             || fail "convertalis failed"
-
         ALIS="${ALIS} ${ALI}"
 
         rm -f "${WORKDIR}/result_${DB}" "${WORKDIR}/result_${DB}.index"
@@ -157,5 +146,4 @@ function run_job() {
     #send_email "${JOBID}"
 }
 
-#run_job "$1" "$2" "$3" "$4" "$5" "$6"
-run_job "$1" "$2" "$3" "$4" "300" "0.001"
+run_job "$1" "$2" "$3" "$4"
