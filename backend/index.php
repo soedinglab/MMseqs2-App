@@ -105,7 +105,7 @@ $klein->respond('POST', '/ticket', function ($request, $response, $service, $app
         $result["status"] = "ERROR";
     } else {
         $app->redis->transaction()
-            ->zadd('mmseqs:pending', 1, $uuid)
+            ->zadd('mmseqs:pending', Priority::rank($params), $uuid)
             ->set('mmseqs:status:' . $uuid, '{ "status": "PENDING" }')
             ->execute();
         $result["ticket"] = $uuid;

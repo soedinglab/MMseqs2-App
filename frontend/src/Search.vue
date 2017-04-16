@@ -210,11 +210,14 @@ export default {
 			});
 		},
 		search(event) {
-			const data = {
+			var data = {
 				q: this.query,
 				database: this.database,
 				mode: this.mode
 			};
+			if (this.email != '') {
+				data.email = email;
+			}
 			this.inSearch = true;
 			this.$http.post('api/ticket', data, { emulateJSON: true })
 				.then(function (response) {
