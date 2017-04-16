@@ -58,25 +58,32 @@
 								</div>
 							</h4>
 						</div>
-						<div class="col-md-6">
+						<div v-if="databases.length == 0" class="col-md-12">
+							<div :class="['alert', { 'alert-info': !dberror }, { 'alert-danger': dberror }]">
+								<scale-loader v-if="!dberror" class="loader"
+							              color="#000000" />
+								<span v-else>Could not query available databases!</span>
+							</div>
+						</div>
+						<div v-if="databases.length > 0" class="col-md-6">
 							<div class="checkbox"
 							     v-for="(db, index) in databases"
 							     v-if="index % 2 == 0">
 								<label>
 									<input type="checkbox"
-									       :value="db"
-									       v-model="database"> {{db}}
+									       :value="db.db"
+									       v-model="database"> {{db.params.name}} <small class="text-muted">{{db.params.version}}</small>
 								</label>
 							</div>
 						</div>
-						<div class="col-md-6">
+						<div v-if="databases.length > 0" class="col-md-6">
 							<div class="checkbox"
 							     v-for="(db, index) in databases"
 							     v-if="index % 2 != 0">
 								<label>
 									<input type="checkbox"
-									       :value="db"
-									       v-model="database"> {{db}}
+									       :value="db.db"
+									       v-model="database"> {{db.params.name}} <small v-if="db.params.version" class="text-muted">{{db.params.version}}</small>
 								</label>
 							</div>
 						</div>
@@ -144,15 +151,15 @@
 import SearchResultItem from './SearchResultItem.vue';
 import FileButton from './FileButton.vue';
 import Popover from '../node_modules/vue-strap/src/Popover.vue';
-import Config from './config-cache.json';
+import ScaleLoader from '../node_modules/vue-spinner/src/ScaleLoader.vue';
 
-var databases = Config["search-databases"];
 export default {
 	name: 'search',
-	components: { SearchResultItem, FileButton, Popover },
+	components: { SearchResultItem, FileButton, Popover, ScaleLoader },
 	data() {
 		return {
-			databases: databases,
+			dberror: false,
+			databases: [],
 			database: [],
 			mode: 'accept',
 			inSearch: false,
@@ -180,7 +187,28 @@ export default {
 			default: []
 		}
 	},
+	created() {
+		this.fetchData();
+	},
+	watch: {
+		'$route': 'fetchData'
+	},
 	methods: {
+		fetchData() {
+			this.$http.get('api/databases').then((response) => {
+				response.json().then((data) => {
+					this.dberror = false;
+					this.databases = data;
+					for (var i in data) {
+						if (data[i].params.default == true) {
+							this.database.push(data[i].db);
+						}
+					}
+				})
+			}, () => {
+				this.dberror = true;
+			});
+		},
 		search(event) {
 			const data = {
 				q: this.query,
