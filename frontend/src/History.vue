@@ -72,7 +72,11 @@ export default {
             this.$http.post('api/tickets', { tickets: tickets }, { emulateJSON: true }).then(function (response) {
                 response.json().then(function (data) {
                     for (var i in data) {
-                        this.items[i].status = JSON.parse(data[i]).status;
+                        if (data[i] == null) {
+                            this.items[i].status = "UNKNOWN";
+                        } else {
+                            this.items[i].status = JSON.parse(data[i]).status;
+                        }
                     }
                 }.bind(this));
             }).catch(function () {
