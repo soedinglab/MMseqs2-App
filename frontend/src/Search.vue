@@ -213,7 +213,7 @@ export default {
 				mode: this.mode
 			};
 			if (this.email != '') {
-				data.email = email;
+				data.email = this.email;
 			}
 			this.inSearch = true;
 			this.$http.post('api/ticket', data, { emulateJSON: true })
