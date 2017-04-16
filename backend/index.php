@@ -91,14 +91,17 @@ $klein->respond('POST', '/ticket', function ($request, $response, $service, $app
     $service->validateParam('database')->eachIn($app->config["search-databases"]);
     $service->validateParam('mode')->in(['accept', 'summary']);
 
-    $uuid = Uuid::generate();
-
     $params = [
         "database" => $request->database,
-        "annotations" => $request->annotations,
         "mode" => $request->mode
     ];
 
+    if (isset($request->email)) {
+        $service->validateParam('email')->email();
+        $params["email"] = $request->email;
+    }
+
+    $uuid = Uuid::generate();
     $result = [ "status" => "PENDING" ];
     if ((file_put_contents($app->config["workbase"] . "/" . $uuid . ".json", json_encode($params)) === FALSE)
         || (file_put_contents($app->config["workbase"] . "/" . $uuid . ".fasta", $request->q) === FALSE)) {
