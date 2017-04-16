@@ -133,8 +133,10 @@
 					</fieldset>
 					<fieldset>
 						<legend>Reference</legend>
+						<div class="col-sm-12">
 						<p>Mirdita M., Söding J.#, and Steinegger M.#, <a href="#">MMseqs Webserver: Instant deployement, Instant searches</a>, <i>XXXX.</i> 201X.</p>
 						<small class="text-muted"># corresponding authors</small>
+						</div>
 					</fieldset>
 				</div>
 			</div>
