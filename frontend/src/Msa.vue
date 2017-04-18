@@ -102,9 +102,9 @@ export default {
             seqs: seqs
         });
         this.m.render();
-        this.m.g.selcol.on("add reset change", function () {
+        this.m.g.selcol.on("add reset change", () => {
             this.selection = this.m.g.selcol.length
-        }.bind(this));
+        });
 
         window.addEventListener('resize', this.resize);
     },

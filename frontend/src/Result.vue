@@ -11,13 +11,15 @@
 				<msa ref="msa"
 					 :msa="msa"
 				     :ticket="ticket"></msa>
-				<h3>List
+
+				<h3>
+					List
 						<div class="pull-right">
 							<popover effect="fade" placement="left" content="Enter your queries here or drag-and-drop a fasta file containing your queries into the textbox.">
 								<a class="help" role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
 							</popover>
 						</div>
-					</h3>
+				</h3>
 				<table class="table table-responsive">
 					<thead>
 						<tr>
@@ -85,24 +87,25 @@ export default {
 			this.ticket = this.$route.params.ticket;
 			this.entry = this.$route.params.entry;
 
-			this.$http.get("api/result/" + this.ticket + '/' + this.entry).then(function (response) {
-				response.json().then(function (data) {
-					this.status = data.status;
-					switch (this.status) {
-						case "COMPLETED":
-							this.items = data.items;
-							this.msa = data.msa;
-							break;
-						default:
-							this.status = "error";
-							this.error = "Failed";
-							break;
-					}
-				}.bind(this));
-			}).catch(function () {
-				this.status = "error";
-				this.error = "Failed";
-			});
+			this.$http.get("api/result/" + this.ticket + '/' + this.entry)
+				.then((response) => {
+					response.json().then((data) => {
+						this.status = data.status;
+						switch (this.status) {
+							case "COMPLETED":
+								this.items = data.items;
+								this.msa = data.msa;
+								break;
+							default:
+								this.status = "error";
+								this.error = "Failed";
+								break;
+						}
+					});
+				}, () => {
+					this.status = "error";
+					this.error = "Failed";
+				});
 		}
 	}
 };

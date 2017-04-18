@@ -31,14 +31,12 @@
 			</div>
 		</div>
 
-		<div class="row queue-status" v-if="status == 'FAILED'">
-			<div class="col-sm-6 status">
+		<div class="row queue-status failed" v-if="status == 'FAILED'">
+			<div class="col-sm-offset-3 col-sm-6 status">
+				<h1>Error</h1>
 				<div class="alert alert-danger">
 				{{ error }}
 				</div>
-			</div>
-			<div class="col-sm-offset-1 col-sm-4">
-				<img style="width:100%" src="/assets/marv-error_2x.png" src-set="/assets/marv-error_2x.png 2x, /assets/marv-error_3x.png 3x" />
 			</div>
 		</div>
 	</div>
@@ -70,26 +68,29 @@ export default {
 				return;
 			}
 
-			this.$http.get("api/ticket/" + ticket).then(function (response) {
-				response.json().then(function (data) {
-					this.status = data.status;
+			this.$http.get("api/ticket/" + ticket).then(
+				(response) => {
+					response.json().then((data) => {
+						this.status = data.status;
 
-					switch (this.status) {
-						case "FAILED":
-							this.error = data.error;
-							break;
-						case "COMPLETED":
-							this.$router.push({ name: 'result', params: { ticket: ticket, entry: 0 } });
-							break;
-						default:
-							setTimeout(this.fetchData.bind(this), 1000);
-							break;
-					}
-				}.bind(this));
-			}).catch(function () {
-				this.status = "error";
-				this.error = "Failed";
-			});
+						switch (this.status) {
+							case "FAILED":
+								this.error = data.error;
+								break;
+							case "COMPLETED":
+								this.$router.push({ name: 'result', params: { ticket: ticket, entry: 0 } });
+								break;
+							default:
+								setTimeout(this.fetchData.bind(this), 1000);
+								break;
+						}
+					});
+				},
+				() => {
+					this.status = "FAILED";
+					this.error = "Could not query job status. Please try again later.";
+				}
+			);
 		}
 	}
 };
@@ -113,5 +114,26 @@ export default {
 
 .queue-status .loader {
 	margin:50px auto;
+}
+
+.failed {
+	margin-top:80px;
+}
+
+.failed .alert {
+	position: relative;
+}
+
+.failed .alert::after {
+	display:block;
+	position: absolute;
+	content: ' ';
+	background-image:url('/assets/marv-error_2x.png');
+	background-repeat: no-repeat;
+	background-size: 200px;
+	width: 200px;
+	height: 200px;
+	top:-142px;
+	right:0;
 }
 </style>

@@ -2,8 +2,16 @@
     <affix>
         <h3 style="padding-left:15px">All Queries</h3>
         <ul class="nav nav-pills nav-stacked">
-            <li><a>Download MSAs</a></li>
-            <li><a>Download M8</a></li>
+            <li>
+                <a :href="$url.parse('/api/download/msa/' + ticket).href">
+                    Download MSAs
+                </a>
+            </li>
+            <li>
+                <a :href="$url('api/download/m8/' + ticket)">
+                    Download M8
+                </a>
+            </li>
             <li role="separator"
                 class="nav-divider"></li>
             <li v-for="query in items"
@@ -74,8 +82,8 @@ export default {
 
             this.error = "";
             this.ticket = this.$route.params.ticket;
-            this.$http.get("api/result/queries/" + this.ticket + "/" + this.limit + "/" + this.page).then(function (response) {
-                response.json().then(function (data) {
+            this.$http.get("api/result/queries/" + this.ticket + "/" + this.limit + "/" + this.page).then((response) => {
+                response.json().then((data) => {
                     this.status = data.status;
                     switch (this.status) {
                         case "COMPLETED":
@@ -87,8 +95,8 @@ export default {
                         default:
                             break;
                     }
-                }.bind(this));
-            }).catch(function () {
+                });
+            }).catch(() => {
                 this.status = "error";
             });
         }

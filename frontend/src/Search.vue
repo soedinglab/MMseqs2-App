@@ -67,12 +67,14 @@
 								<label class="control-label col-sm-3">Databases</label>
 							</popover>
 	
-							<div v-if="databases.length == 0"
+							<div v-if="databases.length == 0" class="col-sm-9">
+								<div
 							     :class="['alert', { 'alert-info': !dberror }, { 'alert-danger': dberror }]">
-								<scale-loader v-if="!dberror"
-								              class="loader"
-								              color="#000000" />
-								<span v-else>Could not query available databases!</span>
+									<scale-loader v-if="!dberror"
+												class="loader"
+												color="#000000" />
+									<span v-else>Could not query available databases!</span>
+								</div>
 							</div>
 							<div v-else
 							     class="col-sm-9">
@@ -217,7 +219,7 @@ export default {
 			}
 			this.inSearch = true;
 			this.$http.post('api/ticket', data, { emulateJSON: true })
-				.then(function (response) {
+				.then((response) => {
 					this.status.message = this.status.type = "";
 					this.inSearch = false;
 					const result = response.body;
@@ -231,8 +233,8 @@ export default {
 						this.status.type = "error";
 						this.status.message = "Error loading search result";
 					}
-				})
-				.catch(function () {
+				}, 
+				() => {
 					this.status.type = "error";
 					this.status.message = "Error loading search result";
 					this.inSearch = false;
@@ -249,9 +251,9 @@ export default {
 		},
 		upload(files) {
 			var reader = new FileReader();
-			reader.onload = function (e) {
+			reader.onload = (e) => {
 				this.query = e.target.result;
-			}.bind(this);
+			};
 			reader.readAsText(files[0]);
 		},
 		addToHistory(uuid) {

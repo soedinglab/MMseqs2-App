@@ -5,11 +5,16 @@
             <div class="col-xs-12">
                 <div class="panel panel-default">
                     <div class="panel-heading">Previous Submissions</div>
-                    <div class="panel-body" v-if="items.length == 0">
-                        <div class="alert alert-info">
+                    <div class="panel-body"
+                         v-if="items.length == 0 || error">
+                        <div class="alert alert-info"
+                             v-if="items.length == 0">
                             No jobs
                         </div>
-
+                        <div class="alert alert-danger"
+                             v-if="error">
+                            Could not query history status. Please try again later.
+                        </div>
                     </div>
                     <table v-if="items.length > 0"
                            class="table table-striped">
@@ -22,7 +27,11 @@
                         </thead>
                         <tbody>
                             <tr v-for="item in items">
-                                <router-link tag="td"
+                                <router-link v-if="item.status == 'COMPLETED'"
+                                             tag="td"
+                                             :to="'/result/' + item.ticket + '/0'"><a class="mono">{{ item.ticket }}</a></router-link>
+                                <router-link v-else
+                                             tag="td"
                                              :to="'/queue/' + item.ticket"><a class="mono">{{ item.ticket }}</a></router-link>
                                 <td>{{ formattedDate(item.time) }}</td>
                                 <td>{{ item.status }}</td>
@@ -69,19 +78,20 @@ export default {
 
             this.items = history;
 
-            this.$http.post('api/tickets', { tickets: tickets }, { emulateJSON: true }).then(function (response) {
-                response.json().then(function (data) {
-                    for (var i in data) {
-                        if (data[i] == null) {
-                            this.items[i].status = "UNKNOWN";
-                        } else {
-                            this.items[i].status = JSON.parse(data[i]).status;
+            this.$http.post('api/tickets', { tickets: tickets }, { emulateJSON: true }).then(
+                (response) => {
+                    response.json().then((data) => {
+                        for (var i in data) {
+                            if (data[i] == null) {
+                                this.items[i].status = "UNKNOWN";
+                            } else {
+                                this.items[i].status = JSON.parse(data[i]).status;
+                            }
                         }
-                    }
-                }.bind(this));
-            }).catch(function () {
-                this.error = true;
-            });
+                    });
+                }, () => {
+                    this.error = true;
+                });
         },
         formattedDate(timestamp) {
             const date = new Date(timestamp);
