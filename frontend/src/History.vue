@@ -9,7 +9,7 @@
                          v-if="items.length == 0 || error">
                         <div class="alert alert-info"
                              v-if="items.length == 0">
-                            No jobs
+                            No previous jobs saved.
                         </div>
                         <div class="alert alert-danger"
                              v-if="error">
