@@ -26,9 +26,11 @@ function processJob($redis, $config) {
             . '" "' . $uuid
             . '" "' . $basedir . '.fasta'
             . '" "' . implode(" ", $params['database'])
-            . '" "' . $params['mode']
-            . '" "' . escapeshellarg($params['email'])
-            . '"';
+            . '" "' . $params['mode'];
+        if (isset($params['email'])) {
+            $command .= '" "' . escapeshellarg($params['email']);
+        }
+        $command .= '"';
 
         $process = new Symfony\Component\Process\Process($command);
         $process->setTimeout(3600);

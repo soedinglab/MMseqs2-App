@@ -66,29 +66,14 @@ $klein->respond('GET', '/', function($request, $response, $service, $app) {
 });
 
 $klein->respond('GET', '/databases', function($request, $response, $service, $app) {
-    $base = $app->config["databases"];
-    $result = [];
-    foreach(glob($base . '/*.params', GLOB_MARK | GLOB_NOSORT) as $filename) {
-        if (preg_match('/' . preg_quote($base . '/', '/') . '(.+)\.params/', $filename, $match) === 1) {
-            $fullpath = $base . '/' . $match[1] . '.params';
-            $result[] = [ "db" => $match[1], "params" => json_decode(file_get_contents($fullpath), true)["display"] ];
-        }
-    }
-    usort($result, function($o1, $o2) {
-        $a = (int) $o1["params"]["order"];
-        $b = (int) $o2["params"]["order"];
-        if ($a == $b) {
-            return 0;
-        }
-        return ($a < $b) ? -1 : 1;
-    });
-    $response->json($result);
+    $response->json(AvailableDatabases::getInstance());
 });
 
 
 $klein->respond('POST', '/ticket', function ($request, $response, $service, $app) {
     $service->validateParam('q')->fasta();
-    $service->validateParam('database')->eachIn($app->config["search-databases"]);
+    $databases = array_column(AvailableDatabases::getInstance(), 'db');
+    $service->validateParam('database')->eachIn($databases);
     $service->validateParam('mode')->in(['accept', 'summary']);
 
     $params = [
