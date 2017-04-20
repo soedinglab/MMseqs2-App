@@ -147,7 +147,7 @@ function run_job() {
     rm -f ${M8S}
 
     if [[ ! -z "${EMAIL}" ]]; then
-        send_email "${EMAIL}" "MMseqs Job done: ${JOBID}" "${JOBID}"
+        send_mail "${EMAIL}" "MMseqs Job done: ${JOBID}" "${JOBID}"
     fi
 }
 
