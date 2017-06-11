@@ -3,7 +3,7 @@ require('./assets/uniclust.less');
 import Vue from 'vue';
 import VueRouter from 'vue-router';
 import VueResource from 'vue-resource';
-import VueLocalStorage from 'vue-localstorage/vue-localstorage.es2015';
+import VueLocalStorage from 'vue-localstorage/dist/vue-local-storage.es2015.js';
 
 Vue.use(VueRouter);
 Vue.use(VueResource);
