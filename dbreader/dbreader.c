@@ -1,4 +1,4 @@
-#include "DBReader.h"
+#include "dbreader.h"
 
 #include <stdlib.h>
 #include <string.h>

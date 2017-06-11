@@ -142,6 +142,8 @@ func TicketsStatus(client *redis.Client, tickets []string) ([]TicketResponse, er
 	for i, item := range r {
 		var value string
 		switch vv := item.(type) {
+		case nil:
+			value = "UNKNOWN"
 		case []byte:
 			value = string(vv)
 		default:
