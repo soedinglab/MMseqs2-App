@@ -81,8 +81,8 @@ func server(client *redis.Client) {
 		validDatabaseNames[i] = item.Name
 	}
 
-	r := mux.NewRouter().StrictSlash(true)
-	r.HandleFunc("/databases/", func(w http.ResponseWriter, req *http.Request) {
+	r := mux.NewRouter()
+	r.HandleFunc("/databases", func(w http.ResponseWriter, req *http.Request) {
 		type DatabaseResponse struct {
 			Databases controller.ByOrder `json:"databases"`
 		}
@@ -94,7 +94,7 @@ func server(client *redis.Client) {
 		}
 	}).Methods("GET")
 
-	r.HandleFunc("/ticket/", func(w http.ResponseWriter, req *http.Request) {
+	r.HandleFunc("/ticket", func(w http.ResponseWriter, req *http.Request) {
 		result, err := controller.NewTicket(client, req.Body, validDatabaseNames, viper.GetString("JobsBase"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -122,7 +122,7 @@ func server(client *redis.Client) {
 		}
 	}).Methods("GET")
 
-	r.HandleFunc("/tickets/", func(w http.ResponseWriter, req *http.Request) {
+	r.HandleFunc("/tickets", func(w http.ResponseWriter, req *http.Request) {
 		err := req.ParseForm()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
