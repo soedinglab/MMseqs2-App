@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 
@@ -96,7 +97,7 @@ func server(client *redis.Client) {
 			return
 		}
 
-		dbs := make([]int, len(req.Form["db"]));
+		dbs := make([]int, len(req.Form["db"]))
 		for i, val := range req.Form["db"] {
 			res, err := strconv.ParseInt(val, 10, 64)
 			if err != nil {
@@ -147,7 +148,7 @@ func server(client *redis.Client) {
 			return
 		}
 
-		res, err := controller.TicketsStatus(client, req.Form["ticket"])
+		res, err := controller.TicketsStatus(client, req.Form["tickets[]"])
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -216,8 +217,9 @@ func server(client *redis.Client) {
 		}
 	}).Methods("GET")
 
+	c := cors.AllowAll()
 	srv := &http.Server{
-		Handler: r,
+		Handler: c.Handler(r),
 		Addr:    viper.GetString("ServerAddr"),
 
 		WriteTimeout: 15 * time.Second,

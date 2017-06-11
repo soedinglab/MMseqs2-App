@@ -1,6 +1,6 @@
 package dbreader
 
-//#import <dbreader.h>
+//#include <dbreader.h>
 import "C"
 import "unsafe"
 
