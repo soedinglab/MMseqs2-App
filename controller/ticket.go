@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"io"
-
 	"github.com/go-redis/redis"
 	"github.com/satori/go.uuid"
 
@@ -12,8 +10,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-
-	"../decoder"
 )
 
 type TicketRequest struct {
@@ -49,12 +45,7 @@ func IsIn(num int, params ...int) int {
 	return -1
 }
 
-func NewTicket(client *redis.Client, reader io.Reader, databases []ParamsDisplay, jobsbase string) (TicketResponse, error) {
-	var request TicketRequest
-	if err := decoder.DecodeAndValidate(reader, &request); err != nil {
-		return TicketResponse{}, err
-	}
-
+func NewTicket(client *redis.Client, request TicketRequest, databases []ParamsDisplay, jobsbase string) (TicketResponse, error) {
 	ids := make([]int, len(databases))
 	for i, item := range databases {
 		ids[i] = item.Id

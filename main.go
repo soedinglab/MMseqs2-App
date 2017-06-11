@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
@@ -91,7 +90,30 @@ func server(client *redis.Client) {
 	}).Methods("GET")
 
 	r.HandleFunc("/ticket", func(w http.ResponseWriter, req *http.Request) {
-		result, err := controller.NewTicket(client, req.Body, databases, viper.GetString("JobsBase"))
+		err := req.ParseForm()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		dbs := make([]int, len(req.Form["db"]));
+		for i, val := range req.Form["db"] {
+			res, err := strconv.ParseInt(val, 10, 64)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			dbs[i] = int(res)
+		}
+		request := controller.TicketRequest{
+			req.FormValue("q"),
+			dbs,
+			req.FormValue("mode"),
+			req.FormValue("email"),
+		}
+
+		result, err := controller.NewTicket(client, request, databases, viper.GetString("JobsBase"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -194,9 +216,8 @@ func server(client *redis.Client) {
 		}
 	}).Methods("GET")
 
-	c := handlers.AllowedOrigins([]string{"*"})
 	srv := &http.Server{
-		Handler: handlers.CORS(c)(r),
+		Handler: r,
 		Addr:    viper.GetString("ServerAddr"),
 
 		WriteTimeout: 15 * time.Second,
