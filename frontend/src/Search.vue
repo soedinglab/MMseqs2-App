@@ -39,10 +39,19 @@
 								<span v-if="inSearch"
 								      class="spinner">Spin</span> Search
 							</button>
+							<modal title="cURL Submission Command" v-model="showCurl" @ok="showCurl = false">
+								<code>curl -X POST -F q=@PATH_TO_FILE <span v-if="email">-F 'email={{email}}'</span> -F 'mode={{mode}}' <span v-for="db in database">-F 'database[]={{db}}' </span> {{ $url('api/ticket') }}</code>
+								<br slot="modal-footer" />
+							</modal>
+							<div class="pull-right">
+							<button class="btn btn-default"
+							        v-on:click="showCurl = true"
+									:disabled="searchDisabled"> Get cURL Command
+							</button>
 							<file-button id="file"
-							             class="pull-right"
 							             label="Upload FASTA File"
 							             v-on:upload="upload" />
+							</div>
 						</div>
 					</fieldset>
 				</div>
@@ -150,11 +159,12 @@
 import SearchResultItem from './SearchResultItem.vue';
 import FileButton from './FileButton.vue';
 import Popover from '../node_modules/vue-strap/src/Popover.vue';
+import Modal from '../node_modules/vue-strap/src/Modal.vue';
 import ScaleLoader from '../node_modules/vue-spinner/src/ScaleLoader.vue';
 
 export default {
 	name: 'search',
-	components: { SearchResultItem, FileButton, Popover, ScaleLoader },
+	components: { SearchResultItem, FileButton, Popover, Modal, ScaleLoader },
 	data() {
 		return {
 			dberror: false,
@@ -167,7 +177,8 @@ export default {
 			status: {
 				type: '',
 				message: ''
-			}
+			},
+			showCurl: false
 		};
 	},
 	computed: {

@@ -2,11 +2,11 @@
     <affix>
         <h3 style="padding-left:15px">All Queries</h3>
         <ul class="nav nav-pills nav-stacked">
-            <li>
+            <!--<li>
                 <a :href="$url.parse('/api/download/msa/' + ticket).href">
                     Download MSAs
                 </a>
-            </li>
+            </li>-->
             <li>
                 <a :href="$url('api/download/m8/' + ticket)">
                     Download M8
@@ -77,7 +77,7 @@ export default {
         },
         fetchData() {
             if (this.page == -1) {
-                this.page = this.entry % this.limit;
+                this.page = Math.floor(this.entry / this.limit);
             }
 
             this.error = "";

@@ -35,7 +35,9 @@
 			<div class="col-sm-offset-3 col-sm-6 status">
 				<h1>Error</h1>
 				<div class="alert alert-danger">
-				{{ error }}
+					<pre>
+						{{ error }}
+					</pre>
 				</div>
 			</div>
 		</div>
@@ -78,7 +80,7 @@ export default {
 								this.error = data.error;
 								break;
 							case "COMPLETED":
-								this.$router.push({ name: 'result', params: { ticket: ticket, entry: 0 } });
+								this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
 								break;
 							default:
 								setTimeout(this.fetchData.bind(this), 1000);

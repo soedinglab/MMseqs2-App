@@ -22,6 +22,10 @@
                      to="/history"
                      tag="li"
                      exact><a>History</a></router-link>
+
+        <li slot="right"><a rel="external noopener" target="_blank" href="https://mmseqs.com" class="text-muted">MMseqs2</a></li>
+        <li slot="right"><a rel="external noopener" target="_blank" href="https://github.com/soedinglab/mmseqs-webserver" class="text-muted">Github</a></li>
+        <li slot="right"><a rel="external noopener" target="_blank" href="http://www.mpibpc.mpg.de/soeding">Södinglab</a></li>
     </navbar>
 </template>
 
