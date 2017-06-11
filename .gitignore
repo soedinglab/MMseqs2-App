@@ -1,2 +1,5 @@
 .idea/
-build/
+build/databases/
+build/jobs/
+build/mmseqs-web
+dump.rdb
