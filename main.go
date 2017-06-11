@@ -76,11 +76,6 @@ func server(client *redis.Client) {
 		panic("No search databases found!")
 	}
 
-	validDatabaseNames := make([]string, len(databases))
-	for i, item := range databases {
-		validDatabaseNames[i] = item.Name
-	}
-
 	r := mux.NewRouter()
 	r.HandleFunc("/databases", func(w http.ResponseWriter, req *http.Request) {
 		type DatabaseResponse struct {
@@ -95,7 +90,7 @@ func server(client *redis.Client) {
 	}).Methods("GET")
 
 	r.HandleFunc("/ticket", func(w http.ResponseWriter, req *http.Request) {
-		result, err := controller.NewTicket(client, req.Body, validDatabaseNames, viper.GetString("JobsBase"))
+		result, err := controller.NewTicket(client, req.Body, databases, viper.GetString("JobsBase"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

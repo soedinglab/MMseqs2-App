@@ -3,7 +3,6 @@ package controller
 import (
 	"io"
 
-	"github.com/asaskevich/govalidator"
 	"github.com/go-redis/redis"
 	"github.com/satori/go.uuid"
 
@@ -19,7 +18,7 @@ import (
 
 type TicketRequest struct {
 	Query    string   `json:"q",valid:"alphanum,required"`
-	Database []string `json:"database",valid:"required"`
+	Database []int    `json:"database",valid:"required"`
 	Mode     string   `json:"mode",valid:"in(accept,summary),required"`
 	Email    string   `json:"email",valid:"email,optional"`
 }
@@ -40,15 +39,34 @@ type Job struct {
 	Email    string   `json:"email"`
 }
 
-func NewTicket(client *redis.Client, reader io.Reader, validDatabaseNames []string, jobsbase string) (TicketResponse, error) {
+func IsIn(num int, params ...int) int {
+	for i, param := range params {
+		if num == param {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func NewTicket(client *redis.Client, reader io.Reader, databases []ParamsDisplay, jobsbase string) (TicketResponse, error) {
 	var request TicketRequest
 	if err := decoder.DecodeAndValidate(reader, &request); err != nil {
 		return TicketResponse{}, err
 	}
 
-	for _, item := range request.Database {
-		if !govalidator.IsIn(item, validDatabaseNames...) {
+	ids := make([]int, len(databases))
+	for i, item := range databases {
+		ids[i] = item.Id
+	}
+
+	paths := make([]string, len(request.Database))
+	for i, item := range request.Database {
+		idx := IsIn(item, ids...)
+		if idx == -1 {
 			return TicketResponse{}, errors.New("Selected databases are not valid!")
+		} else {
+			paths[i] = databases[idx].Path
 		}
 	}
 
@@ -73,7 +91,7 @@ func NewTicket(client *redis.Client, reader io.Reader, validDatabaseNames []stri
 		if err != nil {
 			s = "ERROR"
 		} else {
-			err = json.NewEncoder(file).Encode(Job{request.Database, request.Mode, request.Email})
+			err = json.NewEncoder(file).Encode(Job{paths, request.Mode, request.Email})
 			if err != nil {
 				s = "ERROR"
 			}

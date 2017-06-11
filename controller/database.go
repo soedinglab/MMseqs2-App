@@ -7,9 +7,12 @@ import (
 	"sort"
 
 	"../decoder"
+	"strings"
 )
 
 type ParamsDisplay struct {
+	Id      int    `json:"id"`
+	Path    string `json:"-"`
 	Name    string `json:"name"`
 	Version string `json:"version"`
 	Default bool   `json:"default"`
@@ -45,6 +48,7 @@ func Databases(basepath string) ([]ParamsDisplay, error) {
 		return nil, err
 	}
 
+	cnt := 1
 	var res []ParamsDisplay
 	for _, value := range matches {
 		f, err := os.Open(value)
@@ -58,8 +62,13 @@ func Databases(basepath string) ([]ParamsDisplay, error) {
 			return nil, err
 		}
 
-		//base := filepath.Base(value)
-		//name := strings.TrimSuffix(base, filepath.Ext(base))
+		params.Display.Id = cnt
+
+		base := filepath.Base(value)
+		name := strings.TrimSuffix(base, filepath.Ext(base))
+		params.Display.Path = name
+
+		cnt++
 
 		res = append(res, params.Display)
 	}
