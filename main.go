@@ -240,7 +240,10 @@ func worker(client *redis.Client) {
 	for {
 		pop, err := Zpop.Run(client, []string{"mmseqs:pending"}).Result()
 		if err != nil {
-			log.Print(err)
+			if pop != nil {
+				log.Print(err)
+			}
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 
