@@ -1,10 +1,9 @@
 package controller
 
 import (
-	"path/filepath"
-	"strings"
-	"os"
 	"bufio"
+	"os"
+	"path/filepath"
 	"sort"
 
 	"../decoder"
@@ -13,8 +12,8 @@ import (
 type ParamsDisplay struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
-	Default bool `json:"default"`
-	Order   int `json:"order"`
+	Default bool   `json:"default"`
+	Order   int    `json:"order"`
 }
 
 type ByOrder []ParamsDisplay
@@ -31,14 +30,13 @@ func (d ByOrder) Less(i, j int) bool {
 
 type ParamsMMseqs struct {
 	Search          string `json:"search"`
-	Result2msa      string `json:"result2msa"`
 	Convertalis     string `json:"convertalis"`
 	Summarizeresult string `json:"summarizeresult"`
 }
 
 type Params struct {
 	Display ParamsDisplay `json:"display"`
-	Params  ParamsMMseqs `json:"params"`
+	Params  ParamsMMseqs  `json:"params"`
 }
 
 func Databases(basepath string) ([]ParamsDisplay, error) {
@@ -49,9 +47,7 @@ func Databases(basepath string) ([]ParamsDisplay, error) {
 
 	var res []ParamsDisplay
 	for _, value := range matches {
-		base := filepath.Base(value)
-		name := strings.TrimSuffix(base, filepath.Ext(base))
-		f, err := os.Open(name)
+		f, err := os.Open(value)
 		if err != nil {
 			return nil, err
 		}
@@ -61,6 +57,10 @@ func Databases(basepath string) ([]ParamsDisplay, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		//base := filepath.Base(value)
+		//name := strings.TrimSuffix(base, filepath.Ext(base))
+
 		res = append(res, params.Display)
 	}
 

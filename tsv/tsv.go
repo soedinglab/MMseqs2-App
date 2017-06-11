@@ -27,9 +27,9 @@ func NewParser(reader io.Reader, data interface{}) *Parser {
 	r.Comma = '\t'
 
 	p := &Parser{
-		Reader:    r,
-		Data:      data,
-		ref:       reflect.ValueOf(data).Elem(),
+		Reader: r,
+		Data:   data,
+		ref:    reflect.ValueOf(data).Elem(),
 	}
 
 	return p
@@ -85,17 +85,7 @@ func (p *Parser) Next() (eof bool, err error) {
 				}
 				field.SetBool(col)
 			}
-		case reflect.Float32:
-			if record == "" {
-				field.SetFloat(0)
-			} else {
-				col, err := strconv.ParseFloat(record, 32)
-				if err != nil {
-					return false, err
-				}
-				field.SetFloat(col)
-			}
-		case reflect.Float64:
+		case reflect.Float64, reflect.Float32:
 			if record == "" {
 				field.SetFloat(0)
 			} else {
@@ -105,15 +95,25 @@ func (p *Parser) Next() (eof bool, err error) {
 				}
 				field.SetFloat(col)
 			}
-		case reflect.Int:
+		case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int:
 			if record == "" {
 				field.SetInt(0)
 			} else {
-				col, err := strconv.ParseInt(record, 10, 0)
+				col, err := strconv.ParseInt(record, 10, 64)
 				if err != nil {
 					return false, err
 				}
 				field.SetInt(col)
+			}
+		case reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
+			if record == "" {
+				field.SetUint(0)
+			} else {
+				col, err := strconv.ParseUint(record, 10, 64)
+				if err != nil {
+					return false, err
+				}
+				field.SetUint(col)
 			}
 		default:
 			return false, errors.New("Unsupported field type")

@@ -1,43 +1,43 @@
 package controller
 
 import (
-	"fmt"
 	"strings"
 
-	"github.com/satori/go.uuid"
 	"github.com/go-redis/redis"
+	"github.com/satori/go.uuid"
 
 	"../dbreader"
 	"../tsv"
+	"path/filepath"
 )
 
 type AlignmentResult struct {
-	Query         string `json:"query"`
-	Target        string `json:"target"`
+	Query         string  `json:"query"`
+	Target        string  `json:"target"`
 	SeqId         float32 `json:"seqId"`
-	AlnLength     int `json:"alnLength"`
-	Missmatches   int `json:"missmatches"`
-	Gapsopened    int `json:"gapsopened"`
-	QueryStartPos int `json:"qStartPos"`
-	QueryEndPos   int `json:"qEndPos"`
-	DbStartPos    int `json:"dbStartPos"`
-	DbEndPos      int `json:"dbEndPos"`
+	AlnLength     int     `json:"alnLength"`
+	Missmatches   int     `json:"missmatches"`
+	Gapsopened    int     `json:"gapsopened"`
+	QueryStartPos int     `json:"qStartPos"`
+	QueryEndPos   int     `json:"qEndPos"`
+	DbStartPos    int     `json:"dbStartPos"`
+	DbEndPos      int     `json:"dbEndPos"`
 	Eval          float64 `json:"eval"`
-	Score         int `json:"score"`
+	Score         int     `json:"score"`
 }
 
 type AlignmentResultResponse struct {
 	Alignments []AlignmentResult `json:"alignments"`
 }
 
-func Alignments(client *redis.Client, ticket uuid.UUID, entry uint32, basepath string) (AlignmentResultResponse, error) {
+func Alignments(client *redis.Client, ticket uuid.UUID, entry uint32, jobsbase string) (AlignmentResultResponse, error) {
 	res, err := client.Get("mmseqs:status:" + ticket.String()).Result()
 	if err != nil {
 		return AlignmentResultResponse{}, err
 	}
 
 	if res == "COMPLETED" {
-		result := fmt.Sprintf("%s/%s/alis", basepath, ticket)
+		result := filepath.Join(jobsbase, ticket.String(), "alis")
 
 		reader := dbreader.Reader{}
 		reader.Make(result, result+".index")

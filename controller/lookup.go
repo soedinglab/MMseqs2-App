@@ -1,17 +1,18 @@
 package controller
 
 import (
-	"os"
-	"fmt"
-	"github.com/satori/go.uuid"
 	"github.com/go-redis/redis"
+	"github.com/satori/go.uuid"
+
+	"os"
+	"path/filepath"
 
 	"../tsv"
 )
 
 type LookupResult struct {
 	Id   uint32 `json:"id"`
-	Name string  `json:"name"`
+	Name string `json:"name"`
 }
 
 type LookupResponse struct {
@@ -25,12 +26,14 @@ func Lookup(client *redis.Client, ticket uuid.UUID, page uint64, limit uint64, b
 	}
 
 	if res == "COMPLETED" {
-		result := fmt.Sprintf("%s/%s/input.lookup", basepath, ticket)
+		result := filepath.Join(basepath, ticket.String(), "input.lookup")
 
 		file, err := os.Open(result)
+		defer file.Close()
 		if err != nil {
 			return LookupResponse{}, err
 		}
+
 		var results []LookupResult
 		res := LookupResult{}
 		parser := tsv.NewParser(file, &res)
@@ -45,7 +48,7 @@ func Lookup(client *redis.Client, ticket uuid.UUID, page uint64, limit uint64, b
 			results = append(results, res)
 		}
 
-		return LookupResponse{results[page*limit:page*limit+limit]}, nil
+		return LookupResponse{results[page*limit : page*limit+limit]}, nil
 	}
 	return LookupResponse{}, nil
 }
