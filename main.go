@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
@@ -193,8 +194,9 @@ func server(client *redis.Client) {
 		}
 	}).Methods("GET")
 
+	c := handlers.AllowedOrigins([]string{"*"})
 	srv := &http.Server{
-		Handler: r,
+		Handler: handlers.CORS(c)(r),
 		Addr:    viper.GetString("ServerAddr"),
 
 		WriteTimeout: 15 * time.Second,
