@@ -33,5 +33,9 @@ func (d *Reader) Length(id int64) int64 {
 }
 
 func (d *Reader) Data(id int64) string {
-	return C.GoString(C.reader_get_data(d.handle, (C.int64_t)(id)))
+	res := C.reader_get_data(d.handle, (C.int64_t)(id))
+	if res != nil {
+		return C.GoString(res)
+	}
+	return ""
 }

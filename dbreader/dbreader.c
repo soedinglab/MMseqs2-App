@@ -80,6 +80,10 @@ void* make_reader(const char *data_name, const char *index_name, int32_t data_mo
 
 void free_reader(void *r) {
     DBReader *reader = (DBReader*)r;
+    if (reader == NULL) {
+        return;
+    }
+
     if (reader->dataMode & DB_READER_USE_DATA) {
         munmap(reader->data, (size_t)(reader->data_size));
     }
@@ -95,6 +99,10 @@ void free_reader(void *r) {
 
 int64_t reader_get_id(void *r, uint32_t key) {
     DBReader *reader = (DBReader*)r;
+    if (reader == NULL) {
+        return -1
+    }
+
     reader_index val;
     val.id = key;
 
@@ -109,7 +117,7 @@ int64_t reader_get_id(void *r, uint32_t key) {
 
 const char* reader_get_data(void *r, int64_t id) {
     DBReader *reader = (DBReader*)r;
-    if (id < 0 || id >= reader->size) {
+    if (reader == NULL || id < 0 || id >= reader->size) {
         return NULL;
     }
 
@@ -122,7 +130,7 @@ const char* reader_get_data(void *r, int64_t id) {
 
 uint32_t reader_get_key(void *r, int64_t id) {
     DBReader *reader = (DBReader*)r;
-    if (id < 0 || id >= reader->size) {
+    if (reader == NULL || id < 0 || id >= reader->size) {
         return -1;
     }
     return reader->index[id].id;
@@ -130,7 +138,7 @@ uint32_t reader_get_key(void *r, int64_t id) {
 
 int64_t reader_get_length(void *r, int64_t id) {
     DBReader *reader = (DBReader*)r;
-    if (id < 0 || id >= reader->size) {
+    if (reader == NULL || id < 0 || id >= reader->size) {
         return -1;
     }
     return reader->index[id].length;
@@ -138,7 +146,7 @@ int64_t reader_get_length(void *r, int64_t id) {
 
 int64_t reader_get_offset(void *r, int64_t id) {
     DBReader *reader = (DBReader*)r;
-    if (id < 0 || id >= reader->size) {
+    if (reader == NULL || id < 0 || id >= reader->size) {
         return -1;
     }
     return reader->index[id].offset;
