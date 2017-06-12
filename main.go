@@ -6,6 +6,13 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+	"os/exec"
+	"strings"
+	"bufio"
 
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
@@ -13,14 +20,7 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 
-	"fmt"
-	"os"
-	"path"
-	"path/filepath"
-
 	"./controller"
-	"os/exec"
-	"strings"
 )
 
 func existsOrPanic(path string) {
@@ -294,6 +294,24 @@ func worker(client *redis.Client) {
 			job.Mode,
 		)
 
+		f, err := os.Create(path.Join(viper.GetString("JobsBase"), ticket.String(), "job.log"))
+		defer f.Close()
+		if err != nil {
+			client.Set("mmseqs:status:"+ticket.String(), "ERROR", 0)
+			continue
+		}
+
+		b := bufio.NewWriter(f)
+
+		cmd.Stdout = b
+		cmd.Stderr = b
+
+		err = cmd.Start()
+		if err != nil {
+			client.Set("mmseqs:status:"+ticket.String(), "ERROR", 0)
+			continue
+		}
+
 		done := make(chan error, 1)
 		go func() {
 			done <- cmd.Wait()
@@ -312,7 +330,6 @@ func worker(client *redis.Client) {
 			} else {
 				log.Print("process done gracefully without error")
 				client.Set("mmseqs:status:"+ticket.String(), "COMPLETED", 0)
-
 			}
 		}
 	}
