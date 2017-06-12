@@ -100,7 +100,7 @@ void free_reader(void *r) {
 int64_t reader_get_id(void *r, uint32_t key) {
     DBReader *reader = (DBReader*)r;
     if (reader == NULL) {
-        return -1
+        return -1;
     }
 
     reader_index val;

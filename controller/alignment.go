@@ -11,7 +11,7 @@ import (
 	"../tsv"
 )
 
-type AlignmentResult struct {
+type AlignmentEntry struct {
 	Query         string  `json:"query"`
 	Target        string  `json:"target"`
 	SeqId         float32 `json:"seqId"`
@@ -26,26 +26,46 @@ type AlignmentResult struct {
 	Score         int     `json:"score"`
 }
 
-type AlignmentResultResponse struct {
-	Alignments []AlignmentResult `json:"alignments"`
+type FastaEntry struct {
+	Header string `json:"header"`
+	Sequence string `json:"sequence"`
 }
 
-func Alignments(client *redis.Client, ticket uuid.UUID, entry int64, jobsbase string) (AlignmentResultResponse, error) {
+type AlignmentResponse struct {
+	Query FastaEntry `json:"query"`
+	Alignments []AlignmentEntry `json:"alignments"`
+}
+
+func dbpaths(path string) (string, string) {
+	return path, path + ".index"
+}
+
+func Alignments(client *redis.Client, ticket uuid.UUID, entry int64, jobsbase string) (AlignmentResponse, error) {
 	res, err := client.Get("mmseqs:status:" + ticket.String()).Result()
 	if err != nil {
-		return AlignmentResultResponse{}, err
+		return AlignmentResponse{}, err
 	}
 
 	if res == "COMPLETED" {
-		result := filepath.Join(jobsbase, ticket.String(), "alis")
 
+		base := filepath.Join(jobsbase, ticket.String())
 		reader := dbreader.Reader{}
-		reader.Make(result, result+".index")
-		defer reader.Delete()
+		reader.Make(dbpaths(filepath.Join(base, "alis")))
 		data := strings.NewReader(reader.Data(entry))
+		reader.Delete()
 
-		var results []AlignmentResult
-		res := AlignmentResult{}
+		reader = dbreader.Reader{}
+		reader.Make(dbpaths(filepath.Join(base, "input")))
+		sequence := reader.Data(entry)
+		reader.Delete()
+
+		reader = dbreader.Reader{}
+		reader.Make(dbpaths(filepath.Join(base, "input_h")))
+		header := reader.Data(entry)
+		reader.Delete()
+
+		var results []AlignmentEntry
+		res := AlignmentEntry{}
 		parser := tsv.NewParser(data, &res)
 		for {
 			eof, err := parser.Next()
@@ -53,13 +73,13 @@ func Alignments(client *redis.Client, ticket uuid.UUID, entry int64, jobsbase st
 				break
 			}
 			if err != nil {
-				return AlignmentResultResponse{}, err
+				return AlignmentResponse{}, err
 			}
 			results = append(results, res)
 		}
 
-		return AlignmentResultResponse{results}, nil
+		return AlignmentResponse{FastaEntry{header, sequence}, results}, nil
 	}
 
-	return AlignmentResultResponse{}, nil
+	return AlignmentResponse{}, nil
 }
