@@ -48,6 +48,7 @@ func setupConfig() {
 	viper.SetDefault("Databases", filepath.Join(basepath, "databases"))
 	viper.SetDefault("JobsBase", filepath.Join(basepath, "jobs"))
 	viper.SetDefault("SearchPipeline", filepath.Join(basepath, "run_job.sh"))
+	viper.SetDefault("Mmseqs", filepath.Join(basepath, "mmseqs"))
 
 	viper.SetDefault("RedisNetwork", "tcp")
 	viper.SetDefault("RedisAddr", "localhost:6379")
@@ -97,8 +98,8 @@ func server(client *redis.Client) {
 			return
 		}
 
-		dbs := make([]int, len(req.Form["db"]))
-		for i, val := range req.Form["db"] {
+		dbs := make([]int, len(req.Form["database[]"]))
+		for i, val := range req.Form["database[]"] {
 			res, err := strconv.ParseInt(val, 10, 64)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -287,6 +288,7 @@ func worker(client *redis.Client) {
 
 		cmd := exec.Command(
 			viper.GetString("SearchPipeline"),
+			viper.GetString("Mmseqs"),
 			viper.GetString("JobsBase"),
 			ticket.String(),
 			viper.GetString("Databases"),

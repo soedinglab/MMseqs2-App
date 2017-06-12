@@ -24,17 +24,14 @@ function json2export() {
 }
 
 function run_job() {
-    local WORKBASE="$1"
-    local JOBID="$2"
+    local MMSEQS="$1"
+    local WORKBASE="$2"
+    local JOBID="$3"
     local WORKDIR="${WORKBASE}/${JOBID}"
     local VERBOSITY="3"
     local JOBTHREADS="16"
 
-    if [[ -d $WORKDIR ]]; then
-        fail "job directory ${WORKDIR} already exists"
-    else
-        mkdir -p "${WORKDIR}"
-    fi
+    mkdir -p "${WORKDIR}"
 
     local MMTMP="${WORKDIR}/tmp"
     mkdir -p "${MMTMP}"
@@ -42,10 +39,10 @@ function run_job() {
 	local QUERYFASTA="${WORKDIR}/job.fasta"
 	local QUERYDB="${WORKDIR}/input"
 
-    local DATABASES="$3"
-    local TARGETS="$4"
+    local DATABASES="$4"
+    local TARGETS="$5"
 
-    local MODE="$5"
+    local MODE="$6"
     case "${MODE}" in
         accept)
             ;;
@@ -122,4 +119,4 @@ function run_job() {
     rm -f ${M8S}
 }
 
-run_job "$1" "$2" "$3" "$4" "$5"
+run_job "$1" "$2" "$3" "$4" "$5" "$6"
