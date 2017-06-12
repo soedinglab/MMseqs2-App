@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"os/exec"
 	"strings"
-	"bufio"
 
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
@@ -170,13 +169,13 @@ func server(client *redis.Client) {
 			return
 		}
 
-		id, err := strconv.ParseUint(vars["entry"], 10, 32)
+		id, err := strconv.ParseUint(vars["entry"], 10, 64)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		results, err := controller.Alignments(client, ticket, uint32(id), viper.GetString("JobsBase"))
+		results, err := controller.Alignments(client, ticket, int64(id), viper.GetString("JobsBase"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
