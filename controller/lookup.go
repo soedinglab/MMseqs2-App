@@ -17,6 +17,7 @@ type LookupResult struct {
 
 type LookupResponse struct {
 	Lookup []LookupResult `json:"lookup"`
+	HasNextPage bool `json:"hasNext"`
 }
 
 func Lookup(client *redis.Client, ticket uuid.UUID, page uint64, limit uint64, basepath string) (LookupResponse, error) {
@@ -37,6 +38,11 @@ func Lookup(client *redis.Client, ticket uuid.UUID, page uint64, limit uint64, b
 		var results []LookupResult
 		res := LookupResult{}
 		parser := tsv.NewParser(file, &res)
+
+		var cnt uint64
+		cnt = 0
+		start := page * limit
+		hasNextPage := false
 		for {
 			eof, err := parser.Next()
 			if eof {
@@ -45,10 +51,24 @@ func Lookup(client *redis.Client, ticket uuid.UUID, page uint64, limit uint64, b
 			if err != nil {
 				return LookupResponse{}, err
 			}
+
+			cnt++
+			if cnt < start {
+				continue
+			}
+
+			if cnt >= (start + limit) {
+				if	eof, _ := parser.Next(); !eof {
+					hasNextPage = true
+				}
+				break
+			}
+
+			res.Id--
 			results = append(results, res)
 		}
 
-		return LookupResponse{results[page*limit : page*limit+limit]}, nil
+		return LookupResponse{results, hasNextPage}, nil
 	}
 	return LookupResponse{}, nil
 }

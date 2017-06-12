@@ -2,13 +2,13 @@ package controller
 
 import (
 	"strings"
+	"path/filepath"
 
 	"github.com/go-redis/redis"
 	"github.com/satori/go.uuid"
 
 	"../dbreader"
 	"../tsv"
-	"path/filepath"
 )
 
 type AlignmentResult struct {
@@ -30,7 +30,7 @@ type AlignmentResultResponse struct {
 	Alignments []AlignmentResult `json:"alignments"`
 }
 
-func Alignments(client *redis.Client, ticket uuid.UUID, entry uint32, jobsbase string) (AlignmentResultResponse, error) {
+func Alignments(client *redis.Client, ticket uuid.UUID, entry int64, jobsbase string) (AlignmentResultResponse, error) {
 	res, err := client.Get("mmseqs:status:" + ticket.String()).Result()
 	if err != nil {
 		return AlignmentResultResponse{}, err
@@ -42,11 +42,7 @@ func Alignments(client *redis.Client, ticket uuid.UUID, entry uint32, jobsbase s
 		reader := dbreader.Reader{}
 		reader.Make(result, result+".index")
 		defer reader.Delete()
-		id := reader.Id(uint32(entry))
-		if id == -1 {
-			return AlignmentResultResponse{}, err
-		}
-		data := strings.NewReader(reader.Data(id))
+		data := strings.NewReader(reader.Data(entry))
 
 		var results []AlignmentResult
 		res := AlignmentResult{}
