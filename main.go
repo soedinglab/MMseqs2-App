@@ -283,8 +283,6 @@ func worker(client *redis.Client) {
 			continue
 		}
 
-		client.Set("mmseqs:status:"+ticket.String(), "COMPLETED", 0)
-
 		cmd := exec.Command(
 			viper.GetString("SearchPipeline"),
 			viper.GetString("Mmseqs"),

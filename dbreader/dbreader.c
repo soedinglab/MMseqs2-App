@@ -62,10 +62,12 @@ void* make_reader(const char *data_name, const char *index_name, int32_t data_mo
 
     DBReader* reader = (DBReader*)malloc(sizeof(DBReader));
     reader->size = file_count_lines(index_name);
-    reader->index = (reader_index*)malloc(sizeof(reader_index) * reader->size);
-    reader->cache = false;
-    reader->dataMode = data_mode;
-    if (!read_index(reader, index_name)) {
+	reader->index = (reader_index*)malloc(sizeof(reader_index) * reader->size);
+	reader->data = data;
+	reader->data_size = data_size;
+	reader->dataMode = data_mode;
+	reader->cache = false;
+	if (!read_index(reader, index_name)) {
         free_reader(reader);
         return NULL;
     }
