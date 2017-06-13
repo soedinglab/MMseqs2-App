@@ -84,16 +84,11 @@ export default {
             this.ticket = this.$route.params.ticket;
             this.$http.get("api/result/queries/" + this.ticket + "/" + this.limit + "/" + this.page).then((response) => {
                 response.json().then((data) => {
-                    this.status = data.status;
-                    switch (this.status) {
-                        case "COMPLETED":
-                            this.items = data.data.items;
-                            this.hasNext = data.data.hasNext;
-                            var isMulti = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)  
-                            this.$emit('multi', isMulti);
-                            break;
-                        default:
-                            break;
+                    if (data.lookup && data.lookup.length > 1) {
+                        this.items = data.lookup;
+                        this.hasNext = data.hasNext;
+                        var isMulti = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)  
+                        this.$emit('multi', isMulti);
                     }
                 });
             }).catch(() => {

@@ -91,8 +91,8 @@
 								     v-for="(db, index) in databases">
 									<label>
 										<input type="checkbox"
-										       :value="db.db"
-										       v-model="database"> {{db.params.name}} <small class="text-muted">{{db.params.version}}</small>
+										       :value="db"
+										       v-model="database">{{db.name}} <small class="text-muted">{{db.version}}</small>
 									</label>
 								</div>
 							</div>
@@ -208,10 +208,10 @@ export default {
 			this.$http.get('api/databases').then((response) => {
 				response.json().then((data) => {
 					this.dberror = false;
-					this.databases = data;
-					for (var i in data) {
-						if (data[i].params.default == true) {
-							this.database.push(data[i].db);
+					this.databases = data.databases;
+					for (var i in this.databases) {
+						if (this.databases[i].default == true) {
+							this.database.push(this.databases[i]);
 						}
 					}
 				})
@@ -222,28 +222,31 @@ export default {
 		search(event) {
 			var data = {
 				q: this.query,
-				database: this.database,
+				database: this.database.map(x => {
+					return x.id;
+				}),
 				mode: this.mode
 			};
 			if (this.email != '') {
 				data.email = this.email;
 			}
 			this.inSearch = true;
-			this.$http.post('api/ticket', data, { emulateJSON: true })
+			this.$http.post('api/ticket', data, { emulateJSON : true })
 				.then((response) => {
-					this.status.message = this.status.type = "";
-					this.inSearch = false;
-					const result = response.body;
-					if (result.status == "PENDING" || result.status == "RUNNING") {
-						this.addToHistory(result.ticket);
-						this.$router.push({ name: 'queue', params: { ticket: result.ticket } });
-					} else if (result.status == "COMPLETED") {
-						this.addToHistory(result.ticket);
-						this.$router.push({ name: 'result', params: { ticket: result.ticket } });
-					} else {
-						this.status.type = "error";
-						this.status.message = "Error loading search result";
-					}
+					response.json().then((data) => {
+						this.status.message = this.status.type = "";
+						this.inSearch = false;
+						if (data.status == "PENDING" || data.status == "RUNNING") {
+							this.addToHistory(data.ticket);
+							this.$router.push({ name: 'queue', params: { ticket: data.ticket } });
+						} else if (data.status == "COMPLETED") {
+							this.addToHistory(data.ticket);
+							this.$router.push({ name: 'result', params: { ticket: data.ticket } });
+						} else {
+							this.status.type = "error";
+							this.status.message = "Error loading search result";
+						}
+					})
 				}, 
 				() => {
 					this.status.type = "error";

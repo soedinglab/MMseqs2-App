@@ -82,11 +82,7 @@ export default {
                 (response) => {
                     response.json().then((data) => {
                         for (var i in data) {
-                            if (data[i] == null) {
-                                this.items[i].status = "UNKNOWN";
-                            } else {
-                                this.items[i].status = JSON.parse(data[i]).status;
-                            }
+                            this.items[i].status = data[i].status;
                         }
                     });
                 }, () => {

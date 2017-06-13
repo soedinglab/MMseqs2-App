@@ -70,6 +70,22 @@ import Dropdown from '../node_modules/vue-strap/src/Dropdown.vue';
 import Popover from '../node_modules/vue-strap/src/Popover.vue';
 import msa from 'msa';
 
+function mapPosToSeq(seq, targetPos) {
+    var counter = 0;
+    var sequencePos = -1;
+    for (var i = 0; i < seq.length; i++) {
+        if(seq[i] != '-') {
+            sequencePos++;
+        }
+        if(sequencePos == targetPos) {
+            break;
+        }
+        counter++;
+    }
+
+    return counter;
+}
+
 var fasta = msa.io.fasta;
 export default {
     props: ['msa', 'ticket'],
@@ -83,20 +99,23 @@ export default {
         };
     },
     computed: {
+        queryFasta() {
+            return "> " + this.msa.query.header + this.msa.query.sequence;
+        },
         msaDownloadUrl() {
-            var blob = new Blob([this.msa], { type: 'application/octet-binary' });
+            var blob = new Blob([this.queryFasta], { type: 'application/octet-binary' });
             return URL.createObjectURL(blob);
         }
     },
     mounted() {
-        var seqs = fasta.parse(this.msa);
+        var seqs = fasta.parse(this.queryFasta);
         this.m = new msa({
             el: this.$refs.msa,
             conf: {
                 hasRef: true
             },
             vis: {
-                seqlogo: true,
+                seqlogo: false,
                 labelId: false
             },
             seqs: seqs
@@ -112,9 +131,38 @@ export default {
         window.removeEventListener('resize', this.resize)
     },
     watch: {
-        msa(msa) {
-            var seqs = fasta.parse(this.msa);
+        msa() {
+            var seqs = fasta.parse(this.queryFasta);
             this.m.seqs.reset(seqs);
+
+            var Feature = msa.model.feature;
+            var features = [];
+            var cnt = 0;
+            var alignments = this.msa.alignments;
+            for (var i in alignments) {
+                console.log(alignments[i])
+                var f = {
+                    "xStart" : mapPosToSeq(this.msa.query.sequence, alignments[i]["dbStartPos"]) - 1,
+                    "xEnd"   : mapPosToSeq(this.msa.query.sequence, alignments[i]["dbEndPos"]) - 1,
+                    "text"   : alignments[i]["target"] + " (" + alignments[i]["dbStartPos"] + "-" + alignments[i]["dbEndPos"]  + ", E-Value: " + alignments[i]["eval"] +  ")",
+                    "row"    : cnt,
+                    "type"   : "",
+                }
+                features.push(new Feature(f));
+                cnt++;
+            }
+
+            // var color = d3.scale.category10();
+            // for (var i in features) {
+            //     var c = d3.rgb(color(features[i].get('row')));
+            //     features[i].set('fillColor', 'rgba(' + c.r + ',' + c.g + ',' + c.b +',0.7)');
+            // }
+    
+            if (features.length > 0) {
+                var col = new msa.model.featurecol(features);
+                this.m.seqs.at(0).set("features", col);
+                this.m.seqs.at(0).set("height", col.getCurrentHeight() + 1);
+            }
         },
     },
     destroyed() {

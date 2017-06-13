@@ -33,7 +33,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						<search-result-item v-for="entry in items"
+						<search-result-item v-for="entry in msa.alignments"
 						                    v-bind:key="entry.id"
 						                    v-bind:item="entry"></search-result-item>
 					</tbody>
@@ -65,9 +65,14 @@ export default {
 			status: "wait",
 			ticket: "",
 			error: "",
-			items: [],
 			entry: 0,
-			msa: "",
+			msa: {
+				query: {
+					sequence: "",
+					header: ""
+				},
+				alignments: []
+			},
 			multiquery: false
 		};
 	},
@@ -90,16 +95,11 @@ export default {
 			this.$http.get("api/result/" + this.ticket + '/' + this.entry)
 				.then((response) => {
 					response.json().then((data) => {
-						this.status = data.status;
-						switch (this.status) {
-							case "COMPLETED":
-								this.items = data.items;
-								this.msa = data.msa;
-								break;
-							default:
-								this.status = "error";
-								this.error = "Failed";
-								break;
+						if (data.alignments == null || data.alignments.length > 0) {
+							this.msa = data;
+						} else {
+							this.status = "error";
+							this.error = "Failed";
 						}
 					});
 				}, () => {

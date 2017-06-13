@@ -74,10 +74,11 @@ export default {
 				(response) => {
 					response.json().then((data) => {
 						this.status = data.status;
-
 						switch (this.status) {
+							case "ERROR":
 							case "FAILED":
-								this.error = data.error;
+								this.status = "FAILED";
+								this.error = "FAILED";
 								break;
 							case "COMPLETED":
 								this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
