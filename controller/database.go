@@ -5,16 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"crypto/sha256"
 	"strings"
-	"encoding/base64"
 
 	"../decoder"
 )
 
 type ParamsDisplay struct {
-	Hash    string `json:"hash"`
-	Path    string `json:"-"`
+	Path    string `json:"path"`
 	Name    string `json:"name"`
 	Version string `json:"version"`
 	Default bool   `json:"default"`
@@ -66,10 +63,6 @@ func Databases(basepath string) ([]ParamsDisplay, error) {
 		base := filepath.Base(value)
 		name := strings.TrimSuffix(base, filepath.Ext(base))
 		params.Display.Path = name
-
-		hasher := sha256.New()
-		hasher.Write([]byte(params.Display.Path + params.Display.Name + params.Display.Version))
-		params.Display.Hash = base64.StdEncoding.EncodeToString(hasher.Sum(nil)[:16])
 
 		res = append(res, params.Display)
 	}

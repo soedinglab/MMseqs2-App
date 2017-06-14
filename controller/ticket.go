@@ -48,7 +48,7 @@ func IsIn(num string, params []string) int {
 func NewTicket(client *redis.Client, request TicketRequest, databases []ParamsDisplay, jobsbase string) (TicketResponse, error) {
 	ids := make([]string, len(databases))
 	for i, item := range databases {
-		ids[i] = item.Hash
+		ids[i] = item.Path
 	}
 
 	paths := make([]string, len(request.Database))
