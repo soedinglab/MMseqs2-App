@@ -7,10 +7,9 @@ import (
 	"sort"
 	"crypto/sha256"
 	"strings"
-	"encoding/hex"
+	"encoding/base64"
 
 	"../decoder"
-
 )
 
 type ParamsDisplay struct {
@@ -70,7 +69,7 @@ func Databases(basepath string) ([]ParamsDisplay, error) {
 
 		hasher := sha256.New()
 		hasher.Write([]byte(params.Display.Path + params.Display.Name + params.Display.Version))
-		params.Display.Hash = hex.EncodeToString(hasher.Sum(nil))
+		params.Display.Hash = base64.StdEncoding.EncodeToString(hasher.Sum(nil)[:16])
 
 		res = append(res, params.Display)
 	}
