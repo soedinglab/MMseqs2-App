@@ -33,7 +33,7 @@ type FastaEntry struct {
 
 type AlignmentResponse struct {
 	Query FastaEntry `json:"query"`
-	Alignments []AlignmentEntry `json:"alignments"`
+	Alignments map[string][]AlignmentEntry `json:"alignments"`
 }
 
 func dbpaths(path string) (string, string) {
@@ -48,12 +48,38 @@ func Alignments(client *redis.Client, ticket uuid.UUID, entry int64, jobsbase st
 
 	if res == "COMPLETED" {
 		base := filepath.Join(jobsbase, ticket.String())
-		reader := dbreader.Reader{}
-		reader.Make(dbpaths(filepath.Join(base, "alis")))
-		data := strings.NewReader(reader.Data(entry))
-		reader.Delete()
+		matches, err := filepath.Glob(filepath.Clean(filepath.Join(base, "alis")) + "_*.index")
+		if err != nil {
+			return nil, err
+		}
 
-		reader = dbreader.Reader{}
+		res := make(map[string][]AlignmentEntry, len(matches))
+		for _, item := range matches {
+			name := strings.TrimSuffix(item, ".index")
+			reader := dbreader.Reader{}
+			reader.Make(dbpaths(name))
+			data := strings.NewReader(reader.Data(entry))
+
+			var results []AlignmentEntry
+			r := AlignmentEntry{}
+			parser := tsv.NewParser(data, &r)
+			for {
+				eof, err := parser.Next()
+				if eof {
+					break
+				}
+				if err != nil {
+					return AlignmentResponse{}, err
+				}
+				results = append(results, r)
+			}
+
+			base := filepath.Base(name)
+			res[strings.TrimPrefix(base, "alis_")] = results
+			reader.Delete()
+		}
+
+		reader := dbreader.Reader{}
 		reader.Make(dbpaths(filepath.Join(base, "input")))
 		sequence := reader.Data(entry)
 		reader.Delete()
@@ -63,21 +89,7 @@ func Alignments(client *redis.Client, ticket uuid.UUID, entry int64, jobsbase st
 		header := reader.Data(entry)
 		reader.Delete()
 
-		var results []AlignmentEntry
-		res := AlignmentEntry{}
-		parser := tsv.NewParser(data, &res)
-		for {
-			eof, err := parser.Next()
-			if eof {
-				break
-			}
-			if err != nil {
-				return AlignmentResponse{}, err
-			}
-			results = append(results, res)
-		}
-
-		return AlignmentResponse{FastaEntry{header, sequence}, results}, nil
+		return AlignmentResponse{FastaEntry{header, sequence}, res}, nil
 	}
 
 	return AlignmentResponse{}, nil
