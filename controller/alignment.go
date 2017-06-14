@@ -31,9 +31,14 @@ type FastaEntry struct {
 	Sequence string `json:"sequence"`
 }
 
+type SearchResult struct {
+	Database string `json:"db"`
+	Alignments []AlignmentEntry `json:"alignments"`
+}
+
 type AlignmentResponse struct {
 	Query FastaEntry `json:"query"`
-	Alignments map[string][]AlignmentEntry `json:"alignments"`
+	Results []SearchResult `json:"results"`
 }
 
 func dbpaths(path string) (string, string) {
@@ -53,7 +58,7 @@ func Alignments(client *redis.Client, ticket uuid.UUID, entry int64, jobsbase st
 			return AlignmentResponse{}, err
 		}
 
-		res := make(map[string][]AlignmentEntry, len(matches))
+		var res []SearchResult
 		for _, item := range matches {
 			name := strings.TrimSuffix(item, ".index")
 			reader := dbreader.Reader{}
@@ -75,7 +80,7 @@ func Alignments(client *redis.Client, ticket uuid.UUID, entry int64, jobsbase st
 			}
 
 			base := filepath.Base(name)
-			res[strings.TrimPrefix(base, "alis_")] = results
+			res = append(res, SearchResult{strings.TrimPrefix(base, "alis_"), results})
 			reader.Delete()
 		}
 
