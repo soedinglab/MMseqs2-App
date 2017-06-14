@@ -5,13 +5,16 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"crypto/sha256"
+	"strings"
+	"encoding/hex"
 
 	"../decoder"
-	"strings"
+
 )
 
 type ParamsDisplay struct {
-	Id      int    `json:"id"`
+	Hash    string `json:"hash"`
 	Path    string `json:"-"`
 	Name    string `json:"name"`
 	Version string `json:"version"`
@@ -48,7 +51,6 @@ func Databases(basepath string) ([]ParamsDisplay, error) {
 		return nil, err
 	}
 
-	cnt := 1
 	var res []ParamsDisplay
 	for _, value := range matches {
 		f, err := os.Open(value)
@@ -62,13 +64,13 @@ func Databases(basepath string) ([]ParamsDisplay, error) {
 			return nil, err
 		}
 
-		params.Display.Id = cnt
-
 		base := filepath.Base(value)
 		name := strings.TrimSuffix(base, filepath.Ext(base))
 		params.Display.Path = name
 
-		cnt++
+		hasher := sha256.New()
+		hasher.Write([]byte(params.Display.Path + params.Display.Name + params.Display.Version))
+		params.Display.Hash = hex.EncodeToString(hasher.Sum(nil))
 
 		res = append(res, params.Display)
 	}

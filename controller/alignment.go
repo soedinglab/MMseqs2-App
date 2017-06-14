@@ -47,7 +47,6 @@ func Alignments(client *redis.Client, ticket uuid.UUID, entry int64, jobsbase st
 	}
 
 	if res == "COMPLETED" {
-
 		base := filepath.Join(jobsbase, ticket.String())
 		reader := dbreader.Reader{}
 		reader.Make(dbpaths(filepath.Join(base, "alis")))

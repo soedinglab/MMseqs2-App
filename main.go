@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"os/exec"
 	"strings"
+	"bufio"
 
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
@@ -97,19 +98,9 @@ func server(client *redis.Client) {
 			return
 		}
 
-		dbs := make([]int, len(req.Form["database[]"]))
-		for i, val := range req.Form["database[]"] {
-			res, err := strconv.ParseInt(val, 10, 64)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			dbs[i] = int(res)
-		}
 		request := controller.TicketRequest{
 			req.FormValue("q"),
-			dbs,
+			req.Form["database[]"],
 			req.FormValue("mode"),
 			req.FormValue("email"),
 		}

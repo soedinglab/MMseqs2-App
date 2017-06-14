@@ -14,7 +14,7 @@ import (
 
 type TicketRequest struct {
 	Query    string   `json:"q",valid:"alphanum,required"`
-	Database []int    `json:"database",valid:"required"`
+	Database []string `json:"database",valid:"required"`
 	Mode     string   `json:"mode",valid:"in(accept,summary),required"`
 	Email    string   `json:"email",valid:"email,optional"`
 }
@@ -35,7 +35,7 @@ type Job struct {
 	Email    string   `json:"email"`
 }
 
-func IsIn(num int, params ...int) int {
+func IsIn(num string, params []string) int {
 	for i, param := range params {
 		if num == param {
 			return i
@@ -46,14 +46,14 @@ func IsIn(num int, params ...int) int {
 }
 
 func NewTicket(client *redis.Client, request TicketRequest, databases []ParamsDisplay, jobsbase string) (TicketResponse, error) {
-	ids := make([]int, len(databases))
+	ids := make([]string, len(databases))
 	for i, item := range databases {
-		ids[i] = item.Id
+		ids[i] = item.Hash
 	}
 
 	paths := make([]string, len(request.Database))
 	for i, item := range request.Database {
-		idx := IsIn(item, ids...)
+		idx := IsIn(item, ids)
 		if idx == -1 {
 			return TicketResponse{}, errors.New("Selected databases are not valid!")
 		} else {
