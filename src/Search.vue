@@ -40,7 +40,10 @@
 								      class="spinner">Spin</span> Search
 							</button>
 							<modal title="cURL Submission Command" v-model="showCurl" @ok="showCurl = false">
-								<code>curl -X POST -F q=@PATH_TO_FILE <span v-if="email">-F 'email={{email}}'</span> -F 'mode={{mode}}' <span v-for="db in database">-F 'database[]={{db}}' </span> {{ $url('api/ticket') }}</code>
+								Use this command to get a submit a file with fasta entries to the MMseqs search server.
+								Replace the 'PATH_TO_FILE' string with the actual path to the file.
+								<br>
+								<code>curl -X POST -F q=@PATH_TO_FILE <span v-if="email">-F 'email={{email}}'</span> -F 'mode={{mode}}' <span v-for="db in database">-F 'database[]={{db.path}}' </span> {{ $url('api/ticket') }}</code>
 								<br slot="modal-footer" />
 							</modal>
 							<div class="pull-right">
@@ -156,7 +159,6 @@
 </template>
 
 <script>
-import SearchResultItem from './SearchResultItem.vue';
 import FileButton from './FileButton.vue';
 import Popover from '../node_modules/vue-strap/src/Popover.vue';
 import Modal from '../node_modules/vue-strap/src/Modal.vue';
@@ -164,7 +166,7 @@ import ScaleLoader from '../node_modules/vue-spinner/src/ScaleLoader.vue';
 
 export default {
 	name: 'search',
-	components: { SearchResultItem, FileButton, Popover, Modal, ScaleLoader },
+	components: { FileButton, Popover, Modal, ScaleLoader },
 	data() {
 		return {
 			dberror: false,
@@ -223,7 +225,7 @@ export default {
 			var data = {
 				q: this.query,
 				database: this.database.map(x => {
-					return x.id;
+					return x.path;
 				}),
 				mode: this.mode
 			};
@@ -334,5 +336,9 @@ legend a.help span {
 	background-repeat: no-repeat;
 	background-position: right 15px bottom -10px;
 	background-size: 200px;
+}
+
+code {
+	font-size: 0.8em;
 }
 </style>

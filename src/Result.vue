@@ -23,7 +23,7 @@
 				<table class="table table-responsive">
 					<thead>
 						<tr>
-							<th>Query</th>
+							<th>Database</th>
 							<th>Target</th>
 							<th>Sequence Identity</th>
 							<th>Score</th>
@@ -32,10 +32,16 @@
 							<th>Target Pos</th>
 						</tr>
 					</thead>
-					<tbody>
-						<search-result-item v-for="entry in msa.alignments"
-						                    v-bind:key="entry.id"
-						                    v-bind:item="entry"></search-result-item>
+					<tbody v-for="entry in msa.results">
+						<tr v-for="(item, index) in entry.alignments">
+							<td v-if="index == 0" :rowspan="entry.alignments.length">{{ entry.db }}</id>
+							<td>{{ item.target }}</td>
+							<td>{{ item.seqId }}</td>
+							<td>{{ item.score }}</td>
+							<td>{{ item.eval }}</td>
+							<td>{{ item.qStartPos }}-{{ item.qEndPos }}</td>
+							<td>{{ item.dbStartPos }}-{{ item.dbEndPos }}</td>
+						</tr>
 					</tbody>
 				</table>
 			</div>
@@ -53,13 +59,12 @@ import Affix from '../node_modules/vue-strap/src/Affix.vue';
 import GridLoader from '../node_modules/vue-spinner/src/GridLoader.vue';
 
 
-import SearchResultItem from './SearchResultItem.vue';
 import Msa from './Msa.vue';
 import Queries from './Queries.vue'
 
 export default {
 	name: 'result',
-	components: { Queries, SearchResultItem,  Msa, GridLoader, Popover, Affix },
+	components: { Queries, Msa, GridLoader, Popover, Affix },
 	data() {
 		return {
 			status: "wait",
@@ -71,7 +76,7 @@ export default {
 					sequence: "",
 					header: ""
 				},
-				alignments: []
+				alignments: {}
 			},
 			multiquery: false
 		};

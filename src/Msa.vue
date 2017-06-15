@@ -1,7 +1,7 @@
 <template>
     <div class="panel panel-default msa">
         <div class="panel-heading">
-            <h2 class="panel-title pull-left">Multiple Sequence Alignment</h2>
+            <h2 class="panel-title pull-left">Hit Visualization</h2>
     
             <div class="btn-toolbar"
                  role="toolbar"
@@ -24,13 +24,16 @@
                             class="btn btn-default"
                             aria-hidden="true">Clear Selection</button>
     
+                    <div v-if="showplaintext">
                     <button v-if="plaintext"
                             class="btn btn-default"
                             @click="showFancy">Show Fancy</button>
                     <button v-else
                             class="btn btn-default"
                             @click="showPlain">Show Plain</button>
-    
+                    </div>
+
+                    <div v-if="showoverview">
                     <button v-if="overview"
                             v-show="!plaintext"
                             class="btn btn-default"
@@ -39,7 +42,9 @@
                             v-show="!plaintext"
                             class="btn btn-default"
                             @click="showOverview">Show Overview</button>
-    
+                    </div>
+
+                    <div v-if="showexport">
                     <dropdown text="Export">
                         <ul slot="dropdown-menu"
                             class="dropdown-menu pull-right">
@@ -51,6 +56,7 @@
                                    href="#">Export Selection</a></li>
                         </ul>
                     </dropdown>
+                    </div>
                 </div>
             </div>
         </div>
@@ -86,12 +92,33 @@ function mapPosToSeq(seq, targetPos) {
     return counter;
 }
 
+function colors(s) {
+  return s.match(/.{6}/g).map(function(x) {
+    return "#" + x;
+  });
+}
+const schemeColor20 = colors("1f77b4aec7e8ff7f0effbb782ca02c98df8ad62728ff98969467bdc5b0d58c564bc49c94e377c2f7b6d27f7f7fc7c7c7bcbd22dbdb8d17becf9edae5");
+
+var index = [];
+var idx = 1;
+function scaleColor20(d) {
+    var key = d + "";
+    var i = index[key];
+    if (!i) {
+      i = index[key] = idx++;
+    }
+    return schemeColor20[(i - 1) % schemeColor20.length];
+}
+
 var fasta = msa.io.fasta;
 export default {
     props: ['msa', 'ticket'],
     components: { Dropdown, Popover },
     data() {
         return {
+            showplaintext: false,
+            showoverview: false,
+            showexport: false,
             selection: false,
             plaintext: false,
             overview: false,
@@ -138,25 +165,28 @@ export default {
             var Feature = msa.model.feature;
             var features = [];
             var cnt = 0;
-            var alignments = this.msa.alignments;
-            for (var i in alignments) {
-                console.log(alignments[i])
-                var f = {
-                    "xStart" : mapPosToSeq(this.msa.query.sequence, alignments[i]["dbStartPos"]) - 1,
-                    "xEnd"   : mapPosToSeq(this.msa.query.sequence, alignments[i]["dbEndPos"]) - 1,
-                    "text"   : alignments[i]["target"] + " (" + alignments[i]["dbStartPos"] + "-" + alignments[i]["dbEndPos"]  + ", E-Value: " + alignments[i]["eval"] +  ")",
-                    "row"    : cnt,
-                    "type"   : "",
+            var results = this.msa.results;
+            for (var res in results) {
+                var db = this.msa.results[res].db;
+                var alignments = this.msa.results[res].alignments;
+                for (var i in alignments) {
+                    console.log(alignments[i])
+                    var f = {
+                        "xStart" : mapPosToSeq(this.msa.query.sequence, alignments[i]["dbStartPos"]) - 1,
+                        "xEnd"   : mapPosToSeq(this.msa.query.sequence, alignments[i]["dbEndPos"]) - 1,
+                        "text"   : alignments[i]["target"] + " (" + alignments[i]["dbStartPos"] + "-" + alignments[i]["dbEndPos"]  + ", E-Value: " + alignments[i]["eval"] +  ")",
+                        "row"    : cnt,
+                        "type"   : "",
+                    }
+                    var feature = new Feature(f);
+                    feature.set('fillColor', scaleColor20(db));
+                    features.push(feature);
+                    cnt++;
                 }
-                features.push(new Feature(f));
-                cnt++;
             }
 
-            // var color = d3.scale.category10();
-            // for (var i in features) {
-            //     var c = d3.rgb(color(features[i].get('row')));
-            //     features[i].set('fillColor', 'rgba(' + c.r + ',' + c.g + ',' + c.b +',0.7)');
-            // }
+            index = [];
+            idx = 1;
     
             if (features.length > 0) {
                 var col = new msa.model.featurecol(features);
