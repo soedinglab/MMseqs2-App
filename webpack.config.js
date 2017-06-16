@@ -37,7 +37,7 @@ module.exports = {
                 include: [ 
 					path.resolve(__dirname, './src'),
 					path.resolve(__dirname, './node_modules/vue-strap/src'),
-					path.resolve(__dirname, './node_modules/vue-localstorage'),
+					path.resolve(__dirname, './node_modules/vue-localstorage/src'),
 				],
 				exclude: [
 					path.resolve(__dirname, './src/msa.min.js'),
