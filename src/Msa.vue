@@ -75,6 +75,7 @@
 import Dropdown from '../node_modules/vue-strap/src/Dropdown.vue';
 import Popover from '../node_modules/vue-strap/src/Popover.vue';
 import msa from 'msa';
+import colorScale from './ColorScale';
 
 function mapPosToSeq(seq, targetPos) {
     var counter = 0;
@@ -90,24 +91,6 @@ function mapPosToSeq(seq, targetPos) {
     }
 
     return counter;
-}
-
-function colors(s) {
-  return s.match(/.{6}/g).map(function(x) {
-    return "#" + x;
-  });
-}
-const schemeColor20 = colors("1f77b4aec7e8ff7f0effbb782ca02c98df8ad62728ff98969467bdc5b0d58c564bc49c94e377c2f7b6d27f7f7fc7c7c7bcbd22dbdb8d17becf9edae5");
-
-var index = [];
-var idx = 1;
-function scaleColor20(d) {
-    var key = d + "";
-    var i = index[key];
-    if (!i) {
-      i = index[key] = idx++;
-    }
-    return schemeColor20[(i - 1) % schemeColor20.length];
 }
 
 var fasta = msa.io.fasta;
@@ -162,6 +145,7 @@ export default {
             var seqs = fasta.parse(this.queryFasta);
             this.m.seqs.reset(seqs);
 
+            var color = colorScale();
             var Feature = msa.model.feature;
             var features = [];
             var cnt = 0;
@@ -179,14 +163,12 @@ export default {
                         "type"   : "",
                     }
                     var feature = new Feature(f);
-                    feature.set('fillColor', scaleColor20(db));
+                    feature.set('fillColor', color(db));
                     features.push(feature);
                     cnt++;
                 }
             }
 
-            index = [];
-            idx = 1;
     
             if (features.length > 0) {
                 var col = new msa.model.featurecol(features);
