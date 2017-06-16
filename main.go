@@ -13,12 +13,14 @@ import (
 	"os/exec"
 	"strings"
 	"bufio"
+	"bytes"
 
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
+	"github.com/alecthomas/units"
 
 	"./controller"
 )
@@ -92,18 +94,43 @@ func server(client *redis.Client) {
 	}).Methods("GET")
 
 	r.HandleFunc("/ticket", func(w http.ResponseWriter, req *http.Request) {
-		err := req.ParseForm()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+        var request controller.TicketRequest
+        if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
+            err := req.ParseMultipartForm(int64(128 * units.Mebibyte))
+            if err != nil {
+                http.Error(w, err.Error(), http.StatusBadRequest)
+                return
+            }
 
-		request := controller.TicketRequest{
-			req.FormValue("q"),
-			req.Form["database[]"],
-			req.FormValue("mode"),
-			req.FormValue("email"),
-		}
+            f, _, err := req.FormFile("q")
+            if err != nil {
+                http.Error(w, err.Error(), http.StatusBadRequest)
+                return
+            }
+
+            buf := new(bytes.Buffer)
+            buf.ReadFrom(f)
+            q := buf.String()
+            request = controller.TicketRequest{
+                q,
+                req.Form["database[]"],
+                req.FormValue("mode"),
+                req.FormValue("email"),
+            }
+        } else {
+            err := req.ParseForm()
+            if err != nil {
+                http.Error(w, err.Error(), http.StatusBadRequest)
+                return
+            }
+
+            request = controller.TicketRequest{
+                req.FormValue("q"),
+                req.Form["database[]"],
+                req.FormValue("mode"),
+                req.FormValue("email"),
+            }
+        }
 
 		result, err := controller.NewTicket(client, request, databases, viper.GetString("JobsBase"))
 		if err != nil {

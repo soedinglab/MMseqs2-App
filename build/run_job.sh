@@ -58,7 +58,6 @@ function run_job() {
 
     local ALIS=""
     local M8S=""
-    local SKIPQUERY=""
     for DB in ${TARGETS}; do
         mkdir -p "${MMTMP}/${DB}"
 
@@ -93,23 +92,18 @@ function run_job() {
 
         local ALI="${WORKDIR}/alis_${DB}"
         "${MMSEQS}" convertalis "${QUERYDB}" "${SEQDB}" \
-                "${WORKDIR}/result_${DB}" "${ALI}" \
+                "${INPUT}" "${ALI}" \
                 --no-preload --early-exit --db-output -v "${VERBOSITY}" \
                 --threads "${JOBTHREADS}" ${PARAMS_CONVERTALIS} \
             || fail "convertalis failed"
+
         ALIS="${ALIS} ${ALI}"
 
         local M8="${WORKDIR}/${JOBID}_${DB}.m8"
         tr -d '\000' < "${ALI}" > "${M8}"
         M8S="${M8S} ${M8}"     
-        SKIPQUERY="--skip-query"
 
         rm -f "${WORKDIR}/result_${DB}" "${WORKDIR}/result_${DB}.index"
-    done
-
-    "${MMSEQS}" mergedbs "${QUERYDB}" "${WORKDIR}/alis" ${ALIS}
-    for i in ${ALIS}; do
-        rm -f "${i}" "${i}.index"
     done
 
     tar -cv --use-compress-program=pigz \
