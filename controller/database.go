@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"../decoder"
+	"github.com/milot-mirdita/mmseqs-web-backend/decoder"
 )
 
 type ParamsDisplay struct {
