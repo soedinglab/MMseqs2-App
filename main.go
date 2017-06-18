@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"os/exec"
 	"strings"
-	"bufio"
 	"bytes"
 
 	"github.com/go-redis/redis"
@@ -311,17 +310,8 @@ func worker(client *redis.Client) {
 			job.Mode,
 		)
 
-		f, err := os.Create(path.Join(viper.GetString("JobsBase"), ticket.String(), "job.log"))
-		defer f.Close()
-		if err != nil {
-			client.Set("mmseqs:status:"+ticket.String(), "ERROR", 0)
-			continue
-		}
-
-		b := bufio.NewWriter(f)
-
-		cmd.Stdout = b
-		cmd.Stderr = b
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 
 		err = cmd.Start()
 		if err != nil {
