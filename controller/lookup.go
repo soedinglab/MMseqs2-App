@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"../tsv"
+	"github.com/milot-mirdita/mmseqs-web-backend/tsv"
 )
 
 type LookupResult struct {

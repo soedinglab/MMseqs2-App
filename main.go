@@ -22,7 +22,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/alecthomas/units"
 
-	"./controller"
+	"github.com/milot-mirdita/mmseqs-web-backend/controller"
 )
 
 func existsOrPanic(path string) {

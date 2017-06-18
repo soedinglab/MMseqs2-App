@@ -7,8 +7,8 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/satori/go.uuid"
 
-	"../dbreader"
-	"../tsv"
+	"github.com/milot-mirdita/mmseqs-web-backend/dbreader"
+	"github.com/milot-mirdita/mmseqs-web-backend/tsv"
 )
 
 type AlignmentEntry struct {
