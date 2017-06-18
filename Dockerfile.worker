@@ -1,0 +1,3 @@
+FROM mmseqs-web-backend:latest
+ADD config.json /etc/mmseqs-web/config.json
+CMD ["/usr/local/bin/mmseqs-web", "-worker"]

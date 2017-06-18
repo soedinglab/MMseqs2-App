@@ -1,0 +1,4 @@
+FROM mmseqs-web-backend:latest
+ADD config.json /etc/mmseqs-web/config.json
+EXPOSE 3000
+CMD ["/usr/local/bin/mmseqs-web"]

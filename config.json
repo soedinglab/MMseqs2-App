@@ -1,0 +1,8 @@
+{
+    "Databases": "/opt/mmseqs-web/databases",
+    "JobsBase": "/opt/mmseqs-web/jobs",
+    "SearchPipeline": "/usr/local/bin/run_job.sh",
+    "Mmseqs": "/usr/local/bin/mmseqs",
+    "RedisAddr": "mmseqs-web-redis:6379",
+    "ServerAddr": "0.0.0.0:3000"
+}
