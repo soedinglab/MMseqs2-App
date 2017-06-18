@@ -1,4 +1,4 @@
-FROM alpine:latest as hh-suite-builder
+FROM alpine:latest as hh-builder
 
 RUN apk add --no-cache gcc g++ cmake musl-dev vim git ninja
 
@@ -8,7 +8,6 @@ RUN git submodule init && git submodule update
 WORKDIR build
 RUN cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=. ..
 RUN ninja && ninja install
-
 
 FROM alpine:latest as mmseqs-builder
 
@@ -42,8 +41,8 @@ MAINTAINER Milot Mirdita <milot@mirdita.de>
 RUN apk add --no-cache gawk bash pigz jq tar grep libstdc++ libgomp
 
 ENV HHLIB /usr/local
-COPY --from=hh-suite-builder /opt/hh-suite/build/bin /use/local/bin
-COPY --from=hh-suite-builder /opt/hh-suite/build/data /use/local/data
+COPY --from=hh-builder /opt/hh-suite/build/bin/* /usr/local/bin/
+COPY --from=hh-builder /opt/hh-suite/build/data/* /usr/local/data/
 
 COPY --from=mmseqs-builder /opt/mmseqs/build_sse/bin/mmseqs /usr/local/bin/mmseqs_sse42
 COPY --from=mmseqs-builder /opt/mmseqs/build_avx/bin/mmseqs /usr/local/bin/mmseqs_avx2
