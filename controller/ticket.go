@@ -116,6 +116,9 @@ func TicketStatus(client *redis.Client, ticket string) (TicketResponse, error) {
 
 	res, err := client.Get("mmseqs:status:" + u.String()).Result()
 	if err != nil {
+		if err == redis.Nil {
+			return TicketResponse{u, status("UNKNOWN")}, nil
+		}
 		return TicketResponse{}, err
 	}
 
