@@ -75,7 +75,6 @@
 import Dropdown from '../node_modules/vue-strap/src/Dropdown.vue';
 import Popover from '../node_modules/vue-strap/src/Popover.vue';
 import msa from 'msa';
-import colorScale from './ColorScale';
 
 function mapPosToSeq(seq, targetPos) {
     var counter = 0;
@@ -95,7 +94,7 @@ function mapPosToSeq(seq, targetPos) {
 
 var fasta = msa.io.fasta;
 export default {
-    props: ['msa', 'ticket'],
+    props: ['ticket'],
     components: { Dropdown, Popover },
     data() {
         return {
@@ -105,20 +104,17 @@ export default {
             selection: false,
             plaintext: false,
             overview: false,
-            m: {}
+            m: {},
+            queryFasta: ''
         };
     },
     computed: {
-        queryFasta() {
-            return "> " + this.msa.query.header + this.msa.query.sequence;
-        },
         msaDownloadUrl() {
             var blob = new Blob([this.queryFasta], { type: 'application/octet-binary' });
             return URL.createObjectURL(blob);
         }
     },
     mounted() {
-        var seqs = fasta.parse(this.queryFasta);
         this.m = new msa({
             el: this.$refs.msa,
             conf: {
@@ -127,8 +123,7 @@ export default {
             vis: {
                 seqlogo: false,
                 labelId: false
-            },
-            seqs: seqs
+            }
         });
         this.m.render();
         this.m.g.selcol.on("add reset change", () => {
@@ -140,47 +135,41 @@ export default {
     beforeDestroy() {
         window.removeEventListener('resize', this.resize)
     },
-    watch: {
-        msa() {
-            var seqs = fasta.parse(this.queryFasta);
-            this.m.seqs.reset(seqs);
+    destroyed() {
+        msa.$(this.$refs.msa).off().empty();
+    },
+    methods: {
+        setData(data) {
+            this.m.seqs.reset([new msa.model.seq({name: data.query.header, seq: data.query.sequence})]);
 
-            var color = colorScale();
             var Feature = msa.model.feature;
             var features = [];
             var cnt = 0;
-            var results = this.msa.results;
+            var results = data.results;
             for (var res in results) {
-                var db = this.msa.results[res].db;
-                var alignments = this.msa.results[res].alignments;
+                var color = results[res].color;
+                var alignments = results[res].alignments;
                 for (var i in alignments) {
-                    console.log(alignments[i])
                     var f = {
-                        "xStart" : mapPosToSeq(this.msa.query.sequence, alignments[i]["dbStartPos"]) - 1,
-                        "xEnd"   : mapPosToSeq(this.msa.query.sequence, alignments[i]["dbEndPos"]) - 1,
+                        "xStart" : mapPosToSeq(data.query.sequence, alignments[i]["qStartPos"]) - 1,
+                        "xEnd"   : mapPosToSeq(data.query.sequence, alignments[i]["qEndPos"]) - 1,
                         "text"   : alignments[i]["target"] + " (" + alignments[i]["dbStartPos"] + "-" + alignments[i]["dbEndPos"]  + ", E-Value: " + alignments[i]["eval"] +  ")",
                         "row"    : cnt,
                         "type"   : "",
                     }
                     var feature = new Feature(f);
-                    feature.set('fillColor', color(db));
+                    feature.set('fillColor', color);
                     features.push(feature);
                     cnt++;
                 }
             }
 
-    
             if (features.length > 0) {
                 var col = new msa.model.featurecol(features);
                 this.m.seqs.at(0).set("features", col);
                 this.m.seqs.at(0).set("height", col.getCurrentHeight() + 1);
             }
         },
-    },
-    destroyed() {
-        msa.$(this.$refs.msa).off().empty();
-    },
-    methods: {
         // hack, msa doesn't update after in the multiquery case and is too wide
         fixWidth() {
             this.m.g.zoomer.set('alignmentWidth', 'auto');
