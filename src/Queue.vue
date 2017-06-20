@@ -4,7 +4,7 @@
 		<div class="row queue-status"  v-if="status == 'PENDING'">
 				<div class="col-sm-6 status">
 					<div class="panel panel-default">
-						<div class="panel-heading">Job Status: <strong>Waiting for worker</strong></div>
+						<div class="panel-heading">Job Status: <strong>Waiting for Worker</strong></div>
 						<div class="panel-body">
 							<scale-loader class="loader"
 							              color="#000000" />
@@ -35,9 +35,7 @@
 			<div class="col-sm-offset-3 col-sm-6 status">
 				<h1>Error</h1>
 				<div class="alert alert-danger">
-					<pre>
-						{{ error }}
-					</pre>
+					{{ error }}
 				</div>
 			</div>
 		</div>
@@ -75,6 +73,10 @@ export default {
 					response.json().then((data) => {
 						this.status = data.status;
 						switch (this.status) {
+							case "UNKNOWN":
+								this.status = "FAILED";
+								this.error = "No record of this job submission exists.";
+								break;
 							case "ERROR":
 							case "FAILED":
 								this.status = "FAILED";

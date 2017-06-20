@@ -41,9 +41,9 @@
 							</button>
 							<modal title="cURL Submission Command" v-model="showCurl" @ok="showCurl = false">
 								Use this command to get a submit a file with fasta entries to the MMseqs search server.
-								Replace the 'PATH_TO_FILE' string with the actual path to the file.
+								Replace the 'PATH_TO_FILE' string with the path to the file.
 								<br>
-								<code>curl -X POST -F q=@PATH_TO_FILE <span v-if="email">-F 'email={{email}}'</span> -F 'mode={{mode}}' <span v-for="db in database">-F 'database[]={{db.path}}' </span> {{ $url('api/ticket') }}</code>
+								<code>curl -X POST -F q=@PATH_TO_FILE <span v-if="email">-F 'email={{email}}'</span> -F 'mode={{mode}}' <span v-for="db in database">-F 'database[]={{db.path}}' </span> {{ origin() + '/api/ticket' }}</code>
 								<br slot="modal-footer" />
 							</modal>
 							<div class="pull-right">
@@ -65,7 +65,7 @@
 								<popover effect="fade"
 								         trigger="hover"
 								         placement="left"
-								         content="Enter your queries here or drag-and-drop a fasta file containing your queries into the textbox.">
+								         content="Choose the databases to search against, the result mode, and optionally an email to notify you when the job is done.">
 									<a class="help"
 									   role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
 								</popover>
@@ -105,7 +105,7 @@
 							<popover effect="fade"
 							         placement="right"
 							         trigger="hover"
-							         content="Select the databases you want to search against.">
+							         content="All shows all hits under an evalue cutoff. Annotations tries to cover the search query.">
 								<label class="control-label col-sm-3">Result
 									<br class="hidden-xs hidden-sm"> Mode</label>
 							</popover>
@@ -131,7 +131,7 @@
 							<popover effect="fade"
 							         placement="right"
 							         trigger="hover"
-							         content="Send an Email on completion.">
+							         content="Send an email when the job is done.">
 								<label class="control-label col-sm-3"
 								       for="email">Email</label>
 							</popover>
@@ -206,6 +206,9 @@ export default {
 		'$route': 'fetchData'
 	},
 	methods: {
+		origin() {
+			return window.location.protocol + "//" + window.location.hostname + (window.location.port ? ':' + window.location.port: '');
+		},
 		fetchData() {
 			this.$http.get('api/databases').then((response) => {
 				response.json().then((data) => {
