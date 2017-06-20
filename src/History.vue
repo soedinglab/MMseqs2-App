@@ -4,7 +4,7 @@
         <div class="row">
             <div class="col-xs-12">
                 <div class="panel panel-default">
-                    <div class="panel-heading">Previous Submissions</div>
+                    <div class="panel-heading">Your Previous Submissions</div>
                     <div class="panel-body"
                          v-if="items.length == 0 || error">
                         <div class="alert alert-info"
@@ -20,20 +20,20 @@
                            class="table table-striped">
                         <thead>
                             <tr>
-                                <th>Ticket</th>
-                                <th>Subission Date</th>
-                                <th>Current Status</th>
+                                <th>Subission Date</th>                                
+                                <th>Job</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="item in items">
+                                <td>{{ formattedDate(item.time) }}</td>                                
                                 <router-link v-if="item.status == 'COMPLETED'"
                                              tag="td"
                                              :to="'/result/' + item.ticket + '/0'"><a class="mono">{{ item.ticket }}</a></router-link>
                                 <router-link v-else
                                              tag="td"
                                              :to="'/queue/' + item.ticket"><a class="mono">{{ item.ticket }}</a></router-link>
-                                <td>{{ formattedDate(item.time) }}</td>
                                 <td>{{ item.status }}</td>
                             </tr>
                         </tbody>
@@ -76,14 +76,27 @@ export default {
                 history[i].status = "UNKOWN";
             }
 
-            this.items = history;
-
             this.$http.post('api/tickets', { tickets: tickets }, { emulateJSON: true }).then(
                 (response) => {
                     response.json().then((data) => {
+                        var now = +(new Date());
+                        var items = [];
                         for (var i in data) {
-                            this.items[i].status = data[i].status;
+                            var include = false;
+                            if ( data[i].status == "COMPLETED") {
+                                include = true;
+                            } else if ((now - history[i].time) < (1000 * 60 * 60 * 24 * 7)) {
+                                include = true;
+                            }
+
+                            if (include) {
+                                var entry = history[i];
+                                entry.status = data[i].status;
+                                items.push(entry);
+                            }
                         }
+                        this.items = items;
+                        this.$localStorage.set('history', items);
                     });
                 }, () => {
                     this.error = true;
