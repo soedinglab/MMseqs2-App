@@ -1,6 +1,6 @@
 FROM node:latest as mmseqs-web-frontend-builder
 
-RUN apt-get install bzip2 fontconfig tar
+RUN apt-get update && apt-get install -y build-essential chrpath libssl-dev libxft-dev bzip2 fontconfig tar libfreetype6 libfreetype6-dev libfontconfig libfontconfig-dev
 
 WORKDIR /opt/mmseqs-frontend
 ADD package.json .
