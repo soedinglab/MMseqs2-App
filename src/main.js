@@ -9,7 +9,7 @@ Vue.use(VueRouter);
 Vue.use(VueResource);
 Vue.use(VueLocalStorage)
 
-Vue.url.options.root = 'https://search.mmseqs.com';
+Vue.url.options.root = '/';
 
 import App from './App.vue';
 import Search from './Search.vue';
