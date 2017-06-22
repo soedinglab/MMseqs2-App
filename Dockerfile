@@ -1,6 +1,7 @@
 FROM node:latest as mmseqs-web-frontend-builder
 
-RUN apt-get update && apt-get install -y build-essential chrpath libssl-dev libxft-dev bzip2 fontconfig tar libfreetype6 libfreetype6-dev libfontconfig libfontconfig-dev
+RUN echo 'deb http://deb.debian.org/debian jessie-backports main' > /etc/apt/sources.list.d/backports.list
+RUN apt-get update && apt-get install -y build-essential bzip2 fontconfig tar phantomjs
 
 WORKDIR /opt/mmseqs-frontend
 ADD package.json .
