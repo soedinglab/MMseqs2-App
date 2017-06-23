@@ -11,5 +11,4 @@ RUN npm run build
 
 FROM tianon/true
 MAINTAINER Milot Mirdita <milot@mirdita.de> 
-VOLUME ["/var/www/mmseqs-web"]
 COPY --from=mmseqs-web-frontend-builder /opt/mmseqs-frontend/dist /var/www/mmseqs-web
