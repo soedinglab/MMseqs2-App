@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+    "strings"
 )
 
 type TicketRequest struct {
@@ -19,8 +20,15 @@ type TicketRequest struct {
 	Email    string   `json:"email",valid:"email,optional"`
 }
 
+func max(x, y int) int {
+    if x > y {
+        return x
+    }
+    return y
+}
+
 func rankRequest(request TicketRequest) float64 {
-	return 1.0
+	return float64(max(strings.Count(request.Query, ">"), 1) * max(len(request.Database), 1))
 }
 
 type status string
