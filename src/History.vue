@@ -20,7 +20,7 @@
                            class="table table-striped">
                         <thead>
                             <tr>
-                                <th>Subission Date</th>                                
+                                <th>Submission Date</th>
                                 <th>Job</th>
                                 <th>Status</th>
                             </tr>
