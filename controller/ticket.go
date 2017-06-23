@@ -126,6 +126,10 @@ func TicketStatus(client *redis.Client, ticket string) (TicketResponse, error) {
 }
 
 func TicketsStatus(client *redis.Client, tickets []string) ([]TicketResponse, error) {
+    if len(tickets) == 0 {
+		return make([]TicketResponse, 0), nil
+	}
+
 	var res []uuid.UUID
 	var queries []string
 	for _, value := range tickets {
