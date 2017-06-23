@@ -14,12 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/units"
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
+	"github.com/alecthomas/units"
+	"github.com/gorilla/handlers"
 
 	"github.com/milot-mirdita/mmseqs-web-backend/controller"
 	"github.com/milot-mirdita/mmseqs-web-backend/mail"
@@ -238,14 +239,17 @@ func server(client *redis.Client) {
 	}).Methods("GET")
 
 	c := cors.AllowAll()
+    h := c.Handler(r))
+	h = handlers.LoggingHandler(os.Stdout, h)
 	srv := &http.Server{
-		Handler: c.Handler(r),
+		Handler: h,
 		Addr:    viper.GetString("ServerAddr"),
 
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
 
+	log.Println("MMseqs Webserver")
 	log.Fatal(srv.ListenAndServe())
 }
 
