@@ -4,3 +4,4 @@ build/jobs/*
 build/mmseqs-web
 dump.rdb
 vendor/*/*
+Dockerfile
