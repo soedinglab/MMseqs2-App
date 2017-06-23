@@ -1,27 +1,28 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
-	"strconv"
-	"time"
-	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
-	"os/exec"
+	"strconv"
 	"strings"
-	"bytes"
+	"time"
 
+	"github.com/alecthomas/units"
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
-	"github.com/alecthomas/units"
 
 	"github.com/milot-mirdita/mmseqs-web-backend/controller"
+	"github.com/milot-mirdita/mmseqs-web-backend/mail"
 )
 
 func existsOrPanic(path string) {
@@ -57,6 +58,8 @@ func setupConfig() {
 	viper.SetDefault("RedisDB", 0)
 
 	viper.SetDefault("ServerAddr", "127.0.0.1:3000")
+
+	viper.SetDefault("MailType", "Null")
 
 	err = viper.ReadInConfig()
 	_, notFoundError := err.(viper.ConfigFileNotFoundError)
@@ -246,6 +249,68 @@ func server(client *redis.Client) {
 	log.Fatal(srv.ListenAndServe())
 }
 
+type JobExecutionError struct {
+	internal error
+}
+
+func (e *JobExecutionError) Error() string {
+	return "Execution Error: " + e.internal.Error()
+}
+
+type JobTimeoutError struct {
+}
+
+func (e *JobTimeoutError) Error() string {
+	return "Timeout"
+}
+
+func RunJob(client *redis.Client, job controller.Job, ticket string) error {
+	client.Set("mmseqs:status:"+ticket, "RUNNING", 0)
+
+	cmd := exec.Command(
+		viper.GetString("SearchPipeline"),
+		viper.GetString("Mmseqs"),
+		viper.GetString("JobsBase"),
+		ticket,
+		viper.GetString("Databases"),
+		strings.Join(job.Database, " "),
+		job.Mode,
+	)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Start()
+	if err != nil {
+		client.Set("mmseqs:status:"+ticket, "ERROR", 0)
+		return &JobExecutionError{err}
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-time.After(1 * time.Hour):
+		if err := cmd.Process.Kill(); err != nil {
+			log.Printf("Failed to kill: %s\n", err)
+		}
+		client.Set("mmseqs:status:"+ticket, "ERROR", 0)
+		return &JobTimeoutError{}
+	case err := <-done:
+		if err != nil {
+			client.Set("mmseqs:status:"+ticket, "ERROR", 0)
+			return &JobExecutionError{err}
+
+		} else {
+			log.Print("process done gracefully without error")
+			client.Set("mmseqs:status:"+ticket, "COMPLETED", 0)
+			return nil
+		}
+	}
+}
+
 func worker(client *redis.Client) {
 	Zpop := redis.NewScript(`
     local r = redis.call('ZRANGE', KEYS[1], 0, 0)
@@ -255,6 +320,12 @@ func worker(client *redis.Client) {
     end
     return r
 `)
+
+	mailer := mail.Factory(viper.GetString("MailType"))
+	err := mailer.Setup()
+	if err != nil {
+		log.Print(err)
+	}
 
 	for {
 		pop, err := Zpop.Run(client, []string{"mmseqs:pending"}).Result()
@@ -282,12 +353,11 @@ func worker(client *redis.Client) {
 			continue
 		}
 
-		client.Set("mmseqs:status:"+ticket.String(), "RUNNING", 0)
-
 		jobFile := path.Join(viper.GetString("JobsBase"), ticket.String(), "job.json")
 
 		file, err := os.Open(jobFile)
 		if err != nil {
+			log.Print(err)
 			client.Set("mmseqs:status:"+ticket.String(), "ERROR", 0)
 			continue
 		}
@@ -296,48 +366,33 @@ func worker(client *redis.Client) {
 		dec := json.NewDecoder(file)
 		err = dec.Decode(&job)
 		if err != nil {
+			log.Print(err)
 			client.Set("mmseqs:status:"+ticket.String(), "ERROR", 0)
 			continue
 		}
 
-		cmd := exec.Command(
-			viper.GetString("SearchPipeline"),
-			viper.GetString("Mmseqs"),
-			viper.GetString("JobsBase"),
-			ticket.String(),
-			viper.GetString("Databases"),
-			strings.Join(job.Database, " "),
-			job.Mode,
-		)
-
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		err = cmd.Start()
-		if err != nil {
-			client.Set("mmseqs:status:"+ticket.String(), "ERROR", 0)
-			continue
-		}
-
-		done := make(chan error, 1)
-		go func() {
-			done <- cmd.Wait()
-		}()
-
-		select {
-		case <-time.After(1 * time.Hour):
-			if err := cmd.Process.Kill(); err != nil {
-				log.Printf("Failed to kill: %s\n", err)
-			}
-			client.Set("mmseqs:status:"+ticket.String(), "ERROR", 0)
-		case err := <-done:
-			if err != nil {
-				client.Set("mmseqs:status:"+ticket.String(), "ERROR", 0)
-
-			} else {
-				log.Print("process done gracefully without error")
-				client.Set("mmseqs:status:"+ticket.String(), "COMPLETED", 0)
-			}
+		switch err = RunJob(client, job, ticket.String()); err.(type) {
+		case *JobExecutionError:
+			mailer.Send(mail.Mail{
+				viper.GetString("MailSender"),
+				job.Email,
+				"MMseqs Search " + ticket.String() + " error",
+				"",
+			})
+		case *JobTimeoutError:
+			mailer.Send(mail.Mail{
+				viper.GetString("MailSender"),
+				job.Email,
+				"MMseqs Search " + ticket.String() + " timeout",
+				"",
+			})
+		case nil:
+			mailer.Send(mail.Mail{
+				viper.GetString("MailSender"),
+				job.Email,
+				"MMseqs Search " + ticket.String() + " done",
+				"",
+			})
 		}
 	}
 }

@@ -153,6 +153,12 @@
 			"revisionTime": "2017-06-02T06:55:32Z"
 		},
 		{
+			"checksumSHA1": "rJab1YdNhQooDiBWNnt7TLWPyBU=",
+			"path": "github.com/pkg/errors",
+			"revision": "c605e284fe17294bda444b34710735b29d1a9d90",
+			"revisionTime": "2017-05-05T04:36:39Z"
+		},
+		{
 			"checksumSHA1": "lZmPAbekxLbMFQirB/vzbdI+5O8=",
 			"path": "github.com/rs/cors",
 			"revision": "8dd4211afb5d08dbb39a533b9bb9e4b486351df6",
@@ -223,6 +229,12 @@
 			"path": "golang.org/x/text/unicode/norm",
 			"revision": "9e2f80a6ba7ed4ba13e0cd4b1f094bf916875735",
 			"revisionTime": "2017-06-09T15:53:19Z"
+		},
+		{
+			"checksumSHA1": "oFION+ZSb6Vb+uITOOLUzVfawE0=",
+			"path": "gopkg.in/mailgun/mailgun-go.v1",
+			"revision": "a4002e2df2e8ca2da6a6fbb4a72871b504e49f50",
+			"revisionTime": "2017-02-13T15:09:30Z"
 		},
 		{
 			"checksumSHA1": "fALlQNY1fM99NesfLJ50KguWsio=",
