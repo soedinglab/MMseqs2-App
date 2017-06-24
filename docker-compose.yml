@@ -3,16 +3,18 @@ services:
   mmseqs-web-redis:
     image: redis:alpine
     container_name: mmseqs-web-redis
+    volumes:
+      - redis-volume:/var/lib/redis
 
   mmseqs-web-api:
-    container_name: mmseqs-web-api  
+    container_name: mmseqs-web-api
     build:
       context: .
       dockerfile: Dockerfile.api
     depends_on:
       - mmseqs-web-redis
     volumes:
-      - ./databases:/opt/mmseqs-web/databases:ro
+      - ./databases:/opt/mmseqs-web/databases
       - ./jobs:/opt/mmseqs-web/jobs
 
   mmseqs-web-worker:
@@ -26,15 +28,17 @@ services:
       - ./databases:/opt/mmseqs-web/databases:ro
       - ./jobs:/opt/mmseqs-web/jobs
 
-  mmseqs-web-dist:
-    image: mmseqs-web-frontend:latest
-
   mmseqs-web-webserver:
-    image: nginx:alpine
     container_name: mmseqs-web-webserver
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    depends_on:
+      - mmseqs-web-api
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    volumes_from:
-      - mmseqs-web-dist
+      - ./jobs:/opt/mmseqs-web/jobs:ro
     ports:
       - "80:80"
+
+volumes:
+  redis-volume:

@@ -1,4 +1,11 @@
 FROM mmseqs-web-backend:latest
+
+RUN apk add --no-cache findutils
+
 ADD config.json /etc/mmseqs-web/config.json
+ADD check_dbs_and_start.sh /usr/local/bin/check_dbs_and_start.sh
+
+ENV MMSEQS_WEB_DEBUG=1
+
 EXPOSE 3000
-CMD ["/usr/local/bin/mmseqs-web"]
+CMD ["/usr/local/bin/check_dbs_and_start.sh"]
