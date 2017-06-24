@@ -1,18 +1,19 @@
 <template>
-	<div id="result"
-	     class="container">
+	<div id="result" class="container">
 		<div class="row">
 			<div :class="{'col-md-10' : multiquery, 'col-xs-12' : !multiquery }">
 				<h2>
-					Results for Job				
+					Results for Job
 					<small>{{ ticket }}</small>
+	
+					<a v-if="!multiquery" :href="$url('api/m8/' + ticket)" class="btn btn-default pull-right" role="button" alt="Download">
+						<span class="glyphicon glyphicon-download-alt" aria-hidden="true"></span>
+					</a>
 				</h2>
-
+	
 				<div v-if="msa && msa.results && msa.results.length > 0 && msa.results[0].alignments">
-					<msa ref="msa"
-						:ticket="ticket"></msa>
-
-
+					<msa ref="msa" :ticket="ticket"></msa>
+	
 					<table class="table table-responsive">
 						<thead>
 							<tr>
@@ -28,22 +29,24 @@
 						<tbody v-for="entry in msa.results">
 							<tr v-for="(item, index) in entry.alignments">
 								<td class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</id>
-								<td><a :href="(link = tryLinkTargetToDB(item.target, entry.db)) != false ? link : null">{{item.target}}</a></td>
-								<td>{{ item.seqId }}</td>
-								<td>{{ item.score }}</td>
-								<td>{{ item.eval }}</td>
-								<td>{{ item.qStartPos }}-{{ item.qEndPos }}</td>
-								<td>{{ item.dbStartPos }}-{{ item.dbEndPos }}</td>
+									<td>
+										<a :href="(link = tryLinkTargetToDB(item.target, entry.db)) != false ? link : null">{{item.target}}</a>
+									</td>
+									<td>{{ item.seqId }}</td>
+									<td>{{ item.score }}</td>
+									<td>{{ item.eval }}</td>
+									<td>{{ item.qStartPos }}-{{ item.qEndPos }}</td>
+									<td>{{ item.dbStartPos }}-{{ item.dbEndPos }}</td>
 							</tr>
 						</tbody>
 					</table>
 				</div>
 				<div v-else>
-					No hits found! Start a <router-link to="/">new search</router-link>?
+					No hits found! Start a
+					<router-link to="/">New Search</router-link>?
 				</div>
 			</div>
-			<div v-show="multiquery"
-			     class="col-md-2">
+			<div v-show="multiquery" class="col-md-2">
 				<queries v-on:multi="setMultiQuery" :entry="entry" :ticket="ticket"></queries>
 			</div>
 		</div>
@@ -141,9 +144,11 @@ export default {
 .db {
 	border-left: 5px solid black;
 }
+
 a:not([href]) {
 	color: #333;
 }
+
 a:not([href]):hover {
 	text-decoration: none;
 }
