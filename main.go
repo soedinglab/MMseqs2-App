@@ -376,26 +376,35 @@ func worker(client *redis.Client) {
 
 		switch err = RunJob(client, job, ticket.String()); err.(type) {
 		case *JobExecutionError:
-			mailer.Send(mail.Mail{
+			err := mailer.Send(mail.Mail{
 				viper.GetString("MailSender"),
 				job.Email,
 				"MMseqs Search " + ticket.String() + " error",
-				"",
+				"Test",
 			})
+			if err != nil {
+				fmt.Printf("%s", err)
+			}
 		case *JobTimeoutError:
-			mailer.Send(mail.Mail{
+			err := mailer.Send(mail.Mail{
 				viper.GetString("MailSender"),
 				job.Email,
 				"MMseqs Search " + ticket.String() + " timeout",
-				"",
+				"Test",
 			})
+			if err != nil {
+				fmt.Printf("%s", err)
+			}
 		case nil:
-			mailer.Send(mail.Mail{
+			err := mailer.Send(mail.Mail{
 				viper.GetString("MailSender"),
 				job.Email,
 				"MMseqs Search " + ticket.String() + " done",
-				"",
+				"Test",
 			})
+			if err != nil {
+				fmt.Printf("%s", err)
+			}
 		}
 	}
 }
