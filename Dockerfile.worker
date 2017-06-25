@@ -1,3 +1,4 @@
 FROM mmseqs-web-backend:latest
+RUN apk add --no-cache ca-certificates
 ADD config.json /etc/mmseqs-web/config.json
 CMD ["/usr/local/bin/mmseqs-web", "-worker"]
