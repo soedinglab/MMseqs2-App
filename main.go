@@ -17,7 +17,6 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
-	"github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	"github.com/alecthomas/units"
 	"github.com/gorilla/handlers"
@@ -184,8 +183,8 @@ func server(client *redis.Client) {
 
 	r.HandleFunc("/result/{ticket}/{entry}", func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
-		ticket, err := uuid.FromString(vars["ticket"])
-		if err != nil {
+		ticket := vars["ticket"]
+		if !controller.ValidTicket(ticket) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -196,7 +195,7 @@ func server(client *redis.Client) {
 			return
 		}
 
-		results, err := controller.Alignments(client, ticket, int64(id), viper.GetString("JobsBase"))
+		results, err := controller.Alignments(client, controller.Ticket(ticket), int64(id), viper.GetString("JobsBase"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -212,8 +211,8 @@ func server(client *redis.Client) {
 
 	r.HandleFunc("/result/queries/{ticket}/{limit}/{page}", func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
-		ticket, err := uuid.FromString(vars["ticket"])
-		if err != nil {
+		ticket := vars["ticket"]
+		if !controller.ValidTicket(ticket) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -230,7 +229,7 @@ func server(client *redis.Client) {
 			return
 		}
 
-		result, err := controller.Lookup(client, ticket, page, limit, viper.GetString("JobsBase"))
+		result, err := controller.Lookup(client, controller.Ticket(ticket), page, limit, viper.GetString("JobsBase"))
 		err = json.NewEncoder(w).Encode(result)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -340,28 +339,27 @@ func worker(client *redis.Client) {
 			continue
 		}
 
-		var value string
+		var ticket string
 		switch vv := pop.(type) {
 		case nil:
 			continue
 		case []byte:
-			value = string(vv)
+			ticket = string(vv)
 		default:
-			value = fmt.Sprint(vv)
+			ticket = fmt.Sprint(vv)
 		}
 
-		ticket, err := uuid.FromString(value)
-		if err != nil {
+		if !controller.ValidTicket(ticket) {
 			log.Print(err)
 			continue
 		}
 
-		jobFile := path.Join(viper.GetString("JobsBase"), ticket.String(), "job.json")
+		jobFile := path.Join(viper.GetString("JobsBase"), ticket, "job.json")
 
 		file, err := os.Open(jobFile)
 		if err != nil {
 			log.Print(err)
-			client.Set("mmseqs:status:"+ticket.String(), "ERROR", 0)
+			client.Set("mmseqs:status:"+ticket, "ERROR", 0)
 			continue
 		}
 
@@ -370,11 +368,11 @@ func worker(client *redis.Client) {
 		err = dec.Decode(&job)
 		if err != nil {
 			log.Print(err)
-			client.Set("mmseqs:status:"+ticket.String(), "ERROR", 0)
+			client.Set("mmseqs:status:"+ticket, "ERROR", 0)
 			continue
 		}
 
-		switch err = RunJob(client, job, ticket.String()); err.(type) {
+		switch err = RunJob(client, job, ticket); err.(type) {
 		case *JobExecutionError:
 			err := mailer.Send(mail.Mail{
 				viper.GetString("MailSender"),

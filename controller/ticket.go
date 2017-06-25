@@ -2,15 +2,18 @@ package controller
 
 import (
 	"github.com/go-redis/redis"
-	"github.com/satori/go.uuid"
 
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-    "strings"
+	"regexp"
+	"sort"
+	"strings"
 )
 
 type TicketRequest struct {
@@ -20,21 +23,37 @@ type TicketRequest struct {
 	Email    string   `json:"email",valid:"email,optional"`
 }
 
+func (r TicketRequest) Hash() string {
+	h := sha256.New224()
+	h.Write([]byte(r.Query))
+	h.Write([]byte(r.Mode))
+
+	sort.Strings(r.Database)
+
+	for _, value := range r.Database {
+		h.Write([]byte(value))
+	}
+
+	bs := h.Sum(nil)
+	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(bs)
+}
+
 func max(x, y int) int {
-    if x > y {
-        return x
-    }
-    return y
+	if x > y {
+		return x
+	}
+	return y
 }
 
-func rankRequest(request TicketRequest) float64 {
-	return float64(max(strings.Count(request.Query, ">"), 1) * max(len(request.Database), 1))
+func (r TicketRequest) Rank() float64 {
+	return float64(max(strings.Count(r.Query, ">"), 1) * max(len(r.Database), 1))
 }
 
-type status string
+type Ticket string
+type Status string
 type TicketResponse struct {
-	Ticket uuid.UUID `json:"ticket"`
-	Status status    `json:"status"`
+	Ticket Ticket `json:"ticket"`
+	Status Status `json:"status"`
 }
 
 type Job struct {
@@ -53,6 +72,15 @@ func IsIn(num string, params []string) int {
 	return -1
 }
 
+type InvalidTicket struct {
+}
+
+func (e *InvalidTicket) Error() string {
+	return "Ticket is not valid!"
+}
+
+var ValidTicket = regexp.MustCompile(`^[A-Za-z0-9-_=]{38}$`).MatchString
+
 func NewTicket(client *redis.Client, request TicketRequest, databases []ParamsDisplay, jobsbase string) (TicketResponse, error) {
 	ids := make([]string, len(databases))
 	for i, item := range databases {
@@ -70,15 +98,20 @@ func NewTicket(client *redis.Client, request TicketRequest, databases []ParamsDi
 	}
 
 	s := "PENDING"
-	ticket := uuid.NewV4()
+	ticket := request.Hash()
 
-	err := client.Watch(func(tx *redis.Tx) error {
-		_, err := tx.ZAdd("mmseqs:pending", redis.Z{rankRequest(request), ticket.String()}).Result()
+	res, err := client.Get("mmseqs:status:" + ticket).Result()
+	if err == nil && res == "COMPLETED" {
+		return TicketResponse{Ticket(ticket), Status(s)}, nil
+	}
+
+	err = client.Watch(func(tx *redis.Tx) error {
+		_, err := tx.ZAdd("mmseqs:pending", redis.Z{request.Rank(), ticket}).Result()
 		if err != nil {
 			return err
 		}
 
-		workdir := filepath.Join(jobsbase, ticket.String())
+		workdir := filepath.Join(jobsbase, ticket)
 
 		err = os.Mkdir(workdir, 0755)
 		if err != nil {
@@ -101,7 +134,7 @@ func NewTicket(client *redis.Client, request TicketRequest, databases []ParamsDi
 			}
 		}
 
-		_, err = tx.Set("mmseqs:status:"+ticket.String(), s, 0).Result()
+		_, err = tx.Set("mmseqs:status:"+ticket, s, 0).Result()
 		if err != nil {
 			return err
 		}
@@ -113,40 +146,36 @@ func NewTicket(client *redis.Client, request TicketRequest, databases []ParamsDi
 		return TicketResponse{}, err
 	}
 
-	return TicketResponse{ticket, status(s)}, nil
+	return TicketResponse{Ticket(ticket), Status(s)}, nil
 }
 
 func TicketStatus(client *redis.Client, ticket string) (TicketResponse, error) {
-	u, err := uuid.FromString(ticket)
-	if err != nil {
-		return TicketResponse{}, err
+	if !ValidTicket(ticket) {
+		return TicketResponse{}, &InvalidTicket{}
 	}
 
-	res, err := client.Get("mmseqs:status:" + u.String()).Result()
+	res, err := client.Get("mmseqs:status:" + ticket).Result()
 	if err != nil {
 		if err == redis.Nil {
-			return TicketResponse{u, status("UNKNOWN")}, nil
+			return TicketResponse{Ticket(ticket), Status("UNKNOWN")}, nil
 		}
 		return TicketResponse{}, err
 	}
 
-	return TicketResponse{u, status(res)}, nil
+	return TicketResponse{Ticket(ticket), Status(res)}, nil
 }
 
 func TicketsStatus(client *redis.Client, tickets []string) ([]TicketResponse, error) {
-    if len(tickets) == 0 {
+	if len(tickets) == 0 {
 		return make([]TicketResponse, 0), nil
 	}
 
-	var res []uuid.UUID
 	var queries []string
 	for _, value := range tickets {
-		parsedUuid, err := uuid.FromString(value)
-		if err != nil {
-			return nil, err
+		if !ValidTicket(value) {
+			return nil, &InvalidTicket{}
 		}
-		res = append(res, parsedUuid)
-		queries = append(queries, "mmseqs:status:"+parsedUuid.String())
+		queries = append(queries, "mmseqs:status:"+value)
 	}
 	r, err := client.MGet(queries...).Result()
 	if err != nil {
@@ -164,7 +193,7 @@ func TicketsStatus(client *redis.Client, tickets []string) ([]TicketResponse, er
 		default:
 			value = fmt.Sprint(vv)
 		}
-		result = append(result, TicketResponse{res[i], status(value)})
+		result = append(result, TicketResponse{Ticket(tickets[i]), Status(value)})
 	}
 
 	return result, nil

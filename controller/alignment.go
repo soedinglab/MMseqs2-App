@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/go-redis/redis"
-	"github.com/satori/go.uuid"
 
 	"github.com/milot-mirdita/mmseqs-web-backend/dbreader"
 	"github.com/milot-mirdita/mmseqs-web-backend/tsv"
@@ -45,14 +44,14 @@ func dbpaths(path string) (string, string) {
 	return path, path + ".index"
 }
 
-func Alignments(client *redis.Client, ticket uuid.UUID, entry int64, jobsbase string) (AlignmentResponse, error) {
-	res, err := client.Get("mmseqs:status:" + ticket.String()).Result()
+func Alignments(client *redis.Client, ticket Ticket, entry int64, jobsbase string) (AlignmentResponse, error) {
+	res, err := client.Get("mmseqs:status:" + string(ticket)).Result()
 	if err != nil {
 		return AlignmentResponse{}, err
 	}
 
 	if res == "COMPLETED" {
-		base := filepath.Join(jobsbase, ticket.String())
+		base := filepath.Join(jobsbase, string(ticket))
 		matches, err := filepath.Glob(filepath.Clean(filepath.Join(base, "alis")) + "_*.index")
 		if err != nil {
 			return AlignmentResponse{}, err

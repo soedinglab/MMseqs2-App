@@ -2,7 +2,6 @@ package controller
 
 import (
 	"github.com/go-redis/redis"
-	"github.com/satori/go.uuid"
 
 	"os"
 	"path/filepath"
@@ -20,14 +19,14 @@ type LookupResponse struct {
 	HasNextPage bool           `json:"hasNext"`
 }
 
-func Lookup(client *redis.Client, ticket uuid.UUID, page uint64, limit uint64, basepath string) (LookupResponse, error) {
-	res, err := client.Get("mmseqs:status:" + ticket.String()).Result()
+func Lookup(client *redis.Client, ticket Ticket, page uint64, limit uint64, basepath string) (LookupResponse, error) {
+	res, err := client.Get("mmseqs:status:" + string(ticket)).Result()
 	if err != nil {
 		return LookupResponse{}, err
 	}
 
 	if res == "COMPLETED" {
-		result := filepath.Join(basepath, ticket.String(), "input.lookup")
+		result := filepath.Join(basepath, string(ticket), "input.lookup")
 
 		file, err := os.Open(result)
 		defer file.Close()
