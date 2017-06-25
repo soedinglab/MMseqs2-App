@@ -61,6 +61,13 @@ func setupConfig() {
 
 	viper.SetDefault("MailType", "Null")
 
+	viper.SetDefault("MailErrorSubject", "Error -- %s")
+	viper.SetDefault("MailErrorTemplate", "%s")
+	viper.SetDefault("MailTimeoutSubject", "Timeout -- %s")
+	viper.SetDefault("MailTimeoutTemplate", "%s")
+	viper.SetDefault("MailSuccessSubject", "Done -- %s")
+	viper.SetDefault("MailSuccessTemplate", "%s")
+
 	err = viper.ReadInConfig()
 	_, notFoundError := err.(viper.ConfigFileNotFoundError)
 	if err != nil && !notFoundError {
@@ -328,6 +335,8 @@ func worker(client *redis.Client) {
     return r
 `)
 
+	log.Println("MMseqs Worker")
+	log.Println("Using " + viper.GetString("MailType") + " Mail Transport")
 	mailer := mail.Factory(viper.GetString("MailType"))
 	for {
 		pop, err := Zpop.Run(client, []string{"mmseqs:pending"}).Result()
@@ -377,8 +386,8 @@ func worker(client *redis.Client) {
 			err := mailer.Send(mail.Mail{
 				viper.GetString("MailSender"),
 				job.Email,
-				"MMseqs Search " + ticket.String() + " error",
-				"Test",
+				fmt.Sprintf(viper.GetString("MailErrorSubject"), ticket),
+				fmt.Sprintf(viper.GetString("MailErrorTemplate"), ticket),
 			})
 			if err != nil {
 				fmt.Printf("%s", err)
@@ -387,8 +396,8 @@ func worker(client *redis.Client) {
 			err := mailer.Send(mail.Mail{
 				viper.GetString("MailSender"),
 				job.Email,
-				"MMseqs Search " + ticket.String() + " timeout",
-				"Test",
+				fmt.Sprintf(viper.GetString("MailTimeoutSubject"), ticket),
+				fmt.Sprintf(viper.GetString("MailTimeoutTemplate"), ticket),
 			})
 			if err != nil {
 				fmt.Printf("%s", err)
@@ -397,8 +406,8 @@ func worker(client *redis.Client) {
 			err := mailer.Send(mail.Mail{
 				viper.GetString("MailSender"),
 				job.Email,
-				"MMseqs Search " + ticket.String() + " done",
-				"Test",
+				fmt.Sprintf(viper.GetString("MailSuccessSubject"), ticket),
+				fmt.Sprintf(viper.GetString("MailSuccessTemplate"), ticket),
 			})
 			if err != nil {
 				fmt.Printf("%s", err)
