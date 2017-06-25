@@ -1,8 +1,8 @@
 package controller
 
 import (
-	"strings"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-redis/redis"
 	"github.com/satori/go.uuid"
@@ -27,17 +27,17 @@ type AlignmentEntry struct {
 }
 
 type FastaEntry struct {
-	Header string `json:"header"`
+	Header   string `json:"header"`
 	Sequence string `json:"sequence"`
 }
 
 type SearchResult struct {
-	Database string `json:"db"`
+	Database   string           `json:"db"`
 	Alignments []AlignmentEntry `json:"alignments"`
 }
 
 type AlignmentResponse struct {
-	Query FastaEntry `json:"query"`
+	Query   FastaEntry     `json:"query"`
 	Results []SearchResult `json:"results"`
 }
 

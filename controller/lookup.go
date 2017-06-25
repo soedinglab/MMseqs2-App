@@ -16,8 +16,8 @@ type LookupResult struct {
 }
 
 type LookupResponse struct {
-	Lookup []LookupResult `json:"lookup"`
-	HasNextPage bool `json:"hasNext"`
+	Lookup      []LookupResult `json:"lookup"`
+	HasNextPage bool           `json:"hasNext"`
 }
 
 func Lookup(client *redis.Client, ticket uuid.UUID, page uint64, limit uint64, basepath string) (LookupResponse, error) {
@@ -58,7 +58,7 @@ func Lookup(client *redis.Client, ticket uuid.UUID, page uint64, limit uint64, b
 			}
 
 			if cnt >= (start + limit) {
-				if	eof, _ := parser.Next(); !eof {
+				if eof, _ := parser.Next(); !eof {
 					hasNextPage = true
 				}
 				break
