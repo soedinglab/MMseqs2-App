@@ -326,11 +326,6 @@ func worker(client *redis.Client) {
 `)
 
 	mailer := mail.Factory(viper.GetString("MailType"))
-	err := mailer.Setup()
-	if err != nil {
-		log.Print(err)
-	}
-
 	for {
 		pop, err := Zpop.Run(client, []string{"mmseqs:pending"}).Result()
 		if err != nil {

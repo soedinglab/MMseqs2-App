@@ -7,35 +7,25 @@ import (
 )
 
 type MailgunTransport struct {
-	mg mailgun.Mailgun
 }
 
-func (t MailgunTransport) Setup() error {
+func (t MailgunTransport) Send(mail Mail) error {
 	if !viper.IsSet("MailgunDomain") ||
 		!viper.IsSet("MailgunSecretKey") ||
 		!viper.IsSet("MailgunPublicKey") {
-		t.mg = nil
-		return errors.New("Configuration incomplete for Mailgun transport")
+		return errors.New("Dsa1 Configuration incomplete for Mailgun transport")
 	}
 
-	t.mg = mailgun.NewMailgun(
+	m := mailgun.NewMailgun(
 		viper.GetString("MailgunDomain"),
 		viper.GetString("MailgunSecretKey"),
 		viper.GetString("MailgunPublicKey"),
 	)
-
-	return nil
-}
-
-func (t MailgunTransport) Send(mail Mail) error {
-	if t.mg == nil {
-		return errors.New("Configuration incomplete for Mailgun transport")
-	}
-
-	message := t.mg.NewMessage(mail.Sender, mail.Subject, mail.Body, mail.Recipient)
-	_, _, err := t.mg.Send(message)
+	message := m.NewMessage(mail.Sender, mail.Subject, mail.Body, mail.Recipient)
+	_, _, err := m.Send(message)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

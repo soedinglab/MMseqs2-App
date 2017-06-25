@@ -1,7 +1,6 @@
 package mail
 
 type Transport interface {
-	Setup() error
 	Send(mail Mail) error
 }
 
