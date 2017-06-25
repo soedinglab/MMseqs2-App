@@ -239,8 +239,10 @@ func server(client *redis.Client) {
 	}).Methods("GET")
 
 	c := cors.AllowAll()
-    h := c.Handler(r))
-	h = handlers.LoggingHandler(os.Stdout, h)
+	h := c.Handler(r)
+	if _, exists := os.LookupEnv("MMSEQS_WEB_DEBUG"); exists {
+		h = handlers.LoggingHandler(os.Stdout, h)
+	}
 	srv := &http.Server{
 		Handler: h,
 		Addr:    viper.GetString("ServerAddr"),
@@ -281,8 +283,10 @@ func RunJob(client *redis.Client, job controller.Job, ticket string) error {
 		job.Mode,
 	)
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	if _, exists := os.LookupEnv("MMSEQS_WEB_DEBUG"); exists {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
 
 	err := cmd.Start()
 	if err != nil {
