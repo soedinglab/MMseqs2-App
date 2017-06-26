@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 function abspath() {
     if [ -d "$1" ]; then
@@ -59,8 +59,18 @@ function check_params() {
 	local PARAMS="$1"
 	local BASE="$(dirname "${PARAMS}")/$(basename "${PARAMS}" .params)"
 
-	ls -lah "${BASE}"
 	echo "Checking ${PARAMS}..."
+	eval "$(cat "$PARAMS" | json2export)";
+	
+	if [[ -z "${PARAMS_MAXSEQLEN}" ]]; then
+		echo "Finding longest entry ..."
+		MAXSEQLEN="$(awk '$3 > max { max = $3 } END { print max+1 }' "${BASE}.index")"
+		jq --arg maxSeqLen "${MAXSEQLEN}"  \
+			'. * {params : { maxseqlen: $maxSeqLen}}'  "${BASE}.params"  \
+				> "${BASE}.params.tmp"
+		mv -f "${BASE}.params.tmp" "${BASE}.params"
+	fi
+
 	if [[ -s "${BASE}.fasta" ]]; then
 		echo "Building search database from ${BASE}.fasta ..."
 		make_database_from_fasta "${BASE}.fasta" "${BASE}"
@@ -68,7 +78,6 @@ function check_params() {
 		echo "Moving input fasta file to ${BASE}.fasta.bak ..."
 		mv "${BASE}.fasta" "${BASE}.fasta.bak"
 	elif [[ -s "${BASE}_msa" ]] && [[ -s "${BASE}_msa.index" ]]; then
-		eval "$(cat "$PARAMS" | json2export)";
 
 		local SENSE=4
 		if [[ -n "${PARAMS_SEARCH}" ]]; then
