@@ -64,6 +64,7 @@ function run_job() {
         local PARAMS_SEARCH=""
         local PARAMS_SUMMARIZERESULT=""
         local PARAMS_CONVERTALIS=""
+        local PARAMS_MAXSEQLEN="32000"
 
         if [[ -f "${DATABASES}/${DB}.params" ]]; then
             eval "$(cat ${DATABASES}/${DB}.params | json2export)";
@@ -73,7 +74,8 @@ function run_job() {
         "${MMSEQS}" search "${QUERYDB}" "${DATABASES}/${DB}" \
                 "${INPUT}" "${MMTMP}/${DB}" \
                 --no-preload --early-exit --remove-tmp-files \
-                --split-mode 1 -a -v "${VERBOSITY}" --threads "${JOBTHREADS}" \
+                --max-seq-len "${PARAMS_MAXSEQLEN}" \
+                --split-mode 1 -v "${VERBOSITY}" --threads "${JOBTHREADS}" \
                 ${PARAMS_SEARCH} \
             || fail "search failed"
         
