@@ -61,15 +61,6 @@ function check_params() {
 
 	echo "Checking ${PARAMS}..."
 	eval "$(cat "$PARAMS" | json2export)";
-	
-	if [[ -z "${PARAMS_MAXSEQLEN}" ]]; then
-		echo "Finding longest entry ..."
-		MAXSEQLEN="$(awk '$3 > max { max = $3 } END { print max+1 }' "${BASE}.index")"
-		jq --arg maxSeqLen "${MAXSEQLEN}"  \
-			'. * {params : { maxseqlen: $maxSeqLen}}'  "${BASE}.params"  \
-				> "${BASE}.params.tmp"
-		mv -f "${BASE}.params.tmp" "${BASE}.params"
-	fi
 
 	if [[ -s "${BASE}.fasta" ]]; then
 		echo "Building search database from ${BASE}.fasta ..."
@@ -91,6 +82,16 @@ function check_params() {
 		mv "${BASE}_msa" "${BASE}_msa.bak"
 		mv "${BASE}_msa.index" "${BASE}_msa.index.bak"
 	fi
+
+	if [[ -z "${PARAMS_MAXSEQLEN}" ]]; then
+		echo "Finding longest entry ..."
+		MAXSEQLEN="$(awk '$3 > max { max = $3 } END { print max+1 }' "${BASE}.index")"
+		jq --arg maxSeqLen "${MAXSEQLEN}"  \
+			'. * {params : { maxseqlen: $maxSeqLen}}'  "${BASE}.params"  \
+				> "${BASE}.params.tmp"
+		mv -f "${BASE}.params.tmp" "${BASE}.params"
+	fi
+
 	echo "Done. Starting Webserver..."
 }
 export -f check_params
