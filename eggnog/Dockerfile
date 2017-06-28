@@ -22,12 +22,14 @@ RUN ninja && ninja install
 FROM alpine:latest
 MAINTAINER Milot Mirdita <milot@mirdita.de>
 RUN echo "@testing http://nl.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
-RUN apk add --no-cache gawk bash grep curl libstdc++ openmpi@testing
+RUN apk add --no-cache tar gawk bash grep curl libstdc++ libgomp openmpi@testing
 
-ENV OMPI_MCA_btl=self
 ENV OMPI_MCA_plm=isolated
 COPY --from=ffindex-builder /opt/ffindex/build/bin /usr/local/bin/
 
 ENV HHLIB=/usr/local
 COPY --from=hh-builder /opt/hh-suite/data/* /usr/local/data/
 COPY --from=hh-builder /opt/hh-suite/build/bin/hhconsensus /usr/local/bin/
+
+ADD eggnog/build_eggnog.sh /usr/local/bin/
+ADD eggnog/apply_eggnog.sh /usr/local/bin/
