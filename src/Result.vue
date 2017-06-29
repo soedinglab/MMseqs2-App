@@ -11,7 +11,7 @@
 					</a>
 				</h2>
 	
-				<div v-if="msa && msa.results && msa.results.length > 0 && msa.results[0].alignments">
+				<div v-if="hasResults">
 					<msa ref="msa" :ticket="ticket"></msa>
 	
 					<table class="table table-responsive">
@@ -87,6 +87,24 @@ export default {
 	updated() {
 		if (this.$refs.msa) {
 			this.$refs.msa.setData(this.msa);
+		}
+	},
+	computed: {
+		hasResults() {
+			var hasResult = this.msa && this.msa.results && this.msa.results.length > 0;
+			console.log(hasResult);
+			if (hasResult == false) {
+				return false;
+			}
+
+			for (var i in this.msa.results) {
+				console.log(this.msa.results[i]);
+				if (this.msa.results[i].alignments != null) {
+					return true;
+				}
+			}
+
+			return false;
 		}
 	},
 	watch: {
