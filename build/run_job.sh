@@ -1,4 +1,4 @@
-#!/bin/bash -exu
+#!/bin/bash -u
 function fail() {
     echo "$1"
     exit 1
@@ -65,9 +65,15 @@ function run_job() {
         local PARAMS_SUMMARIZERESULT=""
         local PARAMS_CONVERTALIS=""
         local PARAMS_MAXSEQLEN="32000"
+        local PARAMS_PROFILE="0"
 
         if [[ -f "${DATABASES}/${DB}.params" ]]; then
-            eval "$(cat ${DATABASES}/${DB}.params | json2export)";
+            eval "$(cat ${DATABASES}/${DB}.params | json2export)"
+        fi
+
+        local PROFILE=""
+        if [[ "${PARAMS_PROFILE}" == "1" ]]; then
+            PROFILE="--target-profile"
         fi
 
         INPUT="${WORKDIR}/result_${DB}"
@@ -75,9 +81,9 @@ function run_job() {
                 "${INPUT}" "${MMTMP}/${DB}" \
                 --no-preload --early-exit --remove-tmp-files \
                 --max-seq-len "${PARAMS_MAXSEQLEN}" \
-                --split-mode 1 -v "${VERBOSITY}" --threads "${JOBTHREADS}" \
-                ${PARAMS_SEARCH} \
-            || fail "search failed"
+                -v "${VERBOSITY}" --threads "${JOBTHREADS}" \
+                -a ${PARAMS_SEARCH} ${PROFILE} \
+            || continue
         
         local SEQDB="${DATABASES}/${DB}"
         if [[ -f "${DATABASES}/${DB}_seq" ]]; then
@@ -88,7 +94,7 @@ function run_job() {
             "${MMSEQS}" summarizeresult "${INPUT}" "${WORKDIR}/summarized_${DB}" \
                     -a -v "${VERBOSITY}" --threads "${JOBTHREADS}" \
                     ${PARAMS_SUMMARIZERESULT} \
-                || fail "summarizeresult failed"
+                || continue
             INPUT="${WORKDIR}/summarized_${DB}"
         fi
 
@@ -97,7 +103,7 @@ function run_job() {
                 "${INPUT}" "${ALI}" \
                 --no-preload --early-exit --db-output -v "${VERBOSITY}" \
                 --threads "${JOBTHREADS}" ${PARAMS_CONVERTALIS} \
-            || fail "convertalis failed"
+            || continue
 
         ALIS="${ALIS} ${ALI}"
 
