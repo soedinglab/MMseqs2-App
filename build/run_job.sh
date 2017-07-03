@@ -94,6 +94,7 @@ function run_job() {
                     -a -v "${VERBOSITY}" --threads "${JOBTHREADS}" \
                     ${PARAMS_SUMMARIZERESULT} \
                 || continue
+            rm -f "${INPUT}" "${INPUT}.index"
             INPUT="${WORKDIR}/summarized_${DB}"
         fi
 
@@ -109,7 +110,7 @@ function run_job() {
         tr -d '\000' < "${ALI}" | cut -f 1-12 > "${M8}"
         M8S="${M8S} ${M8}"     
 
-        rm -f "${ALI}" "${ALI}.index"
+        rm -f "${INPUT}" "${INPUT}.index"
     done
 
     tar -cv --use-compress-program=pigz \
