@@ -54,7 +54,7 @@ func Alignments(client *redis.Client, ticket Ticket, entry int64, jobsbase strin
 
 	if res == "COMPLETED" {
 		base := filepath.Join(jobsbase, string(ticket))
-		matches, err := filepath.Glob(filepath.Clean(filepath.Join(base, "alis")) + "_*.index")
+		matches, err := filepath.Glob(filepath.Clean(filepath.Join(base, "result")) + "_*.index")
 		if err != nil {
 			return AlignmentResponse{}, err
 		}
