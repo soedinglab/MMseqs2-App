@@ -105,8 +105,6 @@ function run_job() {
                 ${PARAMS_CONVERTALIS} \
             || continue
 
-        ALIS="${ALIS} ${ALI}"
-
         local M8="${WORKDIR}/${JOBID}_${DB}.m8"
         tr -d '\000' < "${ALI}" | cut -f 1-12 > "${M8}"
         M8S="${M8S} ${M8}"     
