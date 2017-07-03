@@ -23,6 +23,8 @@ type AlignmentEntry struct {
 	DbEndPos      int     `json:"dbEndPos"`
 	Eval          float64 `json:"eval"`
 	Score         int     `json:"score"`
+	QueryLength   int     `json:"qLen"`
+	DbLength      int     `json:"dbLen"`
 }
 
 type FastaEntry struct {

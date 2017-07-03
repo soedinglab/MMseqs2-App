@@ -56,7 +56,6 @@ function run_job() {
     "${MMSEQS}" createdb "${QUERYFASTA}" "${QUERYDB}" -v "${VERBOSITY}" \
         || fail "createdb failed"
 
-    local ALIS=""
     local M8S=""
     for DB in ${TARGETS}; do
         mkdir -p "${MMTMP}/${DB}"
@@ -96,16 +95,17 @@ function run_job() {
         "${MMSEQS}" convertalis "${QUERYDB}" "${SEQDB}" \
                 "${INPUT}" "${ALI}" \
                 --no-preload --early-exit --db-output -v "${VERBOSITY}" \
-                --threads "${JOBTHREADS}" ${PARAMS_CONVERTALIS} \
+                --threads "${JOBTHREADS}" --format-mode 2 \
+                ${PARAMS_CONVERTALIS} \
             || fail "convertalis failed"
 
         ALIS="${ALIS} ${ALI}"
 
         local M8="${WORKDIR}/${JOBID}_${DB}.m8"
-        tr -d '\000' < "${ALI}" > "${M8}"
+        tr -d '\000' < "${ALI}" | cut -f 1-12 > "${M8}"
         M8S="${M8S} ${M8}"     
 
-        rm -f "${WORKDIR}/result_${DB}" "${WORKDIR}/result_${DB}.index"
+        rm -f "${ALI}" "${ALI}.index"
     done
 
     tar -cv --use-compress-program=pigz \
