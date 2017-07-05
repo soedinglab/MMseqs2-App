@@ -11,7 +11,7 @@
 					</a>
 				</h2>
 	
-				<div v-if="hasResults">
+				<div v-if="resultState == 'RESULT'">
 					<msa ref="msa" :ticket="ticket"></msa>
 	
 					<table class="table table-responsive">
@@ -41,8 +41,16 @@
 						</tbody>
 					</table>
 				</div>
-				<div v-else>
+				<div v-else-if="resultState == 'PENDING'">
+					<grid-loader class="loader" color="#000000">
+					</grid-loader>
+				</div>
+				<div v-else-if="resultState == 'EMPTY'">
 					No hits found! Start a
+					<router-link to="/">New Search</router-link>?
+				</div>
+				<div v-else>
+					Error! Start a
 					<router-link to="/">New Search</router-link>?
 				</div>
 			</div>
@@ -67,17 +75,10 @@ export default {
 	components: { Queries, Msa, GridLoader, Popover, Affix },
 	data() {
 		return {
-			status: "wait",
 			ticket: "",
 			error: "",
 			entry: 0,
-			msa: {
-				query: {
-					sequence: "",
-					header: ""
-				},
-				results: []
-			},
+			msa: null,
 			multiquery: false
 		};
 	},
@@ -90,19 +91,27 @@ export default {
 		}
 	},
 	computed: {
-		hasResults() {
-			var hasResult = this.msa && this.msa.results && this.msa.results.length > 0;
-			if (hasResult == false) {
-				return false;
+		resultState() {
+			if (this.msa == null && this.error == "") {
+				return "PENDING";
+			}
+
+			if (!this.msa.results) {
+				return "ERROR";
+			}
+
+			var hasResult = this.msa.results.length > 0;
+			if (this.msa.results.length == 0) {
+				return "EMPTY";
 			}
 
 			for (var i in this.msa.results) {
 				if (this.msa.results[i].alignments != null) {
-					return true;
+					return "RESULT";
 				}
 			}
 
-			return false;
+			return "EMPTY";
 		}
 	},
 	watch: {
@@ -124,12 +133,12 @@ export default {
 			this.$refs.msa.fixWidth();
 		},
 		fetchData(entry) {
-			this.error = "";
 			this.ticket = this.$route.params.ticket;
 			this.entry = this.$route.params.entry;
 
 			this.$http.get("api/result/" + this.ticket + '/' + this.entry)
 				.then((response) => {
+					this.error = "";
 					response.json().then((data) => {
 						if (data.alignments == null || data.alignments.length > 0) {
 							var color = colorScale();
@@ -139,12 +148,10 @@ export default {
 							}
 							this.msa = data;
 						} else {
-							this.status = "error";
 							this.error = "Failed";
 						}
 					});
 				}, () => {
-					this.status = "error";
 					this.error = "Failed";
 				});
 		}
