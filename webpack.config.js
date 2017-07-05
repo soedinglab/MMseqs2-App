@@ -38,9 +38,6 @@ module.exports = {
 					path.resolve(__dirname, './src'),
 					path.resolve(__dirname, './node_modules/vue-strap/src'),
 					path.resolve(__dirname, './node_modules/vue-localstorage/src'),
-				],
-				exclude: [
-					path.resolve(__dirname, './src/msa.min.js'),
 				]
 			},
 			{
@@ -62,7 +59,7 @@ module.exports = {
 		}
 	},
 	externals: {
-		msa: 'msa'
+		d3: 'd3'
 	},
 	plugins: [
 		new SriPlugin({
@@ -73,11 +70,10 @@ module.exports = {
 			logo: './src/assets/marv1.svg'
 		}),
 		new CopyWebpackPlugin([
-			{ 
-				from: process.env.NODE_ENV === 'production'
-						? './src/msa.min.js'
-						: './src/msa.js',
-				to: 'msa.js'
+			{
+				from: './src/lib/d3/d3.js',
+				to: 'd3.js',
+				flatten: true
 			},
 			{
 				from: './src/assets/*x.png',
@@ -95,7 +91,7 @@ module.exports = {
             attrs: ['img:src', 'object:data']
 		}),
 		new HtmlWebpackIncludeAssetsPlugin({
-			assets: ['msa.js'],
+			assets: ['d3.js'],
 			append: false,
 			hash: true
 		}),

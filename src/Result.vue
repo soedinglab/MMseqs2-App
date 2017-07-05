@@ -12,7 +12,7 @@
 				</h2>
 	
 				<div v-if="resultState == 'RESULT'">
-					<msa ref="msa" :ticket="ticket"></msa>
+					<hits ref="hits" :ticket="ticket"></hits>
 	
 					<table class="table table-responsive">
 						<thead>
@@ -26,7 +26,7 @@
 								<th>Target Pos.</th>
 							</tr>
 						</thead>
-						<tbody v-for="entry in msa.results">
+						<tbody v-for="entry in hits.results">
 							<tr v-for="(item, index) in entry.alignments">
 								<td class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</id>
 									<td>
@@ -35,8 +35,8 @@
 									<td>{{ item.seqId }}</td>
 									<td>{{ item.score }}</td>
 									<td>{{ item.eval }}</td>
-									<td>{{ item.qStartPos }}-{{ item.qEndPos }}</td>
-									<td>{{ item.dbStartPos }}-{{ item.dbEndPos }}</td>
+									<td>{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
+									<td>{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
 							</tr>
 						</tbody>
 					</table>
@@ -66,19 +66,19 @@ import Popover from '../node_modules/vue-strap/src/Popover.vue';
 import Affix from '../node_modules/vue-strap/src/Affix.vue';
 import GridLoader from '../node_modules/vue-spinner/src/GridLoader.vue';
 
-import Msa from './Msa.vue';
+import Hits from './Hits.vue';
 import Queries from './Queries.vue'
 import colorScale from './ColorScale';
 
 export default {
 	name: 'result',
-	components: { Queries, Msa, GridLoader, Popover, Affix },
+	components: { Queries, Hits, GridLoader, Popover, Affix },
 	data() {
 		return {
 			ticket: "",
 			error: "",
 			entry: 0,
-			msa: null,
+			hits: null,
 			multiquery: false
 		};
 	},
@@ -86,27 +86,27 @@ export default {
 		this.fetchData();
 	},
 	updated() {
-		if (this.$refs.msa) {
-			this.$refs.msa.setData(this.msa);
+		if (this.$refs.hits) {
+			this.$refs.hits.setData(this.hits);
 		}
 	},
 	computed: {
 		resultState() {
-			if (this.msa == null && this.error == "") {
+			if (this.hits == null && this.error == "") {
 				return "PENDING";
 			}
 
-			if (!this.msa.results) {
+			if (!this.hits.results) {
 				return "ERROR";
 			}
 
-			var hasResult = this.msa.results.length > 0;
-			if (this.msa.results.length == 0) {
+			var hasResult = this.hits.results.length > 0;
+			if (this.hits.results.length == 0) {
 				return "EMPTY";
 			}
 
-			for (var i in this.msa.results) {
-				if (this.msa.results[i].alignments != null) {
+			for (var i in this.hits.results) {
+				if (this.hits.results[i].alignments != null) {
 					return "RESULT";
 				}
 			}
@@ -130,7 +130,6 @@ export default {
 		},
 		setMultiQuery(multi) {
 			this.multiquery = multi;
-			this.$refs.msa.fixWidth();
 		},
 		fetchData(entry) {
 			this.ticket = this.$route.params.ticket;
@@ -146,7 +145,7 @@ export default {
 								var db = data.results[i].db;
 								data.results[i].color = color(db);
 							}
-							this.msa = data;
+							this.hits = data;
 						} else {
 							this.error = "Failed";
 						}
