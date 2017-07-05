@@ -7,7 +7,8 @@
 						<div class="panel-heading">Job Status: <strong>Waiting for Worker</strong></div>
 						<div class="panel-body">
 							<scale-loader class="loader"
-							              color="#000000" />
+							              color="#000000">
+							</scale-loader>
 						</div>
 					</div>
 				</div>
@@ -22,7 +23,8 @@
 					<div class="panel-heading">Job Status: <strong>In Progress</strong></div>
 					<div class="panel-body">
 						<grid-loader class="loader"
-										color="#000000" />
+										color="#000000">
+						</grid-loader>
 					</div>
 				</div>
 			</div>
