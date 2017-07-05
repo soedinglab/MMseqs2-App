@@ -54,8 +54,7 @@ export default {
         this.fetchData();
     },
     watch: {
-        '$route': 'fetchData',
-        'page': 'fetchData'
+        '$route': 'fetchData'
     },
     methods: {
         previous() {
