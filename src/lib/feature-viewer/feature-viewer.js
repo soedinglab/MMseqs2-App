@@ -335,7 +335,7 @@ var FeatureViewer = (function () {
             .style("z-index", "2");
 
         var margin = {
-            top: 10,
+            top: 20,
             right: 20,
             bottom: 20,
             left: 110
@@ -466,7 +466,12 @@ var FeatureViewer = (function () {
             });
 
         //Create Axis
-        var xAxis = d3.svg.axis()
+        var xAxis1 = d3.svg.axis()
+            .scale(scaling)
+            .tickFormat(d3.format("d"))
+            .orient("top");
+
+        var xAxis2 = d3.svg.axis()
             .scale(scaling)
             .tickFormat(d3.format("d"))
             .orient("bottom");
@@ -494,9 +499,13 @@ var FeatureViewer = (function () {
 
         function addXAxis(position) {
             svgContainer.append("g")
+                .attr("class", "x axis Xaxis-top")
+                .call(xAxis1);
+
+            svgContainer.append("g")
                 .attr("class", "x axis Xaxis")
                 .attr("transform", "translate(0," + (position + 20) + ")")
-                .call(xAxis);
+                .call(xAxis2);
         }
 
         function updateXaxis(position) {
@@ -1467,8 +1476,12 @@ var FeatureViewer = (function () {
         function reset_axis() {
             svgContainer
                 .transition().duration(500)
-                .select(".x.axis")
-                .call(xAxis);
+                .select(".Xaxis-top")
+                .call(xAxis1);
+            svgContainer
+                .transition().duration(500)
+                .select(".Xaxis")
+                .call(xAxis2);
         }
 
         function addVerticalLine() {
