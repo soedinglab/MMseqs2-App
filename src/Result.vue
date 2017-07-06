@@ -3,14 +3,13 @@
 		<div class="row">
 			<div :class="{'col-md-10' : multiquery, 'col-xs-12' : !multiquery }">
 				<h2>
-					Results for Job
-					<small>{{ ticket }}</small>
-	
 					<a v-if="!multiquery" :href="$url('api/m8/' + ticket)" class="btn btn-default pull-right" role="button" alt="Download">
 						<span class="glyphicon glyphicon-download-alt" aria-hidden="true"></span>
 					</a>
+					Results for Job
+					<small>{{ ticket }}</small>
 				</h2>
-	
+
 				<div v-if="resultState == 'RESULT'">
 					<hits ref="hits" :ticket="ticket"></hits>
 	
@@ -26,8 +25,8 @@
 								<th>Target Pos.</th>
 							</tr>
 						</thead>
-						<tbody v-for="entry in hits.results">
-							<tr v-for="(item, index) in entry.alignments">
+						<tbody v-for="entry in hits.results" :key="entry.db">
+							<tr v-for="(item, index) in entry.alignments" :key="index">
 								<td class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</id>
 									<td>
 										<a :href="item.href">{{item.target}}</a>

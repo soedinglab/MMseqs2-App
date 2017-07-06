@@ -3,7 +3,6 @@
 	     class="container">
 		<div class="row ">
 			<div class="form form-horizontal">
-	
 				<div class="col-xs-12 col-md-7">
 					<fieldset>
 						<legend>Queries
@@ -53,7 +52,8 @@
 							</button>
 							<file-button id="file"
 							             label="Upload FASTA File"
-							             v-on:upload="upload" />
+							             v-on:upload="upload">
+							</file-button>
 							</div>
 						</div>
 					</fieldset>
@@ -294,7 +294,7 @@ textarea.fasta {
 
 @media (min-width: 768px) {
 	textarea.fasta {
-		height: 65vh;
+		height: 65vh !important;
 	}
 }
 
