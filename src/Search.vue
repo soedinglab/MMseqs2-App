@@ -277,7 +277,25 @@ export default {
 		},
 		addToHistory(uuid) {
 			let history = this.$localStorage.get('history');
-			history.unshift({ time: +(new Date()), ticket: uuid });
+
+			let found = -1;
+			for (let i in history) {
+				if (history[i].ticket == uuid) {
+					found = i;
+					break;
+				}
+			}
+
+			if (found == -1) {
+				history.unshift({ time: +(new Date()), ticket: uuid });
+			} else {
+				let tmp = history[found];
+				tmp.time =+(new Date());
+				
+				history.splice(found, 1);
+				history.unshift(tmp);
+			}
+
 			this.$localStorage.set('history', history);
 		}
 	}
