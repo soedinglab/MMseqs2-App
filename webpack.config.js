@@ -71,7 +71,7 @@ module.exports = {
 		}),
 		new CopyWebpackPlugin([
 			{
-				from: './src/lib/d3/d3.js',
+				from: process.env.NODE_ENV === 'production' ? './src/lib/d3/d3.min.js' : './src/lib/d3/d3.js',
 				to: 'd3.js',
 				flatten: true
 			},
