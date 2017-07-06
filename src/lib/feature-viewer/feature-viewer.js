@@ -537,25 +537,39 @@ var FeatureViewer = (function () {
         }
 
         function updateYaxis() {
+            function expandArrow() {
+                var e = d3.select(this);
+                e.select("text").attr("clip-path", null);
+                e.select("rect").attr("width", width + 105);
+                e.select(".label-fade").style("opacity", 0);
+                e.select("polygon").style("display", "none");
+            }
+
+            function collapseArrow() {
+                var e = d3.select(this);
+                e.select("rect").attr("width", 90);
+                e.select("text").attr("clip-path", "url(#arrow-clip)");
+                e.select(".label-fade").style("opacity", 1);
+                e.select("polygon").style("display", "block");
+            }
+
+            function toggleArrow() {
+                var e = d3.select(this);
+                if (e.select(".label-fade").style("opacity") == 0) {
+                    (collapseArrow.bind(this))();
+                } else {
+                    (expandArrow.bind(this))();
+                }
+            }
+
             yAxisSVGgroup = yAxisSVG
                 .selectAll(".yaxis")
                 .data(yData)
                 .enter()
                 .append("g")
-                .on('mouseenter', function() {
-                    var e = d3.select(this);
-                    e.select("text").attr("clip-path", null);
-                    e.select("rect").attr("width", width + 105);
-                    e.select(".label-fade").style("opacity", 0);
-                    e.select("polygon").style("display", "none");
-                })
-                .on('mouseleave', function() {
-                    var e = d3.select(this);
-                    e.select("rect").attr("width", 90);
-                    e.select("text").attr("clip-path", "url(#arrow-clip)");
-                    e.select(".label-fade").style("opacity", 1);
-                    e.select("polygon").style("display", "block");
-                });
+                .on('mouseenter', expandArrow)
+                .on('mouseleave', collapseArrow)
+                .on('touchstart', toggleArrow)
 
             yAxisSVGgroup
                 .append("rect")
