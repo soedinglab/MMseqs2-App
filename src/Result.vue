@@ -30,7 +30,7 @@
 							<tr v-for="(item, index) in entry.alignments">
 								<td class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</id>
 									<td>
-										<a :href="(link = tryLinkTargetToDB(item.target, entry.db)) != false ? link : null">{{item.target}}</a>
+										<a :href="item.href">{{item.target}}</a>
 									</td>
 									<td>{{ item.seqId }}</td>
 									<td>{{ item.score }}</td>
@@ -126,7 +126,7 @@ export default {
 			} else if (db.startsWith("uniclust")) {
 				return 'http://www.uniprot.org/uniprot/' + target;
 			}
-			return false;
+			return null;
 		},
 		setMultiQuery(multi) {
 			this.multiquery = multi;
@@ -144,6 +144,10 @@ export default {
 							for (var i in data.results) {
 								var db = data.results[i].db;
 								data.results[i].color = color(db);
+								for (var j in data.results[i].alignments) {
+									var item = data.results[i].alignments[j];
+									item.href = this.tryLinkTargetToDB(item.target, db);
+								}
 							}
 							this.hits = data;
 						} else {

@@ -858,6 +858,13 @@ var FeatureViewer = (function () {
 
                     
                 rectsProGroup
+                    .append("a")
+                    .attr("xlink:href", function(d) {
+                        if (typeof (d.href) === "undefined")
+                            return null;
+                        return d.href;
+                    })
+                    .attr("target", "_blank")
                     .append("text")
                     .attr("class", "element " + object.className + "Text")
                     .attr("y", function (d) {

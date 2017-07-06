@@ -133,6 +133,7 @@ export default {
                         "description": alignments[i]["target"] + " (e-value: " + alignments[i]["eval"] + ")",
                         "id": cnt,
                         "color": colorHsl.rgb(),
+                        "href": alignments[i]["href"]
                     }
                     features.push(f);
                     cnt++;
