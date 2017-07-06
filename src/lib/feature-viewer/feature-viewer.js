@@ -298,6 +298,7 @@ var FeatureViewer = (function () {
         var pathLevel = 0;
         var svg;
         var svgContainer;
+        var textDummy;
         var filter;
         var yData = [];
         var yAxisSVG;
@@ -376,6 +377,18 @@ var FeatureViewer = (function () {
         var uniqueWidth = function (d) {
             return (scaling(1));
         };
+
+        function descriptionElipsis(d, fitWidth) {
+            var pxPerLetter = d.descriptionWidth / d.description.length;
+            var charsToDisplay = 1;
+            while (pxPerLetter * (charsToDisplay + 3) < fitWidth) {
+                charsToDisplay++;
+            }
+            if ((charsToDisplay + 3) >= d.description.length) {
+                return d.description;
+            }
+            return d.description.substring(0, charsToDisplay) + "…";
+        }
 
         this.onFeatureSelected = function (listener) {
             svgElement.addEventListener(self.events.FEATURE_SELECTED_EVENT, listener);
@@ -642,6 +655,7 @@ var FeatureViewer = (function () {
                 }
                 var level = addLevel(object.data);
                 object.data = object.data.map(function (d) {
+                    var textSize =  textDummy.text(d.description).node().getComputedTextLength();
                     return [{
                         x: d.x,
                         y: 0,
@@ -707,6 +721,11 @@ var FeatureViewer = (function () {
                         return a.x - b.x;
                     });
                 }
+                object.data = object.data.map(function (d) {
+                    var descriptionWidth = Math.ceil(textDummy.text(d.description).node().getComputedTextLength());
+                    d.descriptionWidth = descriptionWidth;
+                    return d;
+                })
                 level = addLevel(object.data);
                 pathLevel = level * 10 + 5;
             }
@@ -861,8 +880,42 @@ var FeatureViewer = (function () {
                     .attr("class", object.className + "Group")
                     .attr("transform", function (d) {
                         return "translate(" + rectX(d) + ",0)"
-                    });
+                    })
+                    .on('mouseenter', function(d) {
+                        var rw = rectWidth2(d);
+                        if (d.descriptionWidth > rw) {
+                            d3.select(this)
+                                .select("rect")
+                                    .transition(100)
+                                    .attr("width", d.descriptionWidth)
 
+                            d3.select(this)
+                                .select("text")
+                                    .attr("x", function (d) {
+                                        return d.descriptionWidth / 2
+                                    })
+                                    .text(d.description)
+                        }
+                    })
+                    .on("mouseleave", function(d) {
+                        var rw = rectWidth2(d);
+                        if (d.descriptionWidth > rw) {
+                            d3.select(this)
+                                .select("rect")
+                                    .transition(100)
+                                    .attr("width", rw)
+                                    .attr("fill", d.color || object.color)
+
+                            d3.select(this)
+                                .select("text")
+                                    .attr("x", function (d) {
+                                        return rw / 2
+                                    })
+                                    .text(function (d) {
+                                        return descriptionElipsis(d, rw);
+                                    })
+                        }
+                    })
                 
                 rectsProGroup
                     .append("rect")
@@ -893,21 +946,29 @@ var FeatureViewer = (function () {
                     .attr("y", function (d) {
                         return d.level * rectShift + rectHeight / 2
                     })
-                    .attr("dx", "0.35em")
+                    .attr("x", function (d) {
+                        return rectWidth2(d) / 2
+                    })
                     .attr("dy", "0.35em")
                     .style("font-size", "10px")
                     .text(function (d) {
-                        return d.description
+                        var rw = rectWidth2(d);
+                        if (d.descriptionWidth > rw) {
+                            return descriptionElipsis(d, rw);
+                        }
+                        else {
+                            return d.description
+                        }
                     })
                     .style("fill", "black")
                     .style("fill", function (d) { return d3.rgb(d.color || object.color).hsl().l < 0.5 ? "white" : "black"; })
-
                     .style("z-index", "15")
-                    .style("visibility", function (d) {
-                        if (d.description) {
-                            return (scaling(d.y) - scaling(d.x)) > d.description.length * 8 && rectHeight > 11 ? "visible" : "hidden";
-                        } else return "hidden";
-                    });
+                    .style("text-anchor", "middle")
+                    // .style("visibility", function (d) {
+                    //     if (d.description) {
+                    //         return (scaling(d.y) - scaling(d.x)) > d.description.length  && rectHeight > 11 ? "visible" : "hidden";
+                    //     } else return "hidden";
+                    // });
                 //     .call(d3.helper.tooltip(object));
 
 
@@ -1192,13 +1253,24 @@ var FeatureViewer = (function () {
                 });
 
                 transit2
-                    .attr("width", rectWidth2);
-                svgContainer.selectAll("." + object.className + "Text")
-                    .style("visibility", function (d) {
-                        if (d.description) {
-                            return (scaling(d.y) - scaling(d.x)) > d.description.length * 8 && object.height > 11 ? "visible" : "hidden";
-                        } else return "hidden";
-                    });
+                    .attr("width", rectWidth2)
+                transit1.select("text")
+                    .attr("x", function(d) { return rectWidth2(d) / 2; })
+                    .text(function (d) {
+                        var rw = rectWidth2(d);
+                        if (d.descriptionWidth > rw) {
+                            return descriptionElipsis(d, rw);
+                        }
+                        else {
+                            return d.description
+                        }
+                    })
+                // svgContainer.selectAll("." + object.className + "Text")
+                //     .style("visibility", function (d) {
+                //         if (d.description) {
+                //             return (scaling(d.y) - scaling(d.x)) > d.description.length * 8 && object.height > 11 ? "visible" : "hidden";
+                //         } else return "hidden";
+                //     });
             },
             multiRec: function (object) {
                 svgContainer.selectAll("." + object.className)
@@ -1609,6 +1681,12 @@ var FeatureViewer = (function () {
             svgContainer = svg
                 .append("g")
                 .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            textDummy = svg
+                .append("g")
+                .attr("transform", "translate(-1000, -1000)")
+                .append("text")
+                .attr("font-size", "10px");
 
             //Create Clip-Path
             var defs = svgContainer.append("defs");
