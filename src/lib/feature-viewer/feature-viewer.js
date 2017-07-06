@@ -1611,7 +1611,7 @@ var FeatureViewer = (function () {
                 .attr("id", "arrow-clip")
                 .append("polygon")
                 .attr("points", function (d) {
-                    return (margin.left - 110) + "," + (-8) + ", " + (margin.left - 110) + "," + 2 + ", " + (margin.left - 20) + "," + 2 + ", " + (margin.left - 15) + "," + (-6) + ", " + (margin.left - 20) + "," + (-8); // x,y points
+                    return (margin.left - 110) + "," + (-8) + ", " + (margin.left - 110) + "," + 2 + ", " + (margin.left - 20) + "," + 2 + ", " + (margin.left - 17) + "," + (-5) + ", " + (margin.left - 20) + "," + (-8); // x,y points
                 });
 
             var labelFadeOut = defs.append("linearGradient")
