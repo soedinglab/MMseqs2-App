@@ -1382,11 +1382,11 @@ var FeatureViewer = (function () {
 
         function updateWindow() {
             width = el.offsetWidth - margin.left - margin.right - 17;
-            d3.slect(el).select("svg")
+            d3.select(el).select("svg")
                 .attr("width", width + margin.left + margin.right);
-            d3.slect(el).select("clippath>rect").attr("width", width);
+            d3.select(el).select("clippath>rect").attr("width", width);
             if (SVGOptions.brushActive) {
-                d3.slect(el).select(".background").attr("width", width);
+                d3.select(el).select(".background").attr("width", width);
             }
             d3.select(el).selectAll(".brush").call(brush.clear());
 
