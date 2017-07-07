@@ -171,19 +171,60 @@ export default {
 		return {
 			dberror: false,
 			databases: [],
-			database: [],
-			mode: 'accept',
 			inSearch: false,
-			email: '',
-			query: ">TEST\nMPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC",
 			status: {
 				type: '',
 				message: ''
 			},
-			showCurl: false
+			showCurl: false,
+
+			mode_: null,
+			email_: null,
+			query_: null,
+			database_: [],			
 		};
 	},
 	computed: {
+		mode: {
+			get: function () {
+				this.mode_ = this.$localStorage.get('mode', 'accept');
+				return this.mode_;
+			},
+			set: function (value) {
+				this.$localStorage.set('mode', value);
+				this.mode_ = value;
+			}
+		},
+		email: {
+			get: function () {
+				this.email_ = this.$localStorage.get('email', '');
+				return this.email_;
+			},
+			set: function (value) {
+				this.$localStorage.set('email', value);
+				this.email_ = value;
+			}
+		},
+		query: {
+			get: function () {
+				this.query_ = this.$localStorage.get('query', '>TEST\nMPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC');
+				return this.query_;
+			},
+			set: function (value) {
+				this.$localStorage.set('query', value);
+				this.query_ = value;
+			}
+		},
+		database: {
+			get: function () {
+				this.database_ = JSON.parse(this.$localStorage.get('database', '[]'));
+				return this.database_;
+			},
+			set: function (value) {
+				this.$localStorage.set('database', JSON.stringify(value));
+				this.database_ = value;
+			}
+		},
 		searchDisabled() {
 			return this.inSearch
 				|| this.database.length == 0
@@ -214,10 +255,16 @@ export default {
 				response.json().then((data) => {
 					this.dberror = false;
 					this.databases = data.databases;
+					
+					var dbs = [];
 					for (var i in this.databases) {
 						if (this.databases[i].default == true) {
-							this.database.push(this.databases[i]);
+							dbs.push(this.databases[i]);
 						}
+					}
+
+					if (this.database.length === 0) {
+						this.database = dbs;
 					}
 				})
 			}, () => {
