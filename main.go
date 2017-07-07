@@ -383,34 +383,40 @@ func worker(client *redis.Client) {
 
 		switch err = RunJob(client, job, ticket); err.(type) {
 		case *JobExecutionError:
-			err := mailer.Send(mail.Mail{
-				viper.GetString("MailSender"),
-				job.Email,
-				fmt.Sprintf(viper.GetString("MailErrorSubject"), ticket),
-				fmt.Sprintf(viper.GetString("MailErrorTemplate"), ticket),
-			})
-			if err != nil {
-				fmt.Printf("%s", err)
+			if job.Email != "" {
+				err := mailer.Send(mail.Mail{
+					viper.GetString("MailSender"),
+					job.Email,
+					fmt.Sprintf(viper.GetString("MailErrorSubject"), ticket),
+					fmt.Sprintf(viper.GetString("MailErrorTemplate"), ticket),
+				})
+				if err != nil {
+					fmt.Printf("%s", err)
+				}
 			}
 		case *JobTimeoutError:
-			err := mailer.Send(mail.Mail{
-				viper.GetString("MailSender"),
-				job.Email,
-				fmt.Sprintf(viper.GetString("MailTimeoutSubject"), ticket),
-				fmt.Sprintf(viper.GetString("MailTimeoutTemplate"), ticket),
-			})
-			if err != nil {
-				fmt.Printf("%s", err)
+			if job.Email != "" {
+				err := mailer.Send(mail.Mail{
+					viper.GetString("MailSender"),
+					job.Email,
+					fmt.Sprintf(viper.GetString("MailTimeoutSubject"), ticket),
+					fmt.Sprintf(viper.GetString("MailTimeoutTemplate"), ticket),
+				})
+				if err != nil {
+					fmt.Printf("%s", err)
+				}
 			}
 		case nil:
-			err := mailer.Send(mail.Mail{
-				viper.GetString("MailSender"),
-				job.Email,
-				fmt.Sprintf(viper.GetString("MailSuccessSubject"), ticket),
-				fmt.Sprintf(viper.GetString("MailSuccessTemplate"), ticket),
-			})
-			if err != nil {
-				fmt.Printf("%s", err)
+			if job.Email != "" {
+				err := mailer.Send(mail.Mail{
+					viper.GetString("MailSender"),
+					job.Email,
+					fmt.Sprintf(viper.GetString("MailSuccessSubject"), ticket),
+					fmt.Sprintf(viper.GetString("MailSuccessTemplate"), ticket),
+				})
+				if err != nil {
+					fmt.Printf("%s", err)
+				}
 			}
 		}
 	}
