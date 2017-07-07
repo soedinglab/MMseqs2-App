@@ -33,7 +33,7 @@ function make_database_from_db() {
     1>&2 mmseqs msa2profile "${INPUT}" "${OUTPUT}"
 
     1>&2 echo "Finding longest entry ..."
-    local MAXSEQLEN="$(awk '$3 > max { max = $3 } END { print max+1 }' "${BASE}_seq.index")"
+    local MAXSEQLEN="$(awk '$3 > max { max = $3 } END { print max+1 }' "${BASE}.index")"
     1>&2 mmseqs createindex "${OUTPUT}" -s "${MAXSENS}" --mask 2 --include-headers --target-profile --max-seq-len "${MAXSEQLEN}"
 
     echo "${MAXSEQLEN}"
