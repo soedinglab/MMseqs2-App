@@ -1,4 +1,4 @@
-FROM mmseqs-web-frontend:latest as frontend
+FROM mirdita/mmseqs-web-frontend:latest as frontend
 
 FROM nginx:alpine
 COPY --from=frontend /var/www/mmseqs-web /var/www/mmseqs-web

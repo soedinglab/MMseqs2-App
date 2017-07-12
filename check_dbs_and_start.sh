@@ -15,31 +15,6 @@ function abspath() {
 }
 export -f abspath
 
-function make_database_from_fasta() {
-    local INPUT="$(abspath $1)"
-    local OUTPUT="$(abspath $2)"
-    local MAXSENS="$3"
-
-    1>&2 mmseqs createdb "${INPUT}" "${OUTPUT}"
-    1>&2 mmseqs createindex "${OUTPUT}" --mask 2 --include-headers --max-seq-len "${MAXSENS}"
-}
-export -f make_database_from_fasta
-
-function make_database_from_db() {
-    local INPUT="$(abspath $1)"
-    local OUTPUT="$(abspath $2)"
-    local MAXSENS="$3"
-
-    1>&2 mmseqs msa2profile "${INPUT}" "${OUTPUT}"
-
-    1>&2 echo "Finding longest entry ..."
-    local MAXSEQLEN="$(awk '$3 > max { max = $3 } END { print max+1 }' "${BASE}.index")"
-    1>&2 mmseqs createindex "${OUTPUT}" -s "${MAXSENS}" --mask 2 --include-headers --target-profile --max-seq-len "${MAXSEQLEN}"
-
-    echo "${MAXSEQLEN}"
-}
-export -f make_database_from_db
-
 function parse_sense() {
     local SENS=4
 
@@ -68,13 +43,16 @@ function check_params() {
     echo "Checking ${PARAMS}..."
     eval "$(cat "$PARAMS" | json2export)";
 
+    local PROFILE=0
     if [[ -s "${BASE}.fasta" ]]; then
         echo "Building search database from ${BASE}.fasta ..."
+
+        mmseqs createdb "${BASE}.fasta" "${BASE}"
 
         echo "Finding longest entry ..."
         PARAMS_MAXSEQLEN="$(awk '$3 > max { max = $3 } END { print max+1 }' "${BASE}.index")"
 
-        make_database_from_fasta "${BASE}.fasta" "${BASE}" "${PARAMS_MAXSEQLEN}"
+        mmseqs createindex "${BASE}" --mask 2 --include-headers --max-seq-len "${PARAMS_MAXSEQLEN}"
 
         echo "Moving input fasta file to ${BASE}.fasta.bak ..."
         mv "${BASE}.fasta" "${BASE}.fasta.bak"
@@ -85,11 +63,14 @@ function check_params() {
             SENSE="$(parse_sense ${PARAMS_SEARCH})"
         fi
 
-        echo "Building profile search database from ${BASE}_msa with SENS=${SENSE} ..."
-        PARAMS_MAXSEQLEN=$(make_database_from_db "${BASE}_msa" "${BASE}" "${SENSE}")
+        mmseqs msa2profile "${BASE}_msa" "${BASE}"
 
-        jq  '. * {params : { profile: 1 }}'  "${BASE}.params" > "${BASE}.params.tmp"
-        mv -f "${BASE}.params.tmp" "${BASE}.params"
+        echo "Finding longest entry ..."
+        PARAMS_MAXSEQLEN="$(awk '$3 > max { max = $3 } END { print max+1 }' "${BASE}_seq.index")"
+
+        mmseqs createindex "${BASE}" -s "${SENSE}" --mask 2 --include-headers --target-profile --max-seq-len "${PARAMS_MAXSEQLEN}"
+
+        PROFILE=1
 
         echo "Moving input database to ${BASE}_msa.bak ..."
         mv "${BASE}_msa" "${BASE}_msa.bak"
@@ -97,8 +78,8 @@ function check_params() {
     fi
 
     if [[ -z "${PARAMS_MAXSEQLEN}" ]]; then
-        jq --arg maxSeqLen "${PARAMS_MAXSEQLEN}"  \
-            '. * {params : { maxseqlen: [ 32000, $maxSeqLen] | max }}'  "${BASE}.params"  \
+        jq --arg maxSeqLen "${PARAMS_MAXSEQLEN}" --arg profile "${PROFILE}"  \
+            '. * {params : { profile: $profile, maxseqlen: [ 32000, $maxSeqLen] | max }}' "${BASE}.params"  \
             > "${BASE}.params.tmp"
         mv -f "${BASE}.params.tmp" "${BASE}.params"
     fi

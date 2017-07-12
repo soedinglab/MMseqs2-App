@@ -1,5 +1,4 @@
-FROM mmseqs-web-backend:latest
-
+FROM mirdita/mmseqs-web-backend:latest
 RUN apk add --no-cache findutils
 
 ADD config.json /etc/mmseqs-web/config.json
