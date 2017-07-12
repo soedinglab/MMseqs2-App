@@ -29,7 +29,7 @@
 							<tr v-for="(item, index) in entry.alignments" :key="index">
 								<td class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</id>
 									<td>
-										<a :href="item.href">{{item.target}}</a>
+										<a :href="item.href" target="_blank">{{item.target}}</a>
 									</td>
 									<td>{{ item.seqId }}</td>
 									<td>{{ item.score }}</td>
