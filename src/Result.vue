@@ -124,6 +124,8 @@ export default {
 				return 'http://www.rcsb.org/pdb/explore.do?structureId=' + target.split('_')[0];
 			} else if (db.startsWith("uniclust")) {
 				return 'http://www.uniprot.org/uniprot/' + target;
+			} else if (db.startsWith("eggnog_")) {
+				return 'http://eggnogdb.embl.de/#/app/results?target_nogs=' + target;
 			}
 			return null;
 		},

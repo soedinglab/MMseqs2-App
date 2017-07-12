@@ -266,6 +266,7 @@
 
 var FeatureViewer = (function () {
     function FeatureViewer(id, sequence, el, options) {
+        const labelSizeLookup = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,5,7,6,9,8,3,3,3,6,6,3,4,3,4,6,6,6,6,6,6,6,6,6,6,3,3,6,6,6,5,9,7,7,7,8,6,6,8,8,3,3,7,6,10,8,8,7,8,7,6,6,8,6,10,6,6,6,4,4,4,6,5,6,6,7,5,7,6,4,6,7,3,3,6,3,10,7,7,7,7,5,5,4,7,6,8,6,6,5,4,6,4,6,0,0,0,0,0,0,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,6,6,6,6,6,6,6,9,4,5,6,0,9,5,5,6,4,4,6,7,7,3,3,4,4,5,8,8,8,5,7,7,7,7,7,7,9,7,6,6,6,6,3,3,3,3,8,8,8,8,8,8,8,6,8,8,8,8,8,6,7,7,6,6,6,6,6,6,9,5,6,6,6,6,3,3,3,3,6,7,7,7,7,7,7,6,7,7,7,7,7,6,7,6];
         var self = this;
         this.events = {
             FEATURE_SELECTED_EVENT: "feature-viewer-position-selected",
@@ -655,7 +656,6 @@ var FeatureViewer = (function () {
                 }
                 var level = addLevel(object.data);
                 object.data = object.data.map(function (d) {
-                    var textSize =  textDummy.text(d.description).node().getComputedTextLength();
                     return [{
                         x: d.x,
                         y: 0,
@@ -722,7 +722,15 @@ var FeatureViewer = (function () {
                     });
                 }
                 object.data = object.data.map(function (d) {
-                    var descriptionWidth = Math.ceil(textDummy.text(d.description).node().getComputedTextLength());
+                    var descriptionWidth = 0;
+                    for (var i = 0; i < d.description.length; ++i) {
+                        var code = d.description.charCodeAt(i);
+                        if (code < 256) {
+                            descriptionWidth += labelSizeLookup[code];
+                        } else {
+                            descriptionWidth += 5;
+                        }
+                    }
                     d.descriptionWidth = descriptionWidth;
                     return d;
                 })
