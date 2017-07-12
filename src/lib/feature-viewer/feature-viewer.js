@@ -529,7 +529,7 @@ var FeatureViewer = (function () {
 
         function updateSVGHeight(position) {
             svg.attr("height", position + 60 + "px");
-            svg.select("clippath rect").attr("height", position + 60 + "px");
+            svg.select("#clip rect").attr("height", position + 60 + "px");
         }
 
         var yAxisScale = d3.scale.ordinal()
@@ -1478,7 +1478,7 @@ var FeatureViewer = (function () {
             width = el.offsetWidth - margin.left - margin.right - 17;
             d3.select(el).select("svg")
                 .attr("width", width + margin.left + margin.right);
-            d3.select(el).select("clippath>rect").attr("width", width);
+            d3.select(el).select("#clip>rect").attr("width", width);
             if (SVGOptions.brushActive) {
                 d3.select(el).select(".background").attr("width", width);
             }
