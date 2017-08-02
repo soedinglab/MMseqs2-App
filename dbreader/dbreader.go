@@ -39,3 +39,7 @@ func (d *Reader) Data(id int64) string {
 	}
 	return ""
 }
+
+func (d *Reader) Size() int64 {
+	return (int64)(C.reader_get_size(d.handle))
+}

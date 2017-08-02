@@ -154,6 +154,15 @@ int64_t reader_get_offset(void *r, int64_t id) {
     return reader->index[id].offset;
 }
 
+int64_t reader_get_size(void *r) {
+    DBReader *reader = (DBReader*)r;
+    if (reader == NULL) {
+        return -1;
+    }
+    return reader->size;
+}
+
+
 char *file_map(FILE *file, ssize_t *size) {
     struct stat sb;
     fstat(fileno(file), &sb);
