@@ -14,7 +14,7 @@ RUN go build -o /opt/mmseqs-web/mmseqs-web
 
 FROM alpine:latest
 MAINTAINER Milot Mirdita <milot@mirdita.de>
-RUN apk add --no-cache gawk bash pigz jq tar grep libstdc++ libgomp
+RUN apk add --no-cache gawk bash pigz jq tar grep libstdc++ libgomp libbz2
 
 COPY --from=mmseqs /usr/local/bin/mmseqs_sse42 /usr/local/bin/mmseqs_sse42
 COPY --from=mmseqs /usr/local/bin/mmseqs_avx2 /usr/local/bin/mmseqs_avx2
