@@ -18,8 +18,8 @@ cd mmseqs-web
 ```
 
 If you want to use one of our default databases (Uniclust/Pfam/PDB/EggNOG) go to section [Setting Up Custom Databases](#setting-up-custom-databases) then return here.
-If you want to use your own sequence databases go to section "Setting up a Custom Sequence Database" then return here.
-If you want to use your own profile databases go to section "Setting up a Custom Profile Database" then return here.
+If you want to use your own sequence databases go to section [Setting up a Custom Sequence Database](#setting-up-a-custom-sequence-database) then return here.
+If you want to use your own profile databases go to section [Setting up a Custom Profile Database](#setting-up-a-custom-profile-database) then return here.
 
 Take a look at the [MMseqs2 User Guide](https://github.com/soedinglab/mmseqs2/wiki) to make sure you have enough system memory for all databases.
 
@@ -45,7 +45,7 @@ docker-compose up --build
 
 ### Uniclust
 
-We provide a script in examples/uniclust/setup.sh that will download and setup the Uniclust sequence database for you.
+We provide a script in `examples/uniclust/setup.sh` that will download and setup the Uniclust sequence database for you.
 Please take a look at this script and choose version, sequence identity level and kind of the database you want.
 
 We provide databases at 30%, 50% and 90% sequence identity, both as seed databases (the cluster reference sequence is the original Uniprot header and sequence) and as a consensus database (the cluster reference sequence is a Uniclust consensus sequence with a summarized header).
@@ -94,7 +94,7 @@ cd examples/eggnog
 
 ## Setting up Custom Databases
 
-### Setting Up Custom Sequence Databases
+### Setting Up a Custom Sequence Database
 
 To add a new sequence database to your local MMseqs2 Search Server, place your sequences as a FASTA file with the .fasta file ending in the databases folder.
 
@@ -108,7 +108,7 @@ echo -e "{\n \"display\": {\n  \"name\": \"\",\n  \"version\": \"\",\n  \"defaul
 
 Take a look at the "Params File" to customize this file.
 
-### Setting up Custom Profile Databases
+### Setting up a Custom Profile Database
 To add a profile database to your local MMseqs2 Search Server, you need to provide multiple sequence alignments for each target profile inside an MMseqs2 indexed database. There is no general recipe to build a database like this, but you can take a look at the EggNOG docker container in `examples/eggnog` for an example how you might setup your own profile databases.
 
 Params File
