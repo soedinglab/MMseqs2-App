@@ -1,0 +1,6 @@
+[submodule "src/renderer"]
+	path = src/renderer
+	url = git@github.com:milot-mirdita/mmseqs-web-frontend.git
+[submodule "src/backend"]
+	path = src/backend
+	url = git@github.com:milot-mirdita/mmseqs-web-backend.git
