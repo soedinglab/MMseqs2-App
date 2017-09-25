@@ -3,9 +3,8 @@
   "description": "MMseqs Search Service",
   "author": "Milot Mirdita <milot@mirdita.de>",
   "private": true,
-  "main": "build.js",
-  "browser": {
-    "build.js": "dist/build.js"
+  "configuration": {
+    "apiEndpoint" : "/"
   },
   "scripts": {
     "dev": "cross-env NODE_ENV=development webpack-dev-server --open --inline --hot --content-base dist/",
@@ -29,7 +28,7 @@
     "babel-preset-es2015": "^6.24.1",
     "compression-webpack-plugin": "^0.4.0",
     "copy-webpack-plugin": "^4.0.1",
-    "cross-env": "^5.0.1",
+    "cross-env": "^5.0.5",
     "css-loader": "^0.28",
     "extract-text-webpack-plugin": "^3.0.0",
     "favicons-webpack-plugin": "0.0.7",

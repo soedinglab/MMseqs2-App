@@ -7,7 +7,8 @@
 </template>
 
 <script>
-import Affix from '../node_modules/vue-strap/src/Affix.vue';
+import Affix from 'vue-strap/Affix.vue';
+
 export default {
     mixins: [Affix]
 };

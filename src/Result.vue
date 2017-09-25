@@ -61,9 +61,9 @@
 </template>
 
 <script>
-import Popover from '../node_modules/vue-strap/src/Popover.vue';
-import Affix from '../node_modules/vue-strap/src/Affix.vue';
-import GridLoader from '../node_modules/vue-spinner/src/GridLoader.vue';
+import Popover from 'vue-strap/Popover.vue';
+
+import GridLoader from 'vue-spinner/GridLoader.vue';
 
 import Hits from './Hits.vue';
 import Queries from './Queries.vue'
@@ -71,7 +71,7 @@ import colorScale from './ColorScale';
 
 export default {
 	name: 'result',
-	components: { Queries, Hits, GridLoader, Popover, Affix },
+	components: { Queries, Hits, GridLoader, Popover },
 	data() {
 		return {
 			ticket: "",

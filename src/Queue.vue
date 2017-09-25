@@ -45,8 +45,8 @@
 </template>
 
 <script>
-import ScaleLoader from '../node_modules/vue-spinner/src/ScaleLoader.vue';
-import GridLoader from '../node_modules/vue-spinner/src/GridLoader.vue';
+import GridLoader from 'vue-spinner/GridLoader.vue';
+import ScaleLoader from 'vue-spinner/ScaleLoader.vue';
 
 export default {
 	components: { ScaleLoader, GridLoader },

@@ -160,9 +160,11 @@
 
 <script>
 import FileButton from './FileButton.vue';
-import Popover from '../node_modules/vue-strap/src/Popover.vue';
-import Modal from '../node_modules/vue-strap/src/Modal.vue';
-import ScaleLoader from '../node_modules/vue-spinner/src/ScaleLoader.vue';
+
+import Popover from 'vue-strap/Popover.vue';
+import Modal from 'vue-strap/Modal.vue';
+
+import ScaleLoader from 'vue-spinner/ScaleLoader.vue';
 
 export default {
 	name: 'search',

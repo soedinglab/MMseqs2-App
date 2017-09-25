@@ -24,8 +24,10 @@
 </template>
 
 <script>
-import Dropdown from '../node_modules/vue-strap/src/Dropdown.vue';
-import Popover from '../node_modules/vue-strap/src/Popover.vue';
+
+import Popover from 'vue-strap/Popover.vue';
+import Dropdown from 'vue-strap/Dropdown.vue';
+
 import feature from './lib/feature-viewer/feature-viewer.js';
 
 function lerp(v0, v1, t) {

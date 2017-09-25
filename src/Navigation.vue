@@ -30,10 +30,10 @@
 </template>
 
 <script>
-import navbar from '../node_modules/vue-strap/src/Navbar.vue';
+import Navbar from 'vue-strap/Navbar.vue';
 
 export default {
-    components: { navbar }
+    components: { Navbar }
 }
 </script>
 

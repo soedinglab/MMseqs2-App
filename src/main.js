@@ -9,7 +9,7 @@ Vue.use(VueRouter);
 Vue.use(VueResource);
 Vue.use(VueLocalStorage)
 
-Vue.url.options.root = '/';
+Vue.url.options.root = __CONFIG__.apiEndpoint;
 
 import App from './App.vue';
 import Search from './Search.vue';

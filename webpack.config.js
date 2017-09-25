@@ -55,13 +55,18 @@ module.exports = {
 	},
 	resolve: {
 		alias: {
-			'vue$': 'vue/dist/vue.esm.js'
+			'vue$': 'vue/dist/vue.esm.js',
+			'vue-strap': 'vue-strap/src',
+			'vue-spinner': 'vue-spinner/src'
 		}
 	},
 	externals: {
 		d3: 'd3'
 	},
 	plugins: [
+		new webpack.DefinePlugin({
+			__CONFIG__: JSON.stringify(require('./package.json').configuration)
+		}),
 		new SriPlugin({
 		 	hashFuncNames: ['sha256', 'sha384'],
             enabled: process.env.NODE_ENV === 'production',
