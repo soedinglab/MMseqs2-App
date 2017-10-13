@@ -1,21 +1,47 @@
 <template>
-    <affix>
-        <h3 style="padding-left:15px">All Queries</h3>
-        <ul class="nav nav-pills nav-stacked">
-            <li>
-                <a :href="$url('api/m8/' + ticket)">
-                    <span class="glyphicon glyphicon-download-alt" aria-hidden="true"></span> Download M8
-                </a>
-            </li>
-            <li role="separator"
-                class="nav-divider"></li>
-            <li v-for="query in items"
-                :class="{ active: query.id == entry }">
-                <router-link :to="{ name: 'result', params: { ticket: ticket, entry: query.id }}">{{ query.name }}
-                </router-link>
-            </li>
-        </ul>
-        <nav aria-label="Page navigation">
+    <div>
+        <v-divider></v-divider>
+        <v-subheader class="grey--text mono">{{ticket.substr(0,30)}}…</v-subheader>
+        <v-list-tile target="_blank" :href="$url('api/m8/' + ticket)">
+            <v-list-tile-action>
+                <v-icon>cloud_download</v-icon>
+            </v-list-tile-action>
+            <v-list-tile-content>
+                <v-list-tile-title v-if="multi">
+                    Download All
+                </v-list-tile-title>
+
+                <v-list-tile-title v-else>
+                    Download M8
+                </v-list-tile-title>
+            </v-list-tile-content>
+        </v-list-tile>
+
+        <v-list-group :value="drawer" v-if="multi" no-action>
+            <v-list-tile slot="item" @click="drawer = !drawer">
+                <v-list-tile-action>
+                    <v-icon>{{ drawer ? 'keyboard_arrow_up' : 'keyboard_arrow_down' }}</v-icon>
+                </v-list-tile-action>
+                <v-list-tile-content>
+                    <v-list-tile-title>
+                        Queries
+                    </v-list-tile-title>
+                </v-list-tile-content>
+            </v-list-tile>
+            <v-list-tile v-if="items.length > 0" v-for="(child, i) in items" :key="i" :class="{ 'list__tile--active': child.id == entry }" :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}">
+                <!-- <v-list-tile-action v-if="child.icon"> -->
+                    <!-- <v-icon>{{ child.icon }}</v-icon> -->
+                <!-- </v-list-tile-action> -->
+                <v-list-tile-content>
+                    <v-list-tile-title>
+                        {{ child.name }}
+                    </v-list-tile-title>
+                </v-list-tile-content>
+            </v-list-tile>
+        </v-list-group>
+        <v-divider></v-divider>
+
+        <!-- <nav aria-label="Page navigation">
             <ul class="pager pager-sm">
                 <li :class="['previous', { disabled: page == 0 }]">
                     <a @click="previous">
@@ -30,32 +56,30 @@
                     </a>
                 </li>
             </ul>
-        </nav>
-    </affix>
+        </nav> -->
+    </div>
 </template>
 
 
 <script>
-import Affix from './AffixFix.vue';
-
 export default {
-    props: ['ticket', 'entry'],
-    components: { Affix },
-    data() {
-        return {
-            status: '',
-            items: [],
-            page: -1,
-            limit: 7,
-            hasNext: false
-        }
-    },
+    data: () => ({
+        ticket: null,
+        entry: null,
+        status: '',
+        items: [],
+        page: -1,
+        limit: 7,
+        hasNext: false,
+        drawer: false,
+        multi: false,
+    }),
     created() {
         this.fetchData();
-    },
-    watch: {
-        '$route': 'fetchData'
-    },
+	},
+	watch: {
+		'$route': 'fetchData'
+	},
     methods: {
         previous() {
             if (this.page == 0) {
@@ -69,7 +93,10 @@ export default {
             }
             this.page += 1;
         },
-        fetchData() {
+		fetchData() {
+			this.ticket = this.$route.params.ticket;
+            this.entry = this.$route.params.entry;
+            
             if (this.page == -1) {
                 this.page = Math.floor(this.entry / this.limit);
             }
@@ -78,11 +105,11 @@ export default {
             this.ticket = this.$route.params.ticket;
             this.$http.get("api/result/queries/" + this.ticket + "/" + this.limit + "/" + this.page).then((response) => {
                 response.json().then((data) => {
-                    if (data.lookup && data.lookup.length > 1) {
+                    if (data.lookup) {
                         this.items = data.lookup;
                         this.hasNext = data.hasNext;
-                        var isMulti = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)  
-                        this.$emit('multi', isMulti);
+                        this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)  
+                        this.$emit('multi', this.multi);
                     }
                 });
             }).catch(() => {

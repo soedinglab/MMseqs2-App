@@ -1,5 +1,19 @@
 {
-  "presets": [
-    ["env", { "modules": false }]
-  ]
+    "comments": false,
+    "presets": [
+        [ "es2015", { "modules": false  } ],
+        [ "stage-2" ]
+    ],
+    "plugins": [
+        "transform-runtime",
+        "add-filehash",
+        [
+            "transform-imports", {
+                "vuetify": {
+                    "transform": "vuetify/src/components/${member}",
+                    "preventFullImport": true
+                }
+            }
+        ]
+    ]
 }

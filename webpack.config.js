@@ -8,8 +8,11 @@ const SriPlugin = require('webpack-subresource-integrity');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackIncludeAssetsPlugin = require('html-webpack-include-assets-plugin');
 
+const isElectron = !!process.env.ELECTRON_ROOT;
+const __root = isElectron ? process.env.ELECTRON_ROOT : __dirname;
+
 module.exports = {
-	entry: './src/main.js',
+	entry: path.resolve(__dirname, './src/main.js'),
 	output: {
 		path: path.resolve(__dirname, './dist'),
 		publicPath: '/',
@@ -22,22 +25,22 @@ module.exports = {
 				test: /\.vue$/,
 				loader: 'vue-loader',
 				options: {
-                    transformToRequire : { img: 'src', image: 'xlink:href', object: 'data' },
-					loaders: {
-						css: ExtractTextPlugin.extract({
-							use: 'css-loader',
-							fallback: 'vue-style-loader'
-						})
-					}
+					extractCSS: true,
+					transformToRequire : { img: 'src', image: 'xlink:href', object: 'data' },
+					include: [
+						path.resolve(__dirname, './src'),
+						path.resolve(__root, './node_modules/vuetify/src'),
+					]
 				}
 			},
 			{
 				test: /\.js$/,
 				loader: 'babel-loader',
-                include: [ 
+				include: [ 
 					path.resolve(__dirname, './src'),
-					path.resolve(__dirname, './node_modules/vue-strap/src'),
-					path.resolve(__dirname, './node_modules/vue-localstorage/src'),
+					path.resolve(__root, './node_modules/vuetify/src'),
+					path.resolve(__root, './node_modules/vue-localstorage/src'),
+					path.resolve(__root, './node_modules/vue-resource'),
 				]
 			},
 			{
@@ -47,17 +50,20 @@ module.exports = {
 					name: '[name].[hash:7].[ext]'
 				}
 			},
-            {
-                test: /\.less$/,
-                use: ExtractTextPlugin.extract([ 'css-loader', 'less-loader' ])
-            },
+			{
+				test: /\.less$/,
+				use: ExtractTextPlugin.extract([ 'css-loader', 'less-loader' ])
+			},
+			{
+				test: /\.styl$/,
+				use: ExtractTextPlugin.extract([ 'css-loader', 'stylus-loader' ])
+			}
 		]
 	},
 	resolve: {
+		extensions: ['.js', '.vue', '.json'],
 		alias: {
-			'vue$': 'vue/dist/vue.esm.js',
-			'vue-strap': 'vue-strap/src',
-			'vue-spinner': 'vue-spinner/src'
+			'vue$': 'vue/dist/vue.esm.js'
 		}
 	},
 	externals: {
@@ -65,54 +71,44 @@ module.exports = {
 	},
 	plugins: [
 		new webpack.DefinePlugin({
-			__CONFIG__: JSON.stringify(require('./package.json').configuration)
-		}),
-		new SriPlugin({
-		 	hashFuncNames: ['sha256', 'sha384'],
-            enabled: process.env.NODE_ENV === 'production',
+			__CONFIG__: JSON.stringify(require('./package.json').configuration),
+			__ELECTRON__: isElectron
 		}),
 		new FaviconsWebpackPlugin({ 
-			logo: './src/assets/marv1.svg'
+			logo: path.resolve(__dirname, './src/assets/marv1.svg')
 		}),
 		new CopyWebpackPlugin([
 			{
-				from: process.env.NODE_ENV === 'production' ? './src/lib/d3/d3.min.js' : './src/lib/d3/d3.js',
+				from: process.env.NODE_ENV === 'production' ? 
+				path.resolve(__dirname, './src/lib/d3/d3.min.js') : 
+				path.resolve(__dirname, './src/lib/d3/d3.js'),
 				to: 'd3.js',
 				flatten: true
 			},
 			{
-				from: './src/assets/*x.png',
+				from: path.resolve(__dirname, './src/assets/') + '*x.png',
 				to: 'assets',
 				flatten: true
 			},
-            {
-				from: './src/assets/marv-search-gray.png',
+			{
+				from: path.resolve(__dirname, './src/assets/marv-search-gray.png'),
 				to: 'assets',
 				flatten: true
 			}
 		]),
 		new HtmlWebpackPlugin({
-			template: './src/index.html',
-            attrs: ['img:src', 'object:data']
+			template: path.resolve(__dirname, './src/index.html'),
+			attrs: ['img:src', 'object:data']
 		}),
 		new HtmlWebpackIncludeAssetsPlugin({
 			assets: ['d3.js'],
 			append: false,
 			hash: true
 		}),
-		new ExtractTextPlugin('style.[hash:7].css'),
+		new ExtractTextPlugin({
+			filename: 'style.[hash:7].css',
+		}),				
 	],
-	devServer: {
-		historyApiFallback: true,
-		noInfo: true,
-		proxy: {
-			'/api': {
-                target: 'http://localhost:8000',
-				pathRewrite: {'^/api' : '/backend'},
-				logLevel: 'debug'
-			}
-		}
-	},
 	devtool: '#eval-source-map'
 }
 
@@ -130,14 +126,33 @@ if (process.env.NODE_ENV === 'production') {
 				warnings: false
 			}
 		}),
-		new webpack.LoaderOptionsPlugin({
-			minimize: true
+		new SriPlugin({
+			hashFuncNames: ['sha256', 'sha384'],
+			enabled: process.env.NODE_ENV === 'production',
 		}),
-        new CompressionPlugin({
-            asset: "[path].gz[query]",
-            algorithm: "gzip",
-            test: /\.(js|html|css|svg)$/,
-            minRatio: 0
-        }),
+		new CompressionPlugin({
+			asset: "[path].gz[query]",
+			algorithm: "gzip",
+			test: /\.(js|html|css|svg)$/,
+			minRatio: 0
+		}),
 	])
+} else {
+	if (isElectron) {
+		module.exports.plugins = (module.exports.plugins || []).concat([
+			new webpack.HotModuleReplacementPlugin(),
+		]);
+	} else {
+		module.exports.devServer = {
+			historyApiFallback: true,
+			noInfo: true,
+			proxy: {
+				'/api': {
+					target: 'http://localhost:8000',
+					pathRewrite: {'^/api' : '/backend'},
+					logLevel: 'debug'
+				}
+			}
+		};
+	}
 }

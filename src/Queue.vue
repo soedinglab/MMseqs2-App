@@ -1,55 +1,35 @@
 <template>
-	<div id="queue"
-	     class="container">
-		<div class="row queue-status"  v-if="status == 'PENDING'">
-				<div class="col-sm-6 status">
-					<div class="panel panel-default">
-						<div class="panel-heading">Job Status: <strong>Waiting for Worker</strong></div>
-						<div class="panel-body">
-							<scale-loader class="loader"
-							              color="#000000">
-							</scale-loader>
-						</div>
-					</div>
-				</div>
-				<div class="col-sm-offset-1 col-sm-4">
-					<img style="width:100%" src="/assets/marv-search_2x.png" src-set="/assets/marv-search_2x.png 2x, /assets/marv-search_3x.png 3x" />
-				</div>
+    <v-container grid-list-md fluid>
+        <v-layout row justify-center>
+            <v-flex xs6>
+	<panel>
+		<template slot="header">
+			Job Status:
+			<strong v-if="status == 'PENDING'">Waiting for Worker</strong>
+			<strong v-else-if="status == 'RUNNING'">In Progress</strong>
+			<strong v-else>ERROR</strong>
+		</template>
+
+		<div class="text-xs-center" v-if="error" slot="desc">
+			{{ error }}
 		</div>
 
-		<div class="row queue-status" v-if="status == 'RUNNING'">
-			<div class="col-sm-6 status">
-				<div class="panel panel-default">
-					<div class="panel-heading">Job Status: <strong>In Progress</strong></div>
-					<div class="panel-body">
-						<grid-loader class="loader"
-										color="#000000">
-						</grid-loader>
-					</div>
-				</div>
-			</div>
-			<div class="col-sm-offset-1 col-sm-4">
-				<img style="width:100%" src="/assets/marv-result_2x.png" src-set="/assets/marv-result_2x.png 2x, /assets/marv-result_3x.png 3x" />
-			</div>
+		<div class="text-xs-center" slot="content">
+			<img v-if="status == 'PENDING'" src="/assets/marv-search_2x.png" src-set="/assets/marv-search_2x.png 2x, /assets/marv-search_3x.png 3x" />
+			<img v-else-if="status == 'RUNNING'" src="/assets/marv-result_2x.png" src-set="/assets/marv-result_2x.png 2x, /assets/marv-result_3x.png 3x" />
+			<img v-else src="/assets/marv-error_2x.png" src-set="/assets/marv-error_2x.png 2x, /assets/marv-error_3x.png 3x" />
 		</div>
-
-		<div class="row queue-status failed" v-if="status == 'FAILED'">
-			<div class="col-sm-offset-3 col-sm-6 status">
-				<h1>Error</h1>
-				<div class="alert alert-danger">
-					{{ error }}
-				</div>
-			</div>
-		</div>
-	</div>
+	</panel>
+	</v-flex>
+	</v-layout>
+	</v-container>
 </template>
 
 <script>
-import GridLoader from 'vue-spinner/GridLoader.vue';
-import ScaleLoader from 'vue-spinner/ScaleLoader.vue';
+import Panel from './Panel.vue';
 
 export default {
-	components: { ScaleLoader, GridLoader },
+	components: { Panel },
 	data() {
 		return {
 			status: "PENDING",
@@ -66,7 +46,7 @@ export default {
 		fetchData() {
 			this.error = "";
 			const ticket = this.$route.params.ticket;
-			if (typeof(ticket) === "undefined") {
+			if (typeof (ticket) === "undefined") {
 				return;
 			}
 
@@ -106,41 +86,5 @@ export default {
 <style>
 .loader {
 	margin: 25px auto;
-}
-
-#queue {
-	margin-top: 20px;
-}
-
-.queue-status .status {
-	margin-top:50px;
-}
-.queue-status .panel-body {
-	height:175px;
-}
-
-.queue-status .loader {
-	margin:50px auto;
-}
-
-.failed {
-	margin-top:80px;
-}
-
-.failed .alert {
-	position: relative;
-}
-
-.failed .alert::after {
-	display:block;
-	position: absolute;
-	content: ' ';
-	background-image:url('/assets/marv-error_2x.png');
-	background-repeat: no-repeat;
-	background-size: 200px;
-	width: 200px;
-	height: 200px;
-	top:-142px;
-	right:0;
 }
 </style>
