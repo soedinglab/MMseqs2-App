@@ -51,8 +51,8 @@ module.exports = {
 				}
 			},
 			{
-				test: /\.less$/,
-				use: ExtractTextPlugin.extract([ 'css-loader', 'less-loader' ])
+				test: /\.css$/,
+				use: ExtractTextPlugin.extract([ 'css-loader' ])
 			},
 			{
 				test: /\.styl$/,
@@ -67,7 +67,8 @@ module.exports = {
 		}
 	},
 	externals: {
-		d3: 'd3'
+		d3: 'd3',
+		got: 'got'
 	},
 	plugins: [
 		new webpack.DefinePlugin({
@@ -79,9 +80,7 @@ module.exports = {
 		}),
 		new CopyWebpackPlugin([
 			{
-				from: process.env.NODE_ENV === 'production' ? 
-				path.resolve(__dirname, './src/lib/d3/d3.min.js') : 
-				path.resolve(__dirname, './src/lib/d3/d3.js'),
+				from: path.resolve(__dirname, './src/lib/d3/d3.js'),
 				to: 'd3.js',
 				flatten: true
 			},
@@ -107,19 +106,18 @@ module.exports = {
 		}),
 		new ExtractTextPlugin({
 			filename: 'style.[hash:7].css',
-		}),				
+		}),
 	],
 	devtool: '#eval-source-map'
 }
 
 if (process.env.NODE_ENV === 'production') {
 	module.exports.devtool = '#source-map'
-	// http://vue-loader.vuejs.org/en/workflow/production.html
 	module.exports.plugins = (module.exports.plugins || []).concat([
 		new webpack.DefinePlugin({
 			'process.env': {
 				NODE_ENV: '"production"'
-			}
+			},
 		}),
 		new webpack.optimize.UglifyJsPlugin({
 			compress: {

@@ -36,8 +36,6 @@
     "file-loader": "^1.1.5",
     "html-webpack-include-assets-plugin": "1.0.1",
     "html-webpack-plugin": "^2.30.1",
-    "less": "^3.0.0-alpha.3",
-    "less-loader": "^4.0.5",
     "stylus": "^0.54.5",
     "stylus-loader": "^3.0.1",
     "vue-loader": "^13.2.1",

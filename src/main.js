@@ -1,4 +1,4 @@
-require('./assets/uniclust.less');
+require('./assets/style.css');
 
 import Vue from 'vue';
 import VueRouter from 'vue-router';
