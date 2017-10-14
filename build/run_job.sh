@@ -1,29 +1,29 @@
-#!/bin/bash -u
-function fail() {
+#!/bin/sh -eu
+fail() {
     echo "$1"
     exit 1
 }
 
-function abspath() {
-    if [ -d "$1" ]; then
+abspath() {
+    if [[ -d "$1" ]]; then
         (cd "$1"; pwd)
-    elif [ -f "$1" ]; then
+    elif [[ -f "$1" ]]; then
         if [[ $1 == */* ]]; then
             echo "$(cd "${1%/*}"; pwd)/${1##*/}"
         else
             echo "$(pwd)/$1"
         fi
-    elif [ -d $(dirname "$1") ]; then
+    elif [[ -d $(dirname "$1") ]]; then
         echo "$(cd $(dirname "$1"); pwd)/$(basename "$1")"
     fi
 }
 
-function json2export() {
+json2export() {
     # leaf paths and explode ... implode for 1.4 compatibility
     jq -r 'leaf_paths as $p | ($p | join("_") | explode | map( if 97 <= . and . <= 122 then . - 32  else . end) | implode) as $k | getpath($p) | tostring as $v | "export " + $k + "=" + "\"" + $v + "\""'
 }
 
-function run_job() {
+run_job() {
     local MMSEQS="$1"
     local WORKBASE="$2"
     local JOBID="$3"

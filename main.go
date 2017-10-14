@@ -14,15 +14,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/units"
 	"github.com/go-redis/redis"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"github.com/spf13/viper"
-	"github.com/alecthomas/units"
-	"github.com/gorilla/handlers"
 
-	"github.com/milot-mirdita/mmseqs-web-backend/controller"
+	"bufio"
 	"github.com/milot-mirdita/mmseqs-web-backend/mail"
+	"gopkg.in/oleiade/lane.v1"
 )
 
 func existsOrPanic(path string) {
@@ -79,8 +80,8 @@ func setupConfig() {
 	existsOrPanic(viper.GetString("SearchPipeline"))
 }
 
-func server(client *redis.Client) {
-	databases, err := controller.Databases(viper.GetString("Databases"))
+func server(jobsystem JobSystem) {
+	databases, err := Databases(viper.GetString("Databases"))
 	if err != nil {
 		panic(err)
 	}
@@ -92,7 +93,7 @@ func server(client *redis.Client) {
 	r := mux.NewRouter()
 	r.HandleFunc("/databases", func(w http.ResponseWriter, req *http.Request) {
 		type DatabaseResponse struct {
-			Databases controller.ByOrder `json:"databases"`
+			Databases ByOrder `json:"databases"`
 		}
 
 		err = json.NewEncoder(w).Encode(DatabaseResponse{databases})
@@ -103,7 +104,7 @@ func server(client *redis.Client) {
 	}).Methods("GET")
 
 	r.HandleFunc("/ticket", func(w http.ResponseWriter, req *http.Request) {
-		var request controller.TicketRequest
+		var request JobRequest
 		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
 			err := req.ParseMultipartForm(int64(128 * units.Mebibyte))
 			if err != nil {
@@ -120,7 +121,7 @@ func server(client *redis.Client) {
 			buf := new(bytes.Buffer)
 			buf.ReadFrom(f)
 			q := buf.String()
-			request = controller.TicketRequest{
+			request = JobRequest{
 				q,
 				req.Form["database[]"],
 				req.FormValue("mode"),
@@ -133,7 +134,7 @@ func server(client *redis.Client) {
 				return
 			}
 
-			request = controller.TicketRequest{
+			request = JobRequest{
 				req.FormValue("q"),
 				req.Form["database[]"],
 				req.FormValue("mode"),
@@ -141,7 +142,7 @@ func server(client *redis.Client) {
 			}
 		}
 
-		result, err := controller.NewTicket(client, request, databases, viper.GetString("JobsBase"))
+		result, err := jobsystem.NewJob(request, databases, viper.GetString("JobsBase"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -155,7 +156,7 @@ func server(client *redis.Client) {
 	}).Methods("POST")
 
 	r.HandleFunc("/ticket/{ticket}", func(w http.ResponseWriter, req *http.Request) {
-		ticket, err := controller.TicketStatus(client, mux.Vars(req)["ticket"])
+		ticket, err := jobsystem.GetTicket(Id(mux.Vars(req)["ticket"]))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -175,7 +176,7 @@ func server(client *redis.Client) {
 			return
 		}
 
-		res, err := controller.TicketsStatus(client, req.Form["tickets[]"])
+		res, err := jobsystem.MultiStatus(req.Form["tickets[]"])
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -190,19 +191,25 @@ func server(client *redis.Client) {
 
 	r.HandleFunc("/result/{ticket}/{entry}", func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
-		ticket := vars["ticket"]
-		if !controller.ValidTicket(ticket) {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
 		id, err := strconv.ParseUint(vars["entry"], 10, 64)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		results, err := controller.Alignments(client, controller.Ticket(ticket), int64(id), viper.GetString("JobsBase"))
+		ticket, err := jobsystem.GetTicket(Id(vars["ticket"]))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		status, err := ticket.Status()
+		if err != nil || status != "COMPLETE" {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		results, err := Alignments(ticket, int64(id), viper.GetString("JobsBase"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -218,8 +225,8 @@ func server(client *redis.Client) {
 
 	r.HandleFunc("/result/queries/{ticket}/{limit}/{page}", func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
-		ticket := vars["ticket"]
-		if !controller.ValidTicket(ticket) {
+		ticket, err := jobsystem.GetTicket(Id(vars["ticket"]))
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -236,7 +243,7 @@ func server(client *redis.Client) {
 			return
 		}
 
-		result, err := controller.Lookup(client, controller.Ticket(ticket), page, limit, viper.GetString("JobsBase"))
+		result, err := Lookup(ticket.Id, page, limit, viper.GetString("JobsBase"))
 		err = json.NewEncoder(w).Encode(result)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -276,14 +283,14 @@ func (e *JobTimeoutError) Error() string {
 	return "Timeout"
 }
 
-func RunJob(client *redis.Client, job controller.Job, ticket string) error {
-	client.Set("mmseqs:status:"+ticket, "RUNNING", 0)
+func RunJob(job Job, ticket Ticket) error {
+	ticket.SetStatus("RUNNING")
 
 	cmd := exec.Command(
 		viper.GetString("SearchPipeline"),
 		viper.GetString("Mmseqs"),
 		viper.GetString("JobsBase"),
-		ticket,
+		string(ticket.Id),
 		viper.GetString("Databases"),
 		strings.Join(job.Database, " "),
 		job.Mode,
@@ -296,7 +303,7 @@ func RunJob(client *redis.Client, job controller.Job, ticket string) error {
 
 	err := cmd.Start()
 	if err != nil {
-		client.Set("mmseqs:status:"+ticket, "ERROR", 0)
+		ticket.SetStatus("ERROR")
 		return &JobExecutionError{err}
 	}
 
@@ -310,78 +317,59 @@ func RunJob(client *redis.Client, job controller.Job, ticket string) error {
 		if err := cmd.Process.Kill(); err != nil {
 			log.Printf("Failed to kill: %s\n", err)
 		}
-		client.Set("mmseqs:status:"+ticket, "ERROR", 0)
+		ticket.SetStatus("ERROR")
 		return &JobTimeoutError{}
 	case err := <-done:
 		if err != nil {
-			client.Set("mmseqs:status:"+ticket, "ERROR", 0)
+			ticket.SetStatus("ERROR")
 			return &JobExecutionError{err}
 
 		} else {
 			log.Print("process done gracefully without error")
-			client.Set("mmseqs:status:"+ticket, "COMPLETED", 0)
+			ticket.SetStatus("COMPLETE")
 			return nil
 		}
 	}
 }
 
-func worker(client *redis.Client) {
-	Zpop := redis.NewScript(`
-    local r = redis.call('ZRANGE', KEYS[1], 0, 0)
-    if r ~= nil then
-        r = r[1]
-        redis.call('ZREM', KEYS[1], r)
-    end
-    return r
-`)
-
+func worker(jobsystem JobSystem) {
 	log.Println("MMseqs Worker")
 	log.Println("Using " + viper.GetString("MailType") + " Mail Transport")
 	mailer := mail.Factory(viper.GetString("MailType"))
 	for {
-		pop, err := Zpop.Run(client, []string{"mmseqs:pending"}).Result()
+		ticket, err := jobsystem.Dequeue()
 		if err != nil {
-			if pop != nil {
+			if ticket != nil {
 				log.Print(err)
 			}
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 
-		var ticket string
-		switch vv := pop.(type) {
-		case nil:
-			continue
-		case []byte:
-			ticket = string(vv)
-		default:
-			ticket = fmt.Sprint(vv)
-		}
+		jobFile := path.Join(viper.GetString("JobsBase"), string(ticket.Id), "job.json")
 
-		if !controller.ValidTicket(ticket) {
-			log.Print(err)
-			continue
-		}
-
-		jobFile := path.Join(viper.GetString("JobsBase"), ticket, "job.json")
-
-		file, err := os.Open(jobFile)
+		f, err := os.Open(jobFile)
 		if err != nil {
 			log.Print(err)
-			client.Set("mmseqs:status:"+ticket, "ERROR", 0)
+			ticket.SetStatus("ERROR")
 			continue
 		}
 
-		var job controller.Job
-		dec := json.NewDecoder(file)
+		var job Job
+		dec := json.NewDecoder(bufio.NewReader(f))
 		err = dec.Decode(&job)
 		if err != nil {
 			log.Print(err)
-			client.Set("mmseqs:status:"+ticket, "ERROR", 0)
+			ticket.SetStatus("ERROR")
 			continue
 		}
 
-		switch err = RunJob(client, job, ticket); err.(type) {
+		err = RunJob(job, *ticket)
+		// Do not try sending an email, if we are using the NullTransport
+		if _, ok := mailer.(mail.NullTransport); ok {
+			continue
+		}
+		switch err.(type) {
 		case *JobExecutionError:
 			if job.Email != "" {
 				err := mailer.Send(mail.Mail{
@@ -422,19 +410,34 @@ func worker(client *redis.Client) {
 	}
 }
 
-func main() {
-	setupConfig()
-
-	client := redis.NewClient(&redis.Options{
+func MakeRedisJobSystem() *RedisJobSystem {
+	return &RedisJobSystem{redis.NewClient(&redis.Options{
 		Network:  viper.GetString("RedisNetwork"),
 		Addr:     viper.GetString("RedisAddr"),
 		Password: viper.GetString("RedisPassword"),
 		DB:       viper.GetInt("RedisDB"),
-	})
+	})}
+}
 
-	if len(os.Args) > 1 && os.Args[1] == "-worker" {
-		worker(client)
+func main() {
+	setupConfig()
+
+	if len(os.Args) <= 1 {
+		server(MakeRedisJobSystem())
 	} else {
-		server(client)
+		switch os.Args[1] {
+		case "-worker":
+			worker(MakeRedisJobSystem())
+		case "-server":
+			server(MakeRedisJobSystem())
+		case "-local":
+			jobsystem := LocalJobSystem{}
+			jobsystem.Queue = lane.NewPQueue(lane.MINPQ)
+
+			loop := make(chan bool)
+			go worker(&jobsystem)
+			go server(&jobsystem)
+			<-loop
+		}
 	}
 }

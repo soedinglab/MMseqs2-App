@@ -231,6 +231,12 @@
 			"revisionTime": "2017-02-13T15:09:30Z"
 		},
 		{
+			"checksumSHA1": "7YPmpDeCouwlD2QYzDCE83USHTg=",
+			"path": "gopkg.in/oleiade/lane.v1",
+			"revision": "28f7c3f09254f12b51e620fa4db136ba58804762",
+			"revisionTime": "2016-08-17T06:23:29Z"
+		},
+		{
 			"checksumSHA1": "fALlQNY1fM99NesfLJ50KguWsio=",
 			"path": "gopkg.in/yaml.v2",
 			"revision": "cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b",

@@ -1,3 +1,5 @@
+// +build cgo
+
 package dbreader
 
 //#include <dbreader.h>
