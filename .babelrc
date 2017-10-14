@@ -1,7 +1,7 @@
 {
     "comments": false,
     "presets": [
-        [ "es2015", { "modules": false  } ],
+        [ "es2015", { "modules": false } ],
         [ "stage-2" ]
     ],
     "plugins": [
@@ -10,8 +10,11 @@
         [
             "transform-imports", {
                 "vuetify": {
-                    "transform": "vuetify/es5/components/${member}",
+                    "transform": "vuetify/src/components/${member}",
                     "preventFullImport": true
+                },
+                "vue-resource": {
+                    "transform": "vue-resource/src/index.js"
                 }
             }
         ]

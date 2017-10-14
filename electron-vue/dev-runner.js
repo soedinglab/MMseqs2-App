@@ -8,8 +8,8 @@ const webpack = require('webpack')
 const WebpackDevServer = require('webpack-dev-server')
 const webpackHotMiddleware = require('webpack-hot-middleware')
 
-const mainConfig = require('./webpack.main.config')
-const rendererConfig = require('./webpack.renderer.config')
+const mainConfig = require('../webpack.main.config')
+const rendererConfig = require('../webpack.renderer.config')
 
 let electronProcess = null
 let manualRestart = false
