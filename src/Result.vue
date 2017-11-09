@@ -1,26 +1,20 @@
 <template>
-    <v-container grid-list-md fluid full-height>
-        <v-layout row>
-            <v-flex xs12>
+<v-flex xs12>
 <panel>
 	<template slot="header">
-		Results for Job:&nbsp;<small>{{ ticket }}</small>
+		<span class="hidden-sm-and-down">Results for Job:&nbsp;</span><small>{{ ticket }}</small>
 	</template>
 
 	<template slot="toolbar-extra">
-		<v-toolbar-side-icon class="hidden-md-and-up"></v-toolbar-side-icon>
-		<v-toolbar-items class="hidden-sm-and-down">
-			<v-btn v-if="zoom" dark @click="resetZoom" aria-hidden="true">Reset Zoom</v-btn>
+		<v-toolbar-items>
+			<v-btn class="hide" ref="reset" dark @click="resetZoom" aria-hidden="true">Reset Zoom</v-btn>
 		</v-toolbar-items>
-        </v-toolbar>
 		<!-- <popover effect="fade" placement="bottom" content="The target hits are shown here.">
 			<button class="btn btn-default help" role="button">
 				<span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span>
 			</button>
 		</popover> -->
 	</template>
-
-	<v-btn slot="extrabutton" flat rel="external noopener" target="_blank" href="https://mmseqs.com">adsasdsd MMseqs2</v-btn>
 
 	<div slot="desc" v-if="resultState == 'PENDING'">
 		<!-- <grid-loader class="loader" color="#000000"></grid-loader> -->
@@ -33,7 +27,7 @@
 	</div>
 
 	<div slot="content" v-if="resultState == 'RESULT'">
-        <div ref="hits"></div>
+        <div class="hits" ref="hits"></div>
 
 		<table class="table">
 			<thead>
@@ -49,23 +43,21 @@
 			</thead>
 			<tbody v-for="entry in hits.results" :key="entry.db">
 				<tr v-for="(item, index) in entry.alignments" :key="index">
-					<td class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</id>
-					<td>
+					<td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</id>
+					<td data-label="Target">
 						<a :href="item.href" target="_blank">{{item.target}}</a>
 					</td>
-					<td>{{ item.seqId }}</td>
-					<td>{{ item.score }}</td>
-					<td>{{ item.eval }}</td>
-					<td>{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
-					<td>{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
+					<td data-label="Sequence Identity">{{ item.seqId }}</td>
+					<td data-label="Score">{{ item.score }}</td>
+					<td data-label="E-Value">{{ item.eval }}</td>
+					<td data-label="Query Pos">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
+					<td data-label="Target Pos.">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
 				</tr>
 			</tbody>
 		</table>
 	</div>
 </panel>
 </v-flex>
-</v-layout>
-</v-container>
 </template>
 
 <script>
@@ -100,6 +92,8 @@ function mapPosToSeq(seq, targetPos) {
     return counter;
 }
 
+var m = null;
+
 export default {
 	name: 'result',
 	components: { Queries, Panel },
@@ -109,15 +103,13 @@ export default {
 			error: "",
 			entry: 0,
 			hits: null,
-			zoom: false,
-            m: null,
 		};
 	},
 	beforeDestroy() {
-        this.remove();
-    },
-	created() {
-		this.fetchData();
+		this.remove();
+	},
+	mounted() {
+        this.fetchData();
 	},
 	updated() {
 		if (this.$refs.hits) {
@@ -149,7 +141,7 @@ export default {
 		}
 	},
 	watch: {
-		'$route': 'fetchData'
+        '$route': 'fetchData'
 	},
 	methods: {
 		tryLinkTargetToDB(target, db) {
@@ -192,28 +184,31 @@ export default {
 				});
 		},
         remove() {
-            if (this.m != null) {
-                this.m.off();
-                this.m.clearInstance();
-                this.m = null;
+            if (m != null) {
+                m.off();
+                m.clearInstance();
+                m = null;
             }
         },
         resetZoom() {
-            if (this.m) {
-                this.m.resetZoom();
-                this.zoom = false;
+            if (m) {
+                m.resetAll();
             }
         },
         setData(data) {
+            // cannot change reactive elements in here, or setData gets called repeatedly 
             this.remove();
-            this.m = new feature(data.query.header, data.query.sequence, this.$refs.hits, {
+            m = new feature(data.query.header, data.query.sequence, this.$refs.hits, {
                 showAxis: true,
                 showSequence: true,
                 brushActive: true,
                 zoomMax: 10
             });
 
-            this.m.on('feature-viewer-zoom-altered', () => this.zoom = true);
+            m.on('feature-viewer-zoom-altered', (ev) => { 
+                var $classes = this.$refs.reset.$el.classList;
+                if (ev.zoom > 1) { $classes.remove('hide'); } else { $classes.add('hide'); } 
+            });
 
             var results = data.results;
             for (var res in results) {
@@ -241,7 +236,6 @@ export default {
                     var colorHsl = d3.rgb(color).hsl();
                     var r = lerp(minScore/maxScore, 1, score/maxScore);
                     colorHsl.l = clamp(colorHsl.l * Math.pow(0.65, -r), 0.1, 0.9);
-                    // console.log(colorHsl.l);
                 
                     var f = {
                         "x": mapPosToSeq(data.query.sequence, alignments[i]["qStartPos"]),
@@ -255,7 +249,7 @@ export default {
                     cnt++;
                 }
 
-                this.m.addFeature({
+                m.addFeature({
                     data: features,
                     name: results[res].db,
                     className: "test6",
@@ -271,6 +265,10 @@ export default {
 </script>
 
 <style>
+.hide {
+    display: none;
+}
+
 .db {
 	border-left: 5px solid black;
 }
@@ -286,6 +284,65 @@ a:not([href]):hover {
 td, th {
 	padding: 0 6px;
 }
+
+@media screen and (max-width: 960px) {
+.hits {
+    max-width: 533px;
+}
+
+thead {
+  display: none;
+}
+
+tfoot th {
+  border: 0;
+  display: inherit;
+}
+
+tr {
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.1);
+  max-width: 100%;
+  position: relative;
+  display: block;
+  margin: 0.25em;
+}
+tr td {
+  border: 0;
+  display: inherit;
+}
+tr td:last-child {
+  border-bottom: 0;
+}
+tr:not(:last-child) {
+  margin-bottom: 1rem;
+}
+tr:not(.is-selected) {
+  background: inherit;
+}
+tr:not(.is-selected):hover {
+  background-color: inherit;
+}
+tr.detail {
+  margin-top: -1rem;
+}
+
+tr:not(.detail):not(.is-empty):not(.table-footer) td {
+  display: flex;
+  width: auto;
+  justify-content: flex-end;
+  text-align: right;
+  border-bottom: 1px solid #eee;
+}
+tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
+  content: attr(data-label);
+  font-weight: 600;
+  margin-right: auto;
+  padding-right: 0.5em;
+  text-align: left;
+}
+
+}
+
 
 .variant{
     stroke:rgba(0,255,154,0.6);

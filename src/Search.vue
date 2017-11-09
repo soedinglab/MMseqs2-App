@@ -3,26 +3,17 @@
 		<v-layout row wrap>
 			<v-flex xs12 md8>
 				<panel class="query-panel d-flex fill-height" header="Queries" fill-height>
-					<!--<div class="pull-right">
-						<popover effect="fade"
-									trigger="hover"
-									placement="left"
-									content="Enter your queries here or drag-and-drop a fasta file containing your queries into the textbox.">
-							<a class="help"
-								role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
-						</popover>
-					</div>-->
-
 					<p slot="desc" v-if="error" class="alert alert-danger">
 						{{ status.message }}
 					</p>
 
 					<template slot="content">
+						<!-- Enter your queries here or drag-and-drop a fasta file containing your queries into the textbox. -->
 						<v-text-field class="fasta marv-bg" hide-details multi-line v-model="query" @dragover.prevent @drop="fileDrop($event)" placeholder="Please start a Search" spellcheck="false">
 						</v-text-field>
 
 						<div class="actions">
-						<v-dialog v-model="showCurl" lazy absolute :disabled="searchDisabled">
+						<v-dialog v-if="!__ELECTRON__" v-model="showCurl" lazy absolute :disabled="searchDisabled">
 							<v-btn slot="activator" :disabled="searchDisabled">
 								Get cURL Command
 							</v-btn>
@@ -53,38 +44,36 @@
 						<v-layout row wrap>
 							<v-flex d-flex xs12>
 								<panel header="Search Settings">
-									<!--<div class="pull-right">
-										<popover effect="fade"
-												trigger="hover"
-												placement="left"
-												content="Choose the databases to search against, the result mode, and optionally an email to notify you when the job is done.">
-											<a class="help"
-											role="button"><span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span></a>
-										</popover>
-									</div>-->
-
 									<div slot="content">
 										<div class="input-group">
-											<label>Databases</label>
+											<v-tooltip open-delay="300" top>
+												<label slot="activator">Databases</label>
+												<span v-if="__ELECTRON__">Choose the databases to search against and the result mode.</span>
+												<span v-else>Choose the databases to search against, the result mode, and optionally an email to notify you when the job is done.</span>
+											</v-tooltip>
 										</div>
 											
-											<div v-if="databases.length == 0">
-												<div :class="['alert', { 'alert-info': !dberror }, { 'alert-danger': dberror }]">
-													<scale-loader v-if="!dberror" class="loader" color="#000000" />
-													<span v-else>Could not query available databases!</span>
-												</div>
+										<div v-if="databases.length == 0">
+											<div :class="['alert', { 'alert-info': !dberror }, { 'alert-danger': dberror }]">
+												<!-- <scale-loader v-if="!dberror" class="loader" color="#000000" /> -->
+												<span v-if="dberror">Could not query available databases!</span>
 											</div>
-											<v-checkbox v-else v-for="(db, index) in databases" v-model="database" :key="index" :value="index" :label="db.name + ' ' + db.version" hide-details></v-checkbox>
-											<!-- <popover effect="fade" placement="right" trigger="hover" content="All shows all hits under an evalue cutoff. Annotations tries to cover the search query."> -->
-											<!-- </popover> -->
-										<v-radio-group v-model="mode" label="Mode">
+										</div>
+										<v-checkbox v-else v-for="(db, index) in databases" v-model="database" :key="index" :value="index" :label="db.name + ' ' + db.version" hide-details></v-checkbox>
+
+										<v-radio-group v-model="mode">
+											<v-tooltip open-delay="300" top>
+											<label slot="activator">Mode</label>
+											<span>'All' shows all hits under an e-value cutoff. 'Annotations' tries to cover the search query.</span>
+											</v-tooltip>	
 											<v-radio value="accept" label="All" hide-details>All</v-radio>
 											<v-radio value="summary" label="Annotations" hide-details></v-radio>
 										</v-radio-group>
 
-										<v-text-field id="email" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email" /></v-text-field>
-										<!-- <popover effect="fade" placement="right" trigger="hover" content="Send an email when the job is done."> -->
-										<!-- </popover> -->
+										<v-tooltip v-if="!__ELECTRON__" open-delay="300" top>
+											<v-text-field  slot="activator" id="email" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email" /></v-text-field>
+											<span>Send an email when the job is done.</span>
+										</v-tooltip>
 									</div>
 									</div>
 								</panel>
@@ -156,7 +145,9 @@ export default {
 		},
 		query: {
 			get: function() {
-				this.query_ = this.$localStorage.get('query', '>TEST\nMPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC');
+				if (this.query_ == null) {
+					this.query_ = this.$localStorage.get('query', '>TEST\nMPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC');
+				}
 				return this.query_;
 			},
 			set: function(value) {
@@ -235,7 +226,7 @@ export default {
 				}),
 				mode: this.mode
 			};
-			if (this.email != '') {
+			if (!__ELECTRON__ && this.email != '') {
 				data.email = this.email;
 			}
 			this.inSearch = true;

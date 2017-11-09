@@ -1,5 +1,9 @@
 require('./assets/style.css');
 
+if (__ELECTRON__) {
+require('material-design-icons/iconfont/material-icons.css')
+}
+
 import Vue from 'vue';
 import VueRouter from 'vue-router';
 import VueResource from 'vue-resource';
@@ -32,6 +36,7 @@ import {
     VDialog,
     VProgressCircular,
     VDataTable,
+    VTooltip,
 } from 'vuetify';
 
 Vue.use(Vuetify, {
@@ -53,6 +58,7 @@ Vue.use(Vuetify, {
         VDialog,
         VProgressCircular,
         VDataTable,
+        VTooltip,
     }
 });
 
@@ -69,7 +75,7 @@ import Result from './Result.vue';
 import Queries from './Queries.vue';
 
 const router = new VueRouter({
-    mode: 'history',
+    mode: __ELECTRON__ ? 'hash' : 'history',
     routes: [
         { path: '/', component: Search },
         { name: 'queue', path: '/queue/:ticket', component: Queue },

@@ -135,7 +135,7 @@ off: function(name, callback, context) {
     names = name ? [name] : _.keys(this._events);
     for (i = 0, l = names.length; i < l; i++) {
     name = names[i];
-    if (events = this._events[name]) {
+    if (events == this._events[name]) {
         this._events[name] = retain = [];
         if (callback || context) {
         for (j = 0, k = events.length; j < k; j++) {
@@ -262,7 +262,7 @@ return proto;
 
 var FeatureViewer = (function () {
     function FeatureViewer(id, sequence, el, options) {
-        const labelSizeLookup = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,5,7,6,9,8,3,3,3,6,6,3,4,3,4,6,6,6,6,6,6,6,6,6,6,3,3,6,6,6,5,9,7,7,7,8,6,6,8,8,3,3,7,6,10,8,8,7,8,7,6,6,8,6,10,6,6,6,4,4,4,6,5,6,6,7,5,7,6,4,6,7,3,3,6,3,10,7,7,7,7,5,5,4,7,6,8,6,6,5,4,6,4,6,0,0,0,0,0,0,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,6,6,6,6,6,6,6,9,4,5,6,0,9,5,5,6,4,4,6,7,7,3,3,4,4,5,8,8,8,5,7,7,7,7,7,7,9,7,6,6,6,6,3,3,3,3,8,8,8,8,8,8,8,6,8,8,8,8,8,6,7,7,6,6,6,6,6,6,9,5,6,6,6,6,3,3,3,3,6,7,7,7,7,7,7,6,7,7,7,7,7,6,7,6];
+        var labelSizeLookup = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,5,7,6,9,8,3,3,3,6,6,3,4,3,4,6,6,6,6,6,6,6,6,6,6,3,3,6,6,6,5,9,7,7,7,8,6,6,8,8,3,3,7,6,10,8,8,7,8,7,6,6,8,6,10,6,6,6,4,4,4,6,5,6,6,7,5,7,6,4,6,7,3,3,6,3,10,7,7,7,7,5,5,4,7,6,8,6,6,5,4,6,4,6,0,0,0,0,0,0,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,6,6,6,6,6,6,6,9,4,5,6,0,9,5,5,6,4,4,6,7,7,3,3,4,4,5,8,8,8,5,7,7,7,7,7,7,9,7,6,6,6,6,3,3,3,3,8,8,8,8,8,8,8,6,8,8,8,8,8,6,7,7,6,6,6,6,6,6,9,5,6,6,6,6,3,3,3,3,6,7,7,7,7,7,7,6,7,7,7,7,7,6,7,6];
         var self = this;
         this.events = {
             FEATURE_SELECTED_EVENT: "feature-viewer-position-selected",
@@ -270,7 +270,8 @@ var FeatureViewer = (function () {
         };
 
         var el = el;
-        var svgElement;
+        var svgElement = null;
+        var svgContainer = null;
 
         var id = id;
         var sequence = sequence;
@@ -294,16 +295,12 @@ var FeatureViewer = (function () {
         }
         var pathLevel = 0;
         var svg;
-        var svgContainer;
-        var textDummy;
-        var filter;
         var yData = [];
         var yAxisSVG;
         var yAxisSVGgroup;
         var Yposition = 20;
         var level = 0;
         var seqShift = 0;
-        var zoom = false;
         var zoomMax = 50;
         var current_extend = {
             length: offset.end - offset.start,
@@ -312,6 +309,7 @@ var FeatureViewer = (function () {
         }
         var featureSelected = {};
         var animation = true;
+        var sbcRip = null;
 
         function colorSelectedFeat(feat, object) {
             //change color && memorize
@@ -630,8 +628,8 @@ var FeatureViewer = (function () {
         }
         function forcePropagation(item) {
             item.on('mousedown', function () {
-                brush_elm = svg.select(".brush").node();
-                new_click_event = new Event('mousedown');
+                var brush_elm = svg.select(".brush").node();
+                var new_click_event = new Event('mousedown');
                 new_click_event.pageX = d3.event.pageX;
                 new_click_event.clientX = d3.event.clientX;
                 new_click_event.pageY = d3.event.pageY;
@@ -1238,7 +1236,8 @@ var FeatureViewer = (function () {
                     .attr("d", line.x(function (d) {
                         return scaling(d.x);
                     }));
-                var transit;
+                var transit1;
+                var transit2;
                 if (animation) {
                     transit1 = svgContainer.selectAll("." + object.className + "Group")
                         //                    .data(object.data)
@@ -1394,19 +1393,61 @@ var FeatureViewer = (function () {
                 .attr('height', Yposition + 50);
         }
 
-        this.zoom = function (start, end) {
-            var zoomInside = current_extend.start < start && current_extend.end > end;
-            if (!zoomInside) {
-                svgContainer.selectAll(".seqGroup").remove();
+        // this.zoom = function (start, end) {
+        //     var zoomInside = current_extend.start < start && current_extend.end > end;
+        //     if (!zoomInside) {
+        //         svgContainer.selectAll(".seqGroup").remove();
+        //     }
+        //     brush.extent([start, end]);
+        //     brushend();
+        // }
+
+         // If brush is too small, reset view as origin
+        this.resetAll = function() {
+            //reset scale
+            scaling.domain([offset.start, offset.end]);
+            scalingPosition.range([offset.start, offset.end]);
+            var seq = displaySequence(offset.end - offset.start);
+
+            if (SVGOptions.showSequence && !(intLength)) {
+                if (seq === false && !svgContainer.selectAll(".AA").empty()) {
+                    svgContainer.selectAll(".seqGroup").remove();
+                    fillSVG.sequenceLine();
+                }
+                else if (current_extend.length !== fvLength && seq === true && !svgContainer.selectAll(".AA").empty()) {
+                    svgContainer.selectAll(".seqGroup").remove();
+                    fillSVG.sequence(sequence.substring(offset.start - 1, offset.end), 20, offset.start);
+                }
             }
-            brush.extent([start, end]);
-            brushend();
-        }
-        this.resetZoom = function (start, end) {
-            resetAll();
+
+            current_extend = {
+                length: offset.end - offset.start,
+                start: offset.start,
+                end: offset.end
+            };
+            seqShift = 0;
+
+            transition_data(features, offset.start);
+            reset_axis();
+
+            // Fire Event
+            // if (CustomEvent) {
+            //     svgElement.dispatchEvent(new CustomEvent(self.events.ZOOM_EVENT,
+            //         { detail: { start: 1, end: sequence.length, zoom: 1 } }));
+            // };
+            if (self.trigger) {
+                self.trigger(self.events.ZOOM_EVENT, {
+                    start: 1,
+                    end: sequence.length,
+                    zoom: 1
+                });
+            }
+
+            d3.select(el).selectAll(".brush").call(brush.clear());
         }
 
         function brushend() {
+            // debugger;
             d3.select(el).selectAll('div.selectedRect').remove();
             if (featureSelected !== {}) {
                 d3.select(featureSelected.id).style("fill", featureSelected.originalColor);
@@ -1416,10 +1457,15 @@ var FeatureViewer = (function () {
             var extent = brush.extent();
             var extentLength = Math.abs(extent[0] - extent[1]);
 
-            if (extent[0] < extent[1]) var start = parseInt(extent[0] - 1),
+            var start;
+            var end;
+            if (extent[0] < extent[1]) {
+                start = parseInt(extent[0] - 1);
                 end = parseInt(extent[1] + 1);
-            else var start = parseInt(extent[1] + 1),
+            } else {
+                start = parseInt(extent[1] + 1);
                 end = parseInt(extent[0] - 1);
+            }
 
             var seq = displaySequence(extentLength);
             if (!brush.empty() && extentLength > zoomMax) {
@@ -1442,23 +1488,24 @@ var FeatureViewer = (function () {
                 //                scaling.range([5,width-5]);
                 scaling.domain(extent);
                 scalingPosition.range(extent);
-                var currentShift = seqShift ? seqShift : offset.start;
-
+                var currentShift = seqShift ? seqShift : offset.start;                
 
                 transition_data(features, currentShift);
                 reset_axis();
 
-                if (CustomEvent) {
-                    svgElement.dispatchEvent(new CustomEvent(
-                        self.events.ZOOM_EVENT,
-                        { detail: { start: start, end: end, zoom: zoomScale } }
-                    ));
+                // if (CustomEvent) {
+                //     svgElement.dispatchEvent(new CustomEvent(
+                //         self.events.ZOOM_EVENT,
+                //         { detail: { start: start, end: end, zoom: zoomScale } }
+                //     ));
+                // }
+                if (self.trigger) {
+                    self.trigger(self.events.ZOOM_EVENT, {
+                        start: start,
+                        end: end,
+                        zoom: zoomScale
+                    });
                 }
-                if (self.trigger) self.trigger(self.events.ZOOM_EVENT, {
-                    start: start,
-                    end: end,
-                    zoom: zoomScale
-                });
 
                 //rectsPep2.classed("selected", false);
                 d3.select(el).selectAll(".brush").call(brush.clear());
@@ -1468,9 +1515,24 @@ var FeatureViewer = (function () {
             }
         }
 
-        window.addEventListener("resize", updateWindow);
+        function debounce(func, wait, immediate) {
+            var timeout;
+            return function() {
+                var context = this, args = arguments;
+                var later = function() {
+                    timeout = null;
+                    if (!immediate) func.apply(context, args);
+                };
+                var callNow = immediate && !timeout;
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+                if (callNow) func.apply(context, args);
+            };
+        };
 
         function updateWindow() {
+            if (!svgContainer || !SVGOptions) return;
+
             width = el.offsetWidth - margin.left - margin.right - 17;
             d3.select(el).select("svg")
                 .attr("width", width + margin.left + margin.right);
@@ -1499,50 +1561,9 @@ var FeatureViewer = (function () {
 
             transition_data(features, current_extend.start);
             reset_axis();
-
         }
 
-        // If brush is too small, reset view as origin
-        function resetAll() {
-            //reset scale
-            scaling.domain([offset.start, offset.end]);
-            scalingPosition.range([offset.start, offset.end]);
-            var seq = displaySequence(offset.end - offset.start);
-
-            if (SVGOptions.showSequence && !(intLength)) {
-                if (seq === false && !svgContainer.selectAll(".AA").empty()) {
-                    svgContainer.selectAll(".seqGroup").remove();
-                    fillSVG.sequenceLine();
-                }
-                else if (current_extend.length !== fvLength && seq === true && !svgContainer.selectAll(".AA").empty()) {
-                    svgContainer.selectAll(".seqGroup").remove();
-                    fillSVG.sequence(sequence.substring(offset.start - 1, offset.end), 20, offset.start);
-                }
-            }
-
-            current_extend = {
-                length: offset.end - offset.start,
-                start: offset.start,
-                end: offset.end
-            };
-            seqShift = 0;
-
-            transition_data(features, offset.start);
-            reset_axis();
-
-            // Fire Event
-            if (CustomEvent) {
-                svgElement.dispatchEvent(new CustomEvent(self.events.ZOOM_EVENT,
-                    { detail: { start: 1, end: sequence.length, zoom: 1 } }));
-            };
-            if (self.trigger) self.trigger(self.events.ZOOM_EVENT, {
-                start: 1,
-                end: sequence.length,
-                zoom: 1
-            });
-
-            d3.select(el).selectAll(".brush").call(brush.clear());
-        }
+        addEventListener("resize", debounce(updateWindow, 500));        
 
         function transition_data(features, start) {
             features.forEach(function (o) {
@@ -1588,7 +1609,7 @@ var FeatureViewer = (function () {
 
             d3.select(".chart")
                 .on("mousemove.Vline", function () {
-                    mousex = d3.mouse(this)[0] - 2;
+                    var mousex = d3.mouse(this)[0] - 2;
                     vertical.style("left", mousex + "px")
                 });
                 // .on("click", function(){
@@ -1648,9 +1669,8 @@ var FeatureViewer = (function () {
         };
 
         function initSVG(options) {
-
             if (typeof options === 'undefined') {
-                var options = {
+                options = {
                     'showAxis': false,
                     'showSequence': false,
                     'brushActive': false,
@@ -1685,12 +1705,6 @@ var FeatureViewer = (function () {
             svgContainer = svg
                 .append("g")
                 .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-            textDummy = svg
-                .append("g")
-                .attr("transform", "translate(-1000, -1000)")
-                .append("text")
-                .attr("font-size", "10px");
 
             //Create Clip-Path
             var defs = svgContainer.append("defs");
@@ -1780,7 +1794,7 @@ var FeatureViewer = (function () {
 
             if (options.brushActive) {
                 SVGOptions.brushActive = true;
-                zoom = true;
+                // zoom = true;
                 addBrush();
             }
             if (options.verticalLine) {
@@ -1814,7 +1828,7 @@ var FeatureViewer = (function () {
         }
 
         this.clearInstance = function () {
-            window.removeEventListener("resize", updateWindow);
+            removeEventListener("resize", updateWindow);
             svg = null;
 
             svgContainer.on('mousemove', null)

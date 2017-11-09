@@ -27,7 +27,7 @@
                 <v-list-tile-action>
                     <v-icon v-if="child.status == 'COMPLETED'">done</v-icon>
                     <v-icon v-else-if="child.status == 'RUNNING'">query-builder</v-icon>
-                    <v-icon v-else-if="child.status == 'PENDING'">directions-run</v-icon>
+                    <v-icon v-else-if="child.status == 'PENDING'">schedule</v-icon>
                     <v-icon v-else-if="child.status == 'ERROR'">error-outline</v-icon>
                     <v-icon v-else>help</v-icon>
                 </v-list-tile-action>

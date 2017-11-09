@@ -7,9 +7,9 @@ const CompressionPlugin = require("compression-webpack-plugin");
 const SriPlugin = require('webpack-subresource-integrity');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackIncludeAssetsPlugin = require('html-webpack-include-assets-plugin');
-
 const isElectron = !!process.env.ELECTRON_ROOT;
 const __root = isElectron ? process.env.ELECTRON_ROOT : __dirname;
+const isProduction = process.env.NODE_ENV === 'production';
 
 module.exports = {
 	entry: path.resolve(__dirname, './src/main.js'),
@@ -41,6 +41,9 @@ module.exports = {
 					path.resolve(__root, './node_modules/vuetify/src'),
 					path.resolve(__root, './node_modules/vue-localstorage/src'),
 					path.resolve(__root, './node_modules/vue-resource'),
+				],
+				exclude: [
+					path.resolve(__dirname, './src/lib'),
 				]
 			},
 			{
@@ -75,9 +78,6 @@ module.exports = {
 			__CONFIG__: JSON.stringify(require('./package.json').configuration),
 			__ELECTRON__: isElectron
 		}),
-		new FaviconsWebpackPlugin({ 
-			logo: path.resolve(__dirname, './src/assets/marv1.svg')
-		}),
 		new CopyWebpackPlugin([
 			{
 				from: path.resolve(__dirname, './src/lib/d3/d3.js'),
@@ -85,7 +85,7 @@ module.exports = {
 				flatten: true
 			},
 			{
-				from: path.resolve(__dirname, './src/assets/') + '*x.png',
+				from: path.resolve(__dirname, './src/assets/') + '/*x.png',
 				to: 'assets',
 				flatten: true
 			},
@@ -111,7 +111,17 @@ module.exports = {
 	devtool: '#eval-source-map'
 }
 
-if (process.env.NODE_ENV === 'production') {
+if (!isElectron) {
+	module.exports.plugins = (module.exports.plugins || []).concat([
+		new HtmlWebpackIncludeAssetsPlugin({
+			assets: [ { path: 'https://fonts.googleapis.com/css?family=Material+Icons', type: 'css' } ],
+			append: false,
+			publicPath: ''
+		})
+	]);
+}
+
+if (isProduction) {
 	module.exports.devtool = '#source-map'
 	module.exports.plugins = (module.exports.plugins || []).concat([
 		new webpack.DefinePlugin({
@@ -124,17 +134,24 @@ if (process.env.NODE_ENV === 'production') {
 				warnings: false
 			}
 		}),
-		new SriPlugin({
-			hashFuncNames: ['sha256', 'sha384'],
-			enabled: process.env.NODE_ENV === 'production',
-		}),
-		new CompressionPlugin({
-			asset: "[path].gz[query]",
-			algorithm: "gzip",
-			test: /\.(js|html|css|svg)$/,
-			minRatio: 0
-		}),
 	])
+
+	if (!isElectron) {
+		module.exports.plugins = (module.exports.plugins || []).concat([
+			new FaviconsWebpackPlugin({ 
+				logo: path.resolve(__dirname, './src/assets/marv1.svg')
+			}),
+			new SriPlugin({
+				hashFuncNames: ['sha256', 'sha384']
+			}),
+			new CompressionPlugin({
+				asset: "[path].gz[query]",
+				algorithm: "gzip",
+				test: /\.(js|html|css|svg)$/,
+				minRatio: 0
+			}),
+		])
+	}
 } else {
 	if (isElectron) {
 		module.exports.plugins = (module.exports.plugins || []).concat([

@@ -2,7 +2,7 @@
     <div>
         <v-divider></v-divider>
         <v-subheader class="grey--text mono">{{ticket.substr(0,30)}}…</v-subheader>
-        <v-list-tile target="_blank" :href="$url('api/m8/' + ticket)">
+        <v-list-tile :target="__ELECTRON__ ? '' : '_blank'" :href="$url('api/m8/' + ticket)">
             <v-list-tile-action>
                 <v-icon>cloud_download</v-icon>
             </v-list-tile-action>
