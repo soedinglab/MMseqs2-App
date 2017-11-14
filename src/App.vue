@@ -1,14 +1,22 @@
+<template>
+    <v-app toolbar id="app">
+        <navigation />
+        <main>
+            <v-content>
+                <v-container app fill-height>
+                    <v-layout>
+                        <router-view></router-view>
+                    </v-layout>
+                </v-container>
+            </v-content>
+        </main>
+    </v-app>
+</template>
+
 <script>
 import Navigation from './Navigation.vue';
 
-import AppElectron from './AppElectron.vue';
-import AppBrowser from './AppBrowser.vue';
-
 export default {
-    mixins: [ __ELECTRON__ ? AppElectron : AppBrowser ],
     components: { Navigation },
-    data: () => ({
-        drawer: true,
-    })
 }
 </script>
