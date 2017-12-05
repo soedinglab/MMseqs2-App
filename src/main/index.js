@@ -3,6 +3,8 @@ import { app, BrowserWindow, shell } from 'electron';
 const winURL = process.env.NODE_ENV === 'development'
 	? `http://localhost:9080` : `file://${__dirname}/index.html`;
 
+app.os = require('os');
+app.simdLevel = require('./lib/simdlevel').default;
 
 let mainWindow;
 function createWindow() {
