@@ -20,10 +20,10 @@
 		<!-- <grid-loader class="loader" color="#000000"></grid-loader> -->
 	</div>
 	<div slot="desc" v-else-if="resultState == 'EMPTY'">
-		No hits found! Start a <v-btn to="/">New Search</v-btn>?
+		No hits found! Start a <v-btn to="/search">New Search</v-btn>?
 	</div>
 	<div slot="desc" v-else-if="resultState != 'RESULT'">
-		Error! Start a <v-btn to="/">New Search</v-btn>?
+		Error! Start a <v-btn to="/search">New Search</v-btn>?
 	</div>
 
 	<div slot="content" v-if="resultState == 'RESULT'">

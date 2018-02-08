@@ -2,7 +2,7 @@
     <div>
         <v-divider></v-divider>
         <v-subheader class="grey--text mono">{{ticket.substr(0,30)}}…</v-subheader>
-        <v-list-tile :target="__ELECTRON__ ? '' : '_blank'" :href="$url('api/m8/' + ticket)">
+        <v-list-tile :target="$ELECTRON ? '' : '_blank'" :href="$url('api/m8/' + ticket)">
             <v-list-tile-action>
                 <v-icon>cloud_download</v-icon>
             </v-list-tile-action>
@@ -28,7 +28,8 @@
                     </v-list-tile-title>
                 </v-list-tile-content>
             </v-list-tile>
-            <v-list-tile v-if="items.length > 0" v-for="(child, i) in items" :key="i" :class="{ 'list__tile--active': child.id == entry }" :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}">
+            <template v-if="items.length > 0">
+            <v-list-tile v-for="(child, i) in items" :key="i" :class="{ 'list__tile--active': child.id == entry }" :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}">
                 <!-- <v-list-tile-action v-if="child.icon"> -->
                     <!-- <v-icon>{{ child.icon }}</v-icon> -->
                 <!-- </v-list-tile-action> -->
@@ -38,6 +39,7 @@
                     </v-list-tile-title>
                 </v-list-tile-content>
             </v-list-tile>
+            </template>
         </v-list-group>
         <v-divider></v-divider>
 

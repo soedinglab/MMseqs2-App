@@ -13,7 +13,7 @@
 						</v-text-field>
 
 						<div class="actions">
-						<v-dialog v-if="!__ELECTRON__" v-model="showCurl" lazy absolute :disabled="searchDisabled">
+						<v-dialog v-if="!$ELECTRON" v-model="showCurl" lazy absolute :disabled="searchDisabled">
 							<v-btn slot="activator" :disabled="searchDisabled">
 								Get cURL Command
 							</v-btn>
@@ -48,7 +48,7 @@
 										<div class="input-group">
 											<v-tooltip open-delay="300" top>
 												<label slot="activator">Databases</label>
-												<span v-if="__ELECTRON__">Choose the databases to search against and the result mode.</span>
+												<span v-if="$ELECTRON">Choose the databases to search against and the result mode.</span>
 												<span v-else>Choose the databases to search against, the result mode, and optionally an email to notify you when the job is done.</span>
 											</v-tooltip>
 										</div>
@@ -70,7 +70,7 @@
 											<v-radio value="summary" label="Annotations" hide-details></v-radio>
 										</v-radio-group>
 
-										<v-tooltip v-if="!__ELECTRON__" open-delay="300" top>
+										<v-tooltip v-if="!$ELECTRON" open-delay="300" top>
 											<v-text-field  slot="activator" id="email" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email" /></v-text-field>
 											<span>Send an email when the job is done.</span>
 										</v-tooltip>

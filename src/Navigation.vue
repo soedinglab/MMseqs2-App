@@ -1,8 +1,8 @@
 <template>
 <div>
-<v-navigation-drawer app permanent clipped class="grey lighten-4" :mini-variant.sync="mini">
+<v-navigation-drawer absolute app permanent clipped class="grey lighten-4" :mini-variant.sync="mini">
     <v-list class="grey lighten-4">
-        <v-list-tile to="/">
+        <v-list-tile to="/search">
             <v-list-tile-action>
                 <v-icon>search</v-icon>
             </v-list-tile-action>
@@ -53,8 +53,8 @@
     </object>
 
     <v-spacer></v-spacer>
-    <v-toolbar-side-icon class="hidden-md-and-up"></v-toolbar-side-icon>
-    <v-toolbar-items v-if="!__ELECTRON__" class="hidden-sm-and-down">
+    <v-toolbar-side-icon v-once v-if="!$ELECTRON" class="hidden-md-and-up"></v-toolbar-side-icon>
+    <v-toolbar-items v-once v-if="!$ELECTRON" class="hidden-sm-and-down">
         <v-btn flat rel="external noopener" target="_blank" href="https://mmseqs.com">MMseqs2</v-btn>
         <v-btn flat rel="external noopener" target="_blank" href="https://github.com/soedinglab/mmseqs-webserver">Github</v-btn>
         <v-btn flat rel="external noopener" target="_blank" href="http://www.mpibpc.mpg.de/soeding">Södinglab</v-btn>
