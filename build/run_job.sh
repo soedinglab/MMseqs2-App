@@ -64,15 +64,9 @@ function run_job() {
         local PARAMS_SUMMARIZERESULT=""
         local PARAMS_CONVERTALIS=""
         local PARAMS_MAXSEQLEN="32000"
-        local PARAMS_PROFILE="0"
 
         if [[ -f "${DATABASES}/${DB}.params" ]]; then
             eval "$(cat ${DATABASES}/${DB}.params | json2export)"
-        fi
-
-        local PROFILE=""
-        if [[ "${PARAMS_PROFILE}" == "1" ]]; then
-            PROFILE="--target-profile"
         fi
 
         INPUT="${WORKDIR}/result_${DB}"
@@ -81,7 +75,7 @@ function run_job() {
                 --no-preload --early-exit --remove-tmp-files \
                 --max-seq-len "${PARAMS_MAXSEQLEN}" \
                 -v "${VERBOSITY}" --threads "${JOBTHREADS}" \
-                -a ${PARAMS_SEARCH} ${PROFILE} \
+                -a ${PARAMS_SEARCH} \
             || continue
         
         local SEQDB="${DATABASES}/${DB}"
