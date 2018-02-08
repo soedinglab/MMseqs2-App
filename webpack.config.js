@@ -90,6 +90,11 @@ module.exports = {
 				flatten: true
 			},
 			{
+				from: path.resolve(__dirname, './src/assets/') + '/*x.svg',
+				to: 'assets',
+				flatten: true
+			},
+			{
 				from: path.resolve(__dirname, './src/assets/marv-search-gray.png'),
 				to: 'assets',
 				flatten: true
