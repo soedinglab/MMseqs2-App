@@ -266,7 +266,8 @@ var FeatureViewer = (function () {
         var self = this;
         this.events = {
             FEATURE_SELECTED_EVENT: "feature-viewer-position-selected",
-            ZOOM_EVENT: "feature-viewer-zoom-altered"
+            ZOOM_EVENT: "feature-viewer-zoom-altered",
+            HEIGHT_EVENT: "feature-viewer-height-altered"
         };
 
         var el = el;
@@ -310,6 +311,8 @@ var FeatureViewer = (function () {
         var featureSelected = {};
         var animation = true;
         var sbcRip = null;
+
+        var transitionDuration = 66;
 
         function colorSelectedFeat(feat, object) {
             //change color && memorize
@@ -391,6 +394,10 @@ var FeatureViewer = (function () {
 
         this.onZoom = function (listener) {
             svgElement.addEventListener(self.events.ZOOM_EVENT, listener);
+        };
+
+        this.onHeightChanged = function (listener) {
+            svgElement.addEventListener(self.events.HEIGHT_EVENT, listener);
         };
 
         function addLevel(array) {
@@ -524,6 +531,12 @@ var FeatureViewer = (function () {
         function updateSVGHeight(position) {
             svg.attr("height", position + 60 + "px");
             svg.select("#clip rect").attr("height", position + 60 + "px");
+
+            if (self.trigger) {
+                self.trigger(self.events.HEIGHT_EVENT, {
+                    newHeight: position + 60,
+                });
+            }
         }
 
         var yAxisScale = d3.scale.ordinal()
@@ -834,7 +847,7 @@ var FeatureViewer = (function () {
 
                     dottedSeqLine
                         .transition()
-                        .duration(500)
+                        .duration(transitionDuration)
                         .style("stroke-opacity", 1);
                 }
             },
@@ -1242,10 +1255,10 @@ var FeatureViewer = (function () {
                     transit1 = svgContainer.selectAll("." + object.className + "Group")
                         //                    .data(object.data)
                         .transition()
-                        .duration(500);
+                        .duration(transitionDuration);
                     transit2 = svgContainer.selectAll("." + object.className)
                         .transition()
-                        .duration(500);
+                        .duration(transitionDuration);
                 }
                 else {
                     transit1 = svgContainer.selectAll("." + object.className + "Group");
@@ -1278,8 +1291,8 @@ var FeatureViewer = (function () {
             multiRec: function (object) {
                 svgContainer.selectAll("." + object.className)
                     //                    .data(object.data)
-                    //.transition()
-                    //.duration(500)
+                    .transition()
+                    .duration(transitionDuration)
                     .attr("x", function (d) {
                         return scaling(d.x)
                     })
@@ -1297,15 +1310,15 @@ var FeatureViewer = (function () {
                     transit = svgContainer.selectAll("." + object.className)
                         //                    .data(object.data)
                         .transition()
-                        .duration(500);
+                        .duration(transitionDuration);
                 }
                 else {
                     transit = svgContainer.selectAll("." + object.className);
                 }
                 transit
                     //                    .data(object.data)
-                    //.transition()
-                    //.duration(500)
+                    // .transition()
+                    // .duration(transitionDuration)
                     .attr("x", function (d) {
                         return scaling(d.x - 0.4)
                     })
@@ -1328,7 +1341,7 @@ var FeatureViewer = (function () {
                     transit = svgContainer.selectAll("." + object.className)
                         //                    .data(object.data)
                         .transition()
-                        .duration(500);
+                        .duration(transitionDuration);
                 }
                 else {
                     transit = svgContainer.selectAll("." + object.className);
@@ -1349,7 +1362,7 @@ var FeatureViewer = (function () {
                     transit = svgContainer.selectAll("." + object.className)
                         //                    .data(object.data)
                         .transition()
-                        .duration(500);
+                        .duration(transitionDuration);
                 }
                 else {
                     transit = svgContainer.selectAll("." + object.className);
@@ -1368,7 +1381,7 @@ var FeatureViewer = (function () {
                     transit = svgContainer.selectAll("." + object.className)
                         //                    .data(object.data)
                         .transition()
-                        .duration(500);
+                        .duration(transitionDuration);
                 }
                 else {
                     transit = svgContainer.selectAll("." + object.className);
@@ -1586,11 +1599,11 @@ var FeatureViewer = (function () {
         /** export to new axis file? */
         function reset_axis() {
             svgContainer
-                .transition().duration(500)
+                .transition().duration(transitionDuration)
                 .select(".Xaxis-top")
                 .call(xAxis1);
             svgContainer
-                .transition().duration(500)
+                .transition().duration(transitionDuration)
                 .select(".Xaxis")
                 .call(xAxis2);
         }

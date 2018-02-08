@@ -1,72 +1,111 @@
 <template>
-<v-flex xs12>
-<panel>
-	<template slot="header">
-		<span class="hidden-sm-and-down">Results for Job:&nbsp;</span><small>{{ ticket }}</small>
-	</template>
+	<v-container fill-height grid-list-md fluid>
+		<v-layout row wrap>
+            <v-flex xs12>
+            <panel>
+                <template slot="header">
+                    <span class="hidden-sm-and-down">Results for Job:&nbsp;</span><small>{{ ticket }}</small>
+                </template>
 
-	<template slot="toolbar-extra">
-		<v-toolbar-items>
-			<v-btn class="hide" ref="reset" dark @click="resetZoom" aria-hidden="true">Reset Zoom</v-btn>
-		</v-toolbar-items>
-		<!-- <popover effect="fade" placement="bottom" content="The target hits are shown here.">
-			<button class="btn btn-default help" role="button">
-				<span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span>
-			</button>
-		</popover> -->
-	</template>
+                <template slot="toolbar-extra">
+                    <v-toolbar-items>
+                        <v-btn class="hide" ref="reset" dark @click="resetZoom" aria-hidden="true">Reset Zoom</v-btn>
+                    </v-toolbar-items>
+                    <!-- <popover effect="fade" placement="bottom" content="The target hits are shown here.">
+                        <button class="btn btn-default help" role="button">
+                            <span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span>
+                        </button>
+                    </popover> -->
+                </template>
 
-	<div slot="desc" v-if="resultState == 'PENDING'">
-		<!-- <grid-loader class="loader" color="#000000"></grid-loader> -->
-	</div>
-	<div slot="desc" v-else-if="resultState == 'EMPTY'">
-		No hits found! Start a <v-btn to="/search">New Search</v-btn>?
-	</div>
-	<div slot="desc" v-else-if="resultState != 'RESULT'">
-		Error! Start a <v-btn to="/search">New Search</v-btn>?
-	</div>
+                <div slot="desc" v-if="resultState == 'PENDING'">
+                    <v-container fill-height grid-list-md>
+                        <v-layout row justify-center>
+                            <v-flex xs4>
+                                <img style="max-width:100%" src="/assets/marv-search_2x.png" src-set="/assets/marv-search_2x.png 2x, /assets/marv-search_3x.png 3x" />
+                            </v-flex>
+                            <v-flex xs8>
+                                <h3>Still Pending</h3>
+                                <p>Please wait a moment</p>
+                            </v-flex>
+                        </v-layout>
+                    </v-container>
+                </div>
+                <div slot="desc" v-else-if="resultState == 'EMPTY'">
+                    <v-container fill-height grid-list-md>
+                        <v-layout row justify-center>
+                            <v-flex xs4>
+                                <img style="max-width:100%" src="/assets/marv-error_2x.png" src-set="/assets/marv-error_2x.png 2x, /assets/marv-error_3x.png 3x" />
+                            </v-flex>
+                            <v-flex xs8>
+                                <h3>No hits found!</h3>
+                                <p>Start a <v-btn to="/search">New Search</v-btn>?</p>
+                            </v-flex>
+                        </v-layout>
+                    </v-container>
+                </div>
+                <div slot="desc" v-else-if="resultState != 'RESULT'">
+                    <v-container fill-height grid-list-md>
+                        <v-layout row justify-center>
+                            <v-flex xs4>
+                                <img style="max-width:100%" src="/assets/marv-error_2x.png" src-set="/assets/marv-error_2x.png 2x, /assets/marv-error_3x.png 3x" />
+                            </v-flex>
+                            <v-flex xs8>
+                                <h3>Error! </h3>
+                                <p>Start a <v-btn to="/search">New Search</v-btn>?</p>
+                            </v-flex>
+                        </v-layout>
+                    </v-container>
+                </div>
 
-	<div slot="content" v-if="resultState == 'RESULT'">
-        <div class="hits" ref="hits"></div>
-
-		<table class="table">
-			<thead>
-				<tr>
-					<th>Database</th>
-					<th>Target</th>
-					<th>Sequence Id.</th>
-					<th>Score</th>
-					<th>E-Value</th>
-					<th>Query Pos.</th>
-					<th>Target Pos.</th>
-				</tr>
-			</thead>
-			<tbody v-for="entry in hits.results" :key="entry.db">
-				<tr v-for="(item, index) in entry.alignments" :key="index">
-					<td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</id>
-					<td data-label="Target">
-						<a :href="item.href" target="_blank">{{item.target}}</a>
-					</td>
-					<td data-label="Sequence Identity">{{ item.seqId }}</td>
-					<td data-label="Score">{{ item.score }}</td>
-					<td data-label="E-Value">{{ item.eval }}</td>
-					<td data-label="Query Pos">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
-					<td data-label="Target Pos.">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
-				</tr>
-			</tbody>
-		</table>
-	</div>
-</panel>
-</v-flex>
+                <div slot="content" v-if="resultState == 'RESULT'" ref="hitsParent" style="position:relative;">
+                    <div style="position:absolute;top:0;left:0;right:0;bottom:0;">
+                        <div class="hits" ref="hits"></div>
+                    </div>
+                </div>
+            </panel>
+            </v-flex>
+            <v-flex xs12 v-if="hits">
+                <panel>
+                <table class="table" slot="content">
+                        <thead>
+                            <tr>
+                                <th>Database</th>
+                                <th>Target</th>
+                                <th>Sequence Id.</th>
+                                <th>Score</th>
+                                <th>E-Value</th>
+                                <th>Query Pos.</th>
+                                <th>Target Pos.</th>
+                            </tr>
+                        </thead>
+                        <tbody v-for="entry in hits.results" :key="entry.db">
+                            <tr v-for="(item, index) in entry.alignments" :key="index">
+                                <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</td>
+                                <td data-label="Target">
+                                    <a :href="item.href" target="_blank">{{item.target}}</a>
+                                </td>
+                                <td data-label="Sequence Identity">{{ item.seqId }}</td>
+                                <td data-label="Score">{{ item.score }}</td>
+                                <td data-label="E-Value">{{ item.eval }}</td>
+                                <td data-label="Query Pos">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
+                                <td data-label="Target Pos.">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </panel>
+            </v-flex>
+		</v-layout>
+	</v-container>
 </template>
 
 <script>
 
 import Queries from './Queries.vue'
-import colorScale from './ColorScale';
 import Panel from './Panel.vue';
 
 import feature from './lib/feature-viewer/feature-viewer.js';
+import colorScale from './lib/ColorScale';
 
 function lerp(v0, v1, t) {
     return v0*(1-t)+v1*t
@@ -137,7 +176,7 @@ export default {
 				}
 			}
 
-			return "EMPTY";
+			return "ERROR";
 		}
 	},
 	watch: {
@@ -146,11 +185,11 @@ export default {
 	methods: {
 		tryLinkTargetToDB(target, db) {
 			if (db.startsWith("pfam_")) {
-				return 'http://pfam.xfam.org/family/' + target;
+				return 'https://pfam.xfam.org/family/' + target;
 			} else if (db.startsWith("pdb")) {
-				return 'http://www.rcsb.org/pdb/explore.do?structureId=' + target.split('_')[0];
+				return 'https://www.rcsb.org/pdb/explore.do?structureId=' + target.split('_')[0];
 			} else if (db.startsWith("uniclust")) {
-				return 'http://www.uniprot.org/uniprot/' + target;
+				return 'https://www.uniprot.org/uniprot/' + target;
 			} else if (db.startsWith("eggnog_")) {
 				return 'http://eggnogdb.embl.de/#/app/results?target_nogs=' + target;
 			}
@@ -205,9 +244,13 @@ export default {
                 zoomMax: 10
             });
 
-            m.on('feature-viewer-zoom-altered', (ev) => { 
+            m.on('feature-viewer-zoom-altered', (ev) => {
                 var $classes = this.$refs.reset.$el.classList;
                 if (ev.zoom > 1) { $classes.remove('hide'); } else { $classes.add('hide'); } 
+            });
+
+            m.on('feature-viewer-height-altered', (ev) => {
+                this.$refs.hitsParent.style.minHeight = ev.newHeight + "px";
             });
 
             var results = data.results;
@@ -401,7 +444,6 @@ a:focus {
     box-sizing: border-box;
     display: inline;
     font-size: 10px;
-    width: 100%;
     line-height: 1;
 /*    color: rgba(0, 0, 0, 0.8);*/
     color: #eee;
@@ -417,7 +459,6 @@ a:focus {
     box-sizing: border-box;
     display: inline;
     font-size: 10px;
-    width: 100%;
     line-height: 1;
     color: rgba(0, 0, 0, 0.6);
 /*    color: #333;*/
@@ -432,7 +473,6 @@ a:focus {
     box-sizing: border-box;
     display: inline;
     font-size: 10px;
-    width: 100%;
     line-height: 1;
 /*    color: rgba(0, 0, 0, 0.8);*/
     color: #eee;
@@ -447,7 +487,6 @@ a:focus {
     box-sizing: border-box;
     display: inline;
     font-size: 10px;
-    width: 100%;
     line-height: 1;
     color: rgba(0, 0, 0, 0.6);
 /*    color: #eee;*/
@@ -462,14 +501,12 @@ a:focus {
 .yaxis{
     background-color:green;
 }
-
-.header-help{
-/*    color: #C50063;*/
 /*
+.header-help{
+    color: #C50063;
     color: #108D9F;
     border-color:#0F8292;
-*/
-}
+}*/
 .header-help .state{
     min-width:26px;
     display:inline-block;
@@ -481,13 +518,18 @@ a:focus {
     cursor: pointer;
     text-decoration: none;
 }
-
+/*
 .header-help:focus{
-/*    color: #0F8292;*/
+   color: #0F8292;
 }
-
+*/
 .popover-title{
     text-align: center;
 /*    background-color: rgba(197, 0, 99, 0.1);*/
+}
+
+.db {
+    vertical-align: top;
+    line-height: 3.5;
 }
 </style>

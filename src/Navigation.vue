@@ -16,29 +16,38 @@
         <v-list-group v-if="items && items.length > 0" :value="drawer" no-action>
             <v-list-tile slot="item" @click="drawer = !drawer;">
                 <v-list-tile-action>
-                    <v-icon>{{ drawer ? 'keyboard_arrow_up' : 'keyboard_arrow_down' }}</v-icon>
+                    <v-icon>{{ drawer ? 'keyboard_arrow_up' : 'history' }}</v-icon>
                 </v-list-tile-action>
                 <v-list-tile-content>
                     <v-list-tile-title>
                         History
                     </v-list-tile-title>
                 </v-list-tile-content>
-            </v-list-tile>
-
-            <v-list-tile v-for="(child, i) in items" :key="i" :class="{ 'list__tile--active': child.ticket == ticket }" :to="formattedRoute(child)">
-                <v-list-tile-action>
-                    <v-icon v-if="child.status == 'COMPLETED'">done</v-icon>
-                    <v-icon v-else-if="child.status == 'RUNNING'">query-builder</v-icon>
-                    <v-icon v-else-if="child.status == 'PENDING'">schedule</v-icon>
-                    <v-icon v-else-if="child.status == 'ERROR'">error-outline</v-icon>
-                    <v-icon v-else>help</v-icon>
-                </v-list-tile-action>
-                <v-list-tile-content>
-                    <v-list-tile-title>
-                        <span class="mono">{{ child.ticket.substr(0,9) }}…</span> — {{ formattedDate(child.time) }}
-                    </v-list-tile-title>
+                <v-list-tile-content v-if="drawer" style="align-items: flex-end;">
+                    <div>
+                        <button class="mx-1" :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.stop="previous();"><v-icon style="transform:inherit">chevron_left</v-icon></button>
+                        <button class="mx-1" :style="{'opacity' : (page + 1) * limit >= items.length ? 0.6 : 1}"  @click.stop="next();"><v-icon style="transform:inherit">chevron_right</v-icon></button>
+                    </div>
                 </v-list-tile-content>
             </v-list-tile>
+
+            <v-list two-line subheader dense>
+                <v-list-tile v-for="(child, i) in items.slice(page * limit, (page + 1) * limit)" :key="i" :class="{ 'list__tile--highlighted': child.ticket == ticket }" :to="formattedRoute(child)">
+                    <v-list-tile-action>
+                        <identicon v-if="child.status == 'COMPLETED'" :hash="child.ticket">done</identicon>
+                        <v-icon v-else-if="child.status == 'RUNNING'">query-builder</v-icon>
+                        <v-icon v-else-if="child.status == 'PENDING'">schedule</v-icon>
+                        <v-icon v-else-if="child.status == 'ERROR'">error-outline</v-icon>
+                        <v-icon v-else>help</v-icon>
+                    </v-list-tile-action>
+                    <v-list-tile-content>
+                        <v-list-tile-title>
+                            {{ formattedDate(child.time) }}
+                        </v-list-tile-title>
+                        <v-list-tile-sub-title><span class="mono">{{ child.ticket.substr(0,24) }}…</span></v-list-tile-sub-title>
+                    </v-list-tile-content>
+                </v-list-tile>
+            </v-list>
         </v-list-group>
     </v-list>
 </v-navigation-drawer>
@@ -47,9 +56,9 @@
     <v-toolbar-title>MMseqs2 Search</v-toolbar-title>
     <object style="margin-left:8px; display: inline-block; width: 38px;height: 38px;vertical-align: middle" 
             type="image/svg+xml"
-            data="./assets/marv1.svg"
+            data="/assets/marv1.svg"
             aria-hidden="true">
-        <img src="./assets/marv1.png" />
+        <img src="./assets/marv1.png" style="max-width:100%" />
     </object>
 
     <v-spacer></v-spacer>
@@ -64,13 +73,18 @@
 </template>
 
 <script>
+import Identicon from './Identicon.vue';
+
 export default {
+    components: { Identicon },
     data: () => ({
         ticket: null,
         drawer: false,
         mini: true,
         error: false,
-        items: []
+        items: [],
+        page: 0,
+        limit: 7
     }),
     created() {
         this.fetchData();
@@ -85,6 +99,18 @@ export default {
         }
     },
     methods: {
+        previous() {
+            if (this.page == 0) {
+                return;
+            }
+            this.page -= 1;
+        },
+        next() {
+            if ((this.page + 1) * this.limit > this.items.length) {
+                return;
+            }
+            this.page += 1;
+        },
         fetchData() {
             this.ticket = this.$route.params.ticket || null;
 

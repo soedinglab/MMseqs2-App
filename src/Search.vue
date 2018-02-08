@@ -71,10 +71,9 @@
 										</v-radio-group>
 
 										<v-tooltip v-if="!$ELECTRON" open-delay="300" top>
-											<v-text-field  slot="activator" id="email" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email" /></v-text-field>
+											<v-text-field  slot="activator" id="email" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
 											<span>Send an email when the job is done.</span>
 										</v-tooltip>
-									</div>
 									</div>
 								</panel>
 							</v-flex>
@@ -327,5 +326,9 @@ a.help:hover {
 
 code {
 	font-size: 0.8em;
+}
+
+.tooltip label {
+	pointer-events: all;
 }
 </style>

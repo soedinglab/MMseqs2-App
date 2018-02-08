@@ -1,6 +1,6 @@
 <template>
     <div class="panel-root">
-        <v-toolbar flat dense dark>
+        <v-toolbar v-if="!!$slots['header'] || !!header" flat dense dark>
             <span class="title white--text layout align-end">
                 <slot v-if="$slots['header']" name="header"></slot>
                 <template v-else>{{ header }}</template>
@@ -22,7 +22,7 @@
 <script>
 export default {
     name: 'panel',
-    props: { header : { defailt: '', type: String }, 'fillHeight' : { default: false, type: Boolean }},
+    props: { header : { default: '', type: String }, 'fillHeight' : { default: false, type: Boolean }},
 }
 </script>
 
@@ -38,5 +38,10 @@ export default {
 .panel-root .force-fill-height {
     display:flex;
     height: 100% !important;
+}
+
+.panel-root .toolbar.theme--dark {
+    background: url('/assets/spiration-dark.png');
+    background-repeat: repeat;
 }
 </style>

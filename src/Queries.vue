@@ -20,19 +20,26 @@
         <v-list-group :value="drawer" v-if="multi" no-action>
             <v-list-tile slot="item" @click="drawer = !drawer">
                 <v-list-tile-action>
-                    <v-icon>{{ drawer ? 'keyboard_arrow_up' : 'keyboard_arrow_down' }}</v-icon>
+                    <v-icon>{{ drawer ? 'keyboard_arrow_up' : 'list' }}</v-icon>
                 </v-list-tile-action>
                 <v-list-tile-content>
                     <v-list-tile-title>
                         Queries
                     </v-list-tile-title>
                 </v-list-tile-content>
+                <v-list-tile-content v-if="drawer" style="align-items: flex-end;">
+                    <div>
+                        <button class="mx-1" :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.stop="previous();"><v-icon style="transform:inherit">chevron_left</v-icon></button>
+                        <button class="mx-1" :style="{'opacity' : hasNext == false ? 0.6 : 1}"  @click.stop="next();"><v-icon style="transform:inherit">chevron_right</v-icon></button>
+                    </div>
+                </v-list-tile-content>
             </v-list-tile>
             <template v-if="items.length > 0">
             <v-list-tile v-for="(child, i) in items" :key="i" :class="{ 'list__tile--active': child.id == entry }" :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}">
-                <!-- <v-list-tile-action v-if="child.icon"> -->
-                    <!-- <v-icon>{{ child.icon }}</v-icon> -->
-                <!-- </v-list-tile-action> -->
+                <v-list-tile-action>
+                    <v-icon v-if="child.id == entry">label</v-icon>
+                    <v-icon v-else>label_outline</v-icon>
+                </v-list-tile-action>
                 <v-list-tile-content>
                     <v-list-tile-title>
                         {{ child.name }}
@@ -88,12 +95,14 @@ export default {
                 return;
             }
             this.page -= 1;
+            this.fetchData();
         },
         next() {
             if (!this.hasNext) {
                 return;
             }
             this.page += 1;
+            this.fetchData();
         },
 		fetchData() {
 			this.ticket = this.$route.params.ticket;
