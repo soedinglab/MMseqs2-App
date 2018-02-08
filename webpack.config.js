@@ -85,12 +85,12 @@ module.exports = {
 				flatten: true
 			},
 			{
-				from: path.resolve(__dirname, './src/assets/') + '/*x.png',
+				from: path.resolve(__dirname, './src/assets/') + '/*.png',
 				to: 'assets',
 				flatten: true
 			},
 			{
-				from: path.resolve(__dirname, './src/assets/') + '/*x.svg',
+				from: path.resolve(__dirname, './src/assets/') + '/*.svg',
 				to: 'assets',
 				flatten: true
 			},
