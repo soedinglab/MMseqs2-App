@@ -1,5 +1,5 @@
 <template>
-	<v-container fill-height grid-list-md fluid>
+	<v-container grid-list-md fluid>
 		<v-layout row wrap>
             <v-flex xs12>
             <panel>

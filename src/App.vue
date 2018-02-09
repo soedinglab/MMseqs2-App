@@ -2,9 +2,7 @@
     <v-app toolbar id="app">
         <navigation />
         <v-content>
-            <v-container app fill-height>
-                <router-view></router-view>
-            </v-container>
+            <router-view></router-view>
         </v-content>
     </v-app>
 </template>

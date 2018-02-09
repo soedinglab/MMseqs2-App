@@ -1,4 +1,5 @@
 <template>
+<v-container grid-list-md fluid>
 	<v-layout row justify-center>
 		<v-flex xs8>
 			<panel>
@@ -21,6 +22,7 @@
 			</panel>
 		</v-flex>
 	</v-layout>
+</v-container>
 </template>
 
 <script>

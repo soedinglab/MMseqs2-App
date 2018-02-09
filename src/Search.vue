@@ -1,5 +1,5 @@
 <template>
-	<v-container fill-height grid-list-md fluid style="overflow:hidden">
+	<v-container grid-list-md>
 		<v-layout row wrap>
 			<v-flex xs12 md8>
 				<panel class="query-panel d-flex fill-height" header="Queries" fill-height>
@@ -39,50 +39,40 @@
 				</panel>
 			</v-flex>
 			<v-flex xs12 md4>
-				<v-layout row wrap>
-					<v-flex d-flex>
-						<v-layout row wrap>
-							<v-flex d-flex xs12>
-								<panel header="Search Settings">
-									<div slot="content">
-										<div class="input-group">
-											<v-tooltip open-delay="300" top>
-												<label slot="activator">Databases</label>
-												<span v-if="$ELECTRON">Choose the databases to search against and the result mode.</span>
-												<span v-else>Choose the databases to search against, the result mode, and optionally an email to notify you when the job is done.</span>
-											</v-tooltip>
-										</div>
-											
-										<div v-if="databases.length == 0">
-											<div :class="['alert', { 'alert-info': !dberror }, { 'alert-danger': dberror }]">
-												<!-- <scale-loader v-if="!dberror" class="loader" color="#000000" /> -->
-												<span v-if="dberror">Could not query available databases!</span>
-											</div>
-										</div>
-										<v-checkbox v-else v-for="(db, index) in databases" v-model="database" :key="index" :value="index" :label="db.name + ' ' + db.version" hide-details></v-checkbox>
+				<panel header="Search Settings">
+					<div slot="content">
+						<div class="input-group">
+							<v-tooltip open-delay="300" top>
+								<label slot="activator">Databases</label>
+								<span v-if="$ELECTRON">Choose the databases to search against and the result mode.</span>
+								<span v-else>Choose the databases to search against, the result mode, and optionally an email to notify you when the job is done.</span>
+							</v-tooltip>
+						</div>
+							
+						<div v-if="databases.length == 0">
+							<div :class="['alert', { 'alert-info': !dberror }, { 'alert-danger': dberror }]">
+								<span v-if="dberror">Could not query available databases!</span>
+							</div>
+						</div>
+						<v-checkbox v-else v-for="(db, index) in databases" v-model="database" :key="index" :value="index" :label="db.name + ' ' + db.version" hide-details></v-checkbox>
 
-										<v-radio-group v-model="mode">
-											<v-tooltip open-delay="300" top>
-											<label slot="activator">Mode</label>
-											<span>'All' shows all hits under an e-value cutoff. 'Annotations' tries to cover the search query.</span>
-											</v-tooltip>	
-											<v-radio value="accept" label="All" hide-details>All</v-radio>
-											<v-radio value="summary" label="Annotations" hide-details></v-radio>
-										</v-radio-group>
+						<v-radio-group v-model="mode">
+							<v-tooltip open-delay="300" top>
+							<label slot="activator">Mode</label>
+							<span>'All' shows all hits under an e-value cutoff. 'Annotations' tries to cover the search query.</span>
+							</v-tooltip>
+							<v-radio value="accept" label="All" hide-details>All</v-radio>
+							<v-radio value="summary" label="Annotations" hide-details></v-radio>
+						</v-radio-group>
 
-										<v-tooltip v-if="!$ELECTRON" open-delay="300" top>
-											<v-text-field  slot="activator" id="email" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
-											<span>Send an email when the job is done.</span>
-										</v-tooltip>
-									</div>
-								</panel>
-							</v-flex>
-							<v-flex d-flex xs12 fill-height>
-								<v-btn color="primary" :loading="inSearch" block large v-on:click="search" :disabled="searchDisabled"><v-icon>search</v-icon>Search</v-btn>
-							</v-flex>
-						</v-layout>
-					</v-flex>
-				</v-layout>
+						<v-tooltip v-if="!$ELECTRON" open-delay="300" top>
+							<v-text-field slot="activator" id="email" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
+							<span>Send an email when the job is done.</span>
+						</v-tooltip>
+
+						<v-btn color="primary" :loading="inSearch" block large v-on:click="search" :disabled="searchDisabled"><v-icon>search</v-icon>Search</v-btn>
+					</div>
+				</panel>
 			</v-flex>
 		</v-layout>
 	</v-container>
