@@ -99,6 +99,8 @@
 import Queries from './Queries.vue'
 import Panel from './Panel.vue';
 
+require('./lib/d3/d3');
+
 import feature from './lib/feature-viewer/feature-viewer.js';
 import colorScale from './lib/ColorScale';
 

@@ -65,7 +65,6 @@ Vue.url.options.root = __CONFIG__.apiEndpoint;
 import App from './App.vue';
 import Search from './Search.vue';
 import Queue from './Queue.vue';
-import Result from './Result.vue';
 import Queries from './Queries.vue';
 
 const setup = __ELECTRON__ ? require('./Setup.vue').default : null;
@@ -79,7 +78,7 @@ const router = new VueRouter({
         { 
             name: 'result', path: '/result/:ticket/:entry', 
             components: {
-                default: Result,
+                default: () => import('./Result.vue'),
                 sidebar: Queries
             }
         },

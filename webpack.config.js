@@ -70,7 +70,6 @@ module.exports = {
 		}
 	},
 	externals: {
-		d3: 'd3',
 		got: 'got'
 	},
 	plugins: [
@@ -79,13 +78,6 @@ module.exports = {
 			__ELECTRON__: isElectron
 		}),
 		new CopyWebpackPlugin([
-			{
-				from: isProduction
-					? path.resolve(__dirname, './src/lib/d3/d3.min.js') 
-					: path.resolve(__dirname, './src/lib/d3/d3.js'),
-				to: 'd3.js',
-				flatten: true
-			},
 			{
 				from: path.resolve(__dirname, './src/assets/') + '/*.png',
 				to: 'assets',
@@ -101,14 +93,9 @@ module.exports = {
 			template: path.resolve(__dirname, './src/index.html'),
 			attrs: ['img:src', 'object:data']
 		}),
-		new HtmlWebpackIncludeAssetsPlugin({
-			assets: ['d3.js'],
-			append: false,
-			hash: true
-		}),
 		new ExtractTextPlugin({
 			filename: 'style.[hash:7].css',
-		}),
+		})
 	],
 	devtool: '#eval-source-map'
 }

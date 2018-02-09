@@ -1,4 +1,4 @@
-!function() {
+!function(window) {
   var d3 = {
     version: "3.5.17"
   };
@@ -9550,5 +9550,5 @@
   d3.xml = d3_xhrType(function(request) {
     return request.responseXML;
   });
-  this.d3 = d3;
-}();
+  window.d3 = d3;
+}(window);
