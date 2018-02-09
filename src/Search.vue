@@ -90,227 +90,248 @@
 </template>
 
 <script>
-import Panel from './Panel.vue';
-import FileButton from './FileButton.vue';
+import Panel from "./Panel.vue";
+import FileButton from "./FileButton.vue";
 
 export default {
-	name: 'search',
-	components: { Panel, FileButton },
-	data() {
-		return {
-			dberror: false,
-			databases: [],
-			inSearch: false,
-			status: {
-				type: '',
-				message: ''
-			},
-			showCurl: false,
+  name: "search",
+  components: { Panel, FileButton },
+  data() {
+    return {
+      dberror: false,
+      databases: [],
+      inSearch: false,
+      status: {
+        type: "",
+        message: ""
+      },
+      showCurl: false,
 
-			mode_: null,
-			email_: null,
-			query_: null,
-			database_: null,
-		};
-	},
-	computed: {
-		mode: {
-			get: function() {
-				this.mode_ = this.$localStorage.get('mode', 'accept');
-				return this.mode_;
-			},
-			set: function(value) {
-				this.$localStorage.set('mode', value);
-				this.mode_ = value;
-			}
-		},
-		email: {
-			get: function() {
-				this.email_ = this.$localStorage.get('email', '');
-				return this.email_;
-			},
-			set: function(value) {
-				this.$localStorage.set('email', value);
-				this.email_ = value;
-			}
-		},
-		query: {
-			get: function() {
-				if (this.query_ == null) {
-					this.query_ = this.$localStorage.get('query', '>TEST\nMPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC');
-				}
-				return this.query_;
-			},
-			set: function(value) {
-				this.$localStorage.set('query', value);
-				this.query_ = value;
-			}
-		},
-		database: {
-			get: function() {
-				if (this.database_ == null) {
-					this.database_ = JSON.parse(this.$localStorage.get('database', '[]'));
-				}
-				return this.database_;
-			},
-			set: function(value) {
-				this.$localStorage.set('database', JSON.stringify(value));
-				this.database_ = value;
-			}
-		},
-		selectedDatabases: {
-			get: function() {
-				return this.databases.filter((_, i) => { return i in this.database; });
-			}
-		},
-		searchDisabled() {
-			return this.inSearch
-				|| this.database.length == 0
-				|| this.query.length == 0;
-		},
-		error() {
-			return this.status.type == 'error';
-		}
-	},
-	localStorage: {
-		history: {
-			type: Array,
-			default: []
-		}
-	},
-	created() {
-		this.fetchData();
-	},
-	watch: {
-		'$route': 'fetchData'
-	},
-	methods: {
-		origin() {
-			return window.location.protocol + "//" + window.location.hostname + (window.location.port ? ':' + window.location.port : '');
-		},
-		fetchData() {
-			this.$http.get('api/databases').then((response) => {
-				response.json().then((data) => {
-					this.dberror = false;
-					this.databases = data.databases;
+      mode_: null,
+      email_: null,
+      query_: null,
+      database_: null
+    };
+  },
+  computed: {
+    mode: {
+      get: function() {
+        this.mode_ = this.$localStorage.get("mode", "accept");
+        return this.mode_;
+      },
+      set: function(value) {
+        this.$localStorage.set("mode", value);
+        this.mode_ = value;
+      }
+    },
+    email: {
+      get: function() {
+        this.email_ = this.$localStorage.get("email", "");
+        return this.email_;
+      },
+      set: function(value) {
+        this.$localStorage.set("email", value);
+        this.email_ = value;
+      }
+    },
+    query: {
+      get: function() {
+        if (this.query_ == null) {
+          this.query_ = this.$localStorage.get(
+            "query",
+            ">TEST\nMPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC"
+          );
+        }
+        return this.query_;
+      },
+      set: function(value) {
+        this.$localStorage.set("query", value);
+        this.query_ = value;
+      }
+    },
+    database: {
+      get: function() {
+        if (this.database_ == null) {
+          this.database_ = JSON.parse(this.$localStorage.get("database", "[]"));
+        }
+        return this.database_;
+      },
+      set: function(value) {
+        this.$localStorage.set("database", JSON.stringify(value));
+        this.database_ = value;
+      }
+    },
+    selectedDatabases: {
+      get: function() {
+        return this.databases.filter((_, i) => {
+          return i in this.database;
+        });
+      }
+    },
+    searchDisabled() {
+      return (
+        this.inSearch || this.database.length == 0 || this.query.length == 0
+      );
+    },
+    error() {
+      return this.status.type == "error";
+    }
+  },
+  localStorage: {
+    history: {
+      type: Array,
+      default: []
+    }
+  },
+  created() {
+    this.fetchData();
+  },
+  watch: {
+    $route: "fetchData"
+  },
+  methods: {
+    origin() {
+      return (
+        window.location.protocol +
+        "//" +
+        window.location.hostname +
+        (window.location.port ? ":" + window.location.port : "")
+      );
+    },
+    fetchData() {
+      this.$http.get("api/databases").then(
+        response => {
+          response.json().then(data => {
+            this.dberror = false;
+            this.databases = data.databases;
 
-					var dbs = [];
-					for (var i in this.databases) {
-						if (this.databases[i].default == true) {
-							dbs.push(this.databases[i]);
-						}
-					}
+            var dbs = [];
+            for (var i in this.databases) {
+              if (this.databases[i].default == true) {
+                dbs.push(this.databases[i]);
+              }
+            }
 
-					if (this.database_ === null) {
-						this.database_ = Array.from(Array(this.databases.length).keys());
-					}
-				})
-			}, () => {
-				this.dberror = true;
-			});
-		},
-		search(event) {
-			var data = {
-				q: this.query,
-				database: this.selectedDatabases.map(x => {
-					return x.path;
-				}),
-				mode: this.mode
-			};
-			if (!__ELECTRON__ && this.email != '') {
-				data.email = this.email;
-			}
-			this.inSearch = true;
-			this.$http.post('api/ticket', data, { emulateJSON: true })
-				.then((response) => {
-					response.json().then((data) => {
-						this.status.message = this.status.type = "";
-						this.inSearch = false;
-						if (data.status == "PENDING" || data.status == "RUNNING") {
-							this.addToHistory(data.ticket);
-							this.$router.push({ name: 'queue', params: { ticket: data.ticket } });
-						} else if (data.status == "COMPLETED") {
-							this.addToHistory(data.ticket);
-							this.$router.push({ name: 'result', params: { ticket: data.ticket } });
-						} else {
-							this.status.type = "error";
-							this.status.message = "Error loading search result";
-						}
-					})
-				},
-				() => {
-					this.status.type = "error";
-					this.status.message = "Error loading search result";
-					this.inSearch = false;
-				});
-		},
-		fileDrop(event) {
-			event.preventDefault();
-			event.stopPropagation();
+            if (this.database_ === null) {
+              this.database_ = Array.from(Array(this.databases.length).keys());
+            }
+          });
+        },
+        () => {
+          this.dberror = true;
+        }
+      );
+    },
+    search(event) {
+      var data = {
+        q: this.query,
+        database: this.selectedDatabases.map(x => {
+          return x.path;
+        }),
+        mode: this.mode
+      };
+      if (!__ELECTRON__ && this.email != "") {
+        data.email = this.email;
+      }
+      this.inSearch = true;
+      this.$http.post("api/ticket", data, { emulateJSON: true }).then(
+        response => {
+          response.json().then(data => {
+            this.status.message = this.status.type = "";
+            this.inSearch = false;
+            if (data.status == "PENDING" || data.status == "RUNNING") {
+              this.addToHistory(data.ticket);
+              this.$router.push({
+                name: "queue",
+                params: { ticket: data.ticket }
+              });
+            } else if (data.status == "COMPLETED") {
+              this.addToHistory(data.ticket);
+              this.$router.push({
+                name: "result",
+                params: { ticket: data.ticket }
+              });
+            } else {
+              this.status.type = "error";
+              this.status.message = "Error loading search result";
+            }
+          });
+        },
+        () => {
+          this.status.type = "error";
+          this.status.message = "Error loading search result";
+          this.inSearch = false;
+        }
+      );
+    },
+    fileDrop(event) {
+      event.preventDefault();
+      event.stopPropagation();
 
-			var dataTransfer = event.dataTransfer || event.target;
-			if (dataTransfer && dataTransfer.files && dataTransfer.files.length > 0) {
-				this.upload(dataTransfer.files);
-			}
-		},
-		upload(files) {
-			var reader = new FileReader();
-			reader.onload = (e) => {
-				this.query = e.target.result;
-			};
-			reader.readAsText(files[0]);
-		},
-		addToHistory(uuid) {
-			let history = this.$localStorage.get('history');
+      var dataTransfer = event.dataTransfer || event.target;
+      if (dataTransfer && dataTransfer.files && dataTransfer.files.length > 0) {
+        this.upload(dataTransfer.files);
+      }
+    },
+    upload(files) {
+      var reader = new FileReader();
+      reader.onload = e => {
+        this.query = e.target.result;
+      };
+      reader.readAsText(files[0]);
+    },
+    addToHistory(uuid) {
+      let history = this.$localStorage.get("history");
 
-			let found = -1;
-			for (let i in history) {
-				if (history[i].ticket == uuid) {
-					found = i;
-					break;
-				}
-			}
+      let found = -1;
+      for (let i in history) {
+        if (history[i].ticket == uuid) {
+          found = i;
+          break;
+        }
+      }
 
-			if (found == -1) {
-				history.unshift({ time: +(new Date()), ticket: uuid });
-			} else {
-				let tmp = history[found];
-				tmp.time = +(new Date());
-				history.splice(found, 1);
-				history.unshift(tmp);
-			}
+      if (found == -1) {
+        history.unshift({ time: +new Date(), ticket: uuid });
+      } else {
+        let tmp = history[found];
+        tmp.time = +new Date();
+        history.splice(found, 1);
+        history.unshift(tmp);
+      }
 
-			this.$localStorage.set('history', history);
-		}
-	}
+      this.$localStorage.set("history", history);
+    }
+  }
 };
 </script>
 
 <style>
 .query-panel .actions {
-	flex:0;
+  flex: 0;
 }
 
-.query-panel textarea, .fasta .input-group__input {
-	height: 100%;
+.query-panel textarea,
+.fasta .input-group__input {
+  height: 100%;
 }
 
 .fasta {
-	margin-bottom: 16px;
+  margin-bottom: 16px;
 }
 
 .marv-bg {
-	background-image: url('/assets/marv-search-gray.png');
-	background-repeat: no-repeat;
-	background-position: right 15px bottom -10px;
-	background-size: 200px;
+  background-image: url("/assets/marv-search-gray.png");
+  background-repeat: no-repeat;
+  background-position: right 15px bottom -10px;
+  background-size: 200px;
 }
 
 code {
-	font-size: 0.8em;
+  font-size: 0.8em;
 }
 
 .tooltip label {
-	pointer-events: all;
+  pointer-events: all;
 }
 </style>
