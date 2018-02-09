@@ -8,7 +8,6 @@
 					</p>
 
 					<template slot="content">
-						<!-- Enter your queries here or drag-and-drop a fasta file containing your queries into the textbox. -->
 						<v-text-field aria-label="Enter queries in FASTA format" class="fasta marv-bg" hide-details multi-line v-model="query" @dragover.prevent @drop="fileDrop($event)" placeholder="Please start a Search" spellcheck="false"></v-text-field>
 
 						<div class="actions">
@@ -73,17 +72,21 @@
 					</div>
 				</panel>
 			</v-flex>
+			<v-layout row wrap>
+				<v-flex xs12 md8>
+					<v-card class="d-flex">
+						<v-card-title primary-title class="pb-0 mb-0">
+							<div class="headline mb-0">Reference</div>
+						</v-card-title>
+						<v-card-title primary-title class="pt-0 mt-0">
+							<p class="mb-0">Mirdita M., Söding J.#, and Steinegger M.#, <a href="#">MMseqs2 Webserver: Instant deployement, Instant searches</a>, <i>XXXX.</i> 201X.</p>
+							<small class="text-muted"># corresponding authors</small>
+						</v-card-title>
+					</v-card>
+				</v-flex>
+			</v-layout>
 		</v-layout>
 	</v-container>
-
-	<!-- 
-	<fieldset>
-		<legend>Reference</legend>
-		<div class="col-sm-12">
-		<p>Mirdita M., Söding J.#, and Steinegger M.#, <a href="#">MMseqs Webserver: Instant deployement, Instant searches</a>, <i>XXXX.</i> 201X.</p>
-		<small class="text-muted"># corresponding authors</small>
-		</div>
-	</fieldset>-->
 </template>
 
 <script>

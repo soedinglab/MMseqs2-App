@@ -49,23 +49,6 @@
             </template>
         </v-list-group>
         <v-divider></v-divider>
-
-        <!-- <nav aria-label="Page navigation">
-            <ul class="pager pager-sm">
-                <li :class="['previous', { disabled: page == 0 }]">
-                    <a @click="previous">
-                        <span aria-hidden="true">&larr;</span>
-                        <span class="sr-only">Older</span>
-                    </a>
-                    </li>
-                <li :class="['next', { disabled: !hasNext }]">
-                    <a @click="next">
-                        <span class="sr-only">Newer</span>
-                        <span aria-hidden="true">&rarr;</span>
-                    </a>
-                </li>
-            </ul>
-        </nav> -->
     </div>
 </template>
 

@@ -11,11 +11,6 @@
                     <v-toolbar-items>
                         <v-btn class="hide" ref="reset" dark @click="resetZoom" aria-hidden="true">Reset Zoom</v-btn>
                     </v-toolbar-items>
-                    <!-- <popover effect="fade" placement="bottom" content="The target hits are shown here.">
-                        <button class="btn btn-default help" role="button">
-                            <span class="glyphicon glyphicon-question-sign" aria-hidden="true"></span>
-                        </button>
-                    </popover> -->
                 </template>
 
                 <div slot="desc" v-if="resultState == 'PENDING'">
