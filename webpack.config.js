@@ -80,7 +80,9 @@ module.exports = {
 		}),
 		new CopyWebpackPlugin([
 			{
-				from: path.resolve(__dirname, './src/lib/d3/d3.js'),
+				from: isProduction
+					? path.resolve(__dirname, './src/lib/d3/d3.min.js') 
+					: path.resolve(__dirname, './src/lib/d3/d3.js'),
 				to: 'd3.js',
 				flatten: true
 			},
