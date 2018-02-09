@@ -9,8 +9,7 @@
 
 					<template slot="content">
 						<!-- Enter your queries here or drag-and-drop a fasta file containing your queries into the textbox. -->
-						<v-text-field class="fasta marv-bg" hide-details multi-line v-model="query" @dragover.prevent @drop="fileDrop($event)" placeholder="Please start a Search" spellcheck="false">
-						</v-text-field>
+						<v-text-field aria-label="Enter queries in FASTA format" class="fasta marv-bg" hide-details multi-line v-model="query" @dragover.prevent @drop="fileDrop($event)" placeholder="Please start a Search" spellcheck="false"></v-text-field>
 
 						<div class="actions">
 						<v-dialog v-if="!$ELECTRON" v-model="showCurl" lazy absolute :disabled="searchDisabled">
