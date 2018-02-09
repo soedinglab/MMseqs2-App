@@ -47,6 +47,7 @@ export default {
 			this.error = "";
 			const ticket = this.$route.params.ticket;
 			if (typeof (ticket) === "undefined") {
+				this.status = "ERROR";
 				return;
 			}
 

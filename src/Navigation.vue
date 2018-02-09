@@ -62,7 +62,6 @@
     </object>
 
     <v-spacer></v-spacer>
-    <v-toolbar-side-icon v-once v-if="!$ELECTRON" class="hidden-md-and-up"></v-toolbar-side-icon>
     <v-toolbar-items v-once v-if="!$ELECTRON" class="hidden-sm-and-down">
         <v-btn flat rel="external noopener" target="_blank" href="https://mmseqs.com">MMseqs2</v-btn>
         <v-btn flat rel="external noopener" target="_blank" href="https://github.com/soedinglab/mmseqs-webserver">Github</v-btn>

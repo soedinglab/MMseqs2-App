@@ -296,16 +296,6 @@ export default {
 	margin-bottom: 16px;
 }
 
-a.help {
-	color: #ccc;
-	text-decoration: none;
-}
-
-a.help:hover {
-	color: #999;
-	text-decoration: none;
-}
-
 .marv-bg {
 	background-image: url('/assets/marv-search-gray.png');
 	background-repeat: no-repeat;
