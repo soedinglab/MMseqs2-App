@@ -1,15 +1,13 @@
-require('./assets/style.css');
-
-if (__ELECTRON__) {
-    require('material-design-icons/iconfont/material-icons.css');
-}
-
 import Vue from 'vue';
 import VueRouter from 'vue-router';
 import VueResource from 'vue-resource';
 import VueLocalStorage from 'vue-localstorage/src/index.js';
 
+if (__ELECTRON__) {
+    require('material-design-icons/iconfont/material-icons.css');
+}
 require('vuetify/src/stylus/app.styl');
+require('vuetify/src/stylus/components/_tables.styl');
 
 import { 
     Vuetify,
@@ -28,8 +26,6 @@ import {
     VCheckbox,
     VRadioGroup,
     VDialog,
-    VProgressCircular,
-    VDataTable,
     VTooltip,
 } from 'vuetify';
 
@@ -50,11 +46,11 @@ Vue.use(Vuetify, {
         VCheckbox,
         VRadioGroup,
         VDialog,
-        VProgressCircular,
-        VDataTable,
         VTooltip,
     }
 });
+
+require('./assets/style.css');
 
 Vue.use(VueRouter);
 Vue.use(VueResource);

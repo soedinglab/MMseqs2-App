@@ -68,7 +68,7 @@
 							<span>Send an email when the job is done.</span>
 						</v-tooltip>
 
-						<v-btn color="primary" :loading="inSearch" block large v-on:click="search" :disabled="searchDisabled"><v-icon>search</v-icon>Search</v-btn>
+						<v-btn color="primary" block large v-on:click="search" :disabled="searchDisabled"><v-icon>search</v-icon>Search</v-btn>
 					</div>
 				</panel>
 			</v-flex>
