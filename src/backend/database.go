@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -61,7 +62,7 @@ func MaxEntryLength(index string) (int, error) {
 			return -1, errors.New("Invalid index file")
 		}
 
-		length, err := strconv.Atoi(fields[3])
+		length, err := strconv.Atoi(fields[2])
 		if err != nil {
 			return -1, err
 		}
@@ -73,21 +74,19 @@ func MaxEntryLength(index string) (int, error) {
 }
 
 func QuickExec(command string, params ...string) error {
+	if _, exists := os.LookupEnv("MMSEQS_WEB_DEBUG"); exists {
+		fmt.Println(strings.Join(params, " "))
+	}
 	cmd := exec.Command(command, params...)
 	if _, exists := os.LookupEnv("MMSEQS_WEB_DEBUG"); exists {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
 
-	err := cmd.Start()
+	err := cmd.Run()
 	if err != nil {
 		return err
 	}
-
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
 
 	return nil
 }
@@ -118,6 +117,7 @@ func ParseSense(parameters string) (int, error) {
 	return -1, nil
 }
 
+//"apiEndpoint": "https://search.mmseqs.com/"
 func CheckDatabase(params Params, basepath string, mmseqs string) error {
 	if FileExists(basepath+".fasta") && !FileExists(basepath) && !FileExists(basepath+".index") {
 		err := QuickExec(mmseqs, "createdb", basepath+".fasta", basepath)
@@ -131,7 +131,7 @@ func CheckDatabase(params Params, basepath string, mmseqs string) error {
 		}
 
 		maxSeqLen = max(maxSeqLen, 32000)
-		err = QuickExec(mmseqs, "createindex", basepath, "--mask", "2", "--include-headers", "--max-seq-len", strconv.Itoa(maxSeqLen))
+		err = QuickExec(mmseqs, "createindex", basepath, "tmp", "--mask", "2", "--include-headers", "--max-seq-len", strconv.Itoa(maxSeqLen))
 		if err != nil {
 			return err
 		}
@@ -202,11 +202,6 @@ func Databases(basepath string) ([]Params, error) {
 		base := filepath.Base(value)
 		name := strings.TrimSuffix(base, filepath.Ext(base))
 		params.Display.Path = name
-
-		err = CheckDatabase(params, base, "mmseqs")
-		if err != nil {
-			return nil, err
-		}
 
 		res = append(res, params)
 	}

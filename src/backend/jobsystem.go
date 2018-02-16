@@ -209,8 +209,8 @@ func (j *RedisJobSystem) NewJob(request JobRequest, databases []ParamsDisplay, j
 			}
 		}
 
-		_, err = tx.Set("mmseqs:status:"+ticket, s, 0).Result()
-		t.RawStatus = Status(s)
+		_, err = tx.Set("mmseqs:status:"+ticket, string(s), 0).Result()
+		t.RawStatus = s
 		if err != nil {
 			return err
 		}
