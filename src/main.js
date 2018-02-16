@@ -63,12 +63,12 @@ import Search from './Search.vue';
 import Queue from './Queue.vue';
 import Queries from './Queries.vue';
 
-const setup = __ELECTRON__ ? require('./Setup.vue').default : null;
+const Preferences = __ELECTRON__ ? require('./Preferences.vue').default : null;
 
 const router = new VueRouter({
     mode: __ELECTRON__ ? 'hash' : 'history',
     routes: [
-        { path: '/', component: __ELECTRON__ ? Setup : Search },
+        { path: '/', redirect: { name: 'search' } },
         { name: 'search', path: '/search', component: Search },
         { name: 'queue', path: '/queue/:ticket', component: Queue },
         { 
@@ -78,6 +78,7 @@ const router = new VueRouter({
                 sidebar: Queries
             }
         },
+        { name: 'preferences', path: '/preferences', component: Preferences },
     ],
     linkActiveClass: 'active'
 });

@@ -14,6 +14,15 @@
         <router-view name="sidebar"></router-view>
 
         <history />
+
+        <v-list-tile v-if="$ELECTRON" to="/preferences">
+            <v-list-tile-action>
+                <v-icon>settings</v-icon>
+            </v-list-tile-action>
+            <v-list-tile-content>
+                <v-list-tile-title>Preferences</v-list-tile-title>
+            </v-list-tile-content>
+        </v-list-tile>
     </v-list>
 </v-navigation-drawer>
 <v-toolbar dense fixed clipped-left app class="ml-0 pl-3">
