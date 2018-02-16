@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -25,28 +24,6 @@ import (
 	"gopkg.in/oleiade/lane.v1"
 )
 
-func readConfig(reader io.Reader) (ConfigRoot, error) {
-	var config ConfigRoot
-
-	if err := DecodeJsonAndValidate(reader, &config); err != nil {
-		return config, fmt.Errorf("Fatal error for config file: %s\n", err)
-	}
-	if _, err := os.Stat(config.Paths.Databases); err != nil {
-		return config, err
-	}
-	if _, err := os.Stat(config.Paths.Results); err != nil {
-		return config, err
-	}
-	if _, err := os.Stat(config.Paths.SearchScript); err != nil {
-		return config, err
-	}
-	if _, err := os.Stat(config.Paths.Mmseqs); err != nil {
-		return config, err
-	}
-
-	return config, nil
-}
-
 func server(jobsystem JobSystem, config ConfigRoot) {
 	databaseParams, err := Databases(config.Paths.Databases)
 	if err != nil {
@@ -55,7 +32,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 	var databases []ParamsDisplay
 	for _, db := range databaseParams {
-		err = CheckDatabase(db, config.Paths.Databases, config.Paths.Mmseqs)
+		err = CheckDatabase(db, path.Join(config.Paths.Databases, db.Display.Path), config.Paths.Mmseqs)
 		if err != nil {
 			panic(err)
 		}
@@ -397,12 +374,14 @@ func MakeRedisJobSystem(config ConfigRedis) *RedisJobSystem {
 }
 
 func main() {
-	file, err := os.Open(os.Args[2])
-	defer file.Close()
+	configFile := "config.json"
+	if len(os.Args) > 1 {
+		configFile = os.Args[2]
+	}
+	config, err := ReadConfig(configFile)
 	if err != nil {
 		panic(err)
 	}
-	config, err := readConfig(file)
 
 	if len(os.Args) <= 1 {
 		server(MakeRedisJobSystem(config.Redis), config)
