@@ -4,3 +4,6 @@ build/jobs/*
 build/mmseqs-web
 dump.rdb
 src/backend/vendor/*
+
+# Mac
+.DS_Store
