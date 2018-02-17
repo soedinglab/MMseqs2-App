@@ -236,7 +236,7 @@ func (e *JobTimeoutError) Error() string {
 	return "Timeout"
 }
 
-func RunJob(job Job, ticket Ticket, config ConfigRoot) error {
+func RunJob(job Job, ticket *Ticket, config ConfigRoot) error {
 	ticket.SetStatus("RUNNING")
 
 	cmd := exec.Command(
@@ -299,6 +299,11 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 			continue
 		}
 
+		if ticket == nil && err == nil {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
 		jobFile := path.Join(config.Paths.Results, string(ticket.Id), "job.json")
 
 		f, err := os.Open(jobFile)
@@ -317,7 +322,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 			continue
 		}
 
-		err = RunJob(job, *ticket, config)
+		err = RunJob(job, ticket, config)
 		// Do not try sending an email, if we are using the NullTransport
 		if _, ok := mailer.(NullTransport); ok {
 			continue

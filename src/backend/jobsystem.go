@@ -125,7 +125,7 @@ type RedisJobSystem struct {
 }
 
 func (j *RedisJobSystem) SetStatus(id Id, status Status) error {
-	_, err := j.Client.Set("mmseqs:status:"+string(id), status, 0).Result()
+	_, err := j.Client.Set("mmseqs:status:"+string(id), string(status), 0).Result()
 	if err != nil {
 		return err
 	}
@@ -261,12 +261,12 @@ func (j *RedisJobSystem) MultiStatus(ids []string) ([]Ticket, error) {
 
 func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
 	Zpop := redis.NewScript(`
-    local r = redis.call('ZRANGE', KEYS[1], 0, 0)
-    if r ~= nil then
-        r = r[1]
-        redis.call('ZREM', KEYS[1], r)
-    end
-    return r
+		local result = redis.call('zrange', KEYS[1], 0, 0)
+		if result then
+			result = result[1]
+			redis.call('zremrangebyrank', KEYS[1], 0, 0)
+		end
+		return result
 `)
 
 	pop, err := Zpop.Run(j.Client, []string{"mmseqs:pending"}).Result()
