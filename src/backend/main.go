@@ -375,7 +375,7 @@ func MakeRedisJobSystem(config ConfigRedis) *RedisJobSystem {
 
 func main() {
 	configFile := "config.json"
-	if len(os.Args) > 1 {
+	if len(os.Args) > 2 {
 		configFile = os.Args[2]
 	}
 	config, err := ReadConfig(configFile)
