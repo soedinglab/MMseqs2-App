@@ -39,10 +39,10 @@ type ConfigMail struct {
 }
 
 type ConfigRoot struct {
-	Address string      `json:"address"`
-	Paths   ConfigPaths `json:"paths"`
-	Redis   ConfigRedis `json:"redis"`
-	Mail    ConfigMail  `json:"default"`
+	Address string      `json:"address" valid:"required"`
+	Paths   ConfigPaths `json:"paths" valid:"required"`
+	Redis   ConfigRedis `json:"redis" valid:"optional"`
+	Mail    ConfigMail  `json:"mail" valid:"optional"`
 }
 
 func ReadConfig(fileName string) (ConfigRoot, error) {
