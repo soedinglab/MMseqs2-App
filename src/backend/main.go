@@ -11,17 +11,15 @@ import (
 	"os/exec"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
-
-	"gopkg.in/oleiade/lane.v1"
 )
 
 func server(jobsystem JobSystem, config ConfigRoot) {
@@ -369,15 +367,6 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 	}
 }
 
-func MakeRedisJobSystem(config ConfigRedis) *RedisJobSystem {
-	return &RedisJobSystem{redis.NewClient(&redis.Options{
-		Network:  config.Network,
-		Addr:     config.Address,
-		Password: config.Password,
-		DB:       config.DbIndex,
-	})}
-}
-
 func main() {
 	configFile := "config.json"
 	if len(os.Args) > 2 {
@@ -397,22 +386,26 @@ func main() {
 		case "-server":
 			server(MakeRedisJobSystem(config.Redis), config)
 		case "-local":
-			jobsystem := LocalJobSystem{}
-			jobsystem.Queue = lane.NewPQueue(lane.MINPQ)
+			jobsystem := MakeLocalJobSystem()
 
 			sigs := make(chan os.Signal, 1)
 			signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 			go func() {
 				<-sigs
-				jobsystem.Queue.Lock()
-
-				os.Exit(1)
+				os.Exit(0)
 			}()
 
 			loop := make(chan bool)
 			go worker(&jobsystem, config)
 			go server(&jobsystem, config)
 			<-loop
+
+			encodeFile, err := os.Create(filepath.Join(config.Paths.Results, "queue.gob"))
+			defer encodeFile.Close()
+			if err != nil {
+				panic(err)
+			}
+			jobsystem.Serialize(encodeFile)
 		}
 	}
 }

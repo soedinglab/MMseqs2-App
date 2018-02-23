@@ -3,18 +3,20 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/go-redis/redis"
-	"gopkg.in/oleiade/lane.v1"
 )
 
 type JobRequest struct {
@@ -122,6 +124,15 @@ type JobSystem interface {
 
 type RedisJobSystem struct {
 	Client *redis.Client
+}
+
+func MakeRedisJobSystem(config ConfigRedis) *RedisJobSystem {
+	return &RedisJobSystem{redis.NewClient(&redis.Options{
+		Network:  config.Network,
+		Addr:     config.Address,
+		Password: config.Password,
+		DB:       config.DbIndex,
+	})}
 }
 
 func (j *RedisJobSystem) SetStatus(id Id, status Status) error {
@@ -296,8 +307,17 @@ func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
 }
 
 type LocalJobSystem struct {
+	mutex  *sync.Mutex
+	Queue  []Id
 	Lookup map[Id]Status
-	Queue  *lane.PQueue
+}
+
+func MakeLocalJobSystem() LocalJobSystem {
+	jobsystem := LocalJobSystem{}
+	jobsystem.mutex = &sync.Mutex{}
+	jobsystem.Queue = make([]Id, 0)
+	jobsystem.Lookup = make(map[Id]Status)
+	return jobsystem
 }
 
 func (j *LocalJobSystem) SetStatus(id Id, status Status) error {
@@ -348,12 +368,11 @@ func (j *LocalJobSystem) NewJob(request JobRequest, databases []ParamsDisplay, j
 		return t, nil
 	}
 
-	j.Queue.Push(string(ticket), int(request.Rank()))
-
 	workdir := filepath.Join(jobsbase, ticket)
 
 	err = os.Mkdir(workdir, 0755)
 	if err != nil {
+		// TODO if already successful return complete
 		s = StatusError
 	}
 
@@ -373,8 +392,12 @@ func (j *LocalJobSystem) NewJob(request JobRequest, databases []ParamsDisplay, j
 		}
 	}
 
-	j.Lookup[Id(ticket)] = s
 	t.RawStatus = s
+
+	j.mutex.Lock()
+	j.Queue = append(j.Queue, Id(ticket))
+	j.SetStatus(Id(ticket), s)
+	j.mutex.Unlock()
 
 	return t, nil
 }
@@ -399,22 +422,40 @@ func (j *LocalJobSystem) MultiStatus(ids []string) ([]Ticket, error) {
 }
 
 func (j *LocalJobSystem) Dequeue() (*Ticket, error) {
-	pop, _ := j.Queue.Pop()
-
-	var id Id
-	switch vv := pop.(type) {
-	case nil:
-		return nil, errors.New("Invalid ticket id!")
-	case []byte:
-		id = Id(string(vv))
-	default:
-		id = Id(fmt.Sprint(vv))
+	// pop the tail of the queue
+	if len(j.Queue) == 0 {
+		return nil, nil
 	}
-
+	j.mutex.Lock()
+	id := j.Queue[len(j.Queue)-1]
+	j.Queue = j.Queue[:len(j.Queue)-1]
+	j.mutex.Unlock()
 	ticket, err := j.GetTicket(id)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ticket, nil
+}
+
+func (j *LocalJobSystem) Serialize(writer io.Writer) error {
+	j.mutex.Lock()
+	defer j.mutex.Unlock()
+	encoder := gob.NewEncoder(writer)
+	if err := encoder.Encode(j); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func DeserializeLocalJobSystem(reader io.Reader) (LocalJobSystem, error) {
+	jobsystem := LocalJobSystem{}
+	decoder := gob.NewDecoder(reader)
+	if err := decoder.Decode(jobsystem); err != nil {
+		return jobsystem, err
+	}
+	jobsystem.mutex = &sync.Mutex{}
+
+	return jobsystem, nil
 }
