@@ -1,13 +1,12 @@
 <template>
-	<v-container grid-list-md>
+	<v-container grid-list-md fluid>
 		<v-layout row wrap>
 			<v-flex xs12 md8>
 				<panel class="query-panel d-flex fill-height" header="Queries" fill-height>
-					<p slot="desc" v-if="error" class="alert alert-danger">
-						{{ status.message }}
-					</p>
-
 					<template slot="content">
+            <!-- <div v-if="error" class="alert alert-danger"> -->
+						  <!-- {{ status.message }} -->
+					  <!-- </div> -->
 						<v-text-field aria-label="Enter queries in FASTA format" class="fasta marv-bg" hide-details multi-line v-model="query" @dragover.prevent @drop="fileDrop($event)" placeholder="Please start a Search" spellcheck="false"></v-text-field>
 
 						<div class="actions">
@@ -72,20 +71,20 @@
 					</div>
 				</panel>
 			</v-flex>
-			<v-layout row wrap>
-				<v-flex xs12 md8>
-					<v-card class="d-flex">
-						<v-card-title primary-title class="pb-0 mb-0">
-							<div class="headline mb-0">Reference</div>
-						</v-card-title>
-						<v-card-title primary-title class="pt-0 mt-0">
-							<p class="mb-0">Mirdita M., Söding J.#, and Steinegger M.#, <a href="#">MMseqs2 Webserver: Instant deployement, Instant searches</a>, <i>XXXX.</i> 201X.</p>
-							<small class="text-muted"># corresponding authors</small>
-						</v-card-title>
-					</v-card>
-				</v-flex>
-			</v-layout>
 		</v-layout>
+    <v-layout row wrap>
+      <v-flex xs12 md8>
+        <v-card class="d-flex">
+          <v-card-title primary-title class="pb-0 mb-0">
+            <div class="headline mb-0">Reference</div>
+          </v-card-title>
+          <v-card-title primary-title class="pt-0 mt-0">
+            <p class="mb-0">Mirdita M., Söding J.#, and Steinegger M.#, <a href="#">MMseqs2 Webserver: Instant deployement, Instant searches</a>, <i>XXXX.</i> 201X.</p>
+            <small class="text-muted"># corresponding authors</small>
+          </v-card-title>
+        </v-card>
+      </v-flex>
+    </v-layout>
 	</v-container>
 </template>
 
@@ -240,16 +239,16 @@ export default {
             this.status.message = this.status.type = "";
             this.inSearch = false;
             if (data.status == "PENDING" || data.status == "RUNNING") {
-              this.addToHistory(data.ticket);
+              this.addToHistory(data.id);
               this.$router.push({
                 name: "queue",
-                params: { ticket: data.ticket }
+                params: { ticket: data.id }
               });
-            } else if (data.status == "COMPLETED") {
-              this.addToHistory(data.ticket);
+            } else if (data.status == "COMPLETE") {
+              this.addToHistory(data.id);
               this.$router.push({
                 name: "result",
-                params: { ticket: data.ticket }
+                params: { ticket: data.id, entry: 0 }
               });
             } else {
               this.status.type = "error";
@@ -281,6 +280,10 @@ export default {
       reader.readAsText(files[0]);
     },
     addToHistory(uuid) {
+      if (!uuid) {
+        return;
+      }
+
       let history = this.$localStorage.get("history");
 
       let found = -1;

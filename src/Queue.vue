@@ -65,7 +65,7 @@ export default {
 								this.status = "FAILED";
 								this.error = "FAILED";
 								break;
-							case "COMPLETED":
+							case "COMPLETE":
 								this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
 								break;
 							default:

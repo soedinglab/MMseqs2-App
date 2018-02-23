@@ -20,7 +20,7 @@
         <v-list two-line subheader dense>
             <v-list-tile v-for="(child, i) in items.slice(page * limit, (page + 1) * limit)" :key="i" :class="{ 'list__tile--highlighted': child.ticket == ticket }" :to="formattedRoute(child)">
                 <v-list-tile-action>
-                    <identicon v-if="child.status == 'COMPLETED'" :hash="child.ticket">done</identicon>
+                    <identicon v-if="child.status == 'COMPLETE'" :hash="child.ticket">done</identicon>
                     <v-icon v-else-if="child.status == 'RUNNING'">query-builder</v-icon>
                     <v-icon v-else-if="child.status == 'PENDING'">schedule</v-icon>
                     <v-icon v-else-if="child.status == 'ERROR'">error-outline</v-icon>
