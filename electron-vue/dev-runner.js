@@ -1,6 +1,5 @@
 'use strict'
 
-const chalk = require('chalk')
 const electron = require('electron')
 const path = require('path')
 const { spawn } = require('child_process')
@@ -18,7 +17,7 @@ let hotMiddleware
 function logStats (proc, data) {
   let log = ''
 
-  log += chalk.yellow.bold(`┏ ${proc} Process ${new Array((19 - proc.length) + 1).join('-')}`)
+  log += `┏ ${proc} Process ${new Array((19 - proc.length) + 1).join('-')}`
   log += '\n\n'
 
   if (typeof data === 'object') {
@@ -32,7 +31,7 @@ function logStats (proc, data) {
     log += `  ${data}\n`
   }
 
-  log += '\n' + chalk.yellow.bold(`┗ ${new Array(28 + 1).join('-')}`) + '\n'
+  log += '\n' + `┗ ${new Array(28 + 1).join('-')}` + '\n'
 
   console.log(log)
 }
@@ -83,7 +82,7 @@ function startMain () {
     const compiler = webpack(mainConfig)
 
     compiler.plugin('watch-run', (compilation, done) => {
-      logStats('Main', chalk.white.bold('compiling...'))
+      logStats('Main', 'compiling...')
       hotMiddleware.publish({ action: 'compiling' })
       done()
     })
@@ -116,10 +115,10 @@ function startElectron () {
   electronProcess = spawn(electron, ['--inspect=5858', path.join(__dirname, '../dist/electron/main.js')])
 
   electronProcess.stdout.on('data', data => {
-    electronLog(data, 'blue')
+    electronLog(data)
   })
   electronProcess.stderr.on('data', data => {
-    electronLog(data, 'red')
+    electronLog(data)
   })
 
   electronProcess.on('close', () => {
@@ -127,7 +126,7 @@ function startElectron () {
   })
 }
 
-function electronLog (data, color) {
+function electronLog (data) {
   let log = ''
   data = data.toString().split(/\r?\n/)
   data.forEach(line => {
@@ -135,10 +134,10 @@ function electronLog (data, color) {
   })
   if (/[0-9A-z]+/.test(log)) {
     console.log(
-      chalk[color].bold('┏ Electron -------------------') +
+      '┏ Electron -------------------' +
       '\n\n' +
       log +
-      chalk[color].bold('┗ ----------------------------') +
+      '┗ ----------------------------' +
       '\n'
     )
   }
