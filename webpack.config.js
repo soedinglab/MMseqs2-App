@@ -26,7 +26,7 @@ module.exports = {
 				loader: 'vue-loader',
 				options: {
 					extractCSS: true,
-					transformToRequire : { img: 'src', image: 'xlink:href', object: 'data' },
+					transformToRequire : { object: 'data' },
 					include: [
 						path.resolve(__dirname, './src'),
 						path.resolve(__root, './node_modules/vuetify/src'),
@@ -77,18 +77,6 @@ module.exports = {
 			__CONFIG__: JSON.stringify(require('./package.json').configuration),
 			__ELECTRON__: isElectron
 		}),
-		new CopyWebpackPlugin([
-			{
-				from: path.resolve(__dirname, './src/assets/') + '/*.png',
-				to: 'assets',
-				flatten: true
-			},
-			{
-				from: path.resolve(__dirname, './src/assets/') + '/*.svg',
-				to: 'assets',
-				flatten: true
-			}
-		]),
 		new HtmlWebpackPlugin({
 			template: path.resolve(__dirname, './src/index.html'),
 			attrs: ['img:src', 'object:data']

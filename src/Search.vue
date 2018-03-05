@@ -324,7 +324,7 @@ export default {
 }
 
 .marv-bg {
-  background-image: url("/assets/marv-search-gray.png");
+  background-image: url("./assets/marv-search-gray.png");
   background-repeat: no-repeat;
   background-position: right 15px bottom -10px;
   background-size: 200px;

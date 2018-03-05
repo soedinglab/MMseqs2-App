@@ -40,7 +40,7 @@
     "html-webpack-plugin": "^2.30.1",
     "stylus": "^0.54.5",
     "stylus-loader": "^3.0.1",
-    "vue-loader": "^14.1.1",
+    "vue-loader": "14.0.0",
     "vue-style-loader": "^3.1.2",
     "vue-template-compiler": "^2.5",
     "webpack": "^3.10.0",

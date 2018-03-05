@@ -30,7 +30,7 @@
     <v-toolbar-title>MMseqs2 Search</v-toolbar-title>
     <object style="margin-left:8px; display: inline-block; width: 38px;height: 38px;vertical-align: middle" 
             type="image/svg+xml"
-            data="/assets/marv1.svg"
+            data="./assets/marv1.svg"
             aria-hidden="true">
         <img src="./assets/marv1.png" style="max-width:100%" />
     </object>

@@ -23,7 +23,7 @@
 				<v-container fill-height grid-list-md>
 					<v-layout row justify-center>
 						<v-flex xs4>
-							<img style="max-width:100%" src="/assets/marv-error_2x.png" src-set="/assets/marv-error_2x.png 2x, /assets/marv-error_3x.png 3x" />
+							<img style="max-width:100%" src="./assets/marv-error_2x.png" srcset="./assets/marv-error_2x.png 2x, ./assets/marv-error_3x.png 3x" />
 						</v-flex>
 						<v-flex xs8>
 							<h3>Error!</h3>

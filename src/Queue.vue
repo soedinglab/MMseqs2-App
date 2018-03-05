@@ -15,9 +15,9 @@
 				</div>
 
 				<div class="status-img text-xs-center" slot="content" aria-hidden="true">
-					<img v-if="status == 'PENDING'" src="/assets/marv-search_2x.png" src-set="/assets/marv-search_2x.png 2x, /assets/marv-search_3x.png 3x" />
-					<img v-else-if="status == 'RUNNING'" src="/assets/marv-result_2x.png" src-set="/assets/marv-result_2x.png 2x, /assets/marv-result_3x.png 3x" />
-					<img v-else src="/assets/marv-error_2x.png" src-set="/assets/marv-error_2x.png 2x, /assets/marv-error_3x.png 3x" />
+					<img v-if="status == 'PENDING'" src="./assets/marv-search_2x.png" srcset="./assets/marv-search_2x.png 2x, ./assets/marv-search_3x.png 3x" />
+					<img v-else-if="status == 'RUNNING'" src="./assets/marv-result_2x.png" srcset="./assets/marv-result_2x.png 2x, ./assets/marv-result_3x.png 3x" />
+					<img v-else src="./assets/marv-error_2x.png" srcset="./assets/marv-error_2x.png 2x, ./assets/marv-error_3x.png 3x" />
 				</div>
 			</panel>
 		</v-flex>

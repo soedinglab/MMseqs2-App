@@ -41,7 +41,7 @@ export default {
 }
 
 .panel-root .toolbar.theme--dark {
-    background: url('/assets/spiration-dark.png');
+    background: url('./assets/spiration-dark.png');
     background-repeat: repeat;
 }
 </style>
