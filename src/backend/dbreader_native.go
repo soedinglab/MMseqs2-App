@@ -35,7 +35,7 @@ func (d *Reader) Make(data string, index string) {
 	defer f.Close()
 
 	entry := Entry{}
-	parser := NewParser(bufio.NewReader(f), &entry)
+	parser := NewTsvParser(bufio.NewReader(f), &entry)
 	for {
 		eof, err := parser.Next()
 		if eof {
@@ -84,7 +84,7 @@ func (d *Reader) Data(id int64) string {
 		return ""
 	}
 	d.file.Seek(int64(d.Index[id].Offset), io.SeekStart)
-	length := d.Index[id].Length
+	length := d.Index[id].Length - 1
 	buffer := make([]byte, length)
 	d.file.Read(buffer)
 	return string(buffer[:length])
