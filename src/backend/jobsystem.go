@@ -3,11 +3,9 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -436,26 +434,4 @@ func (j *LocalJobSystem) Dequeue() (*Ticket, error) {
 	}
 
 	return &ticket, nil
-}
-
-func (j *LocalJobSystem) Serialize(writer io.Writer) error {
-	j.mutex.Lock()
-	defer j.mutex.Unlock()
-	encoder := gob.NewEncoder(writer)
-	if err := encoder.Encode(j); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func DeserializeLocalJobSystem(reader io.Reader) (LocalJobSystem, error) {
-	jobsystem := LocalJobSystem{}
-	decoder := gob.NewDecoder(reader)
-	if err := decoder.Decode(jobsystem); err != nil {
-		return jobsystem, err
-	}
-	jobsystem.mutex = &sync.Mutex{}
-
-	return jobsystem, nil
 }
