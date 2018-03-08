@@ -1,15 +1,16 @@
 package main
 
 import (
+    "os"
 	"github.com/intel-go/cpuid"
 )
 
 func main() {
 	if cpuid.HasExtendedFeature(cpuid.AVX2) {
-		println("avx2")
+        os.Stdout.WriteString("avx2")
 	} else if cpuid.HasFeature(cpuid.SSE4_1) {
-		println("sse4.1")
+		os.Stdout.WriteString("sse4.1")
 	} else {
-		println("fail")
+		os.Stdout.WriteString("fail")
 	}
 }
