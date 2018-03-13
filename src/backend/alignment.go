@@ -43,7 +43,7 @@ func dbpaths(path string) (string, string) {
 
 func Alignments(ticket Ticket, entry int64, jobsbase string) (AlignmentResponse, error) {
 	base := filepath.Join(jobsbase, string(ticket.Id))
-	matches, err := filepath.Glob(filepath.Clean(filepath.Join(base, "alis")) + "_*.index")
+	matches, err := filepath.Glob(filepath.Join(filepath.Clean(base), "alis_*.index"))
 	if err != nil {
 		return AlignmentResponse{}, err
 	}
