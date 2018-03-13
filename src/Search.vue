@@ -7,7 +7,7 @@
             <!-- <div v-if="error" class="alert alert-danger"> -->
 						  <!-- {{ status.message }} -->
 					  <!-- </div> -->
-						<v-text-field aria-label="Enter queries in FASTA format" class="fasta marv-bg" hide-details multi-line v-model="query" @dragover.prevent @drop="fileDrop($event)" placeholder="Please start a Search" spellcheck="false"></v-text-field>
+						<v-text-field aria-label="Enter queries in FASTA format" class="marv-bg" hide-details multi-line v-model="query" @dragover.prevent @drop="fileDrop($event)" placeholder="Please start a Search" spellcheck="false"></v-text-field>
 
 						<div class="actions">
 						<v-dialog v-if="!$ELECTRON" v-model="showCurl" lazy absolute :disabled="searchDisabled">
@@ -74,7 +74,7 @@
 		</v-layout>
     <v-layout row wrap>
       <v-flex xs12 md8>
-        <v-card class="d-flex">
+        <v-card>
           <v-card-title primary-title class="pb-0 mb-0">
             <div class="headline mb-0">Reference</div>
           </v-card-title>
@@ -288,14 +288,14 @@ export default {
 
       let found = -1;
       for (let i in history) {
-        if (history[i].ticket == uuid) {
+        if (history[i].id == uuid) {
           found = i;
           break;
         }
       }
 
       if (found == -1) {
-        history.unshift({ time: +new Date(), ticket: uuid });
+        history.unshift({ time: +new Date(), id: uuid });
       } else {
         let tmp = history[found];
         tmp.time = +new Date();
@@ -314,13 +314,8 @@ export default {
   flex: 0;
 }
 
-.query-panel textarea,
-.fasta .input-group__input {
+.query-panel textarea {
   height: 100%;
-}
-
-.fasta {
-  margin-bottom: 16px;
 }
 
 .marv-bg {
@@ -328,6 +323,14 @@ export default {
   background-repeat: no-repeat;
   background-position: right 15px bottom -10px;
   background-size: 200px;
+}
+
+.marv-bg .input-group__input {
+  max-height: inherit;
+}
+
+.marv-bg textarea {
+  min-height: 250px;
 }
 
 code {
