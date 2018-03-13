@@ -18,9 +18,9 @@
         </v-list-tile>
 
         <v-list two-line subheader dense>
-            <v-list-tile v-for="(child, i) in items.slice(page * limit, (page + 1) * limit)" :key="i" :class="{ 'list__tile--highlighted': child.ticket == ticket }" :to="formattedRoute(child)">
+            <v-list-tile v-for="(child, i) in items.slice(page * limit, (page + 1) * limit)" :key="i" :class="{ 'list__tile--highlighted': child.id == current }" :to="formattedRoute(child)">
                 <v-list-tile-action>
-                    <identicon v-if="child.status == 'COMPLETE'" :hash="child.ticket">done</identicon>
+                    <identicon v-if="child.status == 'COMPLETE'" :hash="child.id">done</identicon>
                     <v-icon v-else-if="child.status == 'RUNNING'">query-builder</v-icon>
                     <v-icon v-else-if="child.status == 'PENDING'">schedule</v-icon>
                     <v-icon v-else-if="child.status == 'ERROR'">error-outline</v-icon>
@@ -30,7 +30,7 @@
                     <v-list-tile-title>
                         {{ formattedDate(child.time) }}
                     </v-list-tile-title>
-                    <v-list-tile-sub-title><span class="mono">{{ child.ticket }}</span></v-list-tile-sub-title>
+                    <v-list-tile-sub-title><span class="mono">{{ child.id }}</span></v-list-tile-sub-title>
                 </v-list-tile-content>
             </v-list-tile>
         </v-list>
@@ -43,6 +43,7 @@ import Identicon from './Identicon.vue';
 export default {
     components: { Identicon },
     data: () => ({
+        current: "",
         drawer: false,
         error: false,
         items: [],
@@ -75,15 +76,15 @@ export default {
             this.page += 1;
         },
         fetchData() {
-            this.ticket = this.$route.params.ticket || null;
+            this.current = this.$route.params.ticket;
 
             this.error = false;
-            var history = this.$localStorage.get('history');
+            this.items = this.$localStorage.get('history');
 
-            var tickets = [];
-            for (var i in history) {
-                tickets.push(history[i].ticket);
-                history[i].status = "UNKOWN";
+            let tickets = [];
+            for (let i in this.items) {
+                tickets.push(this.items[i].id);
+                this.items[i].status = "UNKNOWN";
             }
 
             this.$http.post('api/tickets', { tickets: tickets }, { emulateJSON: true }).then(
@@ -93,14 +94,14 @@ export default {
                         var items = [];
                         for (var i in data) {
                             var include = false;
-                            if (data[i].status == "COMPLETED") {
+                            if (data[i].status == "COMPLETE") {
                                 include = true;
-                            } else if ((now - history[i].time) < (1000 * 60 * 60 * 24 * 7)) {
+                            } else if ((now - this.items[i].time) < (1000 * 60 * 60 * 24 * 7)) {
                                 include = true;
                             }
 
                             if (include) {
-                                var entry = history[i];
+                                var entry = this.items[i];
                                 entry.status = data[i].status;
                                 items.push(entry);
                             }
@@ -113,10 +114,10 @@ export default {
                 });
         },
         formattedRoute(element) {
-            if (element.status == 'COMPLETED') {
-                return '/result/' + element.ticket + '/0';
+            if (element.status == 'COMPLETE') {
+                return '/result/' + element.id + '/0';
             }
-            return '/queue/' + element.ticket;
+            return '/queue/' + element.id;
         },
         formattedDate(timestamp) {
             const date = new Date(timestamp);
