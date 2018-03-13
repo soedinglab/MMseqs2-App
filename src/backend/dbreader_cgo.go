@@ -11,7 +11,7 @@ type Reader struct {
 }
 
 func (d *Reader) Make(data string, index string) {
-	d.handle = C.make_reader(C.CString(data), C.CString(index), 1)
+	d.handle = C.make_reader(C.CString(data), C.CString(index), 1|2)
 }
 
 func (d *Reader) Delete() {

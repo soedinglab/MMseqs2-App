@@ -162,7 +162,6 @@ int64_t reader_get_size(void *r) {
     return reader->size;
 }
 
-
 char *file_map(FILE *file, ssize_t *size) {
     struct stat sb;
     fstat(fileno(file), &sb);
@@ -225,6 +224,7 @@ char* skipLine(char *data) {
     }
     return (data+1);
 }
+
 size_t getWordsOfLine(char * data, char ** words, size_t maxElement ){
     size_t elementCounter = 0;
     while (*data != '\n' && *data != '\0'){
