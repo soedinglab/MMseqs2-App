@@ -19,10 +19,10 @@ func Lookup(ticketId Id, page uint64, limit uint64, basepath string) (LookupResp
 	result := filepath.Join(basepath, string(ticketId), "input.lookup")
 
 	file, err := os.Open(result)
-	defer file.Close()
 	if err != nil {
 		return LookupResponse{}, err
 	}
+	defer file.Close()
 
 	var results []LookupResult
 	res := LookupResult{}
