@@ -56,8 +56,6 @@ Vue.use(VueRouter);
 Vue.use(VueResource);
 Vue.use(VueLocalStorage);
 
-Vue.url.options.root = __CONFIG__.apiEndpoint;
-
 import App from './App.vue';
 import Search from './Search.vue';
 import Queue from './Queue.vue';
@@ -90,12 +88,23 @@ Vue.use({
             const remote = require('electron').remote;
             Vue.prototype.__OS__ = { arch: remote.app.os.arch(), platform: remote.app.os.platform() };
             Vue.prototype.__SIMD__ = remote.app.simdLevel;
+            Vue.prototype.saveResult = remote.app.saveResult;
         } else {
             Vue.prototype.__OS__ = { arch: 'web', platform: 'web' };
             Vue.prototype.__SIMD__ = false;
         }
     }
 });
+
+if (__ELECTRON__) {
+    const remote = require('electron').remote;
+    Vue.url.options.root = remote.app.apiEndpoint;
+    Vue.http.interceptors.push(function (request) {
+        request.headers.set('Authorization', `Basic ${remote.app.token}`);
+    });
+} else {
+    Vue.url.options.root = __CONFIG__.apiEndpoint;
+}
 
 const app = new Vue({
     el: '#app',

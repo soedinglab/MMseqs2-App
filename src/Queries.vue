@@ -2,7 +2,21 @@
     <div>
         <v-divider></v-divider>
         <v-subheader class="grey--text mono">{{ticket.substr(0,30)}}…</v-subheader>
-        <v-list-tile :target="$ELECTRON ? '' : '_blank'" :href="$url('api/m8/' + ticket)">
+        <v-list-tile v-if="$ELECTRON" @click="electronDownload(ticket)">
+            <v-list-tile-action>
+                <v-icon>file_download</v-icon>
+            </v-list-tile-action>
+            <v-list-tile-content>
+                <v-list-tile-title v-if="multi">
+                    Download All
+                </v-list-tile-title>
+
+                <v-list-tile-title v-else>
+                    Download M8
+                </v-list-tile-title>
+            </v-list-tile-content>
+        </v-list-tile>
+        <v-list-tile v-else target="_blank" :href="$url('api/result/download/' + ticket)">
             <v-list-tile-action>
                 <v-icon>cloud_download</v-icon>
             </v-list-tile-action>
@@ -109,6 +123,9 @@ export default {
             }).catch(() => {
                 this.status = "error";
             });
+        },
+        electronDownload(ticket) {
+            this.saveResult(ticket);
         }
     }
 }
