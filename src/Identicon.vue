@@ -17,17 +17,17 @@ function h(x){
 }
 
 export default {
-  name: "identicon",
-  props: { hash: { default: "", type: String }, size: { default: 32, type: Number } },
-  methods: {
-    makeData(hash, size) {
-      return new identicon(h(hash), {
-        background: [255, 255, 255, 255],
-        margin: 0,
-        size: size,
-        format: "svg"
-      }).toString();
+    name: "identicon",
+    props: { hash: { default: "", type: String }, size: { default: 32, type: Number } },
+    methods: {
+        makeData(hash, size) {
+            return new identicon(h(hash), {
+                background: [255, 255, 255, 255],
+                margin: 0,
+                size: size,
+                format: "svg"
+            }).toString();
+        }
     }
-  }
 };
 </script>

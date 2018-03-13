@@ -1,6 +1,6 @@
 <template>
-	<v-container grid-list-md fluid>
-		<v-layout row wrap>
+    <v-container grid-list-md fluid>
+        <v-layout row wrap>
             <v-flex xs12>
             <panel>
                 <template slot="header">
@@ -90,8 +90,8 @@
                     </table>
                 </panel>
             </v-flex>
-		</v-layout>
-	</v-container>
+        </v-layout>
+    </v-container>
 </template>
 
 <script>
@@ -131,94 +131,94 @@ function mapPosToSeq(seq, targetPos) {
 var m = null;
 
 export default {
-	name: 'result',
-	components: { Queries, Panel },
-	data() {
-		return {
-			ticket: "",
-			error: "",
-			entry: 0,
-			hits: null,
-		};
-	},
-	beforeDestroy() {
-		this.remove();
-	},
-	mounted() {
+    name: 'result',
+    components: { Queries, Panel },
+    data() {
+        return {
+            ticket: "",
+            error: "",
+            entry: 0,
+            hits: null,
+        };
+    },
+    beforeDestroy() {
+        this.remove();
+    },
+    mounted() {
         this.fetchData();
-	},
-	updated() {
-		if (this.$refs.hits) {
-			this.setData(this.hits);
-		}
-	},
-	computed: {
-		resultState() {
-			if (this.hits == null && this.error == "") {
-				return "PENDING";
-			}
+    },
+    updated() {
+        if (this.$refs.hits) {
+            this.setData(this.hits);
+        }
+    },
+    computed: {
+        resultState() {
+            if (this.hits == null && this.error == "") {
+                return "PENDING";
+            }
 
-			if (!this.hits.results) {
-				return "ERROR";
-			}
+            if (!this.hits.results) {
+                return "ERROR";
+            }
 
-			var hasResult = this.hits.results.length > 0;
-			if (this.hits.results.length == 0) {
-				return "EMPTY";
-			}
+            var hasResult = this.hits.results.length > 0;
+            if (this.hits.results.length == 0) {
+                return "EMPTY";
+            }
 
-			for (var i in this.hits.results) {
-				if (this.hits.results[i].alignments != null) {
-					return "RESULT";
-				}
-			}
+            for (var i in this.hits.results) {
+                if (this.hits.results[i].alignments != null) {
+                    return "RESULT";
+                }
+            }
 
-			return "ERROR";
-		}
-	},
-	watch: {
+            return "ERROR";
+        }
+    },
+    watch: {
         '$route': 'fetchData'
-	},
-	methods: {
-		tryLinkTargetToDB(target, db) {
-			if (db.startsWith("pfam_")) {
-				return 'https://pfam.xfam.org/family/' + target;
-			} else if (db.startsWith("pdb")) {
-				return 'https://www.rcsb.org/pdb/explore.do?structureId=' + target.split('_')[0];
-			} else if (db.startsWith("uniclust") || db.startsWith("uniprot")) {
-				return 'https://www.uniprot.org/uniprot/' + target;
-			} else if (db.startsWith("eggnog_")) {
-				return 'http://eggnogdb.embl.de/#/app/results?target_nogs=' + target;
-			}
-			return null;
-		},
-		fetchData(entry) {
-			this.ticket = this.$route.params.ticket;
-			this.entry = this.$route.params.entry;
+    },
+    methods: {
+        tryLinkTargetToDB(target, db) {
+            if (db.startsWith("pfam_")) {
+                return 'https://pfam.xfam.org/family/' + target;
+            } else if (db.startsWith("pdb")) {
+                return 'https://www.rcsb.org/pdb/explore.do?structureId=' + target.split('_')[0];
+            } else if (db.startsWith("uniclust") || db.startsWith("uniprot")) {
+                return 'https://www.uniprot.org/uniprot/' + target;
+            } else if (db.startsWith("eggnog_")) {
+                return 'http://eggnogdb.embl.de/#/app/results?target_nogs=' + target;
+            }
+            return null;
+        },
+        fetchData(entry) {
+            this.ticket = this.$route.params.ticket;
+            this.entry = this.$route.params.entry;
 
-			this.$http.get("api/result/" + this.ticket + '/' + this.entry)
-				.then((response) => {
-					this.error = "";
-					response.json().then((data) => {
-						if (data.alignments == null || data.alignments.length > 0) {
-							var color = colorScale();
-							for (var i in data.results) {
-								var db = data.results[i].db;
-								data.results[i].color = color(db);
-								for (var j in data.results[i].alignments) {
-									var item = data.results[i].alignments[j];
-									item.href = this.tryLinkTargetToDB(item.target, db);
-								}
-							}
-							this.hits = data;
-						} else {
-							this.error = "Failed";
-						}
-					});
-				}, () => {
-					this.error = "Failed";
-				});
-		},
+            this.$http.get("api/result/" + this.ticket + '/' + this.entry)
+                .then((response) => {
+                    this.error = "";
+                    response.json().then((data) => {
+                        if (data.alignments == null || data.alignments.length > 0) {
+                            var color = colorScale();
+                            for (var i in data.results) {
+                                var db = data.results[i].db;
+                                data.results[i].color = color(db);
+                                for (var j in data.results[i].alignments) {
+                                    var item = data.results[i].alignments[j];
+                                    item.href = this.tryLinkTargetToDB(item.target, db);
+                                }
+                            }
+                            this.hits = data;
+                        } else {
+                            this.error = "Failed";
+                        }
+                    });
+                }, () => {
+                    this.error = "Failed";
+                });
+        },
         remove() {
             if (m != null) {
                 m.off();
@@ -310,19 +310,19 @@ export default {
 }
 
 .db {
-	border-left: 5px solid black;
+    border-left: 5px solid black;
 }
 
 a:not([href]) {
-	color: #333;
+    color: #333;
 }
 
 a:not([href]):hover {
-	text-decoration: none;
+    text-decoration: none;
 }
 
 td, th {
-	padding: 0 6px;
+    padding: 0 6px;
 }
 
 @media screen and (max-width: 960px) {
@@ -331,54 +331,54 @@ td, th {
 }
 
 thead {
-  display: none;
+display: none;
 }
 
 tfoot th {
-  border: 0;
-  display: inherit;
+border: 0;
+display: inherit;
 }
 
 tr {
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.1);
-  max-width: 100%;
-  position: relative;
-  display: block;
-  margin: 0.25em;
+box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.1);
+max-width: 100%;
+position: relative;
+display: block;
+margin: 0.25em;
 }
 tr td {
-  border: 0;
-  display: inherit;
+border: 0;
+display: inherit;
 }
 tr td:last-child {
-  border-bottom: 0;
+border-bottom: 0;
 }
 tr:not(:last-child) {
-  margin-bottom: 1rem;
+margin-bottom: 1rem;
 }
 tr:not(.is-selected) {
-  background: inherit;
+background: inherit;
 }
 tr:not(.is-selected):hover {
-  background-color: inherit;
+background-color: inherit;
 }
 tr.detail {
-  margin-top: -1rem;
+margin-top: -1rem;
 }
 
 tr:not(.detail):not(.is-empty):not(.table-footer) td {
-  display: flex;
-  width: auto;
-  justify-content: flex-end;
-  text-align: right;
-  border-bottom: 1px solid #eee;
+display: flex;
+width: auto;
+justify-content: flex-end;
+text-align: right;
+border-bottom: 1px solid #eee;
 }
 tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
-  content: attr(data-label);
-  font-weight: 600;
-  margin-right: auto;
-  padding-right: 0.5em;
-  text-align: left;
+content: attr(data-label);
+font-weight: 600;
+margin-right: auto;
+padding-right: 0.5em;
+text-align: left;
 }
 
 }
@@ -517,7 +517,7 @@ a:focus {
 }
 /*
 .header-help:focus{
-   color: #0F8292;
+color: #0F8292;
 }
 */
 .popover-title{

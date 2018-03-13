@@ -82,10 +82,10 @@ export default {
     }),
     created() {
         this.fetchData();
-	},
-	watch: {
-		'$route': 'fetchData'
-	},
+    },
+    watch: {
+        '$route': 'fetchData'
+    },
     methods: {
         previous() {
             if (this.page == 0) {
@@ -101,8 +101,8 @@ export default {
             this.page += 1;
             this.fetchData();
         },
-		fetchData() {
-			this.ticket = this.$route.params.ticket;
+        fetchData() {
+            this.ticket = this.$route.params.ticket;
             this.entry = this.$route.params.entry;
             
             if (this.page == -1) {
