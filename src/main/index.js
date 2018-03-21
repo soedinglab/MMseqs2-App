@@ -4,6 +4,8 @@ import { default as fp } from 'find-free-port';
 import { default as os } from 'os';
 import { createReadStream, createWriteStream } from 'fs';
 import { randomBytes } from 'crypto';
+import { parse, join, dirname } from 'path';
+import appRootDir from 'app-root-dir';
 
 const winURL = process.env.NODE_ENV === 'development'
 	? `http://localhost:9080` : `file://${__dirname}/index.html`;
@@ -19,9 +21,14 @@ const tempPath = app.getPath('temp');
 const username = randomBytes(8).toString('hex');
 const password = randomBytes(16).toString('hex');
 
+const platform = os.platform();
+const mmseqs = (process.env.NODE_ENV === 'production') ?
+	join(process.resourcesPath, 'bin', 'mmseqs' + (platform == "win32" ? ".bat" : "")) :
+	join(appRootDir.get(), 'resources', platform, 'mmseqs');
+
 fp(3000, function(err, freePort) {
-	const suffix = os.platform() == "win32" ? "windows.exe" : os.platform();	
-	const server = execFile(`./mmseqs-web-backend-${suffix}`, 
+	const suffix = platform == "win32" ? "windows.exe" : platform;
+	const server = execFile(`${__dirname}/bin/mmseqs-web-backend-${suffix}`, 
 		[
 			"-local",
 			"-server.address",
@@ -30,20 +37,23 @@ fp(3000, function(err, freePort) {
 			username,
 			"-server.auth.password",
 			password,
+			"-paths.mmseqs",
+			mmseqs,
 			"-paths.databases",
 			`${userData}/databases`,
 			"-paths.results",
 			`${userData}/jobs`,
 			"-paths.temporary",
-			tempPath
+			tempPath,
+			"-server.cors",
+			"true",
 		], {
 		encoding: "utf8",
-		cwd: `${__dirname}/bin`,
 		windowsHide: true
 	}, (e, stdout, stderr) => {
-		console.log(e);
-		console.log(stdout);
-		console.log(stderr);
+		if (e) {
+			console.log(e);
+		}
 	});
 
 	server.stdout.on('data', function (data) {
@@ -64,6 +74,25 @@ fp(3000, function(err, freePort) {
 	app.token = new Buffer(username + ':' + password).toString('base64');
 
 	let mainWindow;
+	app.newDatabase = function (format, callback) {
+		const suffix = format == "fasta" ? ".fasta" : ".sto";
+		const title = format == "fasta" ? "Select Sequences File" : "Select MSA File";
+		dialog.showOpenDialog(mainWindow, {
+			title: title,
+		}, (selection) => {
+			if (Array.isArray(selection) && selection.length == 1) {
+				const path = selection[0];
+				const parsed = parse(path);
+				const base = parsed.name;
+				const destination = `${userData}/databases/${base}${suffix}`;
+				createReadStream(path).pipe(createWriteStream(destination));
+				callback(base);
+			} else {
+				callback("");
+			}
+		});
+	}
+
 	app.saveResult = (id) => {
 		dialog.showSaveDialog(mainWindow, {
 			title: "Save Result",
@@ -73,7 +102,7 @@ fp(3000, function(err, freePort) {
 				return;
 			}
 			const resultPath = `${userData}/jobs/${id}/mmseqs_results_${id}.tar.gz`;
-			createReadStream(resultPath).pipe(createWriteStream(destination));  
+			createReadStream(resultPath).pipe(createWriteStream(destination));
 		});
 	}
 
