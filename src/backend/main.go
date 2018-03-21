@@ -36,11 +36,34 @@ func ParseType(args []string) (RunType, []string) {
 	return t, resArgs
 }
 
+func ParseConfigName(args []string) (string, []string) {
+	resArgs := make([]string, 0)
+	file := ""
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-config" {
+			file = args[i+1]
+			i++
+			continue
+		}
+
+		resArgs = append(resArgs, args[i])
+	}
+
+	return file, resArgs
+}
+
 func main() {
 	t, args := ParseType(os.Args[1:])
+	configFile, args := ParseConfigName(args)
 
-	configFile := "config.json"
-	config, err := ReadConfig(configFile)
+	var config ConfigRoot
+	var err error
+	if len(configFile) > 0 {
+		config, err = ReadConfigFromFile(configFile)
+
+	} else {
+		config, err = DefaultConfig()
+	}
 	if err != nil {
 		panic(err)
 	}

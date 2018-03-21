@@ -1,53 +1,66 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
-	"strings"
 	"sync"
 
 	"github.com/go-redis/redis"
 )
 
+type JobType string
+
+const (
+	JobSearch JobType = "search"
+	JobIndex          = "index"
+)
+
 type JobRequest struct {
-	Query    string   `json:"q" valid:"alphanum,required"`
-	Database []string `json:"database" valid:"required"`
-	Mode     string   `json:"mode" valid:"in(accept,summary),required"`
-	Email    string   `json:"email" valid:"email,optional"`
+	Id     Id          `json:"id" valid:"required"`
+	Status Status      `json:"status" valid:"required"`
+	Type   JobType     `json:"type" valid:"required"`
+	Job    interface{} `json:"job" valid:"required"`
+	Email  string      `json:"email" valid:"email,optional"`
 }
 
-func (r JobRequest) Hash() string {
-	h := sha256.New224()
-	h.Write([]byte(r.Query))
-	h.Write([]byte(r.Mode))
+type jobRequest JobRequest
 
-	sort.Strings(r.Database)
+func (m *JobRequest) UnmarshalJSON(b []byte) error {
+	var msg json.RawMessage
+	var jr jobRequest
+	jr.Job = &msg
+	if err := json.Unmarshal(b, &jr); err != nil {
+		return err
+	}
+	*m = JobRequest(jr)
 
-	for _, value := range r.Database {
-		h.Write([]byte(value))
+	switch jr.Type {
+	case JobSearch:
+		var j SearchJob
+		if err := json.Unmarshal(msg, &j); err != nil {
+			return err
+		}
+		(*m).Job = j
+		return nil
+	case JobIndex:
+		var j IndexJob
+		if err := json.Unmarshal(msg, &j); err != nil {
+			return err
+		}
+		(*m).Job = j
+		return nil
 	}
 
-	bs := h.Sum(nil)
-	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(bs)
+	return errors.New("Invalid Job Type")
 }
 
-func max(x, y int) int {
-	if x > y {
-		return x
-	}
-	return y
-}
-
-func (r JobRequest) Rank() float64 {
-	return float64(max(strings.Count(r.Query, ">"), 1) * max(len(r.Database), 1))
+type Job interface {
+	Hash() Id
+	Rank() float64
 }
 
 type Id string
@@ -66,37 +79,17 @@ type Ticket struct {
 	RawStatus Status `json:"status"`
 }
 
-var ValidId = regexp.MustCompile(`^[A-Za-z0-9-_=]{38}$`).MatchString
+var validId = regexp.MustCompile(`^[A-Za-z0-9-_=]{38}$`).MatchString
 
-type Job struct {
-	Id       Id       `json:"id"`
-	Database []string `json:"database"`
-	Mode     string   `json:"mode"`
-	Email    string   `json:"email"`
-}
-
-func IsIn(num string, params []string) int {
-	for i, param := range params {
-		if num == param {
-			return i
-		}
-	}
-
-	return -1
-}
-
-type InvalidTicket struct {
-}
-
-func (e *InvalidTicket) Error() string {
-	return "Ticket is not valid!"
+func (t Ticket) Valid() bool {
+	return validId(string(t.Id))
 }
 
 type JobSystem interface {
 	SetStatus(Id, Status) error
 	Status(Id) (Status, error)
 	GetTicket(Id) (Ticket, error)
-	NewJob(JobRequest, []ParamsDisplay, string) (Ticket, error)
+	NewJob(JobRequest, string) (Ticket, error)
 	MultiStatus([]string) ([]Ticket, error)
 	Dequeue() (*Ticket, error)
 }
@@ -136,32 +129,17 @@ func (j *RedisJobSystem) Status(id Id) (Status, error) {
 }
 
 func (j *RedisJobSystem) GetTicket(id Id) (Ticket, error) {
-	if !ValidId(string(id)) {
-		return Ticket{}, errors.New("Invalid ID")
-	}
 	t := Ticket{id, StatusUnknown}
+	if t.Valid() == false {
+		return t, errors.New("Invalid ID")
+	}
 	s, err := j.Status(t.Id)
 	t.RawStatus = s
 	return t, err
 }
 
-func (j *RedisJobSystem) NewJob(request JobRequest, databases []ParamsDisplay, jobsbase string) (Ticket, error) {
-	ids := make([]string, len(databases))
-	for i, item := range databases {
-		ids[i] = item.Path
-	}
-
-	paths := make([]string, len(request.Database))
-	for i, item := range request.Database {
-		idx := IsIn(item, ids)
-		if idx == -1 {
-			return Ticket{}, errors.New("Selected databases are not valid!")
-		} else {
-			paths[i] = databases[idx].Path
-		}
-	}
-
-	id := Id(request.Hash())
+func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string) (Ticket, error) {
+	id := request.Id
 	res, err := j.Status(id)
 	if err != nil {
 		return Ticket{id, StatusError}, err
@@ -177,36 +155,37 @@ func (j *RedisJobSystem) NewJob(request JobRequest, databases []ParamsDisplay, j
 		break
 	}
 
+	if _, err := os.Stat(workdir); os.IsNotExist(err) {
+		err = os.Mkdir(workdir, 0755)
+		if err != nil {
+			return Ticket{id, StatusError}, err
+		}
+	}
+
+	job, ok := request.Job.(Job)
+	if ok == false {
+		return Ticket{id, StatusError}, errors.New("Invalid Job")
+	}
+
 	t := Ticket{id, StatusUnknown}
 	err = j.Client.Watch(func(tx *redis.Tx) error {
-		err := os.Mkdir(workdir, 0755)
-		if err != nil {
-			return err
-		}
-
 		file, err := os.Create(filepath.Join(workdir, "job.json"))
 		if err != nil {
 			return err
 		}
 		defer file.Close()
 
-		err = json.NewEncoder(file).Encode(Job{id, paths, request.Mode, request.Email})
+		err = json.NewEncoder(file).Encode(request)
 		if err != nil {
 			return err
 		}
-
-		err = ioutil.WriteFile(filepath.Join(workdir, "job.fasta"), []byte(request.Query), 0644)
-		if err != nil {
-			return err
-		}
-
 		_, err = tx.Set("mmseqs:status:"+string(id), string(StatusPending), 0).Result()
 		if err != nil {
 			return err
 		}
 		t.RawStatus = StatusPending
 
-		_, err = tx.ZAdd("mmseqs:pending", redis.Z{Score: request.Rank(), Member: string(id)}).Result()
+		_, err = tx.ZAdd("mmseqs:pending", redis.Z{Score: job.Rank(), Member: string(id)}).Result()
 		if err != nil {
 			return err
 		}
@@ -233,7 +212,7 @@ func (j *RedisJobSystem) MultiStatus(ids []string) ([]Ticket, error) {
 
 	var queries []string
 	for _, value := range ids {
-		if !ValidId(value) {
+		if !validId(value) {
 			continue
 		}
 		queries = append(queries, "mmseqs:status:"+value)
@@ -297,11 +276,6 @@ func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
 	return &ticket, nil
 }
 
-type LocalJob struct {
-	Job
-	Status Status `json:"status"`
-}
-
 type LocalJobSystem struct {
 	mutex   *sync.Mutex
 	Queue   []Id
@@ -322,7 +296,8 @@ func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 	}
 
 	for _, file := range files {
-		job, err := getJobFromFile(file)
+		fmt.Println(file)
+		job, err := getJobRequestFromFile(file)
 		if err != nil {
 			return jobsystem, err
 		}
@@ -348,7 +323,7 @@ func setStatusInJobFile(file string, status Status) error {
 	}
 	defer f.Close()
 
-	var job LocalJob
+	var job JobRequest
 	err = DecodeJsonAndValidate(f, &job)
 	if err != nil {
 		return err
@@ -367,17 +342,17 @@ func setStatusInJobFile(file string, status Status) error {
 	return nil
 }
 
-func getJobFromFile(file string) (LocalJob, error) {
+func getJobRequestFromFile(file string) (JobRequest, error) {
 	f, err := os.Open(file)
 	if err != nil {
-		return LocalJob{}, err
+		return JobRequest{}, err
 	}
 	defer f.Close()
 
-	var job LocalJob
+	var job JobRequest
 	err = DecodeJsonAndValidate(f, &job)
 	if err != nil {
-		return LocalJob{}, err
+		return JobRequest{}, err
 	}
 
 	return job, nil
@@ -399,42 +374,20 @@ func (j *LocalJobSystem) Status(id Id) (Status, error) {
 		return StatusUnknown, nil
 	}
 	return res, nil
-
-	// file := j.getJobFileName(id)
-	// job, err := getJobFromFile(file)
-	// if err != nil {
-	// 	return StatusUnknown, err
-	// }
-	// return job.Status, nil
 }
 
 func (j *LocalJobSystem) GetTicket(id Id) (Ticket, error) {
-	if !ValidId(string(id)) {
-		return Ticket{}, errors.New("Invalid ID")
-	}
 	t := Ticket{id, StatusUnknown}
+	if t.Valid() == false {
+		return t, errors.New("Invalid ID")
+	}
 	res, err := j.Status(t.Id)
 	t.RawStatus = res
 	return t, err
 }
 
-func (j *LocalJobSystem) NewJob(request JobRequest, databases []ParamsDisplay, jobsbase string) (Ticket, error) {
-	ids := make([]string, len(databases))
-	for i, item := range databases {
-		ids[i] = item.Path
-	}
-
-	paths := make([]string, len(request.Database))
-	for i, item := range request.Database {
-		idx := IsIn(item, ids)
-		if idx == -1 {
-			return Ticket{}, errors.New("Selected databases are not valid!")
-		} else {
-			paths[i] = databases[idx].Path
-		}
-	}
-
-	id := Id(request.Hash())
+func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string) (Ticket, error) {
+	id := request.Id
 	res, err := j.Status(id)
 	if err != nil {
 		return Ticket{id, StatusError}, err
@@ -452,9 +405,11 @@ func (j *LocalJobSystem) NewJob(request JobRequest, databases []ParamsDisplay, j
 
 	t := Ticket{id, StatusUnknown}
 
-	err = os.Mkdir(workdir, 0755)
-	if err != nil {
-		return Ticket{id, StatusError}, err
+	if _, err := os.Stat(workdir); os.IsNotExist(err) {
+		err = os.Mkdir(workdir, 0755)
+		if err != nil {
+			return Ticket{id, StatusError}, err
+		}
 	}
 
 	file, err := os.Create(filepath.Join(workdir, "job.json"))
@@ -463,12 +418,7 @@ func (j *LocalJobSystem) NewJob(request JobRequest, databases []ParamsDisplay, j
 	}
 	defer file.Close()
 
-	err = json.NewEncoder(file).Encode(LocalJob{Job{id, paths, request.Mode, request.Email}, StatusPending})
-	if err != nil {
-		return Ticket{id, StatusError}, err
-	}
-
-	err = ioutil.WriteFile(filepath.Join(workdir, "job.fasta"), []byte(request.Query), 0644)
+	err = json.NewEncoder(file).Encode(request)
 	if err != nil {
 		return Ticket{id, StatusError}, err
 	}
@@ -490,14 +440,13 @@ func (j *LocalJobSystem) MultiStatus(ids []string) ([]Ticket, error) {
 	}
 
 	for _, value := range ids {
-		if !ValidId(value) {
+		if !validId(value) {
 			continue
 		}
 		res, _ := j.Status(Id(value))
 		result = append(result, Ticket{Id(value), res})
 
 	}
-	fmt.Print(result)
 	return result, nil
 }
 

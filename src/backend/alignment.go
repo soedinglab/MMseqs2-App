@@ -75,12 +75,12 @@ func Alignments(ticket Ticket, entry int64, jobsbase string) (AlignmentResponse,
 	}
 
 	reader := Reader{}
-	reader.Make(dbpaths(filepath.Join(base, "input")))
+	reader.Make(dbpaths(filepath.Join(base, "tmp", "latest", "query")))
 	sequence := reader.Data(entry)
 	reader.Delete()
 
 	reader = Reader{}
-	reader.Make(dbpaths(filepath.Join(base, "input_h")))
+	reader.Make(dbpaths(filepath.Join(base, "tmp", "latest", "query_h")))
 	header := reader.Data(entry)
 	reader.Delete()
 

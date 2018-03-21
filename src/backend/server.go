@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,31 +20,33 @@ import (
 	"github.com/rs/cors"
 )
 
+type DatabaseResponse struct {
+	Databases []ParamsDisplay `json:"databases"`
+}
+
 func server(jobsystem JobSystem, config ConfigRoot) {
-	databaseParams, err := Databases(config.Paths.Databases)
-	if err != nil {
-		panic(err)
-	}
-
-	if len(databaseParams) == 0 {
-		panic("No input for databases found!")
-	}
-
-	var databases []ParamsDisplay
-	for _, db := range databaseParams {
-		err = CheckDatabase(db, path.Join(config.Paths.Databases, db.Display.Path), config.Paths.Temporary, config.Paths.Mmseqs, config.Verbose)
+	go func() {
+		databases, err := Databases(config.Paths.Databases)
 		if err != nil {
 			panic(err)
 		}
-		databases = append(databases, db.Display)
-	}
 
-	if len(databases) == 0 {
-		panic("No search databases found!")
-	}
+		for _, db := range databases {
+			if db.Status == StatusPending || db.Status == "" {
+				request, err := NewIndexJobRequest(db.Display.Path, "")
+				if err != nil {
+					panic(err)
+				}
+
+				_, err = jobsystem.NewJob(request, config.Paths.Results)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+	}()
 
 	baseRouter := mux.NewRouter()
-
 	var r *mux.Router
 	if len(config.Server.PathPrefix) > 0 {
 		r = baseRouter.PathPrefix(config.Server.PathPrefix).Subrouter()
@@ -53,11 +55,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	}
 
 	r.HandleFunc("/databases", func(w http.ResponseWriter, req *http.Request) {
-		type DatabaseResponse struct {
-			Databases []ParamsDisplay `json:"databases"`
+		databases, err := Databases(config.Paths.Databases)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 
-		err = json.NewEncoder(w).Encode(DatabaseResponse{databases})
+		err = json.NewEncoder(w).Encode(DatabaseResponse{GetDisplayFromParams(databases)})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -65,19 +69,147 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	}).Methods("GET")
 
 	r.HandleFunc("/databases/order", func(w http.ResponseWriter, req *http.Request) {
-		type DatabaseResponse struct {
-			Databases []ParamsDisplay `json:"databases"`
+		err := req.ParseForm()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 
-		err = json.NewEncoder(w).Encode(DatabaseResponse{databases})
+		paths := req.Form["database[]"]
+		databases, err := ReorderDatabases(config.Paths.Databases, paths)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		err = json.NewEncoder(w).Encode(DatabaseResponse{GetDisplayFromParams(databases)})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 	}).Methods("POST")
 
+	r.HandleFunc("/database", func(w http.ResponseWriter, req *http.Request) {
+		var request JobRequest
+
+		var data string
+		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
+			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			f, _, err := req.FormFile("file")
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(f)
+			data = buf.String()
+		} else {
+			err := req.ParseForm()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			data = req.FormValue("file")
+		}
+
+		var suffix string
+		switch req.FormValue("format") {
+		case "fasta":
+			suffix = ".fasta"
+			break
+		case "stockholm":
+			suffix = ".sto"
+			break
+		default:
+			http.Error(w, "Invalid database input file", http.StatusBadRequest)
+			return
+		}
+
+		var path string
+		if len(req.FormValue("path")) > 0 {
+			path = filepath.Base(req.FormValue("path"))
+			if fileExists(filepath.Join(config.Paths.Databases, path+suffix)) == false {
+				http.Error(w, "Indicated file does not exist already", http.StatusBadRequest)
+				return
+			}
+		} else {
+			path = SafePath(config.Paths.Databases, req.FormValue("name"), req.FormValue("version"))
+
+			f, err := os.Create(filepath.Join(config.Paths.Databases, filepath.Base(path+suffix)))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			f.WriteString(data)
+			f.Close()
+		}
+		params := Params{
+			StatusPending,
+			ParamsDisplay{
+				req.FormValue("name"),
+				req.FormValue("version"),
+				path,
+				req.FormValue("default") == "true",
+				0,
+				req.FormValue("search"),
+			},
+		}
+
+		filename := filepath.Join(config.Paths.Databases, filepath.Base(path+".params"))
+		err := SaveParams(filename, params)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		request, err = NewIndexJobRequest(path, req.FormValue("email"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		result, err := jobsystem.NewJob(request, config.Paths.Results)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		err = json.NewEncoder(w).Encode(result)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}).Methods("POST")
+
+	r.HandleFunc("/database", func(w http.ResponseWriter, req *http.Request) {
+		err := req.ParseForm()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		path := req.FormValue("path")
+		fmt.Println(req.Form)
+		ok := DeleteDatabase(filepath.Join(config.Paths.Databases, filepath.Base(path)))
+		if ok == false {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}).Methods("DELETE")
+
 	r.HandleFunc("/ticket", func(w http.ResponseWriter, req *http.Request) {
 		var request JobRequest
+
+		var query string
+		var dbs []string
+		var mode string
+		var email string
+
 		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
 			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
 			if err != nil {
@@ -93,29 +225,34 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 			buf := new(bytes.Buffer)
 			buf.ReadFrom(f)
-			q := buf.String()
-			request = JobRequest{
-				q,
-				req.Form["database[]"],
-				req.FormValue("mode"),
-				req.FormValue("email"),
-			}
+			query = buf.String()
+			dbs = req.Form["database[]"]
+			mode = req.FormValue("mode")
+			email = req.FormValue("email")
 		} else {
 			err := req.ParseForm()
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-
-			request = JobRequest{
-				req.FormValue("q"),
-				req.Form["database[]"],
-				req.FormValue("mode"),
-				req.FormValue("email"),
-			}
+			query = req.FormValue("q")
+			dbs = req.Form["database[]"]
+			mode = req.FormValue("mode")
+			email = req.FormValue("email")
 		}
 
-		result, err := jobsystem.NewJob(request, databases, config.Paths.Results)
+		databases, err := Databases(config.Paths.Databases)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		result, err := jobsystem.NewJob(request, config.Paths.Results)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -127,6 +264,30 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 	}).Methods("POST")
+
+	r.HandleFunc("/ticket/type/{ticket}", func(w http.ResponseWriter, req *http.Request) {
+		ticket, err := jobsystem.GetTicket(Id(mux.Vars(req)["ticket"]))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		request, err := getJobRequestFromFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.json"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		type TypeReponse struct {
+			JobType JobType `json:"type"`
+		}
+
+		err = json.NewEncoder(w).Encode(TypeReponse{request.Type})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}).Methods("GET")
 
 	r.HandleFunc("/ticket/{ticket}", func(w http.ResponseWriter, req *http.Request) {
 		ticket, err := jobsystem.GetTicket(Id(mux.Vars(req)["ticket"]))
@@ -264,8 +425,10 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	if config.Verbose {
 		h = handlers.LoggingHandler(os.Stdout, h)
 	}
-	c := cors.AllowAll()
-	h = c.Handler(h)
+	if config.Server.CORS {
+		c := cors.AllowAll()
+		h = c.Handler(h)
+	}
 
 	srv := &http.Server{
 		Handler: h,

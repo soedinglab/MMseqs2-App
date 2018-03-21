@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,12 +12,50 @@ import (
 	"strings"
 )
 
+var defaultFileContent = []byte(`{
+    "verbose": true,
+    "server" : {
+        "address"    : "127.0.0.1:8081",
+        "pathprefix" : "/api/",
+        "cors"       : true
+    },
+    "paths" : {
+        "databases"    : "~databases",
+        "results"      : "~jobs",
+        "mmseqs"       : "~mmseqs"
+    },
+    "redis" : {
+        "network"  : "tcp",
+        "address"  : "localhost:6379",
+        "password" : "",
+        "index"    : 0
+    },
+    "mail" : {
+        "type"      : "null",
+        "sender"    : "mail@example.org",
+        "templates" : {
+            "success" : {
+                "subject" : "Done -- %s",
+                "body"    : "%s"
+            },
+            "timeout" : {
+                "subject" : "Timeout -- %s",
+                "body"    : "%s"
+            },
+            "error"   : {
+                "subject" : "Error -- %s",
+                "body"    : "%s"
+            }
+        }
+    }
+}
+`)
+
 type ConfigPaths struct {
-	Databases    string `json:"databases"`
-	Results      string `json:"results"`
-	Temporary    string `json:"temporary"`
-	SearchScript string `json:"searchscript"`
-	Mmseqs       string `json:"mmseqs"`
+	Databases string `json:"databases"`
+	Results   string `json:"results"`
+	Temporary string `json:"temporary"`
+	Mmseqs    string `json:"mmseqs"`
 }
 
 type ConfigRedis struct {
@@ -50,6 +90,7 @@ type ConfigAuth struct {
 type ConfigServer struct {
 	Address    string      `json:"address" valid:"required"`
 	PathPrefix string      `json:"pathprefix" valid:"optional"`
+	CORS       bool        `json:"cors" valid:"optional"`
 	Auth       *ConfigAuth `json:"auth" valid:"optional"`
 }
 
@@ -61,30 +102,46 @@ type ConfigRoot struct {
 	Verbose bool         `json:"verbose"`
 }
 
-func ReadConfig(fileName string) (ConfigRoot, error) {
-	var config ConfigRoot
-
-	file, err := os.Open(fileName)
+func ReadConfigFromFile(name string) (ConfigRoot, error) {
+	file, err := os.Open(name)
 	if err != nil {
-		return config, err
+		return ConfigRoot{}, err
 	}
 	defer file.Close()
 
-	absPath, err := filepath.Abs(fileName)
+	absPath, err := filepath.Abs(name)
 	if err != nil {
-		return config, err
+		return ConfigRoot{}, err
 	}
 
-	if err := DecodeJsonAndValidate(file, &config); err != nil {
+	relativeTo := filepath.Dir(absPath)
+
+	return ReadConfig(file, relativeTo)
+}
+
+func DefaultConfig() (ConfigRoot, error) {
+	r := bytes.NewReader(defaultFileContent)
+
+	ex, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	relativeTo := filepath.Dir(ex)
+
+	return ReadConfig(r, relativeTo)
+}
+
+func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
+	var config ConfigRoot
+	if err := DecodeJsonAndValidate(r, &config); err != nil {
 		return config, fmt.Errorf("Fatal error for config file: %s\n", err)
 	}
 
-	base := filepath.Dir(absPath)
-	paths := []*string{&config.Paths.Databases, &config.Paths.Results, &config.Paths.SearchScript, &config.Paths.Mmseqs}
+	paths := []*string{&config.Paths.Databases, &config.Paths.Results, &config.Paths.Mmseqs}
 	for _, path := range paths {
 		if strings.HasPrefix(*path, "~") {
 			*path = strings.TrimLeft(*path, "~")
-			*path = filepath.Join(base, *path)
+			*path = filepath.Join(relativeTo, *path)
 		}
 	}
 
@@ -99,11 +156,8 @@ func (c *ConfigRoot) CheckPaths() bool {
 		}
 	}
 
-	paths = []string{c.Paths.SearchScript, c.Paths.Mmseqs}
-	for _, path := range paths {
-		if _, err := os.Stat(path); err != nil {
-			return false
-		}
+	if _, err := os.Stat(c.Paths.Mmseqs); err != nil {
+		return false
 	}
 
 	return true
