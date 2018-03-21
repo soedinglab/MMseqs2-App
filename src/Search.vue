@@ -49,17 +49,23 @@
                         <div v-if="databases.length == 0">
                             <div :class="['alert', { 'alert-info': !dberror }, { 'alert-danger': dberror }]">
                                 <span v-if="dberror">Could not query available databases!</span>
+                                <span v-else>
+                                    No databases found! <br />
+                                    <span v-if="$ELECTRON">
+                                        Go to <router-link to="preferences">Preferences</router-link> to add a database.
+                                    </span>
+                                </span>
                             </div>
                         </div>
-                        <v-checkbox v-else v-for="(db, index) in databases" v-model="database" :key="index" :value="index" :label="db.name + ' ' + db.version" hide-details></v-checkbox>
+                        <v-checkbox v-else v-for="(db, index) in databases" v-model="database" :key="index" :value="db.path" :label="db.name + ' ' + db.version" hide-details></v-checkbox>
 
                         <v-radio-group v-model="mode">
                             <v-tooltip open-delay="300" top>
                             <label slot="activator">Mode</label>
-                            <span>'All' shows all hits under an e-value cutoff. 'Annotations' tries to cover the search query.</span>
+                            <span>'All' shows all hits under an e-value cutoff. 'Greedy Best Hits' tries to cover the search query.</span>
                             </v-tooltip>
-                            <v-radio value="accept" label="All" hide-details>All</v-radio>
-                            <v-radio value="summary" label="Annotations" hide-details></v-radio>
+                            <v-radio value="accept" label="All Hits" hide-details>All</v-radio>
+                            <v-radio value="summary" label="Greedy Best Hits" hide-details></v-radio>
                         </v-radio-group>
 
                         <v-tooltip v-if="!$ELECTRON" open-delay="300" top>
@@ -150,20 +156,13 @@ export default {
         database: {
             get: function() {
                 if (this.database_ == null) {
-                this.database_ = JSON.parse(this.$localStorage.get("database", "[]"));
+                    this.database_ = JSON.parse(this.$localStorage.get("database", "[]"));
                 }
                 return this.database_;
             },
             set: function(value) {
                 this.$localStorage.set("database", JSON.stringify(value));
                 this.database_ = value;
-            }
-        },
-        selectedDatabases: {
-            get: function() {
-                return this.databases.filter((_, i) => {
-                return i in this.database;
-                });
             }
         },
         searchDisabled() {
@@ -197,33 +196,28 @@ export default {
             );
         },
         fetchData() {
-        this.$http.get("api/databases").then(
-            response => {
-                response.json().then(data => {
-                    this.dberror = false;
-                    this.databases = data.databases;
+            this.$http.get("api/databases").then(
+                response => {
+                    response.json().then(data => {
+                        this.dberror = false;
+                        this.databases = data.databases;
 
-                    var dbs = [];
-                    for (var i in this.databases) {
-                    if (this.databases[i].default == true) {
-                        dbs.push(this.databases[i]);
-                    }
-                    }
-
-                    if (this.database_ === null) {
-                    this.database_ = Array.from(Array(this.databases.length).keys());
-                    }
-                });
-            },
-            () => {
-                this.dberror = true;
-            }
-        );
+                        const dbs = this.databases.filter((element) => { return element.default == true; });
+                        const paths = this.databases.map((db) => {return db.path; });
+                        if (this.database === null) {
+                            this.database = dbs.map((db) => {return db.path; });
+                        } else {
+                            this.database = this.database.filter((elem) => {
+                                return paths.includes(elem);
+                            });
+                        }
+                    }).catch(() => { this.dberror = true; });
+                }).catch(() => { this.dberror = true; });
         },
         search(event) {
             var data = {
                 q: this.query,
-                database: this.selectedDatabases.map(x => { return x.path; }),
+                database: this.database,
                 mode: this.mode
             };
             if (!__ELECTRON__ && this.email != "") {
@@ -236,28 +230,29 @@ export default {
                         this.status.message = this.status.type = "";
                         this.inSearch = false;
                         if (data.status == "PENDING" || data.status == "RUNNING") {
-                        this.addToHistory(data.id);
-                        this.$router.push({
-                            name: "queue",
-                            params: { ticket: data.id }
-                        });
+                            this.addToHistory(data.id);
+                            this.$router.push({
+                                name: "queue",
+                                params: { ticket: data.id }
+                            });
                         } else if (data.status == "COMPLETE") {
-                        this.addToHistory(data.id);
-                        this.$router.push({
-                            name: "result",
-                            params: { ticket: data.id, entry: 0 }
-                        });
+                            this.addToHistory(data.id);
+                            this.$router.push({
+                                name: "result",
+                                params: { ticket: data.id, entry: 0 }
+                            });
                         } else {
-                        this.status.type = "error";
-                        this.status.message = "Error loading search result";
+                            this.resultError("Error loading search result")();
                         }
-                    });
-                }, () => {
-                    this.status.type = "error";
-                    this.status.message = "Error loading search result";
-                    this.inSearch = false;
-                }
-            );
+                }).catch(this.resultError("Error loading search result"));
+            }).catch(this.resultError("Error loading search result"));
+        },
+        resultError(message) {
+            return () => {
+                this.status.type = "error";
+                this.status.message = message;
+                this.inSearch = false;
+            }
         },
         fileDrop(event) {
             event.preventDefault();

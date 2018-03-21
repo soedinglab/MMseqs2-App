@@ -27,6 +27,7 @@ import {
     VRadioGroup,
     VDialog,
     VTooltip,
+    VSelect,
 } from 'vuetify';
 
 Vue.use(Vuetify, {
@@ -47,6 +48,7 @@ Vue.use(Vuetify, {
         VRadioGroup,
         VDialog,
         VTooltip,
+        VSelect,
     }
 });
 
@@ -89,6 +91,7 @@ Vue.use({
             Vue.prototype.__OS__ = { arch: remote.app.os.arch(), platform: remote.app.os.platform() };
             Vue.prototype.__SIMD__ = remote.app.simdLevel;
             Vue.prototype.saveResult = remote.app.saveResult;
+            Vue.prototype.newDatabase = remote.app.newDatabase;
         } else {
             Vue.prototype.__OS__ = { arch: 'web', platform: 'web' };
             Vue.prototype.__SIMD__ = false;
@@ -99,9 +102,11 @@ Vue.use({
 if (__ELECTRON__) {
     const remote = require('electron').remote;
     Vue.url.options.root = remote.app.apiEndpoint;
-    Vue.http.interceptors.push(function (request) {
-        request.headers.set('Authorization', `Basic ${remote.app.token}`);
-    });
+    if (remote.app.token && remote.app.token.length > 0) {
+        Vue.http.interceptors.push(function (request) {
+            request.headers.set('Authorization', `Basic ${remote.app.token}`);
+        });
+    }
 } else {
     Vue.url.options.root = __CONFIG__.apiEndpoint;
 }

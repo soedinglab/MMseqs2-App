@@ -1,5 +1,5 @@
 <template>
-<v-container grid-list-md fluid>
+<v-container grid-list-md fluid v-if="status != 'COMPLETE'">
     <v-layout row justify-center>
         <v-flex xs8>
             <panel>
@@ -66,7 +66,22 @@ export default {
                                 this.error = "FAILED";
                                 break;
                             case "COMPLETE":
-                                this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
+                                this.$http.get("api/ticket/type/" + ticket).then(
+                                (response) => {
+                                    response.json().then((data) => {
+                                        switch (data.type) {
+                                            case "search":
+                                                this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
+                                                break;
+                                            case "index":
+                                                this.$router.replace({ name: 'preferences' });
+                                                break;
+                                            default:
+                                                this.status = "FAILED";
+                                                this.error = "FAILED";
+                                        }
+                                    })
+                                });
                                 break;
                             default:
                                 setTimeout(this.fetchData.bind(this), 1000);
@@ -87,5 +102,6 @@ export default {
 <style>
 .status-img img {
     max-width: 100%;
+    max-height: 75vh;
 }
 </style>
