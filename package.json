@@ -10,9 +10,10 @@
   },
   "scripts": {
     "build": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
+    "build:all": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder -mwl --x64 --dir",
     "build:dir": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
     "build:clean": "cross-env BUILD_TARGET=clean node ./electron-vue/build.js",
-    "build:dev": "make clean && make all && cp dist/electron/bin/mmseqs-web-backend-darwin src/main/bin/ && node ./electron-vue/dev-runner.js",
+    "build:dev": "make all && node ./electron-vue/dev-runner.js",
     "pack": "npm run pack:main && npm run pack:renderer",
     "pack:main": "cross-env NODE_ENV=production webpack --progress --hide-modules --colors --config ./webpack.main.config.js",
     "pack:renderer": "cross-env NODE_ENV=production webpack --progress --hide-modules  --colors --config ./webpack.renderer.config.js",
@@ -24,16 +25,14 @@
     "directories": {
       "output": "build"
     },
+    "compression": "store",
     "files": [
       "dist/electron/**/*"
     ],
     "extraFiles": [
       {
-        "from": "resources/${platform}",
-        "to": "Resources/bin",
-        "filter": [
-          "**/*"
-        ]
+        "from": "resources/${os}",
+        "to": "Resources/bin"
       }
     ],
     "dmg": {

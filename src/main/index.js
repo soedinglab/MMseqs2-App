@@ -1,5 +1,5 @@
 import { app, BrowserWindow, shell, dialog } from 'electron';
-import { execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { default as fp } from 'find-free-port';
 import { default as os } from 'os';
 import { createReadStream, createWriteStream } from 'fs';
@@ -10,10 +10,6 @@ import appRootDir from 'app-root-dir';
 const winURL = process.env.NODE_ENV === 'development'
 	? `http://localhost:9080` : `file://${__dirname}/index.html`;
 
-
-app.os = os;
-app.simdLevel = require('./lib/simdlevel').default;
-
 const homePath = app.getPath('home');
 const userData = app.getPath('userData');
 const tempPath = app.getPath('temp');
@@ -22,13 +18,23 @@ const username = randomBytes(8).toString('hex');
 const password = randomBytes(16).toString('hex');
 
 const platform = os.platform();
-const mmseqs = (process.env.NODE_ENV === 'production') ?
-	join(process.resourcesPath, 'bin', 'mmseqs' + (platform == "win32" ? ".bat" : "")) :
-	join(appRootDir.get(), 'resources', platform, 'mmseqs');
+const binPath = (process.env.NODE_ENV === 'production') ?
+	join(process.resourcesPath, 'bin') :
+	join(appRootDir.get(), 'resources', platform);
+
+app.os = {
+	arch: os.arch(),
+	platform: platform,
+	simd: String(execFileSync(join(binPath, "cpu-check" + (platform == "win32" ? ".exe" : "")))).trim()
+}
+
+const mmseqsBinary = join(binPath, "mmseqs" + (platform == "win32" ? "" : ("-" + app.os.simd)) + (platform == "win32" ? ".bat" : ""));
+const backendBinary = join(binPath, "mmseqs-web-backend" + (platform == "win32" ? ".exe" : ""));
+
+app.mmseqsVersion = String(execFileSync(mmseqsBinary, ["version"])).trim()
 
 fp(3000, function(err, freePort) {
-	const suffix = platform == "win32" ? "windows.exe" : platform;
-	const server = execFile(`${__dirname}/bin/mmseqs-web-backend-${suffix}`, 
+	var server = execFile(backendBinary, 
 		[
 			"-local",
 			"-server.address",
@@ -38,7 +44,7 @@ fp(3000, function(err, freePort) {
 			"-server.auth.password",
 			password,
 			"-paths.mmseqs",
-			mmseqs,
+			mmseqsBinary,
 			"-paths.databases",
 			`${userData}/databases`,
 			"-paths.results",
@@ -137,8 +143,21 @@ fp(3000, function(err, freePort) {
 		}
 	});
 
-	app.on('quit', () => {
-		server.kill();
+	const cleanup = () => {
+		if (server != null) {
+			server.kill();
+			server = null;
+		}
+	};
+
+	app.on('quit', cleanup);
+	process.on('exit', cleanup);
+	process.on('SIGINT', cleanup);
+	process.on('uncaughtException', function (e) {
+		cleanup();
+		console.log('Uncaught Exception...');
+		console.log(e.stack);
+		process.exit(99);
 	});
 
 	app.on('activate', () => {

@@ -26,7 +26,7 @@ function clean () {
 }
 
 function build () {
-  del.sync(['dist/electron/*', '!.gitkeep', '!dist/electron/bin', '!config.json'])
+  del.sync(['dist/electron/*', '!.gitkeep'])
 
   const tasks = ['main', 'renderer']
   const m = new Multispinner(tasks, {
