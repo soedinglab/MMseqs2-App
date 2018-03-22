@@ -1,11 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -194,7 +191,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		path := req.FormValue("path")
-		fmt.Println(req.Form)
 		ok := DeleteDatabase(filepath.Join(config.Paths.Databases, filepath.Base(path)))
 		if ok == false {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -338,22 +334,14 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		name := "mmseqs_results_" + string(ticket.Id) + ".tar.gz"
-		path := filepath.Join(filepath.Clean(config.Paths.Results), string(ticket.Id), name)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		file, err := os.Open(path)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		defer file.Close()
-
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
 		w.Header().Set("Content-Type", "application/octet-stream")
-		io.Copy(w, bufio.NewReader(file))
+
+		path := filepath.Join(filepath.Clean(config.Paths.Results), string(ticket.Id))
+		if err = ResultArchive(w, ticket.Id, path); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}).Methods("GET")
 
 	r.HandleFunc("/result/{ticket}/{entry}", func(w http.ResponseWriter, req *http.Request) {
@@ -376,7 +364,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		results, err := Alignments(ticket, int64(id), config.Paths.Results)
+		results, err := Alignments(ticket.Id, int64(id), config.Paths.Results)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

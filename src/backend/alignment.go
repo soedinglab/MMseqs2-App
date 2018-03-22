@@ -1,6 +1,10 @@
 package main
 
 import (
+	"archive/tar"
+	"compress/gzip"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -41,8 +45,8 @@ func dbpaths(path string) (string, string) {
 	return path, path + ".index"
 }
 
-func Alignments(ticket Ticket, entry int64, jobsbase string) (AlignmentResponse, error) {
-	base := filepath.Join(jobsbase, string(ticket.Id))
+func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
+	base := filepath.Join(jobsbase, string(id))
 	matches, err := filepath.Glob(filepath.Join(filepath.Clean(base), "alis_*.index"))
 	if err != nil {
 		return AlignmentResponse{}, err
@@ -85,4 +89,50 @@ func Alignments(ticket Ticket, entry int64, jobsbase string) (AlignmentResponse,
 	reader.Delete()
 
 	return AlignmentResponse{FastaEntry{header, sequence}, res}, nil
+}
+
+func addFile(tw *tar.Writer, path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if stat, err := file.Stat(); err == nil {
+		header := new(tar.Header)
+		header.Name = path
+		header.Size = stat.Size()
+		header.Mode = int64(stat.Mode())
+		header.ModTime = stat.ModTime()
+		// write the header to the tarball archive
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+		// copy the file data to the tarball
+		if _, err := io.Copy(tw, file); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ResultArchive(w io.Writer, id Id, base string) error {
+	gw := gzip.NewWriter(w)
+	defer gw.Close()
+	tw := tar.NewWriter(gw)
+	defer tw.Close()
+
+	matches, err := filepath.Glob(filepath.Join(base, "alis_*.index"))
+	if err != nil {
+		return err
+	}
+
+	for _, item := range matches {
+		name := strings.TrimSuffix(item, ".index")
+
+		if err := addFile(tw, name); err != nil {
+			return err
+		}
+	}
+	return nil
 }

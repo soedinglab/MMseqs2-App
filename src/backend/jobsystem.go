@@ -296,7 +296,6 @@ func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 	}
 
 	for _, file := range files {
-		fmt.Println(file)
 		job, err := getJobRequestFromFile(file)
 		if err != nil {
 			return jobsystem, err
