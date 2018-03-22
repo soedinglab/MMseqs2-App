@@ -75,7 +75,7 @@
                         <v-card-title primary-title>
                             <div>
                                 <div class="headline"><span v-if="!supportedPlatform">Uns</span><span v-else>S</span>upported Platform</div>
-                                <span class="grey--text">Current Platform: {{ __OS__.platform }} - {{ __OS__.arch }} - {{ __SIMD__ }}</span>
+                                <span class="grey--text">Current Platform: {{ __OS__.platform }} - {{ __OS__.arch }} - {{ __OS__.simd }}</span>
                             </div>
                         </v-card-title>
                     </v-card>
@@ -85,7 +85,7 @@
                         <v-card-title primary-title>
                             <div>
                                 <div class="headline">MMseqs2</div>
-                                <span class="grey--text">Version: TODO</span>
+                                <span class="grey--text">Version: {{ mmseqsVersion }}</span>
                             </div>
                         </v-card-title>
                     </v-card>
@@ -139,7 +139,7 @@ export default {
             const isSupportedArch = this.__OS__.arch == "x64";
 
             var isSupportedSIMD = false;
-            switch(this.__SIMD__) {
+            switch(this.__OS__.simd) {
                 case "avx2":
                 case "sse41":
                 isSupportedSIMD = true;

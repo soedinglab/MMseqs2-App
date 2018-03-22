@@ -162,7 +162,6 @@ export default {
                 return "ERROR";
             }
 
-            var hasResult = this.hits.results.length > 0;
             if (this.hits.results.length == 0) {
                 return "EMPTY";
             }

@@ -88,13 +88,13 @@ Vue.use({
         Vue.prototype.$ELECTRON = __ELECTRON__;
         if (__ELECTRON__) {
             const remote = require('electron').remote;
-            Vue.prototype.__OS__ = { arch: remote.app.os.arch(), platform: remote.app.os.platform() };
-            Vue.prototype.__SIMD__ = remote.app.simdLevel;
+            Vue.prototype.__OS__ = remote.app.os;
+            Vue.prototype.mmseqsVersion = remote.app.mmseqsVersion;
             Vue.prototype.saveResult = remote.app.saveResult;
             Vue.prototype.newDatabase = remote.app.newDatabase;
         } else {
-            Vue.prototype.__OS__ = { arch: 'web', platform: 'web' };
-            Vue.prototype.__SIMD__ = false;
+            Vue.prototype.__OS__ = { arch: 'web', platform: 'web', simd: 'web' };
+            Vue.prototype.mmseqsVersion = "web";
         }
     }
 });
