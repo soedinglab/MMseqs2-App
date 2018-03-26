@@ -2,7 +2,10 @@ package main
 
 import (
 	"archive/tar"
+	"bufio"
+	"bytes"
 	"compress/gzip"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -52,13 +55,14 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 		return AlignmentResponse{}, err
 	}
 
+	reader := Reader{}
 	var res []SearchResult
 	for _, item := range matches {
 		name := strings.TrimSuffix(item, ".index")
-		reader := Reader{}
 		reader.Make(dbpaths(name))
-		data := strings.NewReader(reader.Data(entry))
+		defer reader.Delete()
 
+		data := strings.NewReader(reader.Data(entry))
 		var results []AlignmentEntry
 		r := AlignmentEntry{}
 		parser := NewTsvParser(data, &r)
@@ -75,17 +79,24 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 
 		base := filepath.Base(name)
 		res = append(res, SearchResult{strings.TrimPrefix(base, "alis_"), results})
-		reader.Delete()
 	}
 
-	reader := Reader{}
-	reader.Make(dbpaths(filepath.Join(base, "tmp", "latest", "query")))
-	sequence := reader.Data(entry)
+	matches, err = filepath.Glob(filepath.Join(base, "tmp", "*", "query"))
+	if err != nil {
+		return AlignmentResponse{}, err
+	}
+
+	if len(matches) == 0 {
+		return AlignmentResponse{}, errors.New("Could not find query database!")
+	}
+
+	query := matches[0]
+	reader.Make(dbpaths(query))
+	sequence := strings.TrimSpace(reader.Data(entry))
 	reader.Delete()
 
-	reader = Reader{}
-	reader.Make(dbpaths(filepath.Join(base, "tmp", "latest", "query_h")))
-	header := reader.Data(entry)
+	reader.Make(dbpaths(query + "_h"))
+	header := strings.TrimSpace(reader.Data(entry))
 	reader.Delete()
 
 	return AlignmentResponse{FastaEntry{header, sequence}, res}, nil
@@ -100,15 +111,13 @@ func addFile(tw *tar.Writer, path string) error {
 
 	if stat, err := file.Stat(); err == nil {
 		header := new(tar.Header)
-		header.Name = path
+		header.Name = filepath.Base(path)
 		header.Size = stat.Size()
 		header.Mode = int64(stat.Mode())
 		header.ModTime = stat.ModTime()
-		// write the header to the tarball archive
 		if err := tw.WriteHeader(header); err != nil {
 			return err
 		}
-		// copy the file data to the tarball
 		if _, err := io.Copy(tw, file); err != nil {
 			return err
 		}
@@ -127,10 +136,30 @@ func ResultArchive(w io.Writer, id Id, base string) error {
 		return err
 	}
 
+	reader := Reader{}
 	for _, item := range matches {
 		name := strings.TrimSuffix(item, ".index")
 
-		if err := addFile(tw, name); err != nil {
+		reader.Make(dbpaths(name))
+		defer reader.Delete()
+
+		result, err := os.Create(name + ".m8")
+		if err != nil {
+			return err
+		}
+
+		for i := int64(0); i < reader.Size(); i++ {
+			data := strings.NewReader(reader.Data(i))
+			scanner := bufio.NewScanner(data)
+			for scanner.Scan() {
+				line := scanner.Bytes()
+				bytes.Trim(line, "\x00")
+				result.Write(line)
+				result.Write([]byte{'\n'})
+			}
+		}
+		result.Close()
+		if err := addFile(tw, name+".m8"); err != nil {
 			return err
 		}
 	}

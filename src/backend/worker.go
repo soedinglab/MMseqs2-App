@@ -41,7 +41,6 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 	switch job := request.Job.(type) {
 	case SearchJob:
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
-
 		for _, database := range job.Database {
 			params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
 			if err != nil {
@@ -100,6 +99,17 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 					return &JobExecutionError{err}
 				}
 			}
+		}
+
+		path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+		file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		err = ResultArchive(file, request.Id, path)
+		file.Close()
+		if err != nil {
+			return &JobExecutionError{err}
 		}
 
 		if config.Verbose {

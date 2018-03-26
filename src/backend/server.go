@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -334,14 +336,21 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		name := "mmseqs_results_" + string(ticket.Id) + ".tar.gz"
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
-		w.Header().Set("Content-Type", "application/octet-stream")
-
-		path := filepath.Join(filepath.Clean(config.Paths.Results), string(ticket.Id))
-		if err = ResultArchive(w, ticket.Id, path); err != nil {
+		path := filepath.Join(filepath.Clean(config.Paths.Results), string(ticket.Id), name)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		file, err := os.Open(path)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
+		w.Header().Set("Content-Type", "application/octet-stream")
+		io.Copy(w, bufio.NewReader(file))
 	}).Methods("GET")
 
 	r.HandleFunc("/result/{ticket}/{entry}", func(w http.ResponseWriter, req *http.Request) {

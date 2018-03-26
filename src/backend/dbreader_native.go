@@ -34,6 +34,7 @@ func (d *Reader) Make(data string, index string) {
 	}
 	defer f.Close()
 
+	d.Index = make([]Entry, 0)
 	entry := Entry{}
 	parser := NewTsvParser(bufio.NewReader(f), &entry)
 	for {
@@ -53,34 +54,34 @@ func (d *Reader) Delete() {
 }
 
 func (d *Reader) Id(key uint32) int64 {
-	return int64(sort.Search(d.Size(), func(i int) bool {
+	return int64(sort.Search(int(d.Size()), func(i int) bool {
 		return int(d.Index[i].Key) >= int(key)
 	}))
 }
 
 func (d *Reader) Key(id int64) uint32 {
-	if id < 0 || id >= int64(d.Size()) {
+	if id < 0 || id >= d.Size() {
 		return math.MaxUint32
 	}
 	return d.Index[id].Key
 }
 
 func (d *Reader) Offset(id int64) uint64 {
-	if id < 0 || id >= int64(d.Size()) {
+	if id < 0 || id >= d.Size() {
 		return math.MaxUint64
 	}
 	return d.Index[id].Offset
 }
 
 func (d *Reader) Length(id int64) uint64 {
-	if id < 0 || id >= int64(d.Size()) {
+	if id < 0 || id >= d.Size() {
 		return math.MaxUint64
 	}
 	return d.Index[id].Length
 }
 
 func (d *Reader) Data(id int64) string {
-	if id < 0 || id >= int64(d.Size()) {
+	if id < 0 || id >= d.Size() {
 		return ""
 	}
 	d.file.Seek(int64(d.Index[id].Offset), io.SeekStart)
@@ -90,6 +91,6 @@ func (d *Reader) Data(id int64) string {
 	return string(buffer[:length])
 }
 
-func (d *Reader) Size() int {
-	return len(d.Index)
+func (d *Reader) Size() int64 {
+	return int64(len(d.Index))
 }
