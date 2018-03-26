@@ -184,7 +184,7 @@ export default {
                 return 'https://pfam.xfam.org/family/' + target;
             } else if (db.startsWith("pdb")) {
                 return 'https://www.rcsb.org/pdb/explore.do?structureId=' + target.split('_')[0];
-            } else if (db.startsWith("uniclust") || db.startsWith("uniprot")) {
+            } else if (db.startsWith("uniclust") || db.startsWith("uniprot") || db.startsWith("sprot") || db.startsWith("swissprot")) {
                 return 'https://www.uniprot.org/uniprot/' + target;
             } else if (db.startsWith("eggnog_")) {
                 return 'http://eggnogdb.embl.de/#/app/results?target_nogs=' + target;

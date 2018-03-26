@@ -84,8 +84,8 @@
                     <v-card color="blue-grey darken-2" class="white--text">
                         <v-card-title primary-title>
                             <div>
-                                <div class="headline">MMseqs2</div>
-                                <span class="grey--text">Version: {{ mmseqsVersion }}</span>
+                                <div class="headline">MMseqs2 Version</div>
+                                <span class="grey--text" style="word-break: break-all;">{{ mmseqsVersion }}</span>
                             </div>
                         </v-card-title>
                     </v-card>
