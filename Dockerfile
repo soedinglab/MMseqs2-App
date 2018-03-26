@@ -10,5 +10,5 @@ ADD . .
 RUN npm run build
 
 FROM tianon/true
-MAINTAINER Milot Mirdita <milot@mirdita.de> 
+LABEL maintainer="Milot Mirdita <milot@mirdita.de>"
 COPY --from=mmseqs-web-frontend-builder /opt/mmseqs-frontend/dist /var/www/mmseqs-web
