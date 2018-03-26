@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog } from 'electron';
+import { app, BrowserWindow, shell, dialog, Menu } from 'electron';
 import { execFile, execFileSync } from 'child_process';
 import { default as fp } from 'find-free-port';
 import { default as os } from 'os';
@@ -6,6 +6,8 @@ import { createReadStream, createWriteStream } from 'fs';
 import { randomBytes } from 'crypto';
 import { parse, join, dirname } from 'path';
 import appRootDir from 'app-root-dir';
+import defaultMenu from './menu';
+import contextMenu from './context'
 
 const winURL = process.env.NODE_ENV === 'development'
 	? `http://localhost:9080` : `file://${__dirname}/index.html`;
@@ -18,9 +20,21 @@ const username = randomBytes(8).toString('hex');
 const password = randomBytes(16).toString('hex');
 
 const platform = os.platform();
+const mapPlatform = (platform) => {
+	switch (platform) {
+		case "win32":
+			return "win";
+		case "darwin":
+			return "mac";
+		case "linux":
+			return "linux";
+		default:
+			return "UNSUPPORTED-PLATFORM";
+	}
+}
 const binPath = (process.env.NODE_ENV === 'production') ?
 	join(process.resourcesPath, 'bin') :
-	join(appRootDir.get(), 'resources', platform);
+	join(appRootDir.get(), 'resources', mapPlatform(platform));
 
 app.os = {
 	arch: os.arch(),
@@ -70,12 +84,6 @@ fp(3000, function(err, freePort) {
 		console.log(data);
 	});
 
-	// if (module.hot) {
-	// 	module.hot.dispose(() => {
-	// 		server.kill();
-	// 	})
-	// }
-
 	app.apiEndpoint = `http://localhost:${freePort}/`
 	app.token = new Buffer(username + ':' + password).toString('base64');
 
@@ -91,8 +99,11 @@ fp(3000, function(err, freePort) {
 				const parsed = parse(path);
 				const base = parsed.name;
 				const destination = `${userData}/databases/${base}${suffix}`;
-				createReadStream(path).pipe(createWriteStream(destination));
-				callback(base);
+				const ws = createWriteStream(destination);
+				createReadStream(path).pipe(ws);
+				ws.on('finish', () => {
+					callback(base);
+				})
 			} else {
 				callback("");
 			}
@@ -133,6 +144,14 @@ fp(3000, function(err, freePort) {
 		});
 
 		mainWindow.webContents.openDevTools();
+
+		const menu = defaultMenu(app, shell);
+		Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
+		mainWindow.setAutoHideMenuBar(true);
+
+		contextMenu(mainWindow, {
+			showInspectElement: process.env.NODE_ENV !== 'production'
+		});
 	}
 
 	app.on('ready', createWindow);

@@ -58,4 +58,4 @@ resources/win/mmseqs.bat:
 
 clean:
 	#rm -f build/icons/256x256.png build/icons/icon.icns build/icons/icon.ico
-	rm -f resources/mac/* resources/linux/*  resources/win/*
+	rm -rf resources/mac/* resources/linux/*  resources/win/*

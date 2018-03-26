@@ -1,5 +1,6 @@
 {
   "name": "mmseqs-desktop",
+  "productName": "MMseqs2 Search",
   "version": "0.0.0",
   "author": "Milot Mirdita <milot@mirdita.de>",
   "description": "MMseqs2",
@@ -11,7 +12,7 @@
   "scripts": {
     "build": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "build:all": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder -mwl --x64 --dir",
-    "build:dir": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
+    "build:dir": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --x64 --dir",
     "build:clean": "cross-env BUILD_TARGET=clean node ./electron-vue/build.js",
     "build:dev": "make all && node ./electron-vue/dev-runner.js",
     "pack": "npm run pack:main && npm run pack:renderer",
@@ -62,16 +63,16 @@
   },
   "dependencies": {
     "app-root-dir": "^1.0.2",
-    "find-free-port": "^1.2.0",
+    "find-free-port": "^1.2.0"
+  },
+  "devDependencies": {
     "material-design-icons": "^3.0.1",
     "vue": "^2.5.15",
     "vue-localstorage": "^0.6.1",
     "vue-resource": "^1.5.0",
     "vue-router": "^3.0.1",
     "vuedraggable": "^2.16.0",
-    "vuetify": "^0.17.7"
-  },
-  "devDependencies": {
+    "vuetify": "^0.17.7",
     "babel-core": "^6.26.0",
     "babel-loader": "^7.1.4",
     "babel-plugin-add-filehash": "^6.9.8",
