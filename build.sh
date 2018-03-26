@@ -1,4 +1,2 @@
 #!/bin/sh -e
-GOOS=darwin  GOARCH=amd64 go build -ldflags="-s -w" -o cpu-check-darwin
-GOOS=linux   GOARCH=amd64 go build -ldflags="-s -w" -o cpu-check-linux
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o cpu-check-windows.exe
+GOOS=$1 GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o $2
