@@ -5,15 +5,11 @@
   "author": "Milot Mirdita <milot@mirdita.de>",
   "description": "MMseqs2",
   "license": null,
-  "main": "./dist/electron/main.js",
-  "configuration": {
-    "apiEndpoint": "https://search.mmseqs.com/"
-  },
   "scripts": {
     "build": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "build:all": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder -mwl --x64 --dir",
     "build:dir": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --x64 --dir",
-    "build:clean": "cross-env BUILD_TARGET=clean node ./electron-vue/build.js",
+    "build:clean": "make clean && cross-env BUILD_TARGET=clean node ./electron-vue/build.js",
     "build:dev": "make all && node ./electron-vue/dev-runner.js",
     "pack": "npm run pack:main && npm run pack:renderer",
     "pack:main": "cross-env NODE_ENV=production webpack --progress --hide-modules --colors --config ./webpack.main.config.js",
@@ -26,7 +22,6 @@
     "directories": {
       "output": "build"
     },
-    "compression": "store",
     "files": [
       "dist/electron/**/*"
     ],
@@ -58,7 +53,7 @@
       "icon": "build/icons/icon.ico"
     },
     "linux": {
-      "icon": "build/icons"
+      "icon": "build/icons/icon.icns"
     }
   },
   "dependencies": {
