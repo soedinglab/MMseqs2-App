@@ -67,6 +67,8 @@ fp(3000, function(err, freePort) {
 			tempPath,
 			"-server.cors",
 			"true",
+			"-server.dbmanagment",
+			"true",
 		], {
 		encoding: "utf8",
 		windowsHide: true
