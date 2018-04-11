@@ -1,7 +1,7 @@
 FROM soedinglab/mmseqs2 as mmseqs
 
 FROM golang:alpine as mmseqs-web-builder
-RUN apk add --no-cache git gcc g++ musl-dev make
+RUN apk add --no-cache git gcc g++ musl-dev make zlib-dev bzip2-dev
 
 RUN go get -u github.com/kardianos/govendor
 WORKDIR /opt/mmseqs-web
@@ -10,7 +10,7 @@ RUN make all
 
 FROM alpine:latest
 LABEL maintainer="Milot Mirdita <milot@mirdita.de>"
-RUN apk add --no-cache libstdc++ libgomp libbz2 lzlib gawk bash
+RUN apk add --no-cache libstdc++ libgomp libbz2 zlib gawk bash ca-certificates
 
 COPY --from=mmseqs /usr/local/bin/mmseqs_sse42 /usr/local/bin/mmseqs_sse42
 COPY --from=mmseqs /usr/local/bin/mmseqs_avx2 /usr/local/bin/mmseqs_avx2
