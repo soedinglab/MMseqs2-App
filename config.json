@@ -1,14 +1,37 @@
 {
-    "Databases": "/opt/mmseqs-web/databases",
-    "JobsBase": "/opt/mmseqs-web/jobs",
-    "SearchPipeline": "/usr/local/bin/run_job.sh",
-    "Mmseqs": "/usr/local/bin/mmseqs",
-    "RedisAddr": "mmseqs-web-redis:6379",
-    "ServerAddr": "0.0.0.0:3000",
-    "MailErrorSubject": "MMseqs Server Error -- %s",
-    "MailErrorTemplate": "Dear User,\nYour submitted job failed. More details are available at https://search.mmseqs.com/queue/%s .\nPlease submit your job later again.\n",
-    "MailTimeoutSubject": "MMseqs Server Timeout -- %s",
-    "MailTimeoutTemplate": "Dear User,\nYour submitted job timed out. More details are available at https://search.mmseqs.com/queue/%s .\nPlease adjust the job and submit it again.\n",
-    "MailSuccessSubject": "MMseqs Server Done -- %s",
-    "MailSuccessTemplate": "Dear User,\nThe results of your submitted job are available now at https://search.mmseqs.com/queue/%s .\n"
+    "verbose": true,
+    "server" : {
+        "address"    : "0.0.0.0:3000",
+        "dbmanagment": false,
+        "cors"       : true
+    },
+    "paths" : {
+        "databases"    : "/opt/mmseqs-web/databases",
+        "results"      : "/opt/mmseqs-web/jobs",
+        "mmseqs"       : "/usr/local/bin/mmseqs"
+    },
+    "redis" : {
+        "network"  : "tcp",
+        "address"  : "mmseqs-web-redis:6379",
+        "password" : "",
+        "index"    : 0
+    },
+    "mail" : {
+        "type"      : "null",
+        "sender"    : "mail@example.org",
+        "templates" : {
+            "success" : {
+                "subject" : "Done -- %s",
+                "body"    : "Dear User,\nThe results of your submitted job are available now at https://search.mmseqs.com/queue/%s .\n"
+            },
+            "timeout" : {
+                "subject" : "Timeout -- %s",
+                "body"    : "Dear User,\nYour submitted job timed out. More details are available at https://search.mmseqs.com/queue/%s .\nPlease adjust the job and submit it again.\n"
+            },
+            "error"   : {
+                "subject" : "Error -- %s",
+                "body"    : "Dear User,\nYour submitted job failed. More details are available at https://search.mmseqs.com/queue/%s .\nPlease submit your job later again.\n"
+            }
+        }
+    }
 }

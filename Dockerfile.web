@@ -1,5 +1,0 @@
-FROM mirdita/mmseqs-web-frontend:latest as frontend
-
-FROM nginx:alpine
-COPY --from=frontend /var/www/mmseqs-web /var/www/mmseqs-web
-ADD nginx.conf /etc/nginx/conf.d/default.conf
