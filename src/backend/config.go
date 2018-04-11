@@ -16,7 +16,8 @@ var defaultFileContent = []byte(`{
     "verbose": true,
     "server" : {
         "address"    : "127.0.0.1:8081",
-        "pathprefix" : "/api/",
+		"pathprefix" : "/api/",
+		"dbmanagment": false,
         "cors"       : true
     },
     "paths" : {
@@ -88,10 +89,11 @@ type ConfigAuth struct {
 }
 
 type ConfigServer struct {
-	Address    string      `json:"address" valid:"required"`
-	PathPrefix string      `json:"pathprefix" valid:"optional"`
-	CORS       bool        `json:"cors" valid:"optional"`
-	Auth       *ConfigAuth `json:"auth" valid:"optional"`
+	Address     string      `json:"address" valid:"required"`
+	PathPrefix  string      `json:"pathprefix" valid:"optional"`
+	DbManagment bool        `json:"dbmanagment" valid:"optional"`
+	CORS        bool        `json:"cors" valid:"optional"`
+	Auth        *ConfigAuth `json:"auth" valid:"optional"`
 }
 
 type ConfigRoot struct {

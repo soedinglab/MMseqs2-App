@@ -67,139 +67,141 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 	}).Methods("GET")
 
-	r.HandleFunc("/databases/order", func(w http.ResponseWriter, req *http.Request) {
-		err := req.ParseForm()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		paths := req.Form["database[]"]
-		databases, err := ReorderDatabases(config.Paths.Databases, paths)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		err = json.NewEncoder(w).Encode(DatabaseResponse{GetDisplayFromParams(databases)})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}).Methods("POST")
-
-	r.HandleFunc("/database", func(w http.ResponseWriter, req *http.Request) {
-		var request JobRequest
-
-		var data string
-		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
-			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			f, _, err := req.FormFile("file")
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			buf := new(bytes.Buffer)
-			buf.ReadFrom(f)
-			data = buf.String()
-		} else {
+	if config.Server.DbManagment == true {
+		r.HandleFunc("/databases/order", func(w http.ResponseWriter, req *http.Request) {
 			err := req.ParseForm()
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			data = req.FormValue("file")
-		}
 
-		var suffix string
-		switch req.FormValue("format") {
-		case "fasta":
-			suffix = ".fasta"
-			break
-		case "stockholm":
-			suffix = ".sto"
-			break
-		default:
-			http.Error(w, "Invalid database input file", http.StatusBadRequest)
-			return
-		}
-
-		var path string
-		if len(req.FormValue("path")) > 0 {
-			path = filepath.Base(req.FormValue("path"))
-			if fileExists(filepath.Join(config.Paths.Databases, path+suffix)) == false {
-				http.Error(w, "Indicated file does not exist already", http.StatusBadRequest)
-				return
-			}
-		} else {
-			path = SafePath(config.Paths.Databases, req.FormValue("name"), req.FormValue("version"))
-
-			f, err := os.Create(filepath.Join(config.Paths.Databases, filepath.Base(path+suffix)))
+			paths := req.Form["database[]"]
+			databases, err := ReorderDatabases(config.Paths.Databases, paths)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			f.WriteString(data)
-			f.Close()
-		}
-		params := Params{
-			StatusPending,
-			ParamsDisplay{
-				req.FormValue("name"),
-				req.FormValue("version"),
-				path,
-				req.FormValue("default") == "true",
-				0,
-				req.FormValue("search"),
-			},
-		}
 
-		filename := filepath.Join(config.Paths.Databases, filepath.Base(path+".params"))
-		err := SaveParams(filename, params)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+			err = json.NewEncoder(w).Encode(DatabaseResponse{GetDisplayFromParams(databases)})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}).Methods("POST")
 
-		request, err = NewIndexJobRequest(path, req.FormValue("email"))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		result, err := jobsystem.NewJob(request, config.Paths.Results)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+		r.HandleFunc("/database", func(w http.ResponseWriter, req *http.Request) {
+			var request JobRequest
 
-		err = json.NewEncoder(w).Encode(result)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}).Methods("POST")
+			var data string
+			if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
+				err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
 
-	r.HandleFunc("/database", func(w http.ResponseWriter, req *http.Request) {
-		err := req.ParseForm()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+				f, _, err := req.FormFile("file")
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
 
-		path := req.FormValue("path")
-		ok := DeleteDatabase(filepath.Join(config.Paths.Databases, filepath.Base(path)))
-		if ok == false {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}).Methods("DELETE")
+				buf := new(bytes.Buffer)
+				buf.ReadFrom(f)
+				data = buf.String()
+			} else {
+				err := req.ParseForm()
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				data = req.FormValue("file")
+			}
 
+			var suffix string
+			switch req.FormValue("format") {
+			case "fasta":
+				suffix = ".fasta"
+				break
+			case "stockholm":
+				suffix = ".sto"
+				break
+			default:
+				http.Error(w, "Invalid database input file", http.StatusBadRequest)
+				return
+			}
+
+			var path string
+			if len(req.FormValue("path")) > 0 {
+				path = filepath.Base(req.FormValue("path"))
+				if fileExists(filepath.Join(config.Paths.Databases, path+suffix)) == false {
+					http.Error(w, "Indicated file does not exist already", http.StatusBadRequest)
+					return
+				}
+			} else {
+				path = SafePath(config.Paths.Databases, req.FormValue("name"), req.FormValue("version"))
+
+				f, err := os.Create(filepath.Join(config.Paths.Databases, filepath.Base(path+suffix)))
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				f.WriteString(data)
+				f.Close()
+			}
+			params := Params{
+				StatusPending,
+				ParamsDisplay{
+					req.FormValue("name"),
+					req.FormValue("version"),
+					path,
+					req.FormValue("default") == "true",
+					0,
+					req.FormValue("search"),
+				},
+			}
+
+			filename := filepath.Join(config.Paths.Databases, filepath.Base(path+".params"))
+			err := SaveParams(filename, params)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			request, err = NewIndexJobRequest(path, req.FormValue("email"))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			result, err := jobsystem.NewJob(request, config.Paths.Results)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			err = json.NewEncoder(w).Encode(result)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}).Methods("POST")
+
+		r.HandleFunc("/database", func(w http.ResponseWriter, req *http.Request) {
+			err := req.ParseForm()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			path := req.FormValue("path")
+			ok := DeleteDatabase(filepath.Join(config.Paths.Databases, filepath.Base(path)))
+			if ok == false {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}).Methods("DELETE")
+
+	}
 	r.HandleFunc("/ticket", func(w http.ResponseWriter, req *http.Request) {
 		var request JobRequest
 
