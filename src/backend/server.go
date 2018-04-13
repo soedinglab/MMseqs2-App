@@ -25,7 +25,7 @@ type DatabaseResponse struct {
 
 func server(jobsystem JobSystem, config ConfigRoot) {
 	go func() {
-		databases, err := Databases(config.Paths.Databases)
+		databases, err := Databases(config.Paths.Databases, false)
 		if err != nil {
 			panic(err)
 		}
@@ -54,7 +54,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	}
 
 	r.HandleFunc("/databases", func(w http.ResponseWriter, req *http.Request) {
-		databases, err := Databases(config.Paths.Databases)
+		databases, err := Databases(config.Paths.Databases, true)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -241,7 +241,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			email = req.FormValue("email")
 		}
 
-		databases, err := Databases(config.Paths.Databases)
+		databases, err := Databases(config.Paths.Databases, true)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

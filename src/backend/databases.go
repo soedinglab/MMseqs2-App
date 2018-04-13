@@ -136,7 +136,7 @@ func SaveParams(file string, params Params) error {
 	return nil
 }
 
-func Databases(basepath string) ([]Params, error) {
+func Databases(basepath string, complete bool) ([]Params, error) {
 	matches, err := filepath.Glob(filepath.Clean(basepath) + "/*.params")
 	if err != nil {
 		return nil, err
@@ -149,7 +149,7 @@ func Databases(basepath string) ([]Params, error) {
 			return nil, err
 		}
 
-		if params.Status != StatusComplete {
+		if complete && params.Status != StatusComplete {
 			continue
 		}
 
@@ -173,7 +173,7 @@ func Databases(basepath string) ([]Params, error) {
 }
 
 func ReorderDatabases(basepath string, paths []string) ([]Params, error) {
-	res, err := Databases(basepath)
+	res, err := Databases(basepath, true)
 	if err != nil {
 		return nil, err
 	}
