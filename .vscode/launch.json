@@ -14,10 +14,9 @@
             "host": "127.0.0.1",
             "preLaunchTask": "Make",
             "program": "${workspaceRoot}/build/mmseqs-backend",
-            "env": {
-                "MMSEQS_WEB_DEBUG": "TRUE"
-            },
-            "args": [],
+            "args": [
+                "-server"
+            ],
             "showLog": false
         },
         {
@@ -30,9 +29,6 @@
             "host": "127.0.0.1",
             "preLaunchTask": "Make",
             "program": "${workspaceRoot}/build/mmseqs-backend",
-            "env": {
-                "MMSEQS_WEB_DEBUG": "TRUE"
-            },
             "args": [
                 "-worker"
             ],
@@ -48,9 +44,6 @@
             "host": "127.0.0.1",
             "preLaunchTask": "Make",
             "program": "${workspaceRoot}/build/mmseqs-backend",
-            "env": {
-                "MMSEQS_WEB_DEBUG": "TRUE"
-            },
             "args": [
                 "-local"
             ],
