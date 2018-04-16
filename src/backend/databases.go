@@ -38,20 +38,22 @@ func (d paramsByOrder) Less(i, j int) bool {
 func (s ParamsDisplay) Sensitiviy() (float32, error) {
 	arr := strings.Fields(s.Search)
 	for i, value := range arr {
-		if value == "-s" {
-			if i+1 < len(arr) {
-				sens, err := strconv.ParseFloat(arr[i+1], 32)
+		if value != "-s" {
+			continue
+		}
 
-				if err != nil {
-					return float32(sens), err
-				}
-
-				return -1, nil
-			}
-
+		if i+1 >= len(arr) {
 			return -1, errors.New("Invalid parameter string!")
 		}
+
+		sens, err := strconv.ParseFloat(arr[i+1], 32)
+		if err != nil {
+			return -1, err
+		}
+
+		return float32(sens), nil
 	}
+
 	return -1, nil
 }
 
