@@ -79,13 +79,18 @@ func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitiviy fl
 		if err != nil {
 			return err
 		}
-	} else if fileExists(basepath+".sto") && fileExists(basepath+".sto") && !fileExists(basepath) && !fileExists(basepath+".index") {
+		return nil
+	}
+
+	if fileExists(basepath+".sto") && !fileExists(basepath+"_msa") && !fileExists(basepath+"_msa.index") {
 		err := quickExec(mmseqs, verbose, "convertmsa", basepath+".sto", basepath+"_msa", "--identifier-field", "1")
 		if err != nil {
 			return err
 		}
+	}
 
-		err = quickExec(mmseqs, verbose, "msa2profile", basepath+"_msa", basepath, "--match-mode", "1")
+	if fileExists(basepath+"_msa") && fileExists(basepath+"_msa.index") && !fileExists(basepath) && !fileExists(basepath+".index") {
+		err := quickExec(mmseqs, verbose, "msa2profile", basepath+"_msa", basepath, "--match-mode", "1")
 		if err != nil {
 			return err
 		}
@@ -101,7 +106,10 @@ func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitiviy fl
 		if err != nil {
 			return err
 		}
+
+		return nil
 	}
+
 	return nil
 }
 
