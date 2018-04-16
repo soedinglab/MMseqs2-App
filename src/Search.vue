@@ -309,19 +309,16 @@ export default {
     height: 100%;
 }
 
-.marv-bg {
-    background-image: url("./assets/marv-search-gray.png");
-    background-repeat: no-repeat;
-    background-position: right 15px bottom -10px;
-    background-size: 200px;
-}
-
 .marv-bg .input-group__input {
     max-height: inherit;
 }
 
 .marv-bg textarea {
     min-height: 250px;
+    background-image: url("./assets/marv-search-gray.png");
+    background-repeat: no-repeat;
+    background-position: right 15px bottom -10px;
+    background-size: 200px;
 }
 
 code {
