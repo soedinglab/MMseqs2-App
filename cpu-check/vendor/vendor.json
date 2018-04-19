@@ -1,0 +1,13 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "XqFFdn2xNTyziLanqTACcuP5Zg4=",
+			"path": "github.com/intel-go/cpuid",
+			"revision": "14e30a176083de28aacc003e865f9fe7a1fe5403",
+			"revisionTime": "2017-03-29T17:03:05Z"
+		}
+	],
+	"rootPath": "github.com/milot-mirdita/cpu-check"
+}
