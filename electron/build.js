@@ -8,8 +8,8 @@ const webpack = require('webpack')
 const Multispinner = require('multispinner')
 
 
-const mainConfig = require('../webpack.main.config')
-const rendererConfig = require('../webpack.renderer.config')
+const mainConfig = require('../webpack.electron.config')
+const rendererConfig = require('../webpack.frontend.config')
 
 const doneLog = ' DONE '
 const errorLog = ' ERROR  '

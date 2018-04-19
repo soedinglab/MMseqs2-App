@@ -145,8 +145,6 @@ fp(3000, function(err, freePort) {
 			}
 		});
 
-		mainWindow.webContents.openDevTools();
-
 		const menu = defaultMenu(app, shell);
 		Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
 		mainWindow.setAutoHideMenuBar(true);

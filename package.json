@@ -5,16 +5,17 @@
   "author": "Milot Mirdita <milot@mirdita.de>",
   "description": "MMseqs2",
   "license": "GPLv3",
+  "main" : "dist/main.js",
   "scripts": {
-    "build": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
-    "build:all": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder -mwl --x64 --dir",
-    "build:dir": "node ./electron-vue/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --x64 --dir",
-    "build:clean": "make clean && cross-env BUILD_TARGET=clean node ./electron-vue/build.js",
-    "build:dev": "make all && node ./electron-vue/dev-runner.js",
-    "pack": "npm run pack:main && npm run pack:renderer",
-    "pack:main": "cross-env NODE_ENV=production webpack --progress --hide-modules --colors --config ./webpack.main.config.js",
-    "pack:renderer": "cross-env NODE_ENV=production webpack --progress --hide-modules  --colors --config ./webpack.renderer.config.js",
-    "postinstall": ""
+    "electron:deps": "make all",
+    "electron:build": "npm run electron:deps && cross-env ELECTRON=1 node ./electron/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --x64",
+    "electron:dir": "npm run electron:deps && cross-env ELECTRON=1 node ./electron/build.js && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --x64 --dir",
+    "electron:dev": "cross-env ELECTRON=1 node ./electron/dev-runner.js",
+    "electron:pack": "npm run electron:main && cross-env ELECTRON=1 npm run frontend",
+    "electron:main": "cross-env NODE_ENV=production webpack --progress --hide-modules --colors --config ./webpack.electron.config.js",
+    "frontend": "cross-env NODE_ENV=production webpack --progress --hide-modules  --colors --config ./webpack.frontend.config.js",
+    "frontend:watch": "cross-env NODE_ENV=production webpack --watch --progress --hide-modules  --colors --config ./webpack.frontend.config.js",
+    "frontend:dev": "cross-env NODE_ENV=development webpack-dev-server --open --inline --hot --content-base dist/ --config ./webpack.frontend.config.js"
   },
   "build": {
     "productName": "MMseqs2 Search",
@@ -23,7 +24,7 @@
       "output": "build"
     },
     "files": [
-      "dist/electron/**/*"
+      "dist/**/*"
     ],
     "extraFiles": [
       {
@@ -47,20 +48,18 @@
       ]
     },
     "mac": {
-      "icon": "build/icons/icon.icns"
+      "icon": "resources/icons/icon.icns"
     },
     "win": {
-      "icon": "build/icons/icon.ico"
+      "icon": "resources/icons/icon.ico"
     },
     "linux": {
-      "icon": "build/icons/icon.icns"
+      "icon": "resources/icons/icon.icns"
     }
   },
-  "dependencies": {
-    "app-root-dir": "^1.0.2",
-    "find-free-port": "^1.2.0"
-  },
   "devDependencies": {
+    "app-root-dir": "^1.0.2",
+    "find-free-port": "^1.2.0",
     "material-design-icons": "^3.0.1",
     "vue": "^2.5.15",
     "vue-localstorage": "^0.6.1",
@@ -99,10 +98,10 @@
     "url-loader": "^0.6.2",
     "vue-loader": "^14.2.1",
     "vue-style-loader": "^4.0.2",
-    "vue-template-compiler": "^2.5.15",
+    "vue-template-compiler": "^2.5.16",
     "webpack": "^3.11.0",
     "webpack-dev-server": "^2.11.2",
-    "webpack-hot-middleware": "^2.21.2",
+    "webpack-hot-middleware": "^2.22.1",
     "webpack-subresource-integrity": "^1.0.4"
   }
 }

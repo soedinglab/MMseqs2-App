@@ -7,8 +7,8 @@ const webpack = require('webpack')
 const WebpackDevServer = require('webpack-dev-server')
 const webpackHotMiddleware = require('webpack-hot-middleware')
 
-const mainConfig = require('../webpack.main.config')
-const rendererConfig = require('../webpack.renderer.config')
+const mainConfig = require('../webpack.electron.config')
+const rendererConfig = require('../webpack.frontend.config')
 
 let electronProcess = null
 let manualRestart = false
@@ -77,7 +77,7 @@ function startRenderer () {
 
 function startMain () {
   return new Promise((resolve, reject) => {
-    mainConfig.entry.main = [path.join(__dirname, '../src/main/index.dev.js')].concat(mainConfig.entry.main)
+    mainConfig.entry.main = [path.join(__dirname, './index.dev.js')].concat(mainConfig.entry.main)
 
     const compiler = webpack(mainConfig)
 
@@ -112,7 +112,7 @@ function startMain () {
 }
 
 function startElectron () {
-  electronProcess = spawn(electron, ['--inspect=5858', path.join(__dirname, '../dist/electron/main.js')])
+  electronProcess = spawn(electron, ['--inspect=5858', path.join(__dirname, '../dist/main.js')])
 
   electronProcess.stdout.on('data', data => {
     electronLog(data)

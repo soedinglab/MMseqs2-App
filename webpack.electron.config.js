@@ -5,7 +5,7 @@ const webpack = require('webpack')
 
 let mainConfig = {
   entry: {
-    main: path.join(__dirname, './src/main/index.js')
+    main: path.join(__dirname, './electron/index.js')
   },
   module: {
     rules: [
@@ -27,7 +27,7 @@ let mainConfig = {
   output: {
     filename: '[name].js',
     libraryTarget: 'commonjs2',
-    path: path.join(__dirname, './dist/electron')
+    path: path.join(__dirname, './dist')
   },
   plugins: [
     new webpack.NoEmitOnErrorsPlugin()
@@ -38,9 +38,7 @@ let mainConfig = {
   target: 'electron-main'
 }
 
-/**
- * Adjust mainConfig for production settings
- */
+// Adjust mainConfig for production settings
 if (process.env.NODE_ENV === 'production') {
   mainConfig.plugins.push(
     new webpack.DefinePlugin({
