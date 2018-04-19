@@ -7,4 +7,5 @@ npm-debug.log.*
 thumbs.db
 !.gitkeep
 pkg/
-resources/*
+resources/
+backend/.cache/

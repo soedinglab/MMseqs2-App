@@ -2,4 +2,7 @@
 dist/
 build/
 node_modules/
+resources/
 Dockerfile
+backend/.cache/
+backend/pkg/
