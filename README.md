@@ -1,18 +1,56 @@
-# mmseqs-desktop
+# MMseqs2 App and Server
 
-> An electron-vue project
+[MMseqs2](https://github.com/soedinglab/MMseqs2) is a software suite to search and annotate huge sequence sets. We built a graphical interface to make it more useful for interactive data exploration.
 
-#### Build Setup
+The application runs either:
+* on your workstation as a cross-platform desktop application with the help of the [electron framework](https://github.com/electron/electron)
+* on your server through docker-compose, where it can make your sequence or profile databases easily accessible over the web
+
+## Desktop App
+
+Head over to the [release page](https://github.com/soedinglab/MMseqs2-App/releases) and download the latest version. We currently support Linux, macOS and Windows.
+
+### Adding a search database
+Once the app is installed, open the Settings panel. There you can add either sequence databases in FASTA format, such as our [Uniclust](https://uniclust.mmseqs.com/) databases or profile databases in Stockholm format, such as the [PFAM](ftp://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.full.gz).
+
+### Building the desktop app
+
+You need to have `git`, `go`, `node`, `npm` and `make` installed on your system.
+
+Afterwards run the following commands, and the apps will appear in the `build` folder.
 
 ``` bash
-# install dependencies
+# clone the repository
+git clone https://github.com/soedinglab/MMseqs2-App.git
+cd MMseqs2-App
+
+# install all dependencies
 npm install
 
-# serve with hot reload at localhost:9080
-npm run dev
-
-# build electron application for production
-npm run build
-
-
+# build the app for all platforms
+npm run electron:build
 ```
+
+## Web app quickstart with docker-compose
+
+Make sure you have `docker` (>=17.05), `docker-compose` (>=1.20.0) and `git` installed on your server.
+To start the MMseqs2 web server execute the following commands:
+
+``` bash
+# clone the repository
+git clone https://github.com/soedinglab/MMseqs2-App.git
+
+# navigate to our docker recipes
+cd MMseqs2-App/docker-compose
+
+# download the uniclust sequence database
+./examples/uniclust/setup.sh
+
+# run the docker-compose script
+docker-compose up
+```
+
+Head over to the [docker recipe readme](https://github.com/soedinglab/MMseqs2-App/blob/master/docker-compose/README.md) for more details on running your own server.
+
+## License
+This application is licensed under GPLv3. See the [LICENSE file](https://github.com/soedinglab/MMseqs2-App/blob/master/LICENSE).
