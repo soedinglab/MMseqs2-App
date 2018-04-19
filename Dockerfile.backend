@@ -5,7 +5,7 @@ RUN apk add --no-cache git gcc g++ musl-dev make zlib-dev bzip2-dev
 
 RUN go get -u github.com/kardianos/govendor
 WORKDIR /opt/mmseqs-web
-ADD . .
+ADD backend .
 RUN make all
 
 FROM alpine:latest
