@@ -1,0 +1,11 @@
+.idea/
+.vscode/
+build/databases/*
+build/jobs/*
+build/mmseqs-web
+dump.rdb
+src/backend/vendor/*
+pkg/*
+
+# Mac
+.DS_Store
