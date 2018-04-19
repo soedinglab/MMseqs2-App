@@ -4,9 +4,9 @@
             <v-flex xs12 md8>
                 <panel class="query-panel d-flex fill-height" header="Queries" fill-height>
                     <template slot="content">
-            <!-- <div v-if="error" class="alert alert-danger"> -->
-                        <!-- {{ status.message }} -->
-                    <!-- </div> -->
+                        <!-- <div v-if="error" class="alert alert-danger">
+                            {{ status.message }}
+                        </div> -->
                         <v-text-field aria-label="Enter queries in FASTA format" class="marv-bg" hide-details multi-line v-model="query" @dragover.prevent @drop="fileDrop($event)" placeholder="Please start a Search" spellcheck="false"></v-text-field>
 
                         <div class="actions">
