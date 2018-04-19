@@ -1,0 +1,17 @@
+version: '2'
+
+services:
+  mmseqs-web-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile.backend
+
+  mmseqs-web-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile.backend
+
+  mmseqs-web-frontend:
+    build:
+      context: ..
+      dockerfile: Dockerfile.frontend

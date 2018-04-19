@@ -4,12 +4,15 @@ RUN apt-get update && apt-get install -y build-essential bzip2 fontconfig tar
 
 WORKDIR /opt/mmseqs-frontend
 ADD package.json .
+
+ENV PYTHONIOENCODING=utf8
 RUN npm install
 
-ADD frontend .
-ADD webpack.renderer.config
+ADD frontend frontend
+ADD webpack.frontend.config.js .
+ADD .babelrc .
 
-RUN npm run build
+RUN npm run frontend
 
 FROM tianon/true
 LABEL maintainer="Milot Mirdita <milot@mirdita.de>"
