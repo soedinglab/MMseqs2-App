@@ -35,9 +35,7 @@ You can now navigate with a web browser to your server's IP address and use the 
 To make sure you are running the latest version of the MMseqs2 Web Server execute the following commands.
 
 ```
-docker pull soedinglab/mmseqs:latest
-docker pull milot-mirdita/mmseqs-web-backend:
-docker pull mirdita/mmseqs-web-frontend:latest
+docker-compose pull
 docker-compose up --build
 ```
 
@@ -103,27 +101,15 @@ Then create a .params file with the same basename (filename without the .fasta e
 The following command will create an empty .params file that you can customize:
 ```
 BASEFASTA="sequence_db"
-echo -e "{\n \"display\": {\n  \"name\": \"\",\n  \"version\": \"\",\n  \"default\": true,\n  \"order\": 0\n },\n \"params\": {\n  \"search\": \"\"\n }\n}" > "${BASEFASTA}.params"
+echo -e "{\n \"display\": {\n  \"name\": \"\",\n  \"version\": \"\",\n  \"default\": true,\n  \"order\": 0\n, \"search\": \"\"\n }\n}" > "${BASEFASTA}.params"
 ```
 
 Take a look at the "Params File" to customize this file.
 
 ### Setting up a Custom Profile Database
-To add a profile database to your local MMseqs2 Search Server, you need to provide multiple sequence alignments for each target profile inside an MMseqs2 indexed database. There is no general recipe to build a database like this, but you can take a look at the EggNOG docker container in `examples/eggnog` for an example how you might setup your own profile databases.
+To add a profile database to your local MMseqs2 Search Server, you need to provide multiple sequence alignments for each target profile inside an MMseqs2 indexed database. Place your MSAs as one STOCKHOLM file with the .sto file ending in the databases folder. 
 
 Params File
 -----------
 
-The params file is a json file with two sections [finish]
-
-
-Troubleshooting
----------------
-
-### `docker-compose up` takes a very long time
-Make sure that you did not add any additional directories or files to the mmseqs-web base path.
-Docker-compose will copy everything in this folder to the docker daemon, which might take a very long time. The databases and jobs directory are automatically excluded in the `.dockerignore`, there you can add additional files and create temporary folders to use as working directories for database creation.
-
-### Server takes a very long time to start up
-The multiple sequence alignments of profile databases will have to be converted to profiles first.
-Both sequence and profile databases also create an index the first the server starts. Both these steps can take a bit time, usually just a few minutes, but if you have very large MSAs, this can take a couple hours.
+The params file is a json file with the following format:

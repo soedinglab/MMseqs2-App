@@ -8,6 +8,7 @@
     "paths" : {
         "databases"    : "/opt/mmseqs-web/databases",
         "results"      : "/opt/mmseqs-web/jobs",
+        "temporary"    : "/tmp",
         "mmseqs"       : "/usr/local/bin/mmseqs"
     },
     "redis" : {
