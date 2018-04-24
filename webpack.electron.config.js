@@ -13,10 +13,6 @@ let mainConfig = {
         test: /\.js$/,
         loader: 'babel-loader',
         exclude: /node_modules/
-      },
-      {
-        test: /\.node$/,
-        use: 'node-loader'
       }
     ]
   },
