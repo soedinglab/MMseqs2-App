@@ -46,13 +46,12 @@ const mmseqsBinary = join(binPath, "mmseqs" + (platform == "win32" ? "" : ("-" +
 const backendBinary = join(binPath, "mmseqs-web-backend" + (platform == "win32" ? ".exe" : ""));
 
 app.mmseqsVersion = String(execFileSync(mmseqsBinary, ["version"])).trim()
-
-fp(3000, function(err, freePort) {
+fp(8000, "127.0.0.1", function(err, freePort) {
 	var server = execFile(backendBinary, 
 		[
 			"-local",
 			"-server.address",
-			`localhost:${freePort}`,
+			`127.0.0.1:${freePort}`,
 			"-server.auth.username",
 			username,
 			"-server.auth.password",
@@ -86,7 +85,7 @@ fp(3000, function(err, freePort) {
 		console.log(data);
 	});
 
-	app.apiEndpoint = `http://localhost:${freePort}/`
+	app.apiEndpoint = `http://127.0.0.1:${freePort}/`
 	app.token = new Buffer(username + ':' + password).toString('base64');
 
 	let mainWindow;
