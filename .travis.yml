@@ -1,3 +1,4 @@
+language: bash
 os: osx
 
 before_install:
@@ -5,7 +6,7 @@ before_install:
   # workaround for GCC install issue, remove package that installed links to /usr/local/include/c++
   - brew cask list && brew cask uninstall --force oclint
   # coreutils and cmake dependencies are already pre-installed
-  - brew install gcc@7 node go wget curl unzip git make
+  - brew install gcc@7 node go wget curl unzip make
 
 script:
   - export GOPATH="${HOME}/go"
