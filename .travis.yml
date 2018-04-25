@@ -1,11 +1,10 @@
 language: bash
+
 os: osx
 
 before_install:
   - brew update
-  # workaround for GCC install issue, remove package that installed links to /usr/local/include/c++
   - brew cask list && brew cask uninstall --force oclint
-  # coreutils and cmake dependencies are already pre-installed
   - brew install curl unzip make
   - brew upgrade node go wget git
 
@@ -16,3 +15,7 @@ script:
   - go get -u github.com/intel-go/cpuid
   - npm i
   - npm run electron:build
+
+env:
+  global:
+    secure: s2DECvaiMiEH0gCBH9ZBy2zdeTJ2kmIE5J6Lc54gaCJdysUNS3VPA/6NbBavq9PLleIYVQ6AHl5iwQlQcaUzG2PU7/h8pvJj6OGbj6n6IerflGRjetjI3QmySxRNq0kpAWchDcerjuqf12qJfIXPweKjW3ZNr43J12oIFbhbBigzmzSgmFL/L21Sr1dsFH6y2vwhoiIGk9u1LediQ7JqvBp+G6URtEGQEnPulsPQYBt9/6vF0k4EDH1yv26ldzZ8972UZgimBbktvFp5DyeTmbh0a4q43XvYSlbZXD9aOcsNubb9K8ZHTbHw4ZprL0j1aSv2LWpbn4xyhMK2TWZsvX/eH8VduSk5h9nBJHwXMzFsb0/aZf7is4gh8BrPsIMf50rS1Nxcfk6O4MaSb5t917FZPWfwY/0bFyRp2oFo6Zi6QCzZ/44zxMFNoeQv0bWml1zwMcc6BafK4oaNaXxhfc7keEwxb9pn43+xGrzsPu4jpze6uX5I8IhohSmYAYTygMqFA5WF9TEEaErCGZaLdH2rjxQSLlEdOVL7dO5hKe7Djrfyc+jeLKBCXGJl2Iawm3aOAKI5Z53/Wi+jGPTaqK5hAdctWWDsHhls9rbMbz98vtRWPjr6PA9IKRvNlXGnrXDVbNgTHCR/g9hBHVwjU+wKzc4caEKidF1DUvb/cYo=
