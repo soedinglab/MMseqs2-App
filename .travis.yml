@@ -8,7 +8,7 @@ before_install:
   - brew upgrade node go wget git
 
 script:
-  - if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then openssl aes-256-cbc -K $encrypted_d5229c4255f2_key -iv $encrypted_d5229c4255f2_iv -in certificate.p12.enc -outcertificate.p12 -d; fi
+  - if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then openssl aes-256-cbc -K $encrypted_d5229c4255f2_key -iv $encrypted_d5229c4255f2_iv -in certificate.p12.enc -out certificate.p12 -d; fi
   - if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then export CSC_LINK=./certificate.p12; fi
   - if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then unset CSC_KEY_PASSWORD; unset GH_TOKEN; fi
   - export GOPATH="${HOME}/go"
