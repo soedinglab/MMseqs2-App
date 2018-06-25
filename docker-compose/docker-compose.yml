@@ -29,27 +29,17 @@ services:
       - ./databases:/opt/mmseqs-web/databases
       - ./jobs:/opt/mmseqs-web/jobs
     tmpfs:
-      - /tmp
-
-  mmseqs-web-frontend:
-    image: soedinglab/mmseqs2-app-frontend
-    volumes:
-      - frontend:/var/www/mmseqs-web:ro
+      - /tmp:exec
 
   mmseqs-web-webserver:
-    image: nginx:alpine
+    image: soedinglab/mmseqs2-app-frontend
     depends_on:
-      - mmseqs-web-frontend
       - mmseqs-web-api
     volumes:
-      - frontend:/var/www/mmseqs-web:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "8877:80"
 
 volumes:
   redis-volume:
-  frontend:
-    driver_opts:
-      type: tmpfs
-      device: tmpfs
+
