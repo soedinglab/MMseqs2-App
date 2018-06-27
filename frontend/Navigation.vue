@@ -38,7 +38,7 @@
     <v-spacer></v-spacer>
     <v-toolbar-items v-once v-if="!$ELECTRON" class="hidden-sm-and-down">
         <v-btn flat rel="external noopener" target="_blank" href="https://mmseqs.com">MMseqs2</v-btn>
-        <v-btn flat rel="external noopener" target="_blank" href="https://github.com/soedinglab/mmseqs-webserver">Github</v-btn>
+        <v-btn flat rel="external noopener" target="_blank" href="https://github.com/soedinglab/MMseqs2-App">Github</v-btn>
         <v-btn flat rel="external noopener" target="_blank" href="http://www.mpibpc.mpg.de/soeding">Södinglab</v-btn>
     </v-toolbar-items>
 </v-toolbar>

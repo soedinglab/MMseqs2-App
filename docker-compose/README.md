@@ -13,8 +13,8 @@ Without these, the database indices will be held multiple times in main memory a
 
 To check out the repository, run:
 ```
-git clone https://github.com/milot-mirdita/mmseqs-web
-cd mmseqs-web
+git clone https://github.com/soedinglab/mmseqs2-app
+cd mmseqs2-app/docker-compose
 ```
 
 If you want to use one of our default databases (Uniclust/Pfam/PDB/EggNOG) go to section [Setting Up Custom Databases](#setting-up-custom-databases) then return here.
@@ -26,7 +26,7 @@ Take a look at the [MMseqs2 User Guide](https://github.com/soedinglab/mmseqs2/wi
 Once you have set up your search databases you can start the MMseqs2 Search Server by executing:
 
 ```
-sudo docker-compose up
+docker-compose up
 ```
 
 You can now navigate with a web browser to your server's IP address and use the MMseqs2 Search Server.
@@ -99,6 +99,7 @@ To add a new sequence database to your local MMseqs2 Search Server, place your s
 Then create a .params file with the same basename (filename without the .fasta ending) in the same folder.
 
 The following command will create an empty .params file that you can customize:
+
 ```
 BASEFASTA="sequence_db"
 echo -e "{\n \"display\": {\n  \"name\": \"\",\n  \"version\": \"\",\n  \"default\": true,\n  \"order\": 0\n, \"search\": \"\"\n }\n}" > "${BASEFASTA}.params"
@@ -109,7 +110,13 @@ Take a look at the "Params File" to customize this file.
 ### Setting up a Custom Profile Database
 To add a profile database to your local MMseqs2 Search Server, you need to provide multiple sequence alignments for each target profile inside an MMseqs2 indexed database. Place your MSAs as one STOCKHOLM file with the .sto file ending in the databases folder. 
 
-Params File
------------
+## Params File
 
 The params file is a json file with the following format:
+
+## Rebuilding the docker images
+
+If you want to customize the application, you can get docker to build all images locally, instead of fetching them from the registry, by running:
+``` bash
+docker-compose -f docker-compose.yml -f docker-compose-dev.yml up
+```

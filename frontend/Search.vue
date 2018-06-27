@@ -21,7 +21,7 @@
                                 <v-card-text>
                                     Use this command to get a submit a file with fasta entries to the MMseqs search server. Replace the 'PATH_TO_FILE' string with the path to the file.
                                 <br>
-                                <code>curl -X POST -F q=@PATH_TO_FILE <span v-if="email">-F 'email={{email}}'</span> -F 'mode={{mode}}' <span v-for="(db, i) in selectedDatabases" :key="i">-F 'database[]={{db.path}}' </span> {{ origin() + '/api/ticket' }}</code>
+                                <code>curl -X POST -F q=@PATH_TO_FILE <span v-if="email">-F 'email={{email}}'</span> -F 'mode={{mode}}' <span v-for="(path, i) in database" :key="i">-F 'database[]={{ path }}' </span> {{ origin() + '/api/ticket' }}</code>
                                 </v-card-text>
                                 <v-card-actions>
                                     <v-spacer></v-spacer>
