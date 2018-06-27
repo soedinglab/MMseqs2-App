@@ -31,7 +31,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		for _, db := range databases {
-			if db.Status == StatusPending || db.Status == "" {
+			if db.Status != StatusRunning && db.Status != StatusComplete {
 				request, err := NewIndexJobRequest(db.Display.Path, "")
 				if err != nil {
 					panic(err)
