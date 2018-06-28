@@ -19,9 +19,11 @@
                                     <div class="headline">cURL Command</div>
                                 </v-card-title>
                                 <v-card-text>
-                                    Use this command to get a submit a file with fasta entries to the MMseqs search server. Replace the 'PATH_TO_FILE' string with the path to the file.
+                                    Use this command to get a submit a file in fasta format to the MMseqs2 search server. Replace the 'PATH_TO_FILE' string with the path to the file.
                                 <br>
                                 <code>curl -X POST -F q=@PATH_TO_FILE <span v-if="email">-F 'email={{email}}'</span> -F 'mode={{mode}}' <span v-for="(path, i) in database" :key="i">-F 'database[]={{ path }}' </span> {{ origin() + '/api/ticket' }}</code>
+                                <br>
+                                    Refer to the <a href="https://github.com/soedinglab/MMseqs2-App/wiki/API">wiki</a>, on how to check the status and fetch the result.
                                 </v-card-text>
                                 <v-card-actions>
                                     <v-spacer></v-spacer>
@@ -79,13 +81,13 @@
             </v-flex>
         </v-layout>
     <v-layout row wrap>
-    <v-flex xs12 md8>
+    <v-flex xs12>
         <v-card>
         <v-card-title primary-title class="pb-0 mb-0">
             <div class="headline mb-0">Reference</div>
         </v-card-title>
         <v-card-title primary-title class="pt-0 mt-0">
-            <p class="mb-0">Mirdita M., Söding J.#, and Steinegger M.#, <a href="#">MMseqs2 Webserver: Instant deployement, Instant searches</a>, <i>XXXX.</i> 201X.</p>
+            <p class="mb-0">Mirdita M., Steinegger M.#, and Söding J.#, <a href="#">MMseqs2 app and server for interactive and ultra fast homology searches</a>, <i>XXXX.</i> 201X.</p>
             <small class="text-muted"># corresponding authors</small>
         </v-card-title>
         </v-card>
