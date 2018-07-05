@@ -1,7 +1,7 @@
 <template>
 <v-container grid-list-md fluid v-if="status != 'COMPLETE'">
-    <v-layout row justify-center>
-        <v-flex xs8>
+    <v-layout row>
+        <v-flex xs12 sm10 md8 lg6>
             <panel>
                 <template slot="header">
                     Job Status:&nbsp;
@@ -10,15 +10,19 @@
                     <strong v-else>ERROR</strong>
                 </template>
 
-                <div class="text-xs-center" v-if="error" slot="desc">
-                    {{ error }}
-                </div>
-
-                <div class="status-img text-xs-center" slot="content" aria-hidden="true">
-                    <img v-if="status == 'PENDING'" src="./assets/marv-search_2x.png" srcset="./assets/marv-search_2x.png 2x, ./assets/marv-search_3x.png 3x" />
-                    <img v-else-if="status == 'RUNNING'" src="./assets/marv-result_2x.png" srcset="./assets/marv-result_2x.png 2x, ./assets/marv-result_3x.png 3x" />
-                    <img v-else src="./assets/marv-error_2x.png" srcset="./assets/marv-error_2x.png 2x, ./assets/marv-error_3x.png 3x" />
-                </div>
+                <v-container grid-list-xs fluid slot="content">
+                    <v-layout row wrap>
+                        <v-flex xs12 sm6 md4 aria-hidden="true" class="status-img">
+                            <img v-if="status == 'PENDING'" src="./assets/marv-search_2x.png" srcset="./assets/marv-search_2x.png 2x, ./assets/marv-search_3x.png 3x" />
+                            <img v-else-if="status == 'RUNNING'" src="./assets/marv-result_2x.png" srcset="./assets/marv-result_2x.png 2x, ./assets/marv-result_3x.png 3x" />
+                            <div v-else-if="status == 'COMPLETE'"></div>
+                            <img v-else src="./assets/marv-error_2x.png" srcset="./assets/marv-error_2x.png 2x, ./assets/marv-error_3x.png 3x" />
+                        </v-flex>
+                        <v-flex xs12 sm6 md8>
+                            {{ error }}
+                        </v-flex>
+                    </v-layout>
+                </v-container>
             </panel>
         </v-flex>
     </v-layout>
@@ -102,6 +106,5 @@ export default {
 <style>
 .status-img img {
     max-width: 100%;
-    max-height: 75vh;
 }
 </style>

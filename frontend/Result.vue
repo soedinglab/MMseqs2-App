@@ -83,8 +83,8 @@
                                 <td data-label="Sequence Identity">{{ item.seqId }}</td>
                                 <td data-label="Score">{{ item.score }}</td>
                                 <td data-label="E-Value">{{ item.eval }}</td>
-                                <td data-label="Query Pos">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
-                                <td data-label="Target Pos.">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
+                                <td data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
+                                <td data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
                             </tr>
                         </tbody>
                     </table>

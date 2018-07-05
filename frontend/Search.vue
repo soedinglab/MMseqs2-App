@@ -88,7 +88,6 @@
         </v-card-title>
         <v-card-title primary-title class="pt-0 mt-0">
             <p class="mb-0">Mirdita M., Steinegger M.#, and Söding J.#, <a href="#">MMseqs2 app and server for interactive and ultra fast homology searches</a>, <i>XXXX.</i> 201X.</p>
-            <small class="text-muted"># corresponding authors</small>
         </v-card-title>
         </v-card>
     </v-flex>
@@ -205,9 +204,9 @@ export default {
                         this.databases = data.databases;
 
                         const dbs = this.databases.filter((element) => { return element.default == true; });
-                        const paths = this.databases.map((db) => {return db.path; });
+                        const paths = this.databases.map((db) => { return db.path; });
                         if (this.database === null) {
-                            this.database = dbs.map((db) => {return db.path; });
+                            this.database = dbs.map((db) => { return db.path; });
                         } else {
                             this.database = this.database.filter((elem) => {
                                 return paths.includes(elem);
