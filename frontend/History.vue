@@ -96,6 +96,8 @@ export default {
                             var include = false;
                             if (data[i].status == "COMPLETE") {
                                 include = true;
+                            } else if (data[i].status == "UNKNOWN") {
+                                include = false;
                             } else if ((now - this.items[i].time) < (1000 * 60 * 60 * 24 * 7)) {
                                 include = true;
                             }
