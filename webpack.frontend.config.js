@@ -6,6 +6,7 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CompressionPlugin = require("compression-webpack-plugin");
 const SriPlugin = require('webpack-subresource-integrity');
 const HtmlWebpackIncludeAssetsPlugin = require('html-webpack-include-assets-plugin');
+const VueLoaderPlugin = require('vue-loader/lib/plugin');
 
 const isElectron = typeof(process.env.ELECTRON) != "undefined";
 const isProduction = process.env.NODE_ENV === 'production';
@@ -81,6 +82,7 @@ module.exports = {
             __CONFIG__: JSON.stringify(require('./package.json').configuration),
             __ELECTRON__: isElectron
         }),
+        new VueLoaderPlugin(),
         !isElectron ? new FaviconsWebpackPlugin({
             logo: path.resolve(__dirname, './frontend/assets/marv1.svg')
         }) : new NullPlugin(),
