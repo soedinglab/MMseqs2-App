@@ -2,6 +2,7 @@ language: bash
 os: osx
 
 before_install:
+  - nvm unload
   - rm -rf ~/.nvm
   - brew update
   - brew cask list && brew cask uninstall --force oclint
