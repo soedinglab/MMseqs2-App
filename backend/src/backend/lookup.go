@@ -16,7 +16,7 @@ type LookupResponse struct {
 }
 
 func Lookup(ticketId Id, page uint64, limit uint64, basepath string) (LookupResponse, error) {
-	result := filepath.Join(basepath, string(ticketId), "input.lookup")
+	result := filepath.Join(basepath, string(ticketId), "tmp", "latest", "query.lookup")
 
 	file, err := os.Open(result)
 	if err != nil {

@@ -5,7 +5,6 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -81,16 +80,7 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 		res = append(res, SearchResult{strings.TrimPrefix(base, "alis_"), results})
 	}
 
-	matches, err = filepath.Glob(filepath.Join(base, "tmp", "*", "query"))
-	if err != nil {
-		return AlignmentResponse{}, err
-	}
-
-	if len(matches) == 0 {
-		return AlignmentResponse{}, errors.New("Could not find query database!")
-	}
-
-	query := matches[0]
+	query := filepath.Join(base, "tmp", "latest", "query")
 	reader.Make(dbpaths(query))
 	sequence := strings.TrimSpace(reader.Data(entry))
 	reader.Delete()
