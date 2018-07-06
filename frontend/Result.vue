@@ -76,7 +76,7 @@
                         </thead>
                         <tbody v-for="entry in hits.results" :key="entry.db">
                             <tr v-for="(item, index) in entry.alignments" :key="index">
-                                <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</td>
+                                <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: 5px solid ' + entry.color">{{ entry.db }}</td>
                                 <td data-label="Target">
                                     <a :href="item.href" target="_blank">{{item.target}}</a>
                                 </td>
@@ -310,6 +310,8 @@ export default {
 
 .db {
     border-left: 5px solid black;
+    vertical-align: top;
+    line-height: 3.5;
 }
 
 a:not([href]) {
@@ -382,7 +384,6 @@ text-align: left;
 
 }
 
-
 .variant{
     stroke:rgba(0,255,154,0.6);
     stroke-width:1px;
@@ -435,13 +436,11 @@ a:focus {
     border-radius: 2px;
 }
 
-/*Creates a small triangle extender for the tooltip - left*/
 .tooltip2:after {
     box-sizing: border-box;
     display: inline;
     font-size: 10px;
     line-height: 1;
-/*    color: rgba(0, 0, 0, 0.8);*/
     color: #eee;
     content: "\25BC";
     position: absolute;
@@ -450,14 +449,13 @@ a:focus {
     top: 98%;
     left: 10px;
 }
-/*Creates a small triangle extender for the tooltip - left */
+
 .tooltip2:before {
     box-sizing: border-box;
     display: inline;
     font-size: 10px;
     line-height: 1;
     color: rgba(0, 0, 0, 0.6);
-/*    color: #333;*/
     content: "\25BC";
     position: absolute;
     text-align: left;
@@ -470,7 +468,6 @@ a:focus {
     display: inline;
     font-size: 10px;
     line-height: 1;
-/*    color: rgba(0, 0, 0, 0.8);*/
     color: #eee;
     content: "\25BC";
     position: absolute;
@@ -485,7 +482,6 @@ a:focus {
     font-size: 10px;
     line-height: 1;
     color: rgba(0, 0, 0, 0.6);
-/*    color: #eee;*/
     content: "\25BC";
     position: absolute;
     text-align: right;
@@ -497,35 +493,27 @@ a:focus {
 .yaxis{
     background-color:green;
 }
-/*
-.header-help{
-    color: #C50063;
-    color: #108D9F;
-    border-color:#0F8292;
-}*/
+
 .header-help .state{
     min-width:26px;
     display:inline-block;
 }
 
 .header-help:hover{
-/*    color: #98004C;*/
-/*    color: #0F8292;*/
     cursor: pointer;
     text-decoration: none;
 }
-/*
-.header-help:focus{
-color: #0F8292;
-}
-*/
+
 .popover-title{
     text-align: center;
-/*    background-color: rgba(197, 0, 99, 0.1);*/
 }
 
-.db {
-    vertical-align: top;
-    line-height: 3.5;
+.hits svg {
+    font-size: 10px;
+}
+
+.hits svg path {
+    stroke:black;
+    fill: transparent;
 }
 </style>
