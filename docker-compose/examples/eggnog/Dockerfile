@@ -1,4 +1,4 @@
-FROM alpine:latest as hh-builder
+FROM alpine:3.7 as hh-builder
 RUN apk add --no-cache gcc g++ cmake musl-dev git ninja
 
 WORKDIR /opt/hh-suite
@@ -8,7 +8,7 @@ WORKDIR build
 RUN cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=. ..
 RUN ninja hhconsensus
 
-FROM alpine:latest as ffindex-builder
+FROM alpine:3.7 as ffindex-builder
 RUN echo "@testing http://nl.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
 RUN apk add --no-cache gcc cmake musl-dev ninja git openmpi@testing openmpi-dev@testing
 
@@ -19,7 +19,7 @@ WORKDIR build
 RUN cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=. ..
 RUN ninja && ninja install
 
-FROM alpine:latest
+FROM alpine:3.7
 MAINTAINER Milot Mirdita <milot@mirdita.de>
 RUN echo "@testing http://nl.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
 RUN apk add --no-cache tar gawk bash grep curl libstdc++ libgomp openmpi@testing

@@ -8,7 +8,7 @@ WORKDIR /opt/mmseqs-web
 ADD backend .
 RUN make all
 
-FROM alpine:latest
+FROM alpine:3.7
 LABEL maintainer="Milot Mirdita <milot@mirdita.de>"
 RUN apk add --no-cache libstdc++ libgomp libbz2 zlib gawk bash ca-certificates tini
 
