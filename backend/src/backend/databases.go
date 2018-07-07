@@ -70,16 +70,36 @@ func GetDisplayFromParams(params []Params) []ParamsDisplay {
 	return result
 }
 
+func findIndex(basepath string) string {
+	for _, spaced := range [...]int{0, 1} {
+		for _, k := range [...]int{5, 6, 7} {
+			indexPath := basepath + "."
+			if spaced == 1 {
+				indexPath += "s"
+			}
+			indexPath += "k" + strconv.FormatInt(int64(k), 10)
+			if fileExists(indexPath) {
+				return indexPath
+			}
+		}
+	}
+	return ""
+}
+
 func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitiviy float32, verbose bool) error {
-	if fileExists(basepath+".fasta") && !fileExists(basepath) && !fileExists(basepath+".index") {
-		err := quickExec(mmseqs, verbose, "createdb", basepath+".fasta", basepath)
-		if err != nil {
-			return err
+	if fileExists(basepath + ".fasta") {
+		if !fileExists(basepath) && !fileExists(basepath+".index") {
+			err := quickExec(mmseqs, verbose, "createdb", basepath+".fasta", basepath)
+			if err != nil {
+				return err
+			}
 		}
 
-		err = quickExec(mmseqs, verbose, "createindex", basepath, tmppath, "--mask", "2", "--include-headers")
-		if err != nil {
-			return err
+		if findIndex(basepath) == "" {
+			err := quickExec(mmseqs, verbose, "createindex", basepath, tmppath, "--mask", "2", "--include-headers")
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	}
@@ -91,22 +111,26 @@ func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitiviy fl
 		}
 	}
 
-	if fileExists(basepath+"_msa") && fileExists(basepath+"_msa.index") && !fileExists(basepath) && !fileExists(basepath+".index") {
-		err := quickExec(mmseqs, verbose, "msa2profile", basepath+"_msa", basepath, "--match-mode", "1")
-		if err != nil {
-			return err
+	if fileExists(basepath+"_msa") && fileExists(basepath+"_msa.index") {
+		if !fileExists(basepath) && !fileExists(basepath+".index") {
+			err := quickExec(mmseqs, verbose, "msa2profile", basepath+"_msa", basepath, "--match-mode", "1")
+			if err != nil {
+				return err
+			}
 		}
 
-		cmdParams := []string{"createindex", basepath, tmppath, "-k", "5", "--mask", "2", "--include-headers"}
-		if sensitiviy != -1 {
-			s := strconv.FormatFloat(float64(sensitiviy), 'f', 1, 32)
-			cmdParams = append(cmdParams, "-s")
-			cmdParams = append(cmdParams, s)
-		}
+		if findIndex(basepath) == "" {
+			cmdParams := []string{"createindex", basepath, tmppath, "-k", "5", "--mask", "2", "--include-headers"}
+			if sensitiviy != -1 {
+				s := strconv.FormatFloat(float64(sensitiviy), 'f', 1, 32)
+				cmdParams = append(cmdParams, "-s")
+				cmdParams = append(cmdParams, s)
+			}
 
-		err = quickExec(mmseqs, verbose, cmdParams...)
-		if err != nil {
-			return err
+			err := quickExec(mmseqs, verbose, cmdParams...)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
