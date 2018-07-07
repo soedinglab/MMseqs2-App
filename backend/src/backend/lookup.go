@@ -53,7 +53,6 @@ func Lookup(ticketId Id, page uint64, limit uint64, basepath string) (LookupResp
 			break
 		}
 
-		res.Id--
 		results = append(results, res)
 	}
 
