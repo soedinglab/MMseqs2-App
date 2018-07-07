@@ -76,7 +76,7 @@
                         </thead>
                         <tbody v-for="entry in hits.results" :key="entry.db">
                             <tr v-for="(item, index) in entry.alignments" :key="index">
-                                <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: 5px solid ' + entry.color">{{ entry.db }}</td>
+                                <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</td>
                                 <td data-label="Target">
                                     <a :href="item.href" target="_blank">{{item.target}}</a>
                                 </td>
