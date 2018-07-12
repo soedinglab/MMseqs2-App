@@ -1,7 +1,7 @@
 <template>
 <v-container grid-list-md fluid v-if="status != 'COMPLETE'">
     <v-layout row>
-        <v-flex xs12 sm10 md8 lg6>
+        <v-flex xs12 sm10>
             <panel>
                 <template slot="header">
                     Job Status:&nbsp;
@@ -48,7 +48,6 @@ export default {
     },
     methods: {
         fetchData() {
-            this.error = "";
             const ticket = this.$route.params.ticket;
             if (typeof (ticket) === "undefined") {
                 this.status = "ERROR";
@@ -67,7 +66,7 @@ export default {
                             case "ERROR":
                             case "FAILED":
                                 this.status = "FAILED";
-                                this.error = "FAILED";
+                                this.error = "Job failed. Please try again later.";
                                 break;
                             case "COMPLETE":
                                 this.$http.get("api/ticket/type/" + ticket).then(
@@ -82,12 +81,13 @@ export default {
                                                 break;
                                             default:
                                                 this.status = "FAILED";
-                                                this.error = "FAILED";
+                                                this.error = "Job failed. Please try again later.";
                                         }
                                     })
                                 });
                                 break;
                             default:
+                                this.error = "Please wait."
                                 setTimeout(this.fetchData.bind(this), 1000);
                                 break;
                         }

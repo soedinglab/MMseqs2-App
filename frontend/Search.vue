@@ -315,7 +315,7 @@ export default {
 }
 
 .marv-bg textarea {
-    min-height: 250px;
+    min-height: 330px;
     background-image: url("./assets/marv-search-gray.png");
     background-repeat: no-repeat;
     background-position: right 15px bottom -10px;

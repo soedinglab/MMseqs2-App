@@ -6,7 +6,7 @@ svg a {
     cursor: pointer;
 }
 
-.monospace, .mono, pre{
+.monospace, .mono, pre {
 	font-family: Inconsolata, Consolas, monospace;
 }
 
@@ -38,4 +38,8 @@ svg a {
 
 .input-group .tooltip label {
     max-width: 100%;
+}
+
+main.content {
+    max-width: 1536px;
 }

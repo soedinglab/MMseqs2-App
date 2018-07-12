@@ -328,7 +328,7 @@ td, th {
 
 @media screen and (max-width: 960px) {
 .hits {
-    max-width: 533px;
+    min-width: 300px;
 }
 
 thead {
