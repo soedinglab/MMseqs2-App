@@ -55,7 +55,6 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 				filepath.Join(resultBase, "tmp"),
 				"--db-output",
 				"--no-preload",
-				"--early-exit",
 				"--format-mode",
 				"2",
 			}
