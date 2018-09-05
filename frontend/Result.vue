@@ -275,10 +275,16 @@ export default {
                     var colorHsl = d3.rgb(color).hsl();
                     var r = lerp(minScore/maxScore, 1, score/maxScore);
                     colorHsl.l = clamp(colorHsl.l * Math.pow(0.65, -r), 0.1, 0.9);
-                
+
+                    var start = alignments[i]["qStartPos"];
+                    var end = alignments[i]["qEndPos"]
+                    if (start > end) {
+                        start = [end, end = start][0];
+                    }
+
                     var f = {
-                        "x": mapPosToSeq(data.query.sequence, alignments[i]["qStartPos"]),
-                        "y": mapPosToSeq(data.query.sequence, alignments[i]["qEndPos"]),
+                        "x": mapPosToSeq(data.query.sequence, start),
+                        "y": mapPosToSeq(data.query.sequence, end),
                         "description": alignments[i]["target"] + " (e-value: " + alignments[i]["eval"] + ")",
                         "id": cnt,
                         "color": colorHsl.rgb(),
