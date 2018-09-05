@@ -8,6 +8,7 @@ import (
 type LookupResult struct {
 	Id   uint32 `json:"id"`
 	Name string `json:"name"`
+	Set  uint32 `json:"set"`
 }
 
 type LookupResponse struct {
