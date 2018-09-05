@@ -938,6 +938,7 @@ var FeatureViewer = (function () {
                     .attr("id", function (d) {
                         return "f" + d.id
                     })
+                    .attr("x", 5)
                     .attr("y", function (d) {
                         return d.level * rectShift
                     })
@@ -946,6 +947,20 @@ var FeatureViewer = (function () {
                     .style("fill", function (d) { return d.color || object.color })
                     .style("z-index", "13");
                 //     .call(d3.helper.tooltip(object));
+
+                rectsProGroup
+                    .append("polygon")
+                    .attr("points", function (d) {
+                        var y = d.level * rectShift;
+                        var h = rectHeight;
+                        if (typeof (d.reverse) == "boolean" && d.reverse == true) {
+                            return `5,${y} 0,${y + h / 2} 5,${y + h}`;
+                        } else {
+                            return `5,${y} 0,${y} 0,${y + h} 5,${y + h}`;
+                        }
+                    })
+                    .style("fill", function (d) { return d.color || object.color })
+                    .style("z-index", "14");
 
                     
                 rectsProGroup
@@ -962,7 +977,7 @@ var FeatureViewer = (function () {
                         return d.level * rectShift + rectHeight / 2
                     })
                     .attr("x", function (d) {
-                        return rectWidth2(d) / 2
+                        return Math.max(5, rectWidth2(d) / 2)
                     })
                     .attr("dy", "0.35em")
                     .style("font-size", "10px")

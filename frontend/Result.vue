@@ -276,10 +276,12 @@ export default {
                     var r = lerp(minScore/maxScore, 1, score/maxScore);
                     colorHsl.l = clamp(colorHsl.l * Math.pow(0.65, -r), 0.1, 0.9);
 
+                    var reverse = false;
                     var start = alignments[i]["qStartPos"];
                     var end = alignments[i]["qEndPos"]
                     if (start > end) {
                         start = [end, end = start][0];
+                        reverse = true;
                     }
 
                     var f = {
@@ -288,7 +290,8 @@ export default {
                         "description": alignments[i]["target"] + " (e-value: " + alignments[i]["eval"] + ")",
                         "id": cnt,
                         "color": colorHsl.rgb(),
-                        "href": alignments[i]["href"]
+                        "href": alignments[i]["href"],
+                        "reverse": reverse
                     }
                     features.push(f);
                     cnt++;
