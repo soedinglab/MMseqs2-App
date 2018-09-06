@@ -373,7 +373,7 @@ var FeatureViewer = (function () {
             return (scaling(d.y) - scaling(d.x));
         };
 
-        function rectPoints(object, width = null) {
+        function rectPoints(object, width) {
             return function(d) {
                 var rectHeight = object.height;
                 var rectShift = rectHeight + rectHeight / 3;
