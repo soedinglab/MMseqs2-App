@@ -372,6 +372,27 @@ var FeatureViewer = (function () {
             }
             return (scaling(d.y) - scaling(d.x));
         };
+
+        function rectPoints(object, width = null) {
+            return function(d) {
+                var rectHeight = object.height;
+                var rectShift = rectHeight + rectHeight / 3;
+                var y = d.level * rectShift;
+                var h = rectHeight;
+                var w = width || rectWidth(d);
+                var b = y + h;
+                if (typeof (d.reverse) != "boolean") {
+                    return "0," + y + " 0," + b + " " + w + "," + b + " " + w + "," + y;
+                }
+                var m = y + (h / 2);
+                if (d.reverse == true) {
+                    return "5," + y + " 0," + m + " 5," + b + " " + w + "," + b + " " + (w - 5) + "," + m + " " + w + "," + y;
+                } else {
+                    return "0," + y + " 5," + m + " 0," + b + " " + (w - 5) + "," + b + " " + (w) + "," + m + " " + (w - 5) + "," + y;
+                }
+            }
+        }
+
         var uniqueWidth = function (d) {
             return (scaling(1));
         };
@@ -900,14 +921,14 @@ var FeatureViewer = (function () {
                         var rw = rectWidth2(d);
                         if (d.descriptionWidth > rw) {
                             d3.select(this)
-                                .select("rect")
+                                .select("polygon")
                                     .transition(100)
-                                    .attr("width", d.descriptionWidth)
+                                    .attr("points", rectPoints(object, d.descriptionWidth + 15))
 
                             d3.select(this)
                                 .select("text")
                                     .attr("x", function (d) {
-                                        return d.descriptionWidth / 2
+                                        return (d.descriptionWidth / 2) + 7.5
                                     })
                                     .text(d.description)
                         }
@@ -916,52 +937,27 @@ var FeatureViewer = (function () {
                         var rw = rectWidth2(d);
                         if (d.descriptionWidth > rw) {
                             d3.select(this)
-                                .select("rect")
+                                .select("polygon")
                                     .transition(100)
-                                    .attr("width", rw)
-                                    .attr("fill", d.color || object.color)
+                                    .attr("points", rectPoints(object, rw))
 
                             d3.select(this)
                                 .select("text")
-                                    .attr("x", function (d) {
-                                        return rw / 2
-                                    })
+                                    .attr("x", rw / 2)
                                     .text(function (d) {
-                                        return descriptionElipsis(d, rw);
+                                        return descriptionElipsis(d, rw - 10);
                                     })
                         }
                     })
-                
+
                 rectsProGroup
-                    .append("rect")
+                    .append("polygon")
                     .attr("class", "element " + object.className)
                     .attr("id", function (d) {
                         return "f" + d.id
                     })
-                    .attr("x", 5)
-                    .attr("y", function (d) {
-                        return d.level * rectShift
-                    })
-                    .attr("width", rectWidth2)
-                    .attr("height", rectHeight)
-                    .style("fill", function (d) { return d.color || object.color })
-                    .style("z-index", "13");
-                //     .call(d3.helper.tooltip(object));
-
-                rectsProGroup
-                    .append("polygon")
-                    .attr("points", function (d) {
-                        var y = d.level * rectShift;
-                        var h = rectHeight;
-                        if (typeof (d.reverse) == "boolean" && d.reverse == true) {
-                            return `5,${y} 0,${y + h / 2} 5,${y + h}`;
-                        } else {
-                            return `5,${y} 0,${y} 0,${y + h} 5,${y + h}`;
-                        }
-                    })
-                    .style("fill", function (d) { return d.color || object.color })
-                    .style("z-index", "14");
-
+                    .attr("points", rectPoints(object))
+                    .style("fill", function (d) { return d.color || object.color });
                     
                 rectsProGroup
                     .append("a")
@@ -977,14 +973,14 @@ var FeatureViewer = (function () {
                         return d.level * rectShift + rectHeight / 2
                     })
                     .attr("x", function (d) {
-                        return Math.max(5, rectWidth2(d) / 2)
+                        return rectWidth2(d) / 2
                     })
                     .attr("dy", "0.35em")
                     .style("font-size", "10px")
                     .text(function (d) {
                         var rw = rectWidth2(d);
                         if (d.descriptionWidth > rw) {
-                            return descriptionElipsis(d, rw);
+                            return descriptionElipsis(d, rw - 10);
                         }
                         else {
                             return d.description
@@ -1268,7 +1264,6 @@ var FeatureViewer = (function () {
                 var transit2;
                 if (animation) {
                     transit1 = svgContainer.selectAll("." + object.className + "Group")
-                        //                    .data(object.data)
                         .transition()
                         .duration(transitionDuration);
                     transit2 = svgContainer.selectAll("." + object.className)
@@ -1284,7 +1279,7 @@ var FeatureViewer = (function () {
                 });
 
                 transit2
-                    .attr("width", rectWidth2)
+                    .attr("points", rectPoints(object))
                 transit1.select("text")
                     .attr("x", function(d) { return rectWidth2(d) / 2; })
                     .text(function (d) {

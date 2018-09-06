@@ -287,7 +287,7 @@ export default {
                     var f = {
                         "x": mapPosToSeq(data.query.sequence, start),
                         "y": mapPosToSeq(data.query.sequence, end),
-                        "description": alignments[i]["target"] + " (e-value: " + alignments[i]["eval"] + ")",
+                        "description": alignments[i]["target"] + " (E: " + alignments[i]["eval"] + ")",
                         "id": cnt,
                         "color": colorHsl.rgb(),
                         "href": alignments[i]["href"],
