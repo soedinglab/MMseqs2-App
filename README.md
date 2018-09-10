@@ -16,7 +16,7 @@ Once the app is installed, open the Settings panel. There you can add either seq
 ## Web app quickstart with docker-compose
 
 Make sure you have `docker` (>=17.05), `docker-compose` (>=1.20.0) and `git` installed on your server.
-To start the MMseqs2 web server (on https://localhost:8877) execute the following commands:
+To start the MMseqs2 web server (on http://localhost:8877) execute the following commands:
 
 ``` bash
 # clone the repository
