@@ -53,6 +53,7 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 				filepath.Join(config.Paths.Databases, database),
 				filepath.Join(resultBase, "alis_"+database),
 				filepath.Join(resultBase, "tmp"),
+				"--dont-shuffle",
 				"--db-output",
 				"--no-preload",
 				"--format-mode",
