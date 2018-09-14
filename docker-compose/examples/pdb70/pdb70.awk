@@ -53,6 +53,4 @@ END {
     writeEntry()
     close(outfile);
     close(outfile".index");
-
-    #system("ffindex_build -as "outfile" "outindex);
 }
