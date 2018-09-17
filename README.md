@@ -6,6 +6,8 @@ The application runs either:
 * on your workstation as a cross-platform desktop application with the help of the [electron framework](https://github.com/electron/electron)
 * on your server through docker-compose, where it can make your sequence or profile databases easily accessible over the web
 
+<p align="center"><img src="https://raw.githubusercontent.com/soedinglab/mmseqs2-app/master/mmseqs2app_logo.png" height="256" /></p>
+
 ## Desktop App
 
 Head over to the [release page](https://github.com/soedinglab/MMseqs2-App/releases) and download the latest version. We currently support Linux, macOS and Windows.
