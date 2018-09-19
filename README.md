@@ -34,7 +34,7 @@ cd MMseqs2-App/docker-compose
 docker-compose up
 ```
 
-Head over to the [Docker recipe readme](https://github.com/soedinglab/MMseqs2-App/blob/master/docker-compose/README.md) for more details on running your own server.
+Head over to the [Docker recipe readme](https://github.com/soedinglab/MMseqs2-App/blob/master/docker-compose/README.md) for more details on running your own server, including how to add your own sequence or profile databases. Take a look at the [API documentation](https://search.mmseqs.com/docs) to learn how to talk to the server backend.
 
 ## Building the desktop app
 
