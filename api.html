@@ -1,0 +1,299 @@
+<!DOCTYPE HTML><html><head><title>MMseqs2 API API documentation</title><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="generator" content="https://github.com/raml2html/raml2html 7.2.0"><link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css"><script type="text/javascript" src="https://code.jquery.com/jquery-1.11.0.min.js"></script><script type="text/javascript" src="https://netdna.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script><script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script><script type="text/javascript">
+      $(document).ready(function() {
+        $('.page-header pre code, .top-resource-description pre code, .modal-body pre code').each(function(i, block) {
+          hljs.highlightBlock(block);
+        });
+
+        $('[data-toggle]').click(function() {
+          var selector = $(this).data('target') + ' pre code';
+          $(selector).each(function(i, block) {
+            hljs.highlightBlock(block);
+          });
+        });
+
+        // open modal on hashes like #_action_get
+        $(window).bind('hashchange', function(e) {
+          var anchor_id = document.location.hash.substr(1); //strip #
+          var element = $('#' + anchor_id);
+
+          // do we have such element + is it a modal?  --> show it
+          if (element.length && element.hasClass('modal')) {
+            element.modal('show');
+          }
+        });
+
+        // execute hashchange on first page load
+        $(window).trigger('hashchange');
+
+        // remove url fragment on modal hide
+        $('.modal').on('hidden.bs.modal', function() {
+          try {
+            if (history && history.replaceState) {
+                history.replaceState({}, '', '#');
+            }
+          } catch(e) {}
+        });
+      });
+    </script><style>
+      .hljs {
+        background: transparent;
+      }
+      .parent {
+        color: #999;
+      }
+      .list-group-item > .badge {
+        float: none;
+        margin-right: 6px;
+      }
+      .panel-title > .methods {
+        float: right;
+      }
+      .badge {
+        border-radius: 0;
+        text-transform: uppercase;
+        width: 70px;
+        font-weight: normal;
+        color: #f3f3f6;
+        line-height: normal;
+      }
+      .badge_get {
+        background-color: #63a8e2;
+      }
+      .badge_post {
+        background-color: #6cbd7d;
+      }
+      .badge_put {
+        background-color: #22bac4;
+      }
+      .badge_delete {
+        background-color: #d26460;
+      }
+      .badge_patch {
+        background-color: #ccc444;
+      }
+      .list-group, .panel-group {
+        margin-bottom: 0;
+      }
+      .panel-group .panel+.panel-white {
+        margin-top: 0;
+      }
+      .panel-group .panel-white {
+        border-bottom: 1px solid #F5F5F5;
+        border-radius: 0;
+      }
+      .panel-white:last-child {
+        border-bottom-color: white;
+        -webkit-box-shadow: none;
+        box-shadow: none;
+      }
+      .panel-white .panel-heading {
+        background: white;
+      }
+      .tab-pane ul {
+        padding-left: 2em;
+      }
+      .tab-pane h1 {
+        font-size: 1.3em;
+      }
+      .tab-pane h2 {
+        font-size: 1.2em;
+        padding-bottom: 4px;
+        border-bottom: 1px solid #ddd;
+      }
+      .tab-pane h3 {
+        font-size: 1.1em;
+      }
+      .tab-content {
+        border-left: 1px solid #ddd;
+        border-right: 1px solid #ddd;
+        border-bottom: 1px solid #ddd;
+        padding: 10px;
+      }
+      #sidebar {
+        margin-top: 30px;
+        padding-right: 5px;
+        overflow: auto;
+        height: 90%;
+      }
+      .top-resource-description {
+        border-bottom: 1px solid #ddd;
+        background: #fcfcfc;
+        padding: 15px 15px 0 15px;
+        margin: -15px -15px 10px -15px;
+      }
+      .resource-description {
+        border-bottom: 1px solid #fcfcfc;
+        background: #fcfcfc;
+        padding: 15px 15px 0 15px;
+        margin: -15px -15px 10px -15px;
+      }
+      .resource-description p:last-child {
+        margin: 0;
+      }
+      .list-group .badge {
+        float: left;
+      }
+      .method_description {
+        margin-left: 85px;
+      }
+      .method_description p:last-child {
+        margin: 0;
+      }
+      .list-group-item {
+        cursor: pointer;
+      }
+      .list-group-item:hover {
+        background-color: #f5f5f5;
+      }
+      pre code {
+        overflow: auto;
+        word-wrap: normal;
+        white-space: pre;
+      }
+      .items {
+        background: #f5f5f5;
+        color: #333;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 9.5px;
+        margin: 0 0 10px;
+        font-size: 13px;
+        line-height: 1.42857143;
+      }
+      .examples {
+        margin-left: 0.5em;
+      }
+      .resource-modal li > ul {
+        margin-bottom: 1em;
+      }
+    </style></head><body data-spy="scroll" data-target="#sidebar"><div class="container"><div class="row"><div class="col-md-9" role="main"><div class="page-header"><h1>MMseqs2 API API documentation <small>version v1</small></h1><p>https://search.mmseqs.com/api</p><p>The MMseqs2 desktop and web server app facilitates interactive sequence searches through custom protein sequence and profile databases on personal workstations. By eliminating MMseqs2&#39;s runtime overhead, we reduced response times to a few seconds at sensitivities close to BLAST.</p><p>The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket. Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.</p></div><div class="panel panel-default"><div class="panel-heading"><h3 id="databases" class="panel-title">/databases</h3></div><div class="panel-body"><div class="top-resource-description"><p>Provides a list of available search databases, including all parameters needed for the frontend.</p></div><div class="panel-group"><div class="panel panel-white resource-modal"><div class="panel-heading"><h4 class="panel-title"><a class="collapsed" data-toggle="collapse" href="#panel_databases"><span class="parent"></span>/databases</a> <span class="methods"><a href="#databases_get"><span class="badge badge_get">get</span></a></span></h4></div><div id="panel_databases" class="panel-collapse collapse"><div class="panel-body"><div class="list-group"><div onclick="window.location.href = '#databases_get'" class="list-group-item"><span class="badge badge_get">get</span><div class="method_description"></div><div class="clearfix"></div></div></div></div></div><div class="modal fade" tabindex="0" id="databases_get"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="myModalLabel"><span class="badge badge_get">get</span> <span class="parent"></span>/databases</h4></div><div class="modal-body"><ul class="nav nav-tabs"><li class="active"><a href="#databases_get_response" data-toggle="tab">Response</a></li></ul><div class="tab-content"><div class="tab-pane active" id="databases_get_response"><h2>HTTP status code <a href="http://httpstatus.es/200" target="_blank">200</a></h2><h3>Body</h3><p><strong>Media type</strong>: application/json</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>databases</strong>: <em>required (array of database)</em><p><strong>Items</strong>: database</p><div class="items"><ul><li><strong>name</strong>: <em>required (string)</em><p>Name of the search database.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>Uniclust30</code></pre></div></li><li><strong>version</strong>: <em>required (string)</em><p>Version of the database.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>2017_10</code></pre></div></li><li><strong>path</strong>: <em>required (string)</em><p>Identifier and path substring.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>uniclust30_2017_07_seed</code></pre></div></li><li><strong>default</strong>: <em>required (boolean)</em><p>If a database is pre-selected by default for a new user.</p></li><li><strong>order</strong>: <em>required (integer)</em><p>In which order the database should be shown in the user interface. 0 is the first.</p></li><li><strong>search</strong>: <em>required (string)</em><p>Extra parameters that are passed to MMseqs2. Useful parameters would be "-s 7" for a high sensitivty search or "--num-iterations 2" for a iterative-profile search.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>-s 7</code></pre></div></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "name": "Uniclust30",
+  "version" : "2017_10",
+  "path" : "uniclust30_2017_10_seed",
+  "default" : true,
+  "order" : 0,
+  "search" : "-s 7"
+}
+</code></pre></div></div></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{ "databases" :
+  [{
+    "name": "Uniclust30",
+    "version" : "2017_10",
+    "path" : "uniclust30_2017_10_seed",
+    "default" : true,
+    "order" : 0,
+    "search" : ""
+  }]
+}
+</code></pre></div><h2>HTTP status code <a href="http://httpstatus.es/400" target="_blank">400</a></h2><p>A configuration error occured. A database ".params" file was invalid and could be decoded.</p></div></div></div></div></div></div></div><div class="panel panel-white resource-modal"><div class="panel-heading"><h4 class="panel-title"><a class="collapsed" data-toggle="collapse" href="#panel_databases_order"><span class="parent">/databases</span>/order</a> <span class="methods"><a href="#databases_order_post"><span class="badge badge_post">post</span></a></span></h4></div><div id="panel_databases_order" class="panel-collapse collapse"><div class="panel-body"><div class="resource-description"><p>Reorders the databases. <strong>Only available</strong> if server was started with "-server.dbmanagment true" parameter.</p></div><div class="list-group"><div onclick="window.location.href = '#databases_order_post'" class="list-group-item"><span class="badge badge_post">post</span><div class="method_description"></div><div class="clearfix"></div></div></div></div></div><div class="modal fade" tabindex="0" id="databases_order_post"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="myModalLabel"><span class="badge badge_post">post</span> <span class="parent">/databases</span>/order</h4></div><div class="modal-body"><ul class="nav nav-tabs"><li class="active"><a href="#databases_order_post_request" data-toggle="tab">Request</a></li></ul><div class="tab-content"><div class="tab-pane active" id="databases_order_post_request"><h3>Body</h3><p><strong>Media type</strong>: application/x-www-form-urlencoded</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>database[]</strong>: <em>required (array of path)</em><p>Submitted as application/x-www-form-urlencoded. Provide <strong>database[]</strong> multiple times for each path: database[]=uniclust30_2017_07_seed&amp;database[]=pfam_31.0</p></li></ul></div></div></div></div></div></div></div></div></div></div><div class="panel panel-default"><div class="panel-heading"><h3 id="database" class="panel-title">/database</h3></div><div class="panel-body"><div class="top-resource-description"><p>Adds or removes a search database for processing. <strong>Only available</strong> if server was started with "-server.dbmanagment true" parameter.</p></div><div class="panel-group"><div class="panel panel-white resource-modal"><div class="panel-heading"><h4 class="panel-title"><a class="collapsed" data-toggle="collapse" href="#panel_database"><span class="parent"></span>/database</a> <span class="methods"><a href="#database_post"><span class="badge badge_post">post</span></a> <a href="#database_delete"><span class="badge badge_delete">delete</span></a></span></h4></div><div id="panel_database" class="panel-collapse collapse"><div class="panel-body"><div class="list-group"><div onclick="window.location.href = '#database_post'" class="list-group-item"><span class="badge badge_post">post</span><div class="method_description"></div><div class="clearfix"></div></div><div onclick="window.location.href = '#database_delete'" class="list-group-item"><span class="badge badge_delete">delete</span><div class="method_description"></div><div class="clearfix"></div></div></div></div></div><div class="modal fade" tabindex="0" id="database_post"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="myModalLabel"><span class="badge badge_post">post</span> <span class="parent"></span>/database</h4></div><div class="modal-body"><ul class="nav nav-tabs"><li class="active"><a href="#database_post_request" data-toggle="tab">Request</a></li><li><a href="#database_post_response" data-toggle="tab">Response</a></li></ul><div class="tab-content"><div class="tab-pane active" id="database_post_request"><h3>Body</h3><p><strong>Media type</strong>: application/x-www-form-urlencoded</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>name</strong>: <em>required (string)</em><p>Name of the search database.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>Uniclust30</code></pre></div></li><li><strong>version</strong>: <em>required (string)</em><p>Version of the database.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>2017_10</code></pre></div></li><li><strong>path</strong>: <em>required (string)</em><p>Identifier and path substring.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>uniclust30_2017_07_seed</code></pre></div></li><li><strong>default</strong>: <em>required (boolean)</em><p>If a database is pre-selected by default for a new user.</p></li><li><strong>order</strong>: <em>required (integer)</em><p>In which order the database should be shown in the user interface. 0 is the first.</p></li><li><strong>search</strong>: <em>required (string)</em><p>Extra parameters that are passed to MMseqs2. Useful parameters would be "-s 7" for a high sensitivty search or "--num-iterations 2" for a iterative-profile search.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>-s 7</code></pre></div></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "name": "Uniclust30",
+  "version" : "2017_10",
+  "path" : "uniclust30_2017_10_seed",
+  "default" : true,
+  "order" : 0,
+  "search" : "-s 7"
+}
+</code></pre></div><p><strong>Media type</strong>: multipart/form-data</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>name</strong>: <em>required (string)</em><p>Name of the search database.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>Uniclust30</code></pre></div></li><li><strong>version</strong>: <em>required (string)</em><p>Version of the database.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>2017_10</code></pre></div></li><li><strong>path</strong>: <em>required (string)</em><p>Identifier and path substring.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>uniclust30_2017_07_seed</code></pre></div></li><li><strong>default</strong>: <em>required (boolean)</em><p>If a database is pre-selected by default for a new user.</p></li><li><strong>order</strong>: <em>required (integer)</em><p>In which order the database should be shown in the user interface. 0 is the first.</p></li><li><strong>search</strong>: <em>required (string)</em><p>Extra parameters that are passed to MMseqs2. Useful parameters would be "-s 7" for a high sensitivty search or "--num-iterations 2" for a iterative-profile search.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>-s 7</code></pre></div></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "name": "Uniclust30",
+  "version" : "2017_10",
+  "path" : "uniclust30_2017_10_seed",
+  "default" : true,
+  "order" : 0,
+  "search" : "-s 7"
+}
+</code></pre></div></div><div class="tab-pane" id="database_post_response"><h2>HTTP status code <a href="http://httpstatus.es/200" target="_blank">200</a></h2><h3>Body</h3><p><strong>Media type</strong>: application/json</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>id</strong>: <em>required (string)</em><p>The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket. Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw</code></pre></div></li><li><strong>status</strong>: <em>required (one of PENDING, RUNNING, COMPLETE, ERROR, UNKNOWN - default: PENDING)</em><p>Ticket status</p></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "id" : "v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw",
+  "status" : "COMPLETE"
+}
+</code></pre></div><h2>HTTP status code <a href="http://httpstatus.es/400" target="_blank">400</a></h2><p>Invalid database or decoding error.</p></div></div></div></div></div></div><div class="modal fade" tabindex="0" id="database_delete"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="myModalLabel"><span class="badge badge_delete">delete</span> <span class="parent"></span>/database</h4></div><div class="modal-body"><ul class="nav nav-tabs"><li class="active"><a href="#database_delete_request" data-toggle="tab">Request</a></li><li><a href="#database_delete_response" data-toggle="tab">Response</a></li></ul><div class="tab-content"><div class="tab-pane active" id="database_delete_request"><h3>Body</h3><p><strong>Media type</strong>: application/x-www-form-urlencoded</p><p><strong>Type</strong>: string</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>uniclust30_2017_07_seed</code></pre></div></div><div class="tab-pane" id="database_delete_response"><h2>HTTP status code <a href="http://httpstatus.es/200" target="_blank">200</a></h2><h2>HTTP status code <a href="http://httpstatus.es/400" target="_blank">400</a></h2><p>Invalid ticket or internals error.</p></div></div></div></div></div></div></div></div></div></div><div class="panel panel-default"><div class="panel-heading"><h3 id="ticket" class="panel-title">/ticket</h3></div><div class="panel-body"><div class="top-resource-description"><p>Submits a new job to the queue and gets a ticket referencing this job. Ticket is needed for all further api calls regarding this job.</p></div><div class="panel-group"><div class="panel panel-white resource-modal"><div class="panel-heading"><h4 class="panel-title"><a class="collapsed" data-toggle="collapse" href="#panel_ticket"><span class="parent"></span>/ticket</a> <span class="methods"><a href="#ticket_post"><span class="badge badge_post">post</span></a></span></h4></div><div id="panel_ticket" class="panel-collapse collapse"><div class="panel-body"><div class="list-group"><div onclick="window.location.href = '#ticket_post'" class="list-group-item"><span class="badge badge_post">post</span><div class="method_description"></div><div class="clearfix"></div></div></div></div></div><div class="modal fade" tabindex="0" id="ticket_post"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="myModalLabel"><span class="badge badge_post">post</span> <span class="parent"></span>/ticket</h4></div><div class="modal-body"><ul class="nav nav-tabs"><li class="active"><a href="#ticket_post_request" data-toggle="tab">Request</a></li><li><a href="#ticket_post_response" data-toggle="tab">Response</a></li></ul><div class="tab-content"><div class="tab-pane active" id="ticket_post_request"><h3>Body</h3><p><strong>Media type</strong>: application/x-www-form-urlencoded</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>q</strong>: <em>required (union of fasta or file)</em><p>One or more query sequence in FASTA format. If submitted as "application/x-www-form-urlencoded" q must be a FASTA string. If submitted as "multipart/form-data" q must be a FASTA file.</p></li><li><strong>database[]</strong>: <em>required (array of path)</em><p>Databases to search against.</p></li><li><strong>mode</strong>: <em>required (one of all, summary - default: all)</em><p>Search mode. Either all hit mode "all" or greedy-best hit mode "summary".</p></li><li><strong>email</strong>: <em>required (union of string or nil)</em><p>Email address for notifications.</p></li></ul><p><strong>Media type</strong>: multipart/form-data</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>q</strong>: <em>required (union of fasta or file)</em><p>One or more query sequence in FASTA format. If submitted as "application/x-www-form-urlencoded" q must be a FASTA string. If submitted as "multipart/form-data" q must be a FASTA file.</p></li><li><strong>database[]</strong>: <em>required (array of path)</em><p>Databases to search against.</p></li><li><strong>mode</strong>: <em>required (one of all, summary - default: all)</em><p>Search mode. Either all hit mode "all" or greedy-best hit mode "summary".</p></li><li><strong>email</strong>: <em>required (union of string or nil)</em><p>Email address for notifications.</p></li></ul></div><div class="tab-pane" id="ticket_post_response"><h2>HTTP status code <a href="http://httpstatus.es/200" target="_blank">200</a></h2><h3>Body</h3><p><strong>Media type</strong>: application/json</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>id</strong>: <em>required (string)</em><p>The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket. Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw</code></pre></div></li><li><strong>status</strong>: <em>required (one of PENDING, RUNNING, COMPLETE, ERROR, UNKNOWN - default: PENDING)</em><p>Ticket status</p></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "id" : "v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw",
+  "status" : "COMPLETE"
+}
+</code></pre></div><h2>HTTP status code <a href="http://httpstatus.es/400" target="_blank">400</a></h2></div></div></div></div></div></div></div><div class="panel panel-white resource-modal"><div class="panel-heading"><h4 class="panel-title"><a class="collapsed" data-toggle="collapse" href="#panel_ticket__ticket_"><span class="parent">/ticket</span>/{ticket}</a> <span class="methods"><a href="#ticket__ticket__get"><span class="badge badge_get">get</span></a></span></h4></div><div id="panel_ticket__ticket_" class="panel-collapse collapse"><div class="panel-body"><div class="resource-description"><p>Gets the status of a ticket</p></div><div class="list-group"><div onclick="window.location.href = '#ticket__ticket__get'" class="list-group-item"><span class="badge badge_get">get</span><div class="method_description"></div><div class="clearfix"></div></div></div></div></div><div class="modal fade" tabindex="0" id="ticket__ticket__get"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="myModalLabel"><span class="badge badge_get">get</span> <span class="parent">/ticket</span>/{ticket}</h4></div><div class="modal-body"><ul class="nav nav-tabs"><li class="active"><a href="#ticket__ticket__get_request" data-toggle="tab">Request</a></li><li><a href="#ticket__ticket__get_response" data-toggle="tab">Response</a></li></ul><div class="tab-content"><div class="tab-pane active" id="ticket__ticket__get_request"><h3>URI Parameters</h3><ul><li><strong>ticket</strong>: <em>required (string)</em><p>The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket. Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw</code></pre></div></li></ul></div><div class="tab-pane" id="ticket__ticket__get_response"><h2>HTTP status code <a href="http://httpstatus.es/200" target="_blank">200</a></h2><h3>Body</h3><p><strong>Media type</strong>: application/json</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>id</strong>: <em>required (string)</em><p>The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket. Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw</code></pre></div></li><li><strong>status</strong>: <em>required (one of PENDING, RUNNING, COMPLETE, ERROR, UNKNOWN - default: PENDING)</em><p>Ticket status</p></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "id" : "v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw",
+  "status" : "COMPLETE"
+}
+</code></pre></div><h2>HTTP status code <a href="http://httpstatus.es/400" target="_blank">400</a></h2><p>Error if ticket was not found or could not be encoded to JSON.</p></div></div></div></div></div></div></div><div class="panel panel-white resource-modal"><div class="panel-heading"><h4 class="panel-title"><a class="collapsed" data-toggle="collapse" href="#panel_ticket_type__ticket_"><span class="parent">/ticket</span>/type/{ticket}</a> <span class="methods"><a href="#ticket_type__ticket__get"><span class="badge badge_get">get</span></a></span></h4></div><div id="panel_ticket_type__ticket_" class="panel-collapse collapse"><div class="panel-body"><div class="resource-description"><p>Gets the type of the ticket</p></div><div class="list-group"><div onclick="window.location.href = '#ticket_type__ticket__get'" class="list-group-item"><span class="badge badge_get">get</span><div class="method_description"></div><div class="clearfix"></div></div></div></div></div><div class="modal fade" tabindex="0" id="ticket_type__ticket__get"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="myModalLabel"><span class="badge badge_get">get</span> <span class="parent">/ticket</span>/type/{ticket}</h4></div><div class="modal-body"><ul class="nav nav-tabs"><li class="active"><a href="#ticket_type__ticket__get_request" data-toggle="tab">Request</a></li><li><a href="#ticket_type__ticket__get_response" data-toggle="tab">Response</a></li></ul><div class="tab-content"><div class="tab-pane active" id="ticket_type__ticket__get_request"><h3>URI Parameters</h3><ul><li><strong>ticket</strong>: <em>required (string)</em><p>The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket. Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw</code></pre></div></li></ul></div><div class="tab-pane" id="ticket_type__ticket__get_response"><h2>HTTP status code <a href="http://httpstatus.es/200" target="_blank">200</a></h2><h3>Body</h3><p><strong>Media type</strong>: application/json</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>type</strong>: <em>required (one of search, index)</em><p>Type of job belonging to ticket. Currently searching and indexing jobs are implemented.</p></li></ul></div></div></div></div></div></div></div></div></div></div><div class="panel panel-default"><div class="panel-heading"><h3 id="tickets" class="panel-title">/tickets</h3></div><div class="panel-body"><div class="top-resource-description"><p>Gets the status of multiple tickets</p></div><div class="panel-group"><div class="panel panel-white resource-modal"><div class="panel-heading"><h4 class="panel-title"><a class="collapsed" data-toggle="collapse" href="#panel_tickets"><span class="parent"></span>/tickets</a> <span class="methods"><a href="#tickets_post"><span class="badge badge_post">post</span></a></span></h4></div><div id="panel_tickets" class="panel-collapse collapse"><div class="panel-body"><div class="list-group"><div onclick="window.location.href = '#tickets_post'" class="list-group-item"><span class="badge badge_post">post</span><div class="method_description"></div><div class="clearfix"></div></div></div></div></div><div class="modal fade" tabindex="0" id="tickets_post"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="myModalLabel"><span class="badge badge_post">post</span> <span class="parent"></span>/tickets</h4></div><div class="modal-body"><ul class="nav nav-tabs"><li class="active"><a href="#tickets_post_request" data-toggle="tab">Request</a></li><li><a href="#tickets_post_response" data-toggle="tab">Response</a></li></ul><div class="tab-content"><div class="tab-pane active" id="tickets_post_request"><h3>Body</h3><p><strong>Media type</strong>: application/x-www-form-urlencoded</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>tickets[]</strong>: <em>required (array of string)</em><p>Submitted as application/x-www-form-urlencoded. Provide <strong>tickets[]</strong> multiple times for each path: tickets[]=lvtydCEDvWFkerPNYmZAdcw2UgbuR2kF1YwJ2g&amp;tickets[]=v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw</p></li></ul></div><div class="tab-pane" id="tickets_post_response"><h2>HTTP status code <a href="http://httpstatus.es/200" target="_blank">200</a></h2><h3>Body</h3><p><strong>Media type</strong>: application/json</p><p><strong>Type</strong>: array of object</p><p><strong>Items</strong>: ticketResponse</p><div class="items"><ul><li><strong>id</strong>: <em>required (string)</em><p>The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket. Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw</code></pre></div></li><li><strong>status</strong>: <em>required (one of PENDING, RUNNING, COMPLETE, ERROR, UNKNOWN - default: PENDING)</em><p>Ticket status</p></li></ul></div><p><strong>Example</strong>:</p><div class="examples"><pre><code>[{
+  "id" : "lvtydCEDvWFkerPNYmZAdcw2UgbuR2kF1YwJ2g",
+  "status" : "COMPLETE"
+}, {
+  "id" : "v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw",
+  "status":"COMPLETE"
+}]
+</code></pre></div><h2>HTTP status code <a href="http://httpstatus.es/400" target="_blank">400</a></h2></div></div></div></div></div></div></div></div></div></div><div class="panel panel-default"><div class="panel-heading"><h3 id="result" class="panel-title">/result</h3></div><div class="panel-body"><div class="panel-group"><div class="panel panel-white resource-modal"><div class="panel-heading"><h4 class="panel-title"><a class="collapsed" data-toggle="collapse" href="#panel_result__ticket___entry_"><span class="parent">/result</span>/{ticket}/{entry}</a> <span class="methods"><a href="#result__ticket___entry__get"><span class="badge badge_get">get</span></a></span></h4></div><div id="panel_result__ticket___entry_" class="panel-collapse collapse"><div class="panel-body"><div class="resource-description"><p>Gets the alignment results for query number <em>entry</em> of the ticket.</p></div><div class="list-group"><div onclick="window.location.href = '#result__ticket___entry__get'" class="list-group-item"><span class="badge badge_get">get</span><div class="method_description"></div><div class="clearfix"></div></div></div></div></div><div class="modal fade" tabindex="0" id="result__ticket___entry__get"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="myModalLabel"><span class="badge badge_get">get</span> <span class="parent">/result</span>/{ticket}/{entry}</h4></div><div class="modal-body"><ul class="nav nav-tabs"><li class="active"><a href="#result__ticket___entry__get_request" data-toggle="tab">Request</a></li><li><a href="#result__ticket___entry__get_response" data-toggle="tab">Response</a></li></ul><div class="tab-content"><div class="tab-pane active" id="result__ticket___entry__get_request"><h3>URI Parameters</h3><ul><li><strong>ticket</strong>: <em>required (string)</em><p>The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket. Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw</code></pre></div></li><li><strong>entry</strong>: <em>required (number)</em><p>The results of which query should be fetched.</p></li></ul></div><div class="tab-pane" id="result__ticket___entry__get_response"><h2>HTTP status code <a href="http://httpstatus.es/200" target="_blank">200</a></h2><h3>Body</h3><p><strong>Media type</strong>: application/json</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>query</strong>: <em>required (object)</em><ul><li><strong>header</strong>: <em>required (string)</em></li><li><strong>sequence</strong>: <em>required (string)</em></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "header" : "TEST",
+  "sequence" : "MPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC"
+}
+</code></pre></div></li><li><strong>results</strong>: <em>required (array of databasebresults)</em><p><strong>Items</strong>: databasebresults</p><div class="items"><ul><li><strong>db</strong>: <em>required (string)</em><p>Database identifier.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>uniclust30_2017_07_seed</code></pre></div></li><li><strong>alignments</strong>: <em>required (array of alignments)</em><p><strong>Items</strong>: alignments</p><div class="items"><ul><li><strong>query</strong>: <em>required (string)</em></li><li><strong>target</strong>: <em>required (string)</em></li><li><strong>seqId</strong>: <em>required (number)</em></li><li><strong>alnLength</strong>: <em>required (integer)</em></li><li><strong>missmatches</strong>: <em>required (integer)</em></li><li><strong>gapsopened</strong>: <em>required (integer)</em></li><li><strong>qStartPos</strong>: <em>required (integer)</em></li><li><strong>qEndPos</strong>: <em>required (integer)</em></li><li><strong>dbStartPos</strong>: <em>required (integer)</em></li><li><strong>dbEndPos</strong>: <em>required (integer)</em></li><li><strong>eval</strong>: <em>required (union of number or string)</em></li><li><strong>score</strong>: <em>required (integer)</em></li><li><strong>qLen</strong>: <em>required (integer)</em></li><li><strong>dbLen</strong>: <em>required (integer)</em></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "query": "TEST",
+  "target": "A0A075WD96",
+  "seqId": 1,
+  "alnLength": 64,
+  "missmatches": 0,
+  "gapsopened": 0,
+  "qStartPos": 1,
+  "qEndPos": 64,
+  "dbStartPos": 1,
+  "dbEndPos": 64,
+  "eval": 1.65e-34,
+  "score": 130,
+  "qLen": 64,
+  "dbLen": 64
+}</code></pre></div></div></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "db" : "uniclust30_2017_10_seed",
+  "alignments" : [{
+      "query" : "TEST",
+      "target" : "A0A075WD96",
+      "seqId" : 1,
+      "alnLength" : 64,
+      "missmatches" : 0,
+      "gapsopened" : 0,
+      "qStartPos" : 1,
+      "qEndPos" : 64,
+      "dbStartPos" : 1,
+      "dbEndPos" : 64,
+      "eval" : 1.65e-34,
+      "score" : 130,
+      "qLen" : 64,
+      "dbLen" : 64
+  }]
+}
+</code></pre></div></div></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "query" : {
+    "header" : "TEST",
+    "sequence" : "MPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC"
+  },
+  "results" : [{
+    "db" : "uniclust30_2017_10_seed",
+    "alignments" : [{
+        "query" : "TEST",
+        "target" : "A0A075WD96",
+        "seqId" : 1,
+        "alnLength" : 64,
+        "missmatches":0,
+        "gapsopened":0,
+        "qStartPos":1,
+        "qEndPos":64,
+        "dbStartPos":1,
+        "dbEndPos":64,
+        "eval":1.65e-34,
+        "score":130,
+        "qLen":64,
+        "dbLen":64
+    }]
+  }]
+}
+</code></pre></div></div></div></div></div></div></div></div><div class="panel panel-white resource-modal"><div class="panel-heading"><h4 class="panel-title"><a class="collapsed" data-toggle="collapse" href="#panel_result_download__ticket_"><span class="parent">/result</span>/download/{ticket}</a> <span class="methods"><a href="#result_download__ticket__get"><span class="badge badge_get">get</span></a></span></h4></div><div id="panel_result_download__ticket_" class="panel-collapse collapse"><div class="panel-body"><div class="resource-description"><p>Downloads all alignment results in a BLAST-tab compatible format for the specified ticket.</p></div><div class="list-group"><div onclick="window.location.href = '#result_download__ticket__get'" class="list-group-item"><span class="badge badge_get">get</span><div class="method_description"></div><div class="clearfix"></div></div></div></div></div><div class="modal fade" tabindex="0" id="result_download__ticket__get"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="myModalLabel"><span class="badge badge_get">get</span> <span class="parent">/result</span>/download/{ticket}</h4></div><div class="modal-body"><ul class="nav nav-tabs"><li class="active"><a href="#result_download__ticket__get_request" data-toggle="tab">Request</a></li><li><a href="#result_download__ticket__get_response" data-toggle="tab">Response</a></li></ul><div class="tab-content"><div class="tab-pane active" id="result_download__ticket__get_request"><h3>URI Parameters</h3><ul><li><strong>ticket</strong>: <em>required (string)</em><p>The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket. Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw</code></pre></div></li></ul></div><div class="tab-pane" id="result_download__ticket__get_response"><h2>HTTP status code <a href="http://httpstatus.es/200" target="_blank">200</a></h2><h3>Body</h3><p><strong>Media type</strong>: application/octet-stream</p><p><strong>Type</strong>: any</p><h2>HTTP status code <a href="http://httpstatus.es/400" target="_blank">400</a></h2><p>Invalid ticket</p></div></div></div></div></div></div></div><div class="panel panel-white resource-modal"><div class="panel-heading"><h4 class="panel-title"><a class="collapsed" data-toggle="collapse" href="#panel_result_queries__ticket___limit___page_"><span class="parent">/result</span>/queries/{ticket}/{limit}/{page}</a> <span class="methods"><a href="#result_queries__ticket___limit___page__get"><span class="badge badge_get">get</span></a></span></h4></div><div id="panel_result_queries__ticket___limit___page_" class="panel-collapse collapse"><div class="panel-body"><div class="resource-description"><p>Gets a paginated list of queries belonging to a ticket.</p></div><div class="list-group"><div onclick="window.location.href = '#result_queries__ticket___limit___page__get'" class="list-group-item"><span class="badge badge_get">get</span><div class="method_description"></div><div class="clearfix"></div></div></div></div></div><div class="modal fade" tabindex="0" id="result_queries__ticket___limit___page__get"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="myModalLabel"><span class="badge badge_get">get</span> <span class="parent">/result</span>/queries/{ticket}/{limit}/{page}</h4></div><div class="modal-body"><ul class="nav nav-tabs"><li class="active"><a href="#result_queries__ticket___limit___page__get_request" data-toggle="tab">Request</a></li><li><a href="#result_queries__ticket___limit___page__get_response" data-toggle="tab">Response</a></li></ul><div class="tab-content"><div class="tab-pane active" id="result_queries__ticket___limit___page__get_request"><h3>URI Parameters</h3><ul><li><strong>ticket</strong>: <em>required (string)</em><p>The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket. Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.</p><p><strong>Example</strong>:</p><div class="examples"><pre><code>v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw</code></pre></div></li><li><strong>limit</strong>: <em>required (integer)</em><p>Number of queries per page.</p></li><li><strong>page</strong>: <em>required (integer)</em><p>Which page should be fetched.</p></li></ul></div><div class="tab-pane" id="result_queries__ticket___limit___page__get_response"><h2>HTTP status code <a href="http://httpstatus.es/200" target="_blank">200</a></h2><h3>Body</h3><p><strong>Media type</strong>: application/json</p><p><strong>Type</strong>: object</p><strong>Properties</strong><ul><li><strong>lookup</strong>: <em>required (array of lookup)</em><p><strong>Items</strong>: lookup</p><div class="items"><ul><li><strong>id</strong>: <em>required (integer)</em><p>Entry in FASTA file</p></li><li><strong>name</strong>: <em>required (string)</em><p>First word of FASTA header</p></li><li><strong>set</strong>: <em>required (integer)</em><p>Not used yet, currently 0.</p></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "id" : 0,
+  "name" : "TEST",
+  "set" : 0
+}
+</code></pre></div></div></li><li><strong>hasNext</strong>: <em>required (boolean)</em><p>Does a next page exist</p></li></ul><p><strong>Example</strong>:</p><div class="examples"><pre><code>{
+  "lookup" :
+  [{
+    "id" : 0,
+    "name" : "TEST",
+    "set" : 0
+  }],
+  "hasNext" : false
+}
+</code></pre></div><h2>HTTP status code <a href="http://httpstatus.es/400" target="_blank">400</a></h2></div></div></div></div></div></div></div></div></div></div></div><div class="col-md-3"><div id="sidebar" class="hidden-print affix" role="complementary"><ul class="nav nav-pills nav-stacked"><li><a href="#databases">/databases</a></li><li><a href="#database">/database</a></li><li><a href="#ticket">/ticket</a></li><li><a href="#tickets">/tickets</a></li><li><a href="#result">/result</a></li></ul></div></div></div></div></body></html>

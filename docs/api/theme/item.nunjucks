@@ -1,0 +1,100 @@
+<li>
+  <strong>{{ item.key }}</strong>{% if item.type !== nil %}:
+
+    {% if not item.structuredValue %}
+      <em>
+        {%- if item.required -%}required {% endif -%}
+        (
+        {%- if item.enum -%}
+          {%- if item.enum.length === 1 -%}
+            {{ item.enum.join(', ') }}
+          {%- else -%}
+            one of {{ item.enum.join(', ') }}
+          {%- endif -%}
+        {%- else -%}
+          {%- if item.type === 'array' and item.items -%}
+            array of {{ item.items.originalType | d(item.items.type) }}
+          {%- elif item.type === 'union' and item.anyOf.length -%}
+            union of
+            {% for alt in item.anyOf -%}
+              {{ alt.originalType | d(alt.displayName) | d(alt.type) }}
+              {%- if not loop.last %} or {% endif -%}
+            {%- endfor -%}
+          {%- else -%}
+            {{ item.type }}
+          {%- endif -%}
+        {%- endif -%}
+
+        {%- if item.default or item.default == 0 or item.default == false %} - default: {{ item.default }}{%- endif -%}
+        {%- if item.repeat %} - repeat: {{ item.repeat }}{%- endif -%}
+        {%- if item.type == 'string' -%}
+          {%- if item.minLength or item.minLength == 0 %} - minLength: {{ item.minLength }}{%- endif -%}
+          {%- if item.maxLength or item.maxLength == 0 %} - maxLength: {{ item.maxLength }}{%- endif -%}
+        {%- else -%}
+          {%- if item.minItems or item.minItems == 0 %} - minItems: {{ item.minItems }}{%- endif -%}
+          {%- if item.maxItems or item.maxItems == 0 %} - maxItems: {{ item.maxItems }}{%- endif -%}
+          {%- if item.minimum or item.minimum == 0 %} - minimum: {{ item.minimum }}{%- endif -%}
+          {%- if item.maximum or item.maximum == 0 %} - maximum: {{ item.maximum }}{%- endif -%}
+        {%- endif -%}
+        {%- if item.pattern %} - pattern: {{ item.pattern }}{%- endif -%}
+        )
+      </em>
+    {% endif %}
+  {% endif %}
+
+{% markdown %}
+{{ item.description }}
+{% endmarkdown %}
+
+  {% if item.annotations.length %}
+  <h3>Annotations</h3>
+  <ul>
+    {% for item in item.annotations %}
+    {% include "./item.nunjucks" %}
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if item.items and item.items.properties %}
+    {% if isStandardType(item.items) %}
+      <p><strong>Items</strong>: {{ item.items }}</p>
+    {% endif %}
+
+    {% if not isStandardType(item.items) %}
+      <p><strong>Items</strong>: {{ item.items.displayName }}</p>
+
+      {% if item.items.properties or item.items.examples.length %}
+        <div class="items">
+          {% if item.items.properties %}
+            <ul>
+              {% for item in item.items.properties %}
+                {% include "./item.nunjucks" %}
+              {% endfor %}
+            </ul>
+          {% endif %}
+
+          {# Sub-item Examples #}
+          {% set parent = item.items %}
+          {% include "./examples.nunjucks" %}
+        </div>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+
+  {% if item.properties %}
+    <ul>
+      {% for item in item.properties %}
+        {% include "./item.nunjucks" %}
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {# Item Examples #}
+  {% set parent = item %}
+  {% include "./examples.nunjucks" %}
+
+  {% if item.structuredValue %}
+    <pre><code>{{ item.structuredValue | dump }}</code></pre>
+  {% endif %}
+
+</li>

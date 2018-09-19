@@ -1,0 +1,451 @@
+#%RAML 1.0
+title: MMseqs2 API
+version: v1
+baseUri: https://search.mmseqs.com/api
+mediaType: application/json
+description: |
+  The MMseqs2 desktop and web server app facilitates interactive sequence searches through custom protein sequence and profile databases on personal workstations.
+  By eliminating MMseqs2's runtime overhead, we reduced response times to a few seconds at sensitivities close to BLAST.
+
+  The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket.
+  Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.
+types:
+  fasta: string
+
+  ticket:
+    description: |
+      The ticket object is a basic element of the API. Any job submission returns a ticket. The job status has to be polled based on this ticket.
+      Once a job is in the "COMPLETED" state. Results can be fetched based on the "/result" endpoint.
+    type: string
+    example: v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw
+
+  ticketRequest:
+    type: object
+    properties:
+      q:
+        description: |
+          One or more query sequence in FASTA format.
+          If submitted as "application/x-www-form-urlencoded" q must be a FASTA string.
+          If submitted as "multipart/form-data" q must be a FASTA file.
+        type: fasta | file
+      database[]:
+        description: Databases to search against.
+        type: path[]
+      mode:
+        description: |
+          Search mode. Either all hit mode "all" or greedy-best hit mode "summary".
+        type: string
+        enum: [all, summary]
+        default: all
+      email:
+        description: Email address for notifications.
+        type: string | nil
+
+  ticketResponse:
+    type: object
+    properties:
+      id:
+        type: ticket
+      status:
+        description: Ticket status
+        type: string
+        enum: [PENDING, RUNNING, COMPLETE, ERROR, UNKNOWN]
+        default: PENDING
+    example: |
+      {
+        "id" : "v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw",
+        "status" : "COMPLETE"
+      }
+
+  ticketType:
+    type: object
+    properties:
+      type:
+        description: Type of job belonging to ticket. Currently searching and indexing jobs are implemented.
+        type: string
+        enum: [search, index]
+
+  path:
+    description: |
+      Database identifier.
+    type: string
+    example:
+      uniclust30_2017_07_seed
+
+  paths:
+    properties:
+      database[]:
+        description: |
+          Submitted as application/x-www-form-urlencoded. Provide **database[]** multiple times for each path:
+          database[]=uniclust30_2017_07_seed&database[]=pfam_31.0
+        type: path[]
+
+  tickets:
+    properties:
+      tickets[]:
+        description: |
+          Submitted as application/x-www-form-urlencoded. Provide **tickets[]** multiple times for each path:
+          tickets[]=lvtydCEDvWFkerPNYmZAdcw2UgbuR2kF1YwJ2g&tickets[]=v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw
+        type: string[]
+
+  database:
+    type: object
+    properties:
+      name:
+        description: Name of the search database.
+        type: string
+        example: Uniclust30
+      version:
+        description: Version of the database.
+        type: string
+        example: 2017_10
+      path:
+        description: Identifier and path substring.
+        type: path
+        example: uniclust30_2017_07_seed
+      default:
+        description: If a database is pre-selected by default for a new user.
+        type: boolean
+      order:
+        description: In which order the database should be shown in the user interface. 0 is the first.
+        type: integer
+      search:
+        description:
+          Extra parameters that are passed to MMseqs2.
+          Useful parameters would be "-s 7" for a high sensitivty search or "--num-iterations 2" for a iterative-profile search.
+        type: string
+        example: -s 7
+    example: |
+      {
+        "name": "Uniclust30",
+        "version" : "2017_10",
+        "path" : "uniclust30_2017_10_seed",
+        "default" : true,
+        "order" : 0,
+        "search" : "-s 7"
+      }
+
+  databases:
+    type: object
+    properties:
+      databases: database[]
+    example: |
+      { "databases" :
+        [{
+          "name": "Uniclust30",
+          "version" : "2017_10",
+          "path" : "uniclust30_2017_10_seed",
+          "default" : true,
+          "order" : 0,
+          "search" : ""
+        }]
+      }
+
+  databaseSubmission:
+    type: database
+    properties:
+      path:
+        description:
+      format:
+        description: |
+          Format of database. Sequence databases must be in FASTA format.
+          Profile (Multiple sequence alignment) databases must be in STOCKHOLM format.
+        type: string
+        enum: [fasta, stockholm]
+        example: fasta
+      file:
+        description: |
+          If submitted as "application/x-www-form-urlencoded" file must be a FASTA string.
+          If submitted as "multipart/form-data" file must be a FASTA file.
+        type: string | file
+        example: |
+          >TEST
+          MPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC
+          >TEST2
+          ...
+
+  lookup:
+    type: object
+    properties:
+      id:
+        description: Entry in FASTA file
+        type: integer
+      name:
+        description: First word of FASTA header
+        type: string
+      set:
+        description: Not used yet, currently 0.
+        type: integer
+    example: |
+      {
+        "id" : 0,
+        "name" : "TEST",
+        "set" : 0
+      }
+
+  lookups:
+    type: object
+    properties:
+      lookup: lookup[]
+      hasNext:
+        description: Does a next page exist
+        type: boolean
+    example: |
+      {
+        "lookup" :
+        [{
+          "id" : 0,
+          "name" : "TEST",
+          "set" : 0
+        }],
+        "hasNext" : false
+      }
+
+  alignments:
+    type: object
+    properties:
+      query: string
+      target: string
+      seqId: number
+      alnLength: integer
+      missmatches: integer
+      gapsopened: integer
+      qStartPos: integer
+      qEndPos: integer
+      dbStartPos: integer
+      dbEndPos: integer
+      eval: number | string
+      score: integer
+      qLen: integer
+      dbLen: integer
+    example:
+      {
+        "query" : "TEST",
+        "target" : "A0A075WD96",
+        "seqId" : 1,
+        "alnLength" : 64,
+        "missmatches" : 0,
+        "gapsopened" : 0,
+        "qStartPos" : 1,
+        "qEndPos" : 64,
+        "dbStartPos" : 1,
+        "dbEndPos" : 64,
+        "eval" : 1.65e-34,
+        "score" : 130,
+        "qLen" : 64,
+        "dbLen" : 64
+      }
+
+  databasebresults:
+    type: object
+    properties:
+      db: path
+      alignments: alignments[]
+    example: |
+      {
+        "db" : "uniclust30_2017_10_seed",
+        "alignments" : [{
+            "query" : "TEST",
+            "target" : "A0A075WD96",
+            "seqId" : 1,
+            "alnLength" : 64,
+            "missmatches" : 0,
+            "gapsopened" : 0,
+            "qStartPos" : 1,
+            "qEndPos" : 64,
+            "dbStartPos" : 1,
+            "dbEndPos" : 64,
+            "eval" : 1.65e-34,
+            "score" : 130,
+            "qLen" : 64,
+            "dbLen" : 64
+        }]
+      }
+
+  query:
+    type: object
+    properties:
+      header: string
+      sequence: string
+    example: |
+      {
+        "header" : "TEST",
+        "sequence" : "MPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC"
+      }
+  searchresult:
+    type: object
+    properties:
+      query:
+        type: query
+      results:
+        type: databasebresults[]
+    example: |
+      {
+        "query" : {
+          "header" : "TEST",
+          "sequence" : "MPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC"
+        },
+        "results" : [{
+          "db" : "uniclust30_2017_10_seed",
+          "alignments" : [{
+              "query" : "TEST",
+              "target" : "A0A075WD96",
+              "seqId" : 1,
+              "alnLength" : 64,
+              "missmatches":0,
+              "gapsopened":0,
+              "qStartPos":1,
+              "qEndPos":64,
+              "dbStartPos":1,
+              "dbEndPos":64,
+              "eval":1.65e-34,
+              "score":130,
+              "qLen":64,
+              "dbLen":64
+          }]
+        }]
+      }
+
+
+/databases:
+  description: Provides a list of available search databases, including all parameters needed for the frontend.
+  get:
+    responses:
+      200:
+        body:
+          type: databases
+      400:
+        description: A configuration error occured. A database ".params" file was invalid and could be decoded.
+
+  /order:
+    description: Reorders the databases. **Only available** if server was started with "-server.dbmanagment true" parameter.
+    post:
+      body:
+        application/x-www-form-urlencoded:
+          type: paths
+
+/database:
+  description: Adds or removes a search database for processing. **Only available** if server was started with "-server.dbmanagment true" parameter.
+  post:
+    body:
+      application/x-www-form-urlencoded:
+        type: databaseSubmission
+      multipart/form-data:
+        type: databaseSubmission
+
+    responses:
+      200:
+        body: ticketResponse
+      400:
+        description: Invalid database or decoding error.
+  delete:
+    body:
+      application/x-www-form-urlencoded:
+        type: path
+    responses:
+      200:
+      400:
+        description: Invalid ticket or internals error.
+
+/ticket:
+  description: |
+    Submits a new job to the queue and gets a ticket referencing this job. Ticket is needed for all further api calls regarding this job.
+  post:
+    body:
+      application/x-www-form-urlencoded:
+        type: ticketRequest
+      multipart/form-data:
+        type: ticketRequest
+    responses:
+      200:
+        body: ticketResponse
+      400:
+
+  /{ticket}:
+    description: Gets the status of a ticket
+    uriParameters:
+      ticket: ticket
+    get:
+      responses:
+        200:
+          body:
+            type: ticketResponse
+        400:
+          description: Error if ticket was not found or could not be encoded to JSON.
+
+  /type/{ticket}:
+    description: Gets the type of the ticket
+    uriParameters:
+      ticket: ticket
+    get:
+      responses:
+        200:
+          body:
+            type: ticketType
+        400:
+
+/tickets:
+  description: Gets the status of multiple tickets
+  post:
+    body:
+      application/x-www-form-urlencoded:
+        type: tickets
+
+    responses:
+      200:
+        body:
+          type: ticketResponse[]
+          example: |
+            [{
+              "id" : "lvtydCEDvWFkerPNYmZAdcw2UgbuR2kF1YwJ2g",
+              "status" : "COMPLETE"
+            }, {
+              "id" : "v04cLYK_gxRUMOWy7pXvUNxzSYWAmoDO38gLUw",
+              "status":"COMPLETE"
+            }]
+      400:
+
+/result:
+  /{ticket}/{entry}:
+    description: Gets the alignment results for query number *entry* of the ticket.
+    uriParameters:
+      ticket: ticket
+      entry:
+        description: The results of which query should be fetched.
+        type: number
+    get:
+      responses:
+        200:
+          body:
+            type: searchresult
+        400:
+
+
+  /download/{ticket}:
+    description: Downloads all alignment results in a BLAST-tab compatible format for the specified ticket.
+    uriParameters:
+      ticket: ticket
+    get:
+      responses:
+        200:
+          body:
+            application/octet-stream:
+        400:
+          description: Invalid ticket
+
+  /queries/{ticket}/{limit}/{page}:
+    description: Gets a paginated list of queries belonging to a search job.
+    uriParameters:
+      ticket: ticket
+      limit:
+        description: Number of queries per page.
+        type: integer
+      page:
+        description: Which page should be fetched.
+        type: integer
+    get:
+      responses:
+        200:
+          body:
+            type: lookups
+        400:
