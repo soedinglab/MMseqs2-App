@@ -87,7 +87,7 @@
             <div class="headline mb-0">Reference</div>
         </v-card-title>
         <v-card-title primary-title class="pt-0 mt-0">
-            <p class="mb-0">Mirdita M., Steinegger M.#, and Söding J.#, <a href="#">MMseqs2 app and server for interactive and ultra fast homology searches</a>, <i>XXXX.</i> 201X.</p>
+            <p class="mb-0">Mirdita M., Steinegger M., and Söding J., <a href="https://www.biorxiv.org/content/early/2018/09/18/419895">MMseqs2 desktop and local web server app for fast, interactive sequence searches</a>, <i>biorxiv.</i> 2018.</p>
         </v-card-title>
         </v-card>
     </v-flex>
