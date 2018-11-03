@@ -55,9 +55,10 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 				filepath.Join(resultBase, "tmp"),
 				"--dont-shuffle",
 				"--db-output",
-				"--no-preload",
-				"--format-mode",
+				"--db-load-mode",
 				"2",
+				"--format-output",
+				"query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln",
 			}
 			parameters = append(parameters, strings.Fields(params.Display.Search)...)
 

@@ -62,7 +62,7 @@
             </v-flex>
             <v-flex xs12 v-if="hits">
                 <panel>
-                <table class="table" slot="content">
+                    <table class="table" slot="content" style="position:relative">
                         <thead>
                             <tr>
                                 <th>Database</th>
@@ -72,10 +72,11 @@
                                 <th>E-Value</th>
                                 <th>Query Pos.</th>
                                 <th>Target Pos.</th>
+                                <th>Alignment</th>
                             </tr>
                         </thead>
                         <tbody v-for="entry in hits.results" :key="entry.db">
-                            <tr v-for="(item, index) in entry.alignments" :key="index">
+                            <tr class="hit" v-for="(item, index) in entry.alignments" :key="item.target">
                                 <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</td>
                                 <td data-label="Target">
                                     <a :href="item.href" target="_blank">{{item.target}}</a>
@@ -85,8 +86,23 @@
                                 <td data-label="E-Value">{{ item.eval }}</td>
                                 <td data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
                                 <td data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
+                                <td style="text-align:center">
+                                    <v-btn @click="showAlignment(item, $event)" flat :outline="alignment && item.target == alignment.target" icon>
+                                        <v-icon>clear_all</v-icon>
+                                    </v-btn>
+                                </td>
                             </tr>
                         </tbody>
+                        <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
+                            <div class="alignment-wrapper1" slot="content">
+                                <div class="alignment-wrapper2">
+                                <span v-for="i in (alignment.alnLength / alnLineLength)|0" :key="i">
+<span class="line">Q&nbsp;{{alignment.qAln.substring((i - 1) * 80, (i - 1)*80+80)}}&nbsp;{{(i - 1) * 80 + 80}}<br>
+T&nbsp;{{alignment.dbAln.substring((i - 1) * 80, (i - 1)*80+80)}}&nbsp;{{(i - 1) * 80 + 80}}</span><br>
+                                </span>
+                                </div>
+                            </div>
+                        </panel>
                     </table>
                 </panel>
             </v-flex>
@@ -139,6 +155,9 @@ export default {
             error: "",
             entry: 0,
             hits: null,
+            alignment: null,
+            alnBoxOffset: 0,
+            alnLineLength: 80,
         };
     },
     beforeDestroy() {
@@ -179,6 +198,15 @@ export default {
         '$route': 'fetchData'
     },
     methods: {
+        showAlignment(item, event) {
+            if (this.alignment == item) {
+                this.alignment = null;
+            } else {
+                this.alignment = item;
+            }
+            var $el = event.target.closest('.hit');
+            this.alnBoxOffset = $el.offsetTop + $el.offsetHeight + 1;
+        },
         tryLinkTargetToDB(target, db) {
             if (db.startsWith("pfam_")) {
                 return 'https://pfam.xfam.org/family/' + target;
@@ -356,9 +384,13 @@ position: relative;
 display: block;
 margin: 0.25em;
 }
+tr th {
+text-align: left;
+}
 tr td {
 border: 0;
 display: inherit;
+text-align: left;
 }
 tr td:last-child {
 border-bottom: 0;
@@ -391,6 +423,30 @@ padding-right: 0.5em;
 text-align: left;
 }
 
+}
+
+.alignment {
+position:absolute;
+left:4px;
+right:0;
+font-family: 'Courier New', Courier, monospace;
+}
+
+.alignment-wrapper1 {
+display: flex;
+justify-content: center;
+align-items: center;
+}
+
+.alignment-wrapper2 {
+display:inline-block;
+overflow-x:scroll;
+}
+
+.alignment-wrapper2 .line {
+    display: inline-block;
+    margin-bottom: 0.5em;
+    white-space: nowrap;
 }
 
 .variant{

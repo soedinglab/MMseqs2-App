@@ -96,7 +96,19 @@ func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitiviy fl
 		}
 
 		if findIndex(basepath) == "" {
-			err := quickExec(mmseqs, verbose, "createindex", basepath, tmppath, "--mask", "2", "--include-headers")
+			err := quickExec(
+				mmseqs,
+				verbose,
+				"createindex",
+				basepath,
+				tmppath,
+				"--mask",
+				"2",
+				"--include-headers",
+				"true",
+				"--remove-tmp-files",
+				"true",
+			)
 			if err != nil {
 				return err
 			}

@@ -437,6 +437,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		ReadTimeout:  15 * time.Second,
 	}
 
-	log.Println("MMseqs Webserver")
+	log.Println("MMseqs2 Webserver")
 	log.Fatal(srv.ListenAndServe())
 }

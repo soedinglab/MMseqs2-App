@@ -26,6 +26,8 @@ type AlignmentEntry struct {
 	Score         int     `json:"score"`
 	QueryLength   int     `json:"qLen"`
 	DbLength      int     `json:"dbLen"`
+	QueryAln      string  `json:"qAln"`
+	DbAln         string  `json:"dbAln"`
 }
 
 type FastaEntry struct {
