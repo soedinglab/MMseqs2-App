@@ -96,7 +96,7 @@
                         <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
                             <div class="alignment-wrapper1" slot="content">
                                 <div class="alignment-wrapper2">
-                                <span v-for="i in (alignment.alnLength / alnLineLength)|0" :key="i">
+                                <span v-for="i in Math.max(1, (alignment.alnLength / alnLineLength)|0)" :key="i">
 <span class="line">Q&nbsp;{{alignment.qAln.substring((i - 1) * 80, (i - 1)*80+80)}}&nbsp;{{(i - 1) * 80 + 80}}<br>
 T&nbsp;{{alignment.dbAln.substring((i - 1) * 80, (i - 1)*80+80)}}&nbsp;{{(i - 1) * 80 + 80}}</span><br>
                                 </span>
