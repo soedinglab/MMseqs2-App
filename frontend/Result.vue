@@ -86,7 +86,7 @@
                                 <td data-label="E-Value">{{ item.eval }}</td>
                                 <td data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
                                 <td data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
-                                <td style="text-align:center">
+                                <td>
                                     <v-btn @click="showAlignment(item, $event)" flat :outline="alignment && item.target == alignment.target" icon>
                                         <v-icon>clear_all</v-icon>
                                     </v-btn>
@@ -96,9 +96,9 @@
                         <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
                             <div class="alignment-wrapper1" slot="content">
                                 <div class="alignment-wrapper2">
-                                <span v-for="i in Math.max(1, (alignment.alnLength / alnLineLength)|0)" :key="i">
-<span class="line">Q&nbsp;{{alignment.qAln.substring((i - 1) * 80, (i - 1)*80+80)}}&nbsp;{{(i - 1) * 80 + 80}}<br>
-T&nbsp;{{alignment.dbAln.substring((i - 1) * 80, (i - 1)*80+80)}}&nbsp;{{(i - 1) * 80 + 80}}</span><br>
+                                <span v-for="i in Math.max(1, (alignment.alnLength / lineLen)|0)" :key="i">
+<span class="line">Q&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;{{alignment.qAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}<br>
+T&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span><br>
                                 </span>
                                 </div>
                             </div>
@@ -157,7 +157,7 @@ export default {
             hits: null,
             alignment: null,
             alnBoxOffset: 0,
-            alnLineLength: 80,
+            lineLen: 80,
         };
     },
     beforeDestroy() {
@@ -198,6 +198,9 @@ export default {
         '$route': 'fetchData'
     },
     methods: {
+        padNumber(nr, n, str){
+            return Array(n-String(nr).length+1).join(str||'0')+nr;
+        },
         showAlignment(item, event) {
             if (this.alignment == item) {
                 this.alignment = null;
@@ -361,6 +364,7 @@ a:not([href]):hover {
 
 td, th {
     padding: 0 6px;
+    text-align: left;
 }
 
 @media screen and (max-width: 960px) {
@@ -384,14 +388,12 @@ position: relative;
 display: block;
 margin: 0.25em;
 }
-tr th {
-text-align: left;
-}
+
 tr td {
 border: 0;
 display: inherit;
-text-align: left;
 }
+
 tr td:last-child {
 border-bottom: 0;
 }
