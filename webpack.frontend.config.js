@@ -29,7 +29,7 @@ module.exports = {
                 test: /\.vue$/,
                 loader: 'vue-loader',
                 options: {
-                    extractCSS: true,
+                    extractCSS: isProduction,
                     transformToRequire : { object: 'data' },
                     include: [
                         path.resolve(__dirname, './frontend'),
