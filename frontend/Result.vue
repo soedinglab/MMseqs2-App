@@ -97,8 +97,11 @@
                             <div class="alignment-wrapper1" slot="content">
                                 <div class="alignment-wrapper2">
                                 <span v-for="i in Math.max(1, (alignment.alnLength / lineLen)|0)" :key="i">
-<span class="line">Q&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;{{alignment.qAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}<br>
-T&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span><br>
+<span class="line">
+Q&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}</span>
+<br>
+T&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span>
+</span><br>
                                 </span>
                                 </div>
                             </div>
@@ -344,6 +347,13 @@ export default {
 </script>
 
 <style>
+@font-face {
+font-family: InconsolataClustal;
+src: url(assets/InconsolataClustal2.woff2),
+     url(assets/InconsolataClustal2.eot),
+     url(assets/InconsolataClustal2.woff);
+}
+
 .hide {
     display: none;
 }
@@ -432,6 +442,10 @@ position:absolute;
 left:4px;
 right:0;
 font-family: 'Courier New', Courier, monospace;
+}
+
+.alignment .residues {
+font-family: InconsolataClustal, 'Courier New', Courier, monospace;
 }
 
 .alignment-wrapper1 {
