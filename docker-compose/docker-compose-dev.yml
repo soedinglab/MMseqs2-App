@@ -11,7 +11,7 @@ services:
       context: ..
       dockerfile: Dockerfile.backend
 
-  mmseqs-web-frontend:
+  mmseqs-web-webserver:
     build:
       context: ..
       dockerfile: Dockerfile.frontend
