@@ -7,7 +7,7 @@ win: resources/win/mmseqs.bat resources/win/mmseqs-web-backend.exe resources/win
 mac: resources/mac/mmseqs-sse41 resources/mac/mmseqs-avx2 resources/mac/mmseqs-web-backend resources/mac/cpu-check
 linux: resources/linux/mmseqs-sse41 resources/linux/mmseqs-avx2 resources/linux/mmseqs-web-backend resources/linux/cpu-check
 
-mmseqshash := 9e55f4e22b2e91ffc79ecd0edd7655850f4fb543
+mmseqshash := 8c2f0b1a0a72b9ca8ac993f06aabe9962c242198
 
 resources/icons/256x256.png:
 	mkdir -p resources/icons
@@ -71,5 +71,6 @@ resources/win/mmseqs.bat:
 	cd resources/win && wget -nv https://mmseqs.com/archive/$(mmseqshash)/mmseqs-win64.zip && unzip mmseqs-win64.zip && mv mmseqs/* . && rmdir mmseqs && rm mmseqs-win64.zip
 
 clean:
-	rm -f build/icons/256x256.png build/icons/icon.icns build/icons/icon.ico
-	rm -rf resources/mac/* resources/linux/*  resources/win/*
+	#rm -rf resources/mac/* resources/linux/*  resources/win/*
+	rm -f resources/mac/mmseqs-web-backend resources/linux/mmseqs-web-backend resources/win/mmseqs-web-backend.exe
+	#rm -f build/icons/256x256.png build/icons/icon.icns build/icons/icon.ico

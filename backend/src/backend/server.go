@@ -31,16 +31,18 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		for _, db := range databases {
-			if db.Status != StatusRunning && db.Status != StatusComplete {
-				request, err := NewIndexJobRequest(db.Display.Path, "")
-				if err != nil {
-					panic(err)
-				}
+			if db.Status == StatusRunning {
+				continue
+			}
 
-				_, err = jobsystem.NewJob(request, config.Paths.Results)
-				if err != nil {
-					panic(err)
-				}
+			request, err := NewIndexJobRequest(db.Display.Path, "")
+			if err != nil {
+				panic(err)
+			}
+
+			_, err = jobsystem.NewJob(request, config.Paths.Results, true)
+			if err != nil {
+				panic(err)
 			}
 		}
 	}()
@@ -56,13 +58,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	r.HandleFunc("/databases", func(w http.ResponseWriter, req *http.Request) {
 		databases, err := Databases(config.Paths.Databases, true)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		err = json.NewEncoder(w).Encode(DatabaseResponse{GetDisplayFromParams(databases)})
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}).Methods("GET")
@@ -84,7 +86,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 			err = json.NewEncoder(w).Encode(DatabaseResponse{GetDisplayFromParams(databases)})
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}).Methods("POST")
@@ -143,7 +145,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 				f, err := os.Create(filepath.Join(config.Paths.Databases, filepath.Base(path+suffix)))
 				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
+					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
 				f.WriteString(data)
@@ -164,24 +166,24 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			filename := filepath.Join(config.Paths.Databases, filepath.Base(path+".params"))
 			err := SaveParams(filename, params)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
 			request, err = NewIndexJobRequest(path, req.FormValue("email"))
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			result, err := jobsystem.NewJob(request, config.Paths.Results)
+			result, err := jobsystem.NewJob(request, config.Paths.Results, false)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
 			err = json.NewEncoder(w).Encode(result)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}).Methods("POST")
@@ -196,7 +198,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			path := req.FormValue("path")
 			ok := DeleteDatabase(filepath.Join(config.Paths.Databases, filepath.Base(path)))
 			if ok == false {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}).Methods("DELETE")
@@ -243,24 +245,24 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		databases, err := Databases(config.Paths.Databases, true)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		result, err := jobsystem.NewJob(request, config.Paths.Results)
+		result, err := jobsystem.NewJob(request, config.Paths.Results, true)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		err = json.NewEncoder(w).Encode(result)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}).Methods("POST")
@@ -274,7 +276,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		request, err := getJobRequestFromFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.json"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -284,7 +286,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		err = json.NewEncoder(w).Encode(TypeReponse{request.Type})
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}).Methods("GET")
@@ -298,7 +300,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		err = json.NewEncoder(w).Encode(ticket)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}).Methods("GET")
@@ -318,7 +320,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		err = json.NewEncoder(w).Encode(res)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}).Methods("POST")
@@ -340,12 +342,12 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		name := "mmseqs_results_" + string(ticket.Id) + ".tar.gz"
 		path := filepath.Join(filepath.Clean(config.Paths.Results), string(ticket.Id), name)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		file, err := os.Open(path)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer file.Close()
@@ -383,7 +385,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		err = json.NewEncoder(w).Encode(results)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -412,7 +414,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		result, err := Lookup(ticket.Id, page, limit, config.Paths.Results)
 		err = json.NewEncoder(w).Encode(result)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}).Methods("GET")

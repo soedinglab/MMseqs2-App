@@ -89,7 +89,7 @@ type JobSystem interface {
 	SetStatus(Id, Status) error
 	Status(Id) (Status, error)
 	GetTicket(Id) (Ticket, error)
-	NewJob(JobRequest, string) (Ticket, error)
+	NewJob(JobRequest, string, bool) (Ticket, error)
 	MultiStatus([]string) ([]Ticket, error)
 	Dequeue() (*Ticket, error)
 }
@@ -138,7 +138,7 @@ func (j *RedisJobSystem) GetTicket(id Id) (Ticket, error) {
 	return t, err
 }
 
-func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string) (Ticket, error) {
+func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubmit bool) (Ticket, error) {
 	id := request.Id
 	res, err := j.Status(id)
 	if err != nil {
@@ -148,7 +148,13 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string) (Ticket, er
 	workdir := filepath.Join(jobsbase, string(id))
 
 	switch res {
-	case StatusComplete, StatusPending, StatusRunning:
+	case StatusComplete:
+		if allowResubmit {
+			break
+		} else {
+			return Ticket{id, res}, nil
+		}
+	case StatusPending, StatusRunning:
 		return Ticket{id, res}, nil
 	case StatusError:
 		os.RemoveAll(workdir)
@@ -385,7 +391,7 @@ func (j *LocalJobSystem) GetTicket(id Id) (Ticket, error) {
 	return t, err
 }
 
-func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string) (Ticket, error) {
+func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubmit bool) (Ticket, error) {
 	id := request.Id
 	res, err := j.Status(id)
 	if err != nil {
@@ -395,7 +401,13 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string) (Ticket, er
 	workdir := filepath.Join(jobsbase, string(id))
 
 	switch res {
-	case StatusComplete, StatusPending, StatusRunning:
+	case StatusComplete:
+		if allowResubmit {
+			break
+		} else {
+			return Ticket{id, res}, nil
+		}
+	case StatusPending, StatusRunning:
 		return Ticket{id, res}, nil
 	case StatusError:
 		os.RemoveAll(workdir)

@@ -134,6 +134,7 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 		}
 		params.Status = StatusRunning
 		SaveParams(file+".params", params)
+		jobsystem.SetStatus(request.Id, StatusRunning)
 		err = CheckDatabase(file, config.Paths.Temporary, config.Paths.Mmseqs, sens, config.Verbose)
 		if err != nil {
 			params.Status = StatusError
