@@ -71,6 +71,5 @@ resources/win/mmseqs.bat:
 	cd resources/win && wget -nv https://mmseqs.com/archive/$(mmseqshash)/mmseqs-win64.zip && unzip mmseqs-win64.zip && mv mmseqs/* . && rmdir mmseqs && rm mmseqs-win64.zip
 
 clean:
-	#rm -rf resources/mac/* resources/linux/*  resources/win/*
-	rm -f resources/mac/mmseqs-web-backend resources/linux/mmseqs-web-backend resources/win/mmseqs-web-backend.exe
-	#rm -f build/icons/256x256.png build/icons/icon.icns build/icons/icon.ico
+	rm -f build/icons/256x256.png build/icons/icon.icns build/icons/icon.ico
+	rm -rf resources/mac/* resources/linux/*  resources/win/*
