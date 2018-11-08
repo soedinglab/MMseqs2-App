@@ -150,6 +150,7 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	switch res {
 	case StatusComplete:
 		if allowResubmit {
+			os.RemoveAll(workdir)
 			break
 		} else {
 			return Ticket{id, res}, nil
@@ -403,6 +404,7 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	switch res {
 	case StatusComplete:
 		if allowResubmit {
+			os.RemoveAll(workdir)
 			break
 		} else {
 			return Ticket{id, res}, nil
