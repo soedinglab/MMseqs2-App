@@ -175,7 +175,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			result, err := jobsystem.NewJob(request, config.Paths.Results, false)
+			result, err := jobsystem.NewJob(request, config.Paths.Results, true)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -254,7 +254,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		result, err := jobsystem.NewJob(request, config.Paths.Results, true)
+		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
