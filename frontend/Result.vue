@@ -214,13 +214,14 @@ export default {
             this.alnBoxOffset = $el.offsetTop + $el.offsetHeight + 1;
         },
         tryLinkTargetToDB(target, db) {
-            if (db.startsWith("pfam_")) {
+            var res = db.toLowerCase();
+            if (res.startsWith("pfam")) {
                 return 'https://pfam.xfam.org/family/' + target;
-            } else if (db.startsWith("pdb")) {
+            } else if (res.startsWith("pdb")) {
                 return 'https://www.rcsb.org/pdb/explore.do?structureId=' + target.split('_')[0];
-            } else if (db.startsWith("uniclust") || db.startsWith("uniprot") || db.startsWith("sprot") || db.startsWith("swissprot")) {
+            } else if (res.startsWith("uniclust") || res.startsWith("uniprot") || res.startsWith("sprot") || res.startsWith("swissprot")) {
                 return 'https://www.uniprot.org/uniprot/' + target;
-            } else if (db.startsWith("eggnog_")) {
+            } else if (res.startsWith("eggnog_")) {
                 return 'http://eggnogdb.embl.de/#/app/results?target_nogs=' + target;
             }
             return null;
