@@ -408,6 +408,10 @@ a.anchor {
     line-height: 3.5;
 }
 
+tbody:hover td[rowspan] {
+   background: #eee;
+}
+
 a:not([href]) {
     color: #333;
 }
