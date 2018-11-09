@@ -961,12 +961,11 @@ var FeatureViewer = (function () {
                     
                 rectsProGroup
                     .append("a")
-                    .attr("xlink:href", function(d) {
+                    .attr("xlink:xlink:href", function(d) {
                         if (typeof (d.href) === "undefined")
                             return null;
                         return d.href;
                     })
-                    .attr("target", "_blank")
                     .append("text")
                     .attr("class", "element " + object.className + "Text")
                     .attr("y", function (d) {
@@ -990,6 +989,11 @@ var FeatureViewer = (function () {
                     .style("fill", function (d) { return d3.rgb(d.color || object.color).hsl().l < 0.5 ? "white" : "black"; })
                     .style("z-index", "15")
                     .style("text-anchor", "middle")
+                    .on("click", function (d) {
+                        if (typeof (d.callback) === "undefined")
+                            return null;
+                        d.callback(d, d3.event);
+                    });
                     // .style("visibility", function (d) {
                     //     if (d.description) {
                     //         return (scaling(d.y) - scaling(d.x)) > d.description.length  && rectHeight > 11 ? "visible" : "hidden";
