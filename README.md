@@ -18,7 +18,7 @@ Once the app is installed, open the Settings panel. There you can add either seq
 ## Web app quickstart with docker-compose
 
 Make sure you have `docker` (>=17.05), `docker-compose` (>=1.20.0) and `git` installed on your server.
-To start the MMseqs2 web server (on http://localhost:8877) execute the following commands:
+To start the MMseqs2 web server execute the following commands. Afterwards you can navigate to http://localhost:8877 on a webserver to access the interface.
 
 ``` bash
 # clone the repository
@@ -30,9 +30,11 @@ cd MMseqs2-App/docker-compose
 # download the uniclust sequence database
 ./examples/uniclust/setup.sh
 
-# start the server with docker-compose 
+# start the server with docker-compose
 docker-compose up
 ```
+
+By default, the server will start on port 8877. You can edit the `.env` file in the `docker-compose` directory to change this port.
 
 Head over to the [Docker recipe readme](https://github.com/soedinglab/MMseqs2-App/blob/master/docker-compose/README.md) for more details on running your own server, including how to add your own sequence or profile databases. Take a look at the [API documentation](https://search.mmseqs.com/docs) to learn how to talk to the server backend.
 
