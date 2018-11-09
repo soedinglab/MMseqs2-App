@@ -2,12 +2,28 @@
     <v-container grid-list-md fluid>
         <v-layout row wrap>
             <v-flex xs12 md8>
-                <panel class="query-panel d-flex fill-height" header="Queries" fill-height>
+                <panel class="query-panel d-flex fill-height" fill-height>
+                    <template slot="header">
+                        Queries
+                    </template>
+                    <template slot="toolbar-extra">
+                        <v-tooltip open-delay="300" top>
+                            <v-icon small slot="activator">help_outline</v-icon>
+                            <span>Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file.</span>
+                        </v-tooltip>
+                    </template>
                     <template slot="content">
-                        <!-- <div v-if="error" class="alert alert-danger">
-                            {{ status.message }}
-                        </div> -->
-                        <v-text-field aria-label="Enter queries in FASTA format" class="marv-bg" hide-details multi-line v-model="query" @dragover.prevent @drop="fileDrop($event)" placeholder="Please start a Search" spellcheck="false"></v-text-field>
+                        <v-text-field 
+                            aria-label="Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file." 
+                            class="marv-bg" 
+                            hide-details 
+                            multi-line 
+                            v-model="query" 
+                            @dragover.prevent 
+                            @drop="fileDrop($event)" 
+                            placeholder="Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file." 
+                            spellcheck="false">
+                        </v-text-field>
 
                         <div class="actions">
                         <v-dialog v-if="!$ELECTRON" v-model="showCurl" lazy absolute :disabled="searchDisabled">

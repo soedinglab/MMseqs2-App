@@ -48,4 +48,9 @@ export default {
 .panel-root .title {
     margin-bottom: -5px;
 }
+
+.panel-root .title i.icon {
+    font-size: 1em;
+    vertical-align: bottom;
+}
 </style>
