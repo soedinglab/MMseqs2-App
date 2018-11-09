@@ -76,9 +76,10 @@
                             </tr>
                         </thead>
                         <tbody v-for="entry in hits.results" :key="entry.db">
-                            <tr class="hit" v-for="(item, index) in entry.alignments" :key="item.target">
+                            <tr v-for="(item, index) in entry.alignments" :key="item.target" :class="['hit', { 'active' : item.active }]">
                                 <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</td>
                                 <td data-label="Target">
+                                    <a :id="item.id" class="anchor"></a>
                                     <a :href="item.href" target="_blank">{{item.target}}</a>
                                 </td>
                                 <td data-label="Sequence Identity">{{ item.seqId }}</td>
@@ -198,7 +199,15 @@ export default {
         }
     },
     watch: {
-        '$route': 'fetchData'
+        '$route': function(to, from) {
+            if (from.path != to.path) {
+                this.fetchData();
+            }
+            
+            if (from.hash != to.hash) {
+                this.updateActive(to.hash);
+            }
+        }
     },
     methods: {
         padNumber(nr, n, str){
@@ -229,7 +238,6 @@ export default {
         fetchData(entry) {
             this.ticket = this.$route.params.ticket;
             this.entry = this.$route.params.entry;
-
             this.$http.get("api/result/" + this.ticket + '/' + this.entry)
                 .then((response) => {
                     this.error = "";
@@ -242,6 +250,8 @@ export default {
                                 for (var j in data.results[i].alignments) {
                                     var item = data.results[i].alignments[j];
                                     item.href = this.tryLinkTargetToDB(item.target, db);
+                                    item.id = 'result-' + i + '-' + j;
+                                    item.active = false;
                                 }
                             }
                             this.hits = data;
@@ -265,6 +275,26 @@ export default {
                 m.resetAll();
             }
         },
+        updateActive(hash) {
+            if (typeof (hash) === "undefined" || hash[0] !== '#') {
+                return;
+            }
+
+            if (hash.startsWith('#result') == false) {
+                return;
+            }
+
+            var splits = hash.split('-', 3);
+            var db = splits[1] | 0;
+            var alignment = splits[2] | 0;
+            for (var i = 0; i < this.hits.results[db].alignments.length; ++i) {
+                if (i == splits[2]) {
+                    this.hits.results[db].alignments[i].active = true;
+                } else {
+                    this.hits.results[db].alignments[i].active = false;
+                }
+            }
+        },
         setData(data) {
             // cannot change reactive elements in here, or setData gets called repeatedly 
             this.remove();
@@ -283,6 +313,11 @@ export default {
             m.on('feature-viewer-height-altered', (ev) => {
                 this.$refs.hitsParent.style.minHeight = ev.newHeight + "px";
             });
+            var fixSafariSvgLink = function(d, event) {
+                if (typeof (d.href) !== "undefined" && d.href.startsWith('#result')) {
+                    window.location.hash = d.href;
+                }
+            }
 
             var results = data.results;
             for (var res in results) {
@@ -325,8 +360,9 @@ export default {
                         "description": alignments[i]["target"] + " (E: " + alignments[i]["eval"] + ")",
                         "id": cnt,
                         "color": colorHsl.rgb(),
-                        "href": alignments[i]["href"],
-                        "reverse": reverse
+                        "href": '#' + alignments[i]["id"],
+                        "reverse": reverse,
+                        "callback" : fixSafariSvgLink
                     }
                     features.push(f);
                     cnt++;
@@ -355,6 +391,13 @@ src: url(assets/InconsolataClustal2.woff2),
      url(assets/InconsolataClustal2.woff);
 }
 
+a.anchor {
+    display: block;
+    position: relative;
+    top: -125px;
+    visibility: hidden;
+}
+
 .hide {
     display: none;
 }
@@ -376,6 +419,10 @@ a:not([href]):hover {
 td, th {
     padding: 0 6px;
     text-align: left;
+}
+
+.hit.active {
+    background: #f9f9f9;
 }
 
 @media screen and (max-width: 960px) {
