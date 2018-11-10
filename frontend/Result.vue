@@ -274,7 +274,6 @@ export default {
         },
         remove() {
             if (m != null) {
-                m.off();
                 m.clearInstance();
                 m = null;
             }
@@ -311,17 +310,16 @@ export default {
                 showAxis: true,
                 showSequence: true,
                 brushActive: true,
-                zoomMax: 10
+                zoomMax: 10,
+                onZoom: (ev) => {
+                    var $classes = this.$refs.reset.$el.classList;
+                    if (ev.zoom > 1) { $classes.remove('hide'); } else { $classes.add('hide'); } 
+                },
+                onHeightChanged: (newHeight) => {
+                    this.$refs.hitsParent.style.minHeight = newHeight + "px";
+                }
             });
 
-            m.on('feature-viewer-zoom-altered', (ev) => {
-                var $classes = this.$refs.reset.$el.classList;
-                if (ev.zoom > 1) { $classes.remove('hide'); } else { $classes.add('hide'); } 
-            });
-
-            m.on('feature-viewer-height-altered', (ev) => {
-                this.$refs.hitsParent.style.minHeight = ev.newHeight + "px";
-            });
             var fixSafariSvgLink = function(d, event) {
                 if (typeof (d.href) !== "undefined" && d.href.startsWith('#result')) {
                     window.location.hash = d.href;

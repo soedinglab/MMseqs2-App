@@ -1,274 +1,7 @@
-/**
- * Standalone extraction of Backbone.Events, no external dependency required.
- * Degrades nicely when Backone/underscore are already available in the current
- * global context.
- *
- * Note that docs suggest to use underscore's `_.extend()` method to add Events
- * support to some given object. A `mixin()` method has been added to the Events
- * prototype to avoid using underscore for that sole purpose:
- *
- *     var myEventEmitter = BackboneEvents.mixin({});
- *
- * Or for a function constructor:
- *
- *     function MyConstructor(){}
- *     MyConstructor.prototype.foo = function(){}
- *     BackboneEvents.mixin(MyConstructor.prototype);
- *
- * (c) 2009-2013 Jeremy Ashkenas, DocumentCloud Inc.
- * (c) 2013 Nicolas Perriault
- */
-/* global exports:true, define, module */
-var nativeForEach = Array.prototype.forEach,
-    hasOwnProperty = Object.prototype.hasOwnProperty,
-    slice = Array.prototype.slice,
-    idCounter = 0;
-
-// Returns a partial implementation matching the minimal API subset required
-// by Backbone.Events
-function miniscore() {
-return {
-    keys: Object.keys || function (obj) {
-    if (typeof obj !== "object" && typeof obj !== "function" || obj === null) {
-        throw new TypeError("keys() called on a non-object");
-    }
-    var key, keys = [];
-    for (key in obj) {
-        if (obj.hasOwnProperty(key)) {
-        keys[keys.length] = key;
-        }
-    }
-    return keys;
-    },
-
-    uniqueId: function(prefix) {
-    var id = ++idCounter + '';
-    return prefix ? prefix + id : id;
-    },
-
-    has: function(obj, key) {
-    return hasOwnProperty.call(obj, key);
-    },
-
-    each: function(obj, iterator, context) {
-    if (obj == null) return;
-    if (nativeForEach && obj.forEach === nativeForEach) {
-        obj.forEach(iterator, context);
-    } else if (obj.length === +obj.length) {
-        for (var i = 0, l = obj.length; i < l; i++) {
-        iterator.call(context, obj[i], i, obj);
-        }
-    } else {
-        for (var key in obj) {
-        if (this.has(obj, key)) {
-            iterator.call(context, obj[key], key, obj);
-        }
-        }
-    }
-    },
-
-    once: function(func) {
-    var ran = false, memo;
-    return function() {
-        if (ran) return memo;
-        ran = true;
-        memo = func.apply(this, arguments);
-        func = null;
-        return memo;
-    };
-    }
-};
-}
-
-var _ = miniscore(), Events;
-
-// Backbone.Events
-// ---------------
-
-// A module that can be mixed in to *any object* in order to provide it with
-// custom events. You may bind with `on` or remove with `off` callback
-// functions to an event; `trigger`-ing an event fires all callbacks in
-// succession.
-//
-//     var object = {};
-//     _.extend(object, Backbone.Events);
-//     object.on('expand', function(){ alert('expanded'); });
-//     object.trigger('expand');
-//
-Events = {
-
-// Bind an event to a `callback` function. Passing `"all"` will bind
-// the callback to all events fired.
-on: function(name, callback, context) {
-    if (!eventsApi(this, 'on', name, [callback, context]) || !callback) return this;
-    this._events || (this._events = {});
-    var events = this._events[name] || (this._events[name] = []);
-    events.push({callback: callback, context: context, ctx: context || this});
-    return this;
-},
-
-// Bind an event to only be triggered a single time. After the first time
-// the callback is invoked, it will be removed.
-once: function(name, callback, context) {
-    if (!eventsApi(this, 'once', name, [callback, context]) || !callback) return this;
-    var self = this;
-    var once = _.once(function() {
-    self.off(name, once);
-    callback.apply(this, arguments);
-    });
-    once._callback = callback;
-    return this.on(name, once, context);
-},
-
-// Remove one or many callbacks. If `context` is null, removes all
-// callbacks with that function. If `callback` is null, removes all
-// callbacks for the event. If `name` is null, removes all bound
-// callbacks for all events.
-off: function(name, callback, context) {
-    var retain, ev, events, names, i, l, j, k;
-    if (!this._events || !eventsApi(this, 'off', name, [callback, context])) return this;
-    if (!name && !callback && !context) {
-    this._events = {};
-    return this;
-    }
-
-    names = name ? [name] : _.keys(this._events);
-    for (i = 0, l = names.length; i < l; i++) {
-    name = names[i];
-    if (events == this._events[name]) {
-        this._events[name] = retain = [];
-        if (callback || context) {
-        for (j = 0, k = events.length; j < k; j++) {
-            ev = events[j];
-            if ((callback && callback !== ev.callback && callback !== ev.callback._callback) ||
-                (context && context !== ev.context)) {
-            retain.push(ev);
-            }
-        }
-        }
-        if (!retain.length) delete this._events[name];
-    }
-    }
-
-    return this;
-},
-
-// Trigger one or many events, firing all bound callbacks. Callbacks are
-// passed the same arguments as `trigger` is, apart from the event name
-// (unless you're listening on `"all"`, which will cause your callback to
-// receive the true name of the event as the first argument).
-trigger: function(name) {
-    if (!this._events) return this;
-    var args = slice.call(arguments, 1);
-    if (!eventsApi(this, 'trigger', name, args)) return this;
-    var events = this._events[name];
-    var allEvents = this._events.all;
-    if (events) triggerEvents(events, args);
-    if (allEvents) triggerEvents(allEvents, arguments);
-    return this;
-},
-
-// Tell this object to stop listening to either specific events ... or
-// to every object it's currently listening to.
-stopListening: function(obj, name, callback) {
-    var listeners = this._listeners;
-    if (!listeners) return this;
-    var deleteListener = !name && !callback;
-    if (typeof name === 'object') callback = this;
-    if (obj) (listeners = {})[obj._listenerId] = obj;
-    for (var id in listeners) {
-    listeners[id].off(name, callback, this);
-    if (deleteListener) delete this._listeners[id];
-    }
-    return this;
-}
-
-};
-
-// Regular expression used to split event strings.
-var eventSplitter = /\s+/;
-
-// Implement fancy features of the Events API such as multiple event
-// names `"change blur"` and jQuery-style event maps `{change: action}`
-// in terms of the existing API.
-var eventsApi = function(obj, action, name, rest) {
-if (!name) return true;
-
-// Handle event maps.
-if (typeof name === 'object') {
-    for (var key in name) {
-    obj[action].apply(obj, [key, name[key]].concat(rest));
-    }
-    return false;
-}
-
-// Handle space separated event names.
-if (eventSplitter.test(name)) {
-    var names = name.split(eventSplitter);
-    for (var i = 0, l = names.length; i < l; i++) {
-    obj[action].apply(obj, [names[i]].concat(rest));
-    }
-    return false;
-}
-
-return true;
-};
-
-// A difficult-to-believe, but optimized internal dispatch function for
-// triggering events. Tries to keep the usual cases speedy (most internal
-// Backbone events have 3 arguments).
-var triggerEvents = function(events, args) {
-var ev, i = -1, l = events.length, a1 = args[0], a2 = args[1], a3 = args[2];
-switch (args.length) {
-    case 0: while (++i < l) (ev = events[i]).callback.call(ev.ctx); return;
-    case 1: while (++i < l) (ev = events[i]).callback.call(ev.ctx, a1); return;
-    case 2: while (++i < l) (ev = events[i]).callback.call(ev.ctx, a1, a2); return;
-    case 3: while (++i < l) (ev = events[i]).callback.call(ev.ctx, a1, a2, a3); return;
-    default: while (++i < l) (ev = events[i]).callback.apply(ev.ctx, args);
-}
-};
-
-var listenMethods = {listenTo: 'on', listenToOnce: 'once'};
-
-// Inversion-of-control versions of `on` and `once`. Tell *this* object to
-// listen to an event in another object ... keeping track of what it's
-// listening to.
-_.each(listenMethods, function(implementation, method) {
-Events[method] = function(obj, name, callback) {
-    var listeners = this._listeners || (this._listeners = {});
-    var id = obj._listenerId || (obj._listenerId = _.uniqueId('l'));
-    listeners[id] = obj;
-    if (typeof name === 'object') callback = this;
-    obj[implementation](name, callback, this);
-    return this;
-};
-});
-
-// Aliases for backwards compatibility.
-Events.bind   = Events.on;
-Events.unbind = Events.off;
-
-// Mixin utility
-Events.mixin = function(proto) {
-var exports = ['on', 'once', 'off', 'trigger', 'stopListening', 'listenTo',
-                'listenToOnce', 'bind', 'unbind'];
-_.each(exports, function(name) {
-    proto[name] = this[name];
-}, this);
-return proto;
-};
-
-
-
 var FeatureViewer = (function () {
     function FeatureViewer(id, sequence, el, options) {
         var labelSizeLookup = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,5,7,6,9,8,3,3,3,6,6,3,4,3,4,6,6,6,6,6,6,6,6,6,6,3,3,6,6,6,5,9,7,7,7,8,6,6,8,8,3,3,7,6,10,8,8,7,8,7,6,6,8,6,10,6,6,6,4,4,4,6,5,6,6,7,5,7,6,4,6,7,3,3,6,3,10,7,7,7,7,5,5,4,7,6,8,6,6,5,4,6,4,6,0,0,0,0,0,0,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,6,6,6,6,6,6,6,9,4,5,6,0,9,5,5,6,4,4,6,7,7,3,3,4,4,5,8,8,8,5,7,7,7,7,7,7,9,7,6,6,6,6,3,3,3,3,8,8,8,8,8,8,8,6,8,8,8,8,8,6,7,7,6,6,6,6,6,6,9,5,6,6,6,6,3,3,3,3,6,7,7,7,7,7,7,6,7,7,7,7,7,6,7,6];
         var self = this;
-        this.events = {
-            FEATURE_SELECTED_EVENT: "feature-viewer-position-selected",
-            ZOOM_EVENT: "feature-viewer-zoom-altered",
-            HEIGHT_EVENT: "feature-viewer-height-altered"
-        };
 
         var el = el;
         var svgElement = null;
@@ -294,6 +27,10 @@ var FeatureViewer = (function () {
                 console.warn("WARNING ! offset.start should be > 0. Thus, it has been reset to 1.");
             }
         }
+
+        var onZoom = options.onZoom || null;
+        var onHeightChanged = options.onHeightChanged || null;
+
         var pathLevel = 0;
         var svg;
         var yData = [];
@@ -408,18 +145,6 @@ var FeatureViewer = (function () {
             }
             return d.description.substring(0, charsToDisplay) + "…";
         }
-
-        this.onFeatureSelected = function (listener) {
-            svgElement.addEventListener(self.events.FEATURE_SELECTED_EVENT, listener);
-        };
-
-        this.onZoom = function (listener) {
-            svgElement.addEventListener(self.events.ZOOM_EVENT, listener);
-        };
-
-        this.onHeightChanged = function (listener) {
-            svgElement.addEventListener(self.events.HEIGHT_EVENT, listener);
-        };
 
         function addLevel(array) {
             var leveling = [];
@@ -553,10 +278,8 @@ var FeatureViewer = (function () {
             svg.attr("height", position + 60 + "px");
             svg.select("#clip rect").attr("height", position + 60 + "px");
 
-            if (self.trigger) {
-                self.trigger(self.events.HEIGHT_EVENT, {
-                    newHeight: position + 60,
-                });
+            if (typeof(onHeightChanged) == "function") {
+                onHeightChanged(position + 60);
             }
         }
 
@@ -1420,14 +1143,6 @@ var FeatureViewer = (function () {
                 .attr('height', Yposition + 50);
         }
 
-        // this.zoom = function (start, end) {
-        //     var zoomInside = current_extend.start < start && current_extend.end > end;
-        //     if (!zoomInside) {
-        //         svgContainer.selectAll(".seqGroup").remove();
-        //     }
-        //     brush.extent([start, end]);
-        //     brushend();
-        // }
 
          // If brush is too small, reset view as origin
         this.resetAll = function() {
@@ -1457,13 +1172,8 @@ var FeatureViewer = (function () {
             transition_data(features, offset.start);
             reset_axis();
 
-            // Fire Event
-            // if (CustomEvent) {
-            //     svgElement.dispatchEvent(new CustomEvent(self.events.ZOOM_EVENT,
-            //         { detail: { start: 1, end: sequence.length, zoom: 1 } }));
-            // };
-            if (self.trigger) {
-                self.trigger(self.events.ZOOM_EVENT, {
+            if (typeof (onZoom) == "function") {
+                onZoom({
                     start: 1,
                     end: sequence.length,
                     zoom: 1
@@ -1520,14 +1230,8 @@ var FeatureViewer = (function () {
                 transition_data(features, currentShift);
                 reset_axis();
 
-                // if (CustomEvent) {
-                //     svgElement.dispatchEvent(new CustomEvent(
-                //         self.events.ZOOM_EVENT,
-                //         { detail: { start: start, end: end, zoom: zoomScale } }
-                //     ));
-                // }
-                if (self.trigger) {
-                    self.trigger(self.events.ZOOM_EVENT, {
+                if (typeof(onZoom) == "function") {
+                    onZoom({
                         start: start,
                         end: end,
                         zoom: zoomScale
@@ -1856,7 +1560,7 @@ var FeatureViewer = (function () {
         }
 
         this.clearInstance = function () {
-            removeEventListener("resize", updateWindowDebounced);
+            removeEventListener("resize", this.updateWindowDebounced);
             svg = null;
 
             svgContainer.on('mousemove', null)
@@ -1874,7 +1578,5 @@ var FeatureViewer = (function () {
 
     return FeatureViewer;
 })();
-
-Events.mixin(FeatureViewer.prototype);
 
 export default FeatureViewer;
