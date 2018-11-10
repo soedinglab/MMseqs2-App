@@ -1590,7 +1590,8 @@ var FeatureViewer = (function () {
             reset_axis();
         }
 
-        addEventListener("resize", debounce(updateWindow, 500));        
+        this.updateWindowDebounced = debounce(updateWindow, 150);
+        addEventListener("resize", this.updateWindowDebounced);
 
         function transition_data(features, start) {
             features.forEach(function (o) {
@@ -1855,7 +1856,7 @@ var FeatureViewer = (function () {
         }
 
         this.clearInstance = function () {
-            removeEventListener("resize", updateWindow);
+            removeEventListener("resize", updateWindowDebounced);
             svg = null;
 
             svgContainer.on('mousemove', null)
