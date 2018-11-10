@@ -164,7 +164,11 @@ export default {
             lineLen: 80,
         };
     },
+    created() {
+        this.$root.$on('navigation-resize', this.updateWindow);
+    },
     beforeDestroy() {
+        this.$root.$off('navigation-resize', this.updateWindow);
         this.remove();
     },
     mounted() {
@@ -210,6 +214,11 @@ export default {
         }
     },
     methods: {
+        updateWindow() {
+            if (m != null) {
+                m.updateWindowDebounced();
+            }
+        },
         padNumber(nr, n, str){
             return Array(n-String(nr).length+1).join(str||'0')+nr;
         },

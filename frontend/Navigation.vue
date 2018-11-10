@@ -26,7 +26,7 @@
     </v-list>
 </v-navigation-drawer>
 <v-toolbar dense fixed clipped-left app class="ml-0 pl-3">
-    <v-toolbar-side-icon @click.stop="mini = !mini"></v-toolbar-side-icon>
+    <v-toolbar-side-icon @click.stop="toggleMini"></v-toolbar-side-icon>
     <v-toolbar-title>MMseqs2 Search</v-toolbar-title>
     <object style="margin-left:8px; display: inline-block; width: 38px;height: 38px;vertical-align: middle" 
             type="image/svg+xml"
@@ -52,6 +52,12 @@ export default {
     components : { History },
     data: () => ({
         mini: true
-    })
+    }),
+    methods: {
+        toggleMini() {
+            this.mini = !this.mini;
+            this.$root.$emit('navigation-resize', this.mini);
+        }
+    }
 }
 </script>
