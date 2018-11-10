@@ -1547,6 +1547,9 @@ var FeatureViewer = (function () {
             Yposition += 20;
             features.push(object);
             fillSVG.typeIdentifier(object);
+        }
+
+        this.finishRender = function () {
             updateYaxis();
             updateXaxis(Yposition);
             updateSVGHeight(Yposition);
@@ -1554,9 +1557,12 @@ var FeatureViewer = (function () {
                 svgContainer.selectAll(".brush rect")
                     .attr('height', Yposition + 50);
             }
-            if (SVGOptions.verticalLine) d3.selectAll(".Vline").style("height", (Yposition + 50) + "px");
-            if (d3.selectAll(".element")[0].length > 1500) animation = false;
-
+            if (SVGOptions.verticalLine) {
+                d3.selectAll(".Vline").style("height", (Yposition + 50) + "px");
+            }
+            if (d3.selectAll(".element")[0].length > 1500) {
+                animation = false;
+            }
         }
 
         this.clearInstance = function () {

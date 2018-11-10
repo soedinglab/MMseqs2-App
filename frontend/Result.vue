@@ -385,6 +385,7 @@ export default {
                     shouldSort: false
                 });
             }
+            m.finishRender();
         }
     }
 };
