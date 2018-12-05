@@ -119,6 +119,8 @@ func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitivity f
 			"createindex",
 			basepath,
 			tmppath,
+			"-k",
+			"5",
 			"--mask",
 			"2",
 			"--include-headers",
