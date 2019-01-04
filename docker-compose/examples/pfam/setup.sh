@@ -1,6 +1,6 @@
 #!/bin/bash -e
 NAME=PFAM
-VERSION=31.0
+VERSION=32.0
 
 mkdir -p databases
 curl -o databases/Pfam-A_${VERSION}.sto.gz ftp://ftp.ebi.ac.uk/pub/databases/Pfam/releases/Pfam${VERSION}/Pfam-A.full.gz

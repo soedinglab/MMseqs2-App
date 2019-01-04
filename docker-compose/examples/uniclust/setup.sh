@@ -1,6 +1,6 @@
 #!/bin/bash -e
 NAME="Uniclust"
-VERSION="2017_10"
+VERSION="2018_08"
 SEQID="30"
 KIND="seed"
 

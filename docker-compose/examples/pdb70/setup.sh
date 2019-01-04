@@ -1,7 +1,7 @@
 #!/bin/bash -e
 SELF="$(dirname "$(readlink -f "$0")")"
 NAME=PDB70
-VERSION=180820
+VERSION=190102
 
 mkdir -p databases
 curl "http://wwwuser.gwdg.de/~compbiol/data/hhsuite/databases/hhsuite_dbs/pdb70_from_mmcif_${VERSION}.tar.gz" \
