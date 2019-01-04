@@ -5,8 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"io/ioutil"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -44,6 +42,14 @@ func (r SearchJob) Rank() float64 {
 	return float64(r.Size * max(len(r.Database), 1))
 }
 
+func (r SearchJob) WriteFasta(path string) error {
+	err := ioutil.WriteFile(path, []byte(r.query), 0644)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func isIn(num string, params []string) int {
 	for i, param := range params {
 		if num == param {
@@ -75,28 +81,11 @@ func NewSearchJobRequest(query string, dbs []string, validDbs []Params, mode str
 		ids[i] = item.Display.Path
 	}
 
-	paths := make([]string, len(job.Database))
-	for i, item := range job.Database {
+	for _, item := range job.Database {
 		idx := isIn(item, ids)
 		if idx == -1 {
 			return request, errors.New("Selected databases are not valid!")
-		} else {
-			paths[i] = validDbs[idx].Display.Path
 		}
-	}
-
-	id := request.Id
-	path := filepath.Join(resultPath, string(id))
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		err = os.Mkdir(path, 0755)
-		if err != nil {
-			return request, err
-		}
-	}
-
-	err := ioutil.WriteFile(filepath.Join(path, "job.fasta"), []byte(query), 0644)
-	if err != nil {
-		return request, err
 	}
 
 	return request, nil

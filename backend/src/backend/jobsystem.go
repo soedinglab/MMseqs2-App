@@ -58,6 +58,19 @@ func (m *JobRequest) UnmarshalJSON(b []byte) error {
 	return errors.New("Invalid Job Type")
 }
 
+func (m *JobRequest) WriteSupportFiles(base string) error {
+	switch m.Type {
+	case JobSearch:
+		if j, ok := m.Job.(SearchJob); ok {
+			return j.WriteFasta(filepath.Join(base, "job.fasta"))
+		}
+		return errors.New("Invalid Job Type")
+	case JobIndex:
+		return nil
+	}
+	return nil
+}
+
 type Job interface {
 	Hash() Id
 	Rank() float64
@@ -176,6 +189,11 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 
 	t := Ticket{id, StatusUnknown}
 	err = j.Client.Watch(func(tx *redis.Tx) error {
+		err := request.WriteSupportFiles(workdir)
+		if err != nil {
+			return err
+		}
+
 		file, err := os.Create(filepath.Join(workdir, "job.json"))
 		if err != nil {
 			return err
@@ -423,6 +441,11 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 		if err != nil {
 			return Ticket{id, StatusError}, err
 		}
+	}
+
+	err = request.WriteSupportFiles(workdir)
+	if err != nil {
+		return Ticket{id, StatusError}, err
 	}
 
 	file, err := os.Create(filepath.Join(workdir, "job.json"))
