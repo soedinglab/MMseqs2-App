@@ -27,7 +27,7 @@
 </v-navigation-drawer>
 <v-toolbar dense fixed clipped-left app class="ml-0 pl-3">
     <v-toolbar-side-icon @click.stop="toggleMini"></v-toolbar-side-icon>
-    <v-toolbar-title>MMseqs2 Search</v-toolbar-title>
+    <v-toolbar-title><router-link to="/">MMseqs2 Search</router-link></v-toolbar-title>
     <object style="margin-left:8px; display: inline-block; width: 38px;height: 38px;vertical-align: middle" 
             type="image/svg+xml"
             data="./assets/marv1.svg"
@@ -61,3 +61,11 @@ export default {
     }
 }
 </script>
+
+<style>
+nav .toolbar__title a {
+    color: inherit;
+    text-decoration: none;
+}
+</style>
+
