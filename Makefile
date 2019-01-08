@@ -13,13 +13,9 @@ resources/icons/256x256.png:
 	mkdir -p resources/icons
 	./node_modules/.bin/svg2png frontend/assets/marv1-square.svg --output=resources/icons/256x256.png --width=256 --height=256
 
-resources/icons/icon.icns:
+resources/icons/icon.icns resources/icons/icon.ico:
 	mkdir -p resources/icons
-	./node_modules/.bin/icon-gen -i frontend/assets/marv1-square.svg -o resources/icons/ -m icns -n icns=icon
-
-resources/icons/icon.ico:
-	mkdir -p resources/icons
-	./node_modules/.bin/icon-gen -i frontend/assets/marv1-square.svg -o resources/icons/ -m ico -n ico=icon
+	./node_modules/.bin/icon-gen -i frontend/assets/marv1-square.svg -o resources/icons/ --icns name=icon --ico name=icon
 
 CURRDIRR := $(shell greadlink -f . || readlink -f . )
 resources/mac/mmseqs-web-backend:
