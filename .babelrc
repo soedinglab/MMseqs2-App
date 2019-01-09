@@ -6,13 +6,6 @@
     "plugins": [
         "@babel/syntax-dynamic-import",
         "@babel/transform-runtime",
-        "@babel/proposal-object-rest-spread",
-        [
-            "transform-imports", {
-                "vue-resource": {
-                    "transform": "vue-resource/src/index.js"
-                }
-            }
-        ]
+        "@babel/proposal-object-rest-spread"
     ]
 }

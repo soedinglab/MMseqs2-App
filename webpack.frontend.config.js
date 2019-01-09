@@ -1,6 +1,6 @@
 const path = require('path');
 const webpack = require('webpack');
-const FaviconsWebpackPlugin = require('favicons-webpack-plugin');
+const WebappWebpackPlugin = require('webapp-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CompressionPlugin = require('compression-webpack-plugin');
 const SriPlugin = require('webpack-subresource-integrity');
@@ -79,7 +79,7 @@ module.exports = (env, argv) => {
         resolve: {
             extensions: ['.js', '.vue', '.json'],
             alias: {
-                'vue$': 'vue/dist/vue.esm.js'
+                'vue$': 'vue/dist/vue.runtime.esm.js'
             }
         },
         externals: {
@@ -92,9 +92,7 @@ module.exports = (env, argv) => {
             }),
             new VueLoaderPlugin(),
             new VuetifyLoaderPlugin(),
-            !isElectron ? new FaviconsWebpackPlugin({
-                logo: path.resolve(__dirname, './frontend/assets/marv1.svg')
-            }) : new NullPlugin(),
+            !isElectron ? new WebappWebpackPlugin(path.resolve(__dirname, './frontend/assets/marv1.svg')) : new NullPlugin(),
             new HtmlWebpackPlugin({
                 template: path.resolve(__dirname, './frontend/index.html')
             }),

@@ -20,8 +20,6 @@ import Search from './Search.vue';
 import Queue from './Queue.vue';
 import Queries from './Queries.vue';
 
-const Preferences = __ELECTRON__ ? require('./Preferences.vue').default : null;
-
 const router = new VueRouter({
     mode: __ELECTRON__ ? 'hash' : 'history',
     routes: [
@@ -35,7 +33,7 @@ const router = new VueRouter({
                 sidebar: Queries
             }
         },
-        { name: 'preferences', path: '/preferences', component: Preferences },
+        { name: 'preferences', path: '/preferences', component: () => __ELECTRON__ ? import('./Preferences.vue') : null },
     ],
     linkActiveClass: 'active'
 });
