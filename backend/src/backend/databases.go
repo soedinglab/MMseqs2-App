@@ -135,8 +135,16 @@ func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitivity f
 			cmdParams = append(cmdParams, "-s")
 			cmdParams = append(cmdParams, s)
 		}
-
 		err := quickExec(mmseqs, verbose, cmdParams...)
+		if err != nil {
+			return err
+		}
+
+		cmdParams = []string{
+			"touchdb",
+			basepath,
+		}
+		err = quickExec(mmseqs, verbose, cmdParams...)
 		if err != nil {
 			return err
 		}
