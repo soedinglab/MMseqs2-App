@@ -1,134 +1,130 @@
 const path = require('path');
 const webpack = require('webpack');
-const ExtractTextPlugin = require('extract-text-webpack-plugin');
 const FaviconsWebpackPlugin = require('favicons-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const CompressionPlugin = require("compression-webpack-plugin");
+const CompressionPlugin = require('compression-webpack-plugin');
 const SriPlugin = require('webpack-subresource-integrity');
-const HtmlWebpackIncludeAssetsPlugin = require('html-webpack-include-assets-plugin');
+const VueLoaderPlugin = require('vue-loader/lib/plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 
-const isElectron = typeof(process.env.ELECTRON) != "undefined";
-const isProduction = process.env.NODE_ENV === 'production';
+const isElectron = typeof (process.env.ELECTRON) != "undefined";
 
 function NullPlugin() { }
 NullPlugin.prototype.apply = function () { };
 
-module.exports = {
-    entry: path.resolve(__dirname, './frontend/main.js'),
-    target: isElectron ? 'electron-renderer' : 'web',
-    output: {
-        path: path.resolve(__dirname, './dist'),
-        publicPath: isElectron ? '' : '/',
-        filename: isElectron ? 'renderer.js' : 'build.[hash:7].js',
-        libraryTarget: isElectron ? 'commonjs2' : 'var',
-        crossOriginLoading: 'anonymous',
-    },
-    module: {
-        rules: [
-            {
-                test: /\.vue$/,
-                loader: 'vue-loader',
-                options: {
-                    extractCSS: isProduction,
-                    transformToRequire : { object: 'data' },
+module.exports = (env, argv) => {
+    const isProduction = argv.mode === 'production';
+
+    var exports = {
+        entry: path.resolve(__dirname, './frontend/main.js'),
+        target: isElectron ? 'electron-renderer' : 'web',
+        mode: argv.mode,
+        output: {
+            path: path.resolve(__dirname, './dist'),
+            publicPath: isElectron ? '' : '/',
+            filename: isElectron ? 'renderer.js' : 'build.[hash:7].js',
+            libraryTarget: isElectron ? 'commonjs2' : 'var',
+            crossOriginLoading: 'anonymous',
+        },
+        module: {
+            rules: [
+                {
+                    test: /\.vue$/,
+                    loader: 'vue-loader',
+                    options: {
+                        transformAssetUrls: {
+                            video: ['src', 'poster'],
+                            source: 'src',
+                            img: 'src',
+                            image: 'xlink:href',
+                            object: 'data'
+                        },
+                        include: [
+                            path.resolve(__dirname, './frontend'),
+                            path.resolve(__dirname, './node_modules/vuetify/src'),
+                        ]
+                    }
+                },
+                {
+                    test: /\.js$/,
+                    loader: 'babel-loader',
                     include: [
                         path.resolve(__dirname, './frontend'),
                         path.resolve(__dirname, './node_modules/vuetify/src'),
+                        path.resolve(__dirname, './node_modules/vue-localstorage/src'),
+                        path.resolve(__dirname, './node_modules/vue-resource'),
+                    ],
+                    exclude: [
+                        path.resolve(__dirname, './frontend/lib/d3'),
                     ]
+                },
+                {
+                    test: /\.(png|jpe?g|gif|svg|ttf|woff2?|eot)(\?.*)?$/,
+                    loader: 'file-loader',
+                    options: {
+                        name: isElectron ? '[name].[ext]' : '[name].[hash:7].[ext]'
+                    }
+                },
+                {
+                    test: /\.css$/,
+                    use: [MiniCssExtractPlugin.loader, 'css-loader']
+                },
+                {
+                    test: /\.styl$/,
+                    use: [MiniCssExtractPlugin.loader, 'css-loader', 'stylus-loader']
                 }
-            },
-            {
-                test: /\.js$/,
-                loader: 'babel-loader',
-                include: [ 
-                    path.resolve(__dirname, './frontend'),
-                    path.resolve(__dirname, './node_modules/vuetify/src'),
-                    path.resolve(__dirname, './node_modules/vue-localstorage/src'),
-                    path.resolve(__dirname, './node_modules/vue-resource'),
-                ],
-                exclude: [
-                    path.resolve(__dirname, './frontend/lib'),
-                ]
-            },
-            {
-                test: /\.(png|jpe?g|gif|svg|ttf|woff2?|eot)(\?.*)?$/,
-                loader: 'file-loader',
-                options: {
-                    name: isElectron ? '[name].[ext]' : '[name].[hash:7].[ext]'
-                }
-            },
-            {
-                test: /\.css$/,
-                use: ExtractTextPlugin.extract([ 'css-loader' ])
-            },
-            {
-                test: /\.styl$/,
-                use: ExtractTextPlugin.extract([ 'css-loader', 'stylus-loader' ])
+            ]
+        },
+        resolve: {
+            extensions: ['.js', '.vue', '.json'],
+            alias: {
+                'vue$': 'vue/dist/vue.esm.js'
             }
-        ]
-    },
-    resolve: {
-        extensions: ['.js', '.vue', '.json'],
-        alias: {
-            'vue$': 'vue/dist/vue.esm.js'
-        }
-    },
-    externals: {
-        got: 'got'
-    },
-    plugins: [
-        new webpack.DefinePlugin({
-            __CONFIG__: JSON.stringify(require('./package.json').configuration),
-            __ELECTRON__: isElectron
-        }),
-        !isElectron ? new FaviconsWebpackPlugin({
-            logo: path.resolve(__dirname, './frontend/assets/marv1.svg')
-        }) : new NullPlugin(),
-        new HtmlWebpackPlugin({
-            template: path.resolve(__dirname, './frontend/index.html')
-        }),
-        new ExtractTextPlugin({
-            filename: isElectron ? 'style.css' : 'style.[hash:7].css',
-        }),
-        !isElectron ? new HtmlWebpackIncludeAssetsPlugin({
-            assets: [{ path: 'https://fonts.googleapis.com/css?family=Material+Icons', type: 'css' }],
-            append: false,
-            publicPath: ''
-        }) : new NullPlugin(),
-        isProduction ? new webpack.DefinePlugin({
-            'process.env': {
-                NODE_ENV: '"production"'
-            },
-        }) : new NullPlugin(),
-        isProduction ? new webpack.optimize.UglifyJsPlugin({
-            compress: {
-                warnings: false
-            }
-        }) : new NullPlugin(),
-        isProduction && !isElectron ? new SriPlugin({
-            hashFuncNames: ['sha256', 'sha384']
-        }) : new NullPlugin(),
-        isProduction && !isElectron ? new CompressionPlugin({
-            asset: "[path].gz[query]",
-            algorithm: "gzip",
-            test: /\.(js|html|css|svg)$/,
-            minRatio: 0
-        }) : new NullPlugin(),
-        !isProduction && isElectron ? 
-            new webpack.HotModuleReplacementPlugin() : new NullPlugin(),
-    ],
-    devtool: isProduction ? '#source-map' : '#eval-source-map'
-}
+        },
+        externals: {
+            got: 'got'
+        },
+        plugins: [
+            new webpack.DefinePlugin({
+                __CONFIG__: JSON.stringify(require('./package.json').configuration),
+                __ELECTRON__: isElectron
+            }),
+            new VueLoaderPlugin(),
+            !isElectron ? new FaviconsWebpackPlugin({
+                logo: path.resolve(__dirname, './frontend/assets/marv1.svg')
+            }) : new NullPlugin(),
+            new HtmlWebpackPlugin({
+                template: path.resolve(__dirname, './frontend/index.html')
+            }),
+            new MiniCssExtractPlugin({
+                filename: isElectron ? 'style.css' : 'style.[hash:7].css',
+            }),
+            new SriPlugin({
+                enabled: isProduction && !isElectron,
+                hashFuncNames: ['sha256', 'sha384']
+            }),
+            new CompressionPlugin({
+                test: isProduction && !isElectron ? /\.(js|html|css|svg)(\?.*)?$/i : undefined,
+                minRatio: 1
+            }),
+            !isProduction && isElectron ?
+                new webpack.HotModuleReplacementPlugin() : new NullPlugin(),
+        ],
+        devtool: isProduction ? '#source-map' : '#eval-source-map'
+    }
 
-if (!isProduction && !isElectron) {
-    module.exports.devServer = {
-        historyApiFallback: true,
-        noInfo: true,
-        proxy: {
-            '/api': {
-                target: 'http://localhost:3000',
-                logLevel: 'debug'
+    if (!isProduction && !isElectron) {
+        exports.devServer = {
+            historyApiFallback: true,
+            noInfo: true,
+            proxy: {
+                '/api': {
+                    target: 'http://localhost:3000',
+                    logLevel: 'debug'
+                }
             }
-        }
-    };
+        };
+    }
+
+    return exports;
 }

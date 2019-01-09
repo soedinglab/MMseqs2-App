@@ -3,18 +3,15 @@
 process.env.NODE_ENV = 'production'
 
 const del = require('del')
-const { spawn } = require('child_process')
 const webpack = require('webpack')
 const Multispinner = require('multispinner')
 
-
 const mainConfig = require('../webpack.electron.config')
-const rendererConfig = require('../webpack.frontend.config')
+const rendererConfig = require('../webpack.frontend.config')(null, { mode: process.env.NODE_ENV })
 
 const doneLog = ' DONE '
 const errorLog = ' ERROR  '
 const okayLog = ' OKAY  '
-const isCI = process.env.CI || false
 
 if (process.env.BUILD_TARGET === 'clean') clean()
 else build()

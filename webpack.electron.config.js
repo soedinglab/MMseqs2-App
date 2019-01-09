@@ -7,6 +7,7 @@ let mainConfig = {
   entry: {
     main: path.join(__dirname, './electron/index.js')
   },
+  mode: "development",
   module: {
     rules: [
       {

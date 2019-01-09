@@ -3,9 +3,7 @@ import VueRouter from 'vue-router';
 import VueResource from 'vue-resource';
 import VueLocalStorage from 'vue-localstorage/src/index.js';
 
-if (__ELECTRON__) {
-    require('material-design-icons/iconfont/material-icons.css');
-}
+require('material-design-icons/iconfont/material-icons.css');
 require('vuetify/src/stylus/app.styl');
 require('vuetify/src/stylus/components/_tables.styl');
 

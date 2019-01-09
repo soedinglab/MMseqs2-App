@@ -10,7 +10,7 @@
  * http://www.opensource.org/licenses/bsd-license.php
  */
 
-(function() {
+export default (function() {
     var PNGlib = null;
 
     var Identicon = function(hash, options){
@@ -186,9 +186,5 @@
         }
     };
 
-    if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-        module.exports = Identicon;
-    } else {
-        window.Identicon = Identicon;
-    }
+    return Identicon;
 })();

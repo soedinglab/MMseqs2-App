@@ -8,7 +8,7 @@ const WebpackDevServer = require('webpack-dev-server')
 const webpackHotMiddleware = require('webpack-hot-middleware')
 
 const mainConfig = require('../webpack.electron.config')
-const rendererConfig = require('../webpack.frontend.config')
+const rendererConfig = require('../webpack.frontend.config')(null, { mode: "development" })
 
 let electronProcess = null
 let manualRestart = false
@@ -46,14 +46,14 @@ function startRenderer () {
       heartbeat: 2500 
     })
 
-    compiler.plugin('compilation', compilation => {
-      compilation.plugin('html-webpack-plugin-after-emit', (data, cb) => {
+    compiler.hooks.compilation.tap('compilation', compilation => {
+      compilation.hooks.htmlWebpackPluginAfterEmit.tapAsync('html-webpack-plugin-after-emit', (data, cb) => {
         hotMiddleware.publish({ action: 'reload' })
         cb()
       })
     })
 
-    compiler.plugin('done', stats => {
+    compiler.hooks.done.tap('done', stats => {
       logStats('Renderer', stats)
     })
 
@@ -81,8 +81,8 @@ function startMain () {
 
     const compiler = webpack(mainConfig)
 
-    compiler.plugin('watch-run', (compilation, done) => {
-      logStats('Main', 'compiling...')
+    compiler.hooks.watchRun.tapAsync('watch-run', (compilation, done) => {
+      logStats('Main', chalk.white.bold('compiling...'))
       hotMiddleware.publish({ action: 'compiling' })
       done()
     })
