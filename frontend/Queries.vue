@@ -31,41 +31,38 @@
             </v-list-tile-content>
         </v-list-tile>
 
-        <v-list-group :value="drawer" v-if="multi" no-action>
-            <v-list-tile slot="item" @click="drawer = !drawer">
-                <v-list-tile-action>
-                    <v-icon>{{ drawer ? 'keyboard_arrow_up' : 'list' }}</v-icon>
-                </v-list-tile-action>
-                <v-list-tile-content>
-                    <v-list-tile-title>
-                        Queries
-                    </v-list-tile-title>
-                </v-list-tile-content>
-                <v-list-tile-content v-if="drawer" style="align-items: flex-end;">
-                    <div>
-                        <button class="mx-1" :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.stop="previous();"><v-icon style="transform:inherit">chevron_left</v-icon></button>
-                        <button class="mx-1" :style="{'opacity' : hasNext == false ? 0.6 : 1}"  @click.stop="next();"><v-icon style="transform:inherit">chevron_right</v-icon></button>
-                    </div>
-                </v-list-tile-content>
-            </v-list-tile>
-            <template v-if="items.length > 0">
-            <v-list-tile v-for="(child, i) in items" :key="i" :class="{ 'list__tile--active': child.id == entry }" :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}">
-                <v-list-tile-action>
-                    <v-icon v-if="child.id == entry">label</v-icon>
-                    <v-icon v-else>label_outline</v-icon>
-                </v-list-tile-action>
-                <v-list-tile-content>
-                    <v-list-tile-title>
-                        {{ child.name }}
-                    </v-list-tile-title>
-                </v-list-tile-content>
-            </v-list-tile>
-            </template>
-        </v-list-group>
-        <v-divider></v-divider>
+        <v-list two-line subheader dense>
+            <v-list-group v-model="drawer" v-if="multi" no-action prepend-icon="list">
+                <v-list-tile slot="activator">
+                    <v-list-tile-content>
+                        <v-list-tile-title>
+                            Queries
+                        </v-list-tile-title>
+                    </v-list-tile-content>
+                    <v-list-tile-content v-if="drawer" style="align-items: flex-end;">
+                        <div>
+                            <button class="mx-1" :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.stop="previous();"><v-icon style="transform:inherit">chevron_left</v-icon></button>
+                            <button class="mx-1" :style="{'opacity' : hasNext == false ? 0.6 : 1}"  @click.stop="next();"><v-icon style="transform:inherit">chevron_right</v-icon></button>
+                        </div>
+                    </v-list-tile-content>
+                </v-list-tile>
+                <template v-if="items.length > 0">
+                <v-list-tile v-for="(child, i) in items" :key="i" :class="{ 'list__tile--active': child.id == entry }" :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}">
+                    <v-list-tile-action>
+                        <v-icon v-if="child.id == entry">label</v-icon>
+                        <v-icon v-else>label_outline</v-icon>
+                    </v-list-tile-action>
+                    <v-list-tile-content>
+                        <v-list-tile-title>
+                            {{ child.name }}
+                        </v-list-tile-title>
+                    </v-list-tile-content>
+                </v-list-tile>
+                </template>
+            </v-list-group>
+        </v-list>
     </div>
 </template>
-
 
 <script>
 export default {
@@ -82,11 +79,18 @@ export default {
     }),
     created() {
         this.fetchData();
+        this.$root.$on('navigation-resize', this.setDrawerState);
+    },
+    beforeDestroy() {
+        this.$root.$off('navigation-resize', this.setDrawerState);
     },
     watch: {
         '$route': 'fetchData'
     },
     methods: {
+        setDrawerState(state) {
+            this.drawer = !state;
+        },
         previous() {
             if (this.page == 0) {
                 return;
@@ -117,7 +121,7 @@ export default {
                         this.items = data.lookup;
                         this.hasNext = data.hasNext;
                         this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)  
-                        this.$emit('multi', this.multi);
+                        this.$root.$emit('multi', this.multi);
                     }
                 });
             }).catch(() => {

@@ -9,10 +9,6 @@
         "@babel/proposal-object-rest-spread",
         [
             "transform-imports", {
-                "vuetify": {
-                    "transform": "vuetify/src/components/${member}",
-                    "preventFullImport": true
-                },
                 "vue-resource": {
                     "transform": "vue-resource/src/index.js"
                 }

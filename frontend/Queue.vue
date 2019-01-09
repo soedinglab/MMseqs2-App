@@ -1,5 +1,5 @@
 <template>
-<v-container grid-list-md fluid v-if="status != 'COMPLETE'">
+<v-container grid-list-md fluid v-if="status != 'COMPLETE'" pa-2>
     <v-layout row>
         <v-flex xs12 sm10>
             <panel>

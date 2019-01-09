@@ -1,9 +1,7 @@
 <template>
-    <v-list-group v-if="items && items.length > 0" :value="drawer" no-action>
-        <v-list-tile slot="item" @click="drawer = !drawer;">
-            <v-list-tile-action>
-                <v-icon>{{ drawer ? 'keyboard_arrow_up' : 'history' }}</v-icon>
-            </v-list-tile-action>
+<v-list two-line subheader dense>
+    <v-list-group v-if="items && items.length > 0" v-model="drawer" no-action prepend-icon="history">
+        <v-list-tile slot="activator">
             <v-list-tile-content>
                 <v-list-tile-title>
                     History
@@ -17,24 +15,23 @@
             </v-list-tile-content>
         </v-list-tile>
 
-        <v-list two-line subheader dense>
-            <v-list-tile v-for="(child, i) in items.slice(page * limit, (page + 1) * limit)" :key="i" :class="{ 'list__tile--highlighted': child.id == current }" :to="formattedRoute(child)">
-                <v-list-tile-action>
-                    <identicon v-if="child.status == 'COMPLETE'" :hash="child.id">done</identicon>
-                    <v-icon v-else-if="child.status == 'RUNNING'">query-builder</v-icon>
-                    <v-icon v-else-if="child.status == 'PENDING'">schedule</v-icon>
-                    <v-icon v-else-if="child.status == 'ERROR'">error-outline</v-icon>
-                    <v-icon v-else>help</v-icon>
-                </v-list-tile-action>
-                <v-list-tile-content>
-                    <v-list-tile-title>
-                        {{ formattedDate(child.time) }}
-                    </v-list-tile-title>
-                    <v-list-tile-sub-title><span class="mono">{{ child.id }}</span></v-list-tile-sub-title>
-                </v-list-tile-content>
-            </v-list-tile>
-        </v-list>
+        <v-list-tile v-for="(child, i) in items.slice(page * limit, (page + 1) * limit)" :key="i" :class="{ 'list__tile--highlighted': child.id == current }" :to="formattedRoute(child)">
+            <v-list-tile-action>
+                <identicon v-if="child.status == 'COMPLETE'" :hash="child.id">done</identicon>
+                <v-icon v-else-if="child.status == 'RUNNING'">query-builder</v-icon>
+                <v-icon v-else-if="child.status == 'PENDING'">schedule</v-icon>
+                <v-icon v-else-if="child.status == 'ERROR'">error-outline</v-icon>
+                <v-icon v-else>help</v-icon>
+            </v-list-tile-action>
+            <v-list-tile-content>
+                <v-list-tile-title>
+                    {{ formattedDate(child.time) }}
+                </v-list-tile-title>
+                <v-list-tile-sub-title><span class="mono">{{ child.id }}</span></v-list-tile-sub-title>
+            </v-list-tile-content>
+        </v-list-tile>
     </v-list-group>
+</v-list>
 </template>
 
 <script>
@@ -52,6 +49,10 @@ export default {
     }),
     created() {
         this.fetchData();
+        this.$root.$on('navigation-resize', this.setDrawerState);
+    },
+    beforeDestroy() {
+        this.$root.$off('navigation-resize', this.setDrawerState);
     },
     watch: {
         '$route': 'fetchData'
@@ -63,6 +64,9 @@ export default {
         }
     },
     methods: {
+        setDrawerState(state) {
+            this.drawer = !state;
+        },
         previous() {
             if (this.page == 0) {
                 return;

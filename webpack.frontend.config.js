@@ -6,6 +6,7 @@ const CompressionPlugin = require('compression-webpack-plugin');
 const SriPlugin = require('webpack-subresource-integrity');
 const VueLoaderPlugin = require('vue-loader/lib/plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const VuetifyLoaderPlugin = require('vuetify-loader/lib/plugin');
 
 const isElectron = typeof (process.env.ELECTRON) != "undefined";
 
@@ -90,6 +91,7 @@ module.exports = (env, argv) => {
                 __ELECTRON__: isElectron
             }),
             new VueLoaderPlugin(),
+            new VuetifyLoaderPlugin(),
             !isElectron ? new FaviconsWebpackPlugin({
                 logo: path.resolve(__dirname, './frontend/assets/marv1.svg')
             }) : new NullPlugin(),

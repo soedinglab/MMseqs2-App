@@ -1,5 +1,5 @@
 <template>
-    <v-container grid-list-md fluid>
+    <v-container grid-list-md fluid pa-2>
         <v-layout row wrap>
             <v-flex xs12>
             <panel>
@@ -62,7 +62,7 @@
             </v-flex>
             <v-flex xs12 v-if="hits">
                 <panel>
-                    <table class="table" slot="content" style="position:relative">
+                    <table class="v-table" slot="content" style="position:relative">
                         <thead>
                             <tr>
                                 <th>Database</th>
@@ -416,7 +416,7 @@ a.anchor {
     line-height: 3.5;
 }
 
-tbody:hover td[rowspan] {
+tbody:hover td[rowspan], tbody tr:hover {
    background: #eee;
 }
 

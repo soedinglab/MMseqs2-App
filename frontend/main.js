@@ -3,54 +3,13 @@ import VueRouter from 'vue-router';
 import VueResource from 'vue-resource';
 import VueLocalStorage from 'vue-localstorage/src/index.js';
 
-require('material-design-icons/iconfont/material-icons.css');
-require('vuetify/src/stylus/app.styl');
-require('vuetify/src/stylus/components/_tables.styl');
+import Vuetify from 'vuetify/lib';
+import 'vuetify/src/stylus/app.styl';
+import 'vuetify/src/stylus/components/_tables.styl';
+Vue.use(Vuetify);
 
-import { 
-    Vuetify,
-    VApp,
-    VNavigationDrawer,
-    VGrid,
-    VList,
-    VSubheader,
-    VDivider,
-    VIcon,
-    VBtn,
-    VToolbar,
-    VCard,
-    VForm,
-    VTextField,
-    VCheckbox,
-    VRadioGroup,
-    VDialog,
-    VTooltip,
-    VSelect,
-} from 'vuetify';
-
-Vue.use(Vuetify, {
-    components: {
-        VApp,
-        VNavigationDrawer,
-        VGrid,
-        VList,
-        VSubheader,
-        VDivider,
-        VIcon,
-        VBtn,
-        VToolbar,
-        VCard,
-        VForm,
-        VTextField,
-        VCheckbox,
-        VRadioGroup,
-        VDialog,
-        VTooltip,
-        VSelect,
-    }
-});
-
-require('./assets/style.css');
+import 'material-design-icons/iconfont/material-icons.css';
+import './assets/style.css';
 
 Vue.use(VueRouter);
 Vue.use(VueResource);

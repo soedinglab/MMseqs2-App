@@ -40,7 +40,7 @@ export default {
     height: 100% !important;
 }
 
-.panel-root .toolbar.theme--dark {
+.panel-root .v-toolbar.theme--dark {
     background: url('./assets/spiration-dark.png');
     background-repeat: repeat;
 }
@@ -49,7 +49,7 @@ export default {
     margin-bottom: -5px;
 }
 
-.panel-root .title i.icon {
+.panel-root .title i.v-icon {
     font-size: 1em;
     vertical-align: bottom;
 }

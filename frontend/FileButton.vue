@@ -1,10 +1,10 @@
 <template>
-    <button v-bind:id="id" type="button" class="btn btn--raised btn--file" style="position: relative;">
+    <v-btn v-bind:id="id" type="button" class="btn btn--raised btn--file" style="position: relative;">
         <div v-bind:id="id + 'label'" class="btn__content" aria-hidden>
             {{ label }}
         </div>
         <input :aria-label="label" type="file" v-on:change="upload">
-    </button>
+    </v-btn>
 </template>
 
 <script>

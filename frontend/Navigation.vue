@@ -53,7 +53,20 @@ export default {
     data: () => ({
         mini: true
     }),
+    created() {
+        this.$root.$on('multi', this.shouldExpand);
+    },
+    beforeDestroy() {
+        this.$root.$off('multi', this.shouldExpand);
+    },
     methods: {
+        shouldExpand(expand) {
+            console.log(expand);
+            if (expand) {
+                this.mini = false;
+                this.$root.$emit('navigation-resize', this.mini);
+            }
+        },
         toggleMini() {
             this.mini = !this.mini;
             this.$root.$emit('navigation-resize', this.mini);
@@ -63,7 +76,7 @@ export default {
 </script>
 
 <style>
-nav .toolbar__title a {
+nav .v-toolbar__title a {
     color: inherit;
     text-decoration: none;
 }

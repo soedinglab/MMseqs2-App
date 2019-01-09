@@ -1,5 +1,5 @@
 <template>
-    <v-container grid-list-md fluid>
+    <v-container grid-list-md fluid pa-2 class="search-component">
         <v-layout row wrap>
             <v-flex xs12 md8>
                 <panel class="query-panel d-flex fill-height" fill-height>
@@ -8,22 +8,21 @@
                     </template>
                     <template slot="toolbar-extra">
                         <v-tooltip open-delay="300" top>
-                            <v-icon small slot="activator">help_outline</v-icon>
+                            <v-icon slot="activator">help_outline</v-icon>
                             <span>Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file.</span>
                         </v-tooltip>
                     </template>
                     <template slot="content">
-                        <v-text-field 
+                        <v-textarea
                             aria-label="Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file." 
                             class="marv-bg" 
                             hide-details 
-                            multi-line 
                             v-model="query" 
                             @dragover.prevent 
                             @drop="fileDrop($event)" 
                             placeholder="Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file." 
                             spellcheck="false">
-                        </v-text-field>
+                        </v-textarea>
 
                         <div class="actions">
                         <v-dialog v-if="!$ELECTRON" v-model="showCurl" lazy absolute :disabled="searchDisabled">
@@ -39,7 +38,7 @@
                                 <br>
                                 <code>curl -X POST -F q=@PATH_TO_FILE <span v-if="email">-F 'email={{email}}'</span> -F 'mode={{mode}}' <span v-for="(path, i) in database" :key="i">-F 'database[]={{ path }}' </span> {{ origin() + '/api/ticket' }}</code>
                                 <br>
-                                    Refer to the <a href="https://github.com/soedinglab/MMseqs2-App/wiki/API">wiki</a>, on how to check the status and fetch the result.
+                                    Refer to the <a href="https://search.mmseqs.com/docs/">API documentation</a>, on how to check the status and fetch the result.
                                 </v-card-text>
                                 <v-card-actions>
                                     <v-spacer></v-spacer>
@@ -330,12 +329,26 @@ export default {
     max-height: inherit;
 }
 
+.search-component .v-input--checkbox {
+    margin-top: 0px;
+}
+
+.search-component .input-group label {
+    font-size: 16px;
+}
+
+.search-component .v-text-field {
+    margin-top: 0px;
+    padding-top: 0px;
+}
+
 .marv-bg textarea {
     min-height: 330px;
     background-image: url("./assets/marv-search-gray.png");
     background-repeat: no-repeat;
     background-position: right 15px bottom -10px;
     background-size: 200px;
+    line-height: 1.5;
 }
 
 code {

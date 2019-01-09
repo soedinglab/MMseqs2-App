@@ -43,3 +43,20 @@ svg a {
 main.content {
     max-width: 1536px;
 }
+
+.v-toolbar__content,
+.v-toolbar__extension {
+    padding: 0 12px;
+}
+
+.v-list__group__items--no-action .v-list__tile {
+    padding-left: 8px;
+}
+
+.v-navigation-drawer a.v-list__tile {
+    height: 60px;
+}
+
+.v-navigation-drawer .v-list .v-list--two-line {
+    padding-bottom: 0px;
+}
