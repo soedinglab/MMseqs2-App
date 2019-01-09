@@ -1,12 +1,11 @@
 {
     "comments": false,
     "presets": [
-        [ "env", { "modules": false } ],
-        [ "stage-2" ]
+        [ "env", { "modules" : false } ]
     ],
     "plugins": [
-        "transform-runtime",
-        "add-filehash",
+        "syntax-dynamic-import",
+        "transform-object-rest-spread",
         [
             "transform-imports", {
                 "vuetify": {
