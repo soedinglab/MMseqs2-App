@@ -1,11 +1,12 @@
 {
     "comments": false,
     "presets": [
-        [ "env", { "modules" : false } ]
+        [ "@babel/env", { "modules": false } ]
     ],
     "plugins": [
-        "syntax-dynamic-import",
-        "transform-object-rest-spread",
+        "@babel/syntax-dynamic-import",
+        "@babel/transform-runtime",
+        "@babel/proposal-object-rest-spread",
         [
             "transform-imports", {
                 "vuetify": {
