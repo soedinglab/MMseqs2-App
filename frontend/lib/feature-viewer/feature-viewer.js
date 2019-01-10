@@ -1,14 +1,12 @@
 var FeatureViewer = (function () {
     function FeatureViewer(id, sequence, el, options) {
-        var labelSizeLookup = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,5,7,6,9,8,3,3,3,6,6,3,4,3,4,6,6,6,6,6,6,6,6,6,6,3,3,6,6,6,5,9,7,7,7,8,6,6,8,8,3,3,7,6,10,8,8,7,8,7,6,6,8,6,10,6,6,6,4,4,4,6,5,6,6,7,5,7,6,4,6,7,3,3,6,3,10,7,7,7,7,5,5,4,7,6,8,6,6,5,4,6,4,6,0,0,0,0,0,0,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,6,6,6,6,6,6,6,9,4,5,6,0,9,5,5,6,4,4,6,7,7,3,3,4,4,5,8,8,8,5,7,7,7,7,7,7,9,7,6,6,6,6,3,3,3,3,8,8,8,8,8,8,8,6,8,8,8,8,8,6,7,7,6,6,6,6,6,6,9,5,6,6,6,6,3,3,3,3,6,7,7,7,7,7,7,6,7,7,7,7,7,6,7,6];
-        var self = this;
+        // d3.selection.prototype.duration = function () { return this }
+        // d3.selection.prototype.transition = function () { return this }
 
-        var el = el;
+        var labelSizeLookup = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,5,7,6,9,8,3,3,3,6,6,3,4,3,4,6,6,6,6,6,6,6,6,6,6,3,3,6,6,6,5,9,7,7,7,8,6,6,8,8,3,3,7,6,10,8,8,7,8,7,6,6,8,6,10,6,6,6,4,4,4,6,5,6,6,7,5,7,6,4,6,7,3,3,6,3,10,7,7,7,7,5,5,4,7,6,8,6,6,5,4,6,4,6,0,0,0,0,0,0,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,6,6,6,6,6,6,6,9,4,5,6,0,9,5,5,6,4,4,6,7,7,3,3,4,4,5,8,8,8,5,7,7,7,7,7,7,9,7,6,6,6,6,3,3,3,3,8,8,8,8,8,8,8,6,8,8,8,8,8,6,7,7,6,6,6,6,6,6,9,5,6,6,6,6,3,3,3,3,6,7,7,7,7,7,7,6,7,7,7,7,7,6,7,6];
+
         var svgElement = null;
         var svgContainer = null;
-
-        var id = id;
-        var sequence = sequence;
 
         var intLength = Number.isInteger(sequence) ? sequence : null;
         var fvLength = intLength | sequence.length;
@@ -19,6 +17,7 @@ var FeatureViewer = (function () {
             verticalLine: false,
             dottedSequence: true
         };
+
         var offset = { start: 1, end: fvLength };
         if (options && options.offset) {
             offset = options.offset;
@@ -49,7 +48,18 @@ var FeatureViewer = (function () {
         var animation = true;
         var sbcRip = null;
 
-        var transitionDuration = 66;
+        const transitionDuration = 66;
+
+        var margin = {
+            top: 20,
+            right: 20,
+            bottom: 20,
+            left: 110
+        };
+
+        var width, height, scaling, scalingPosition;
+        var lineBond, lineGen, lineYscale, line;
+        var xAxis1, xAxis2, yAxisScale, yAxis, brush;
 
         function colorSelectedFeat(feat, object) {
             //change color && memorize
@@ -60,48 +70,25 @@ var FeatureViewer = (function () {
             }
         }
 
-        /**
-         * Private Methods
-         */
-
-        //Init box & scaling
-        d3.select(el)
-            .style("position", "relative")
-            .style("padding", "0px")
-            .style("z-index", "2");
-
-        var margin = {
-            top: 20,
-            right: 20,
-            bottom: 20,
-            left: 110
-        },
-            width = el.offsetWidth - margin.left - margin.right - 17,
-            height = 600 - margin.top - margin.bottom;
-        var scaling = d3.scale.linear()
-            .domain([offset.start, offset.end])
-            .range([5, width - 5]);
-        var scalingPosition = d3.scale.linear()
-            .domain([0, width])
-            .range([offset.start, offset.end]);
-
-
-        //COMPUTING FUNCTION
-        var X = function (d) {
+        function X(d) {
             return scaling(d.x);
-        };
-        var displaySequence = function (seq) {
+        }
+
+        function displaySequence(seq) {
             return width / seq > 5;
-        };
-        var rectWidth = function (d) {
+        }
+
+        function rectWidth(d) {
             return (scaling(d.y) - scaling(d.x));
-        };
+        }
+
         function rectX(object) {
             if (object.x === object.y) {
                 return scaling(object.x - 0.4);
             }
             return scaling(object.x);
-        };
+        }
+
         function rectWidth2(d) {
             if (d.x === d.y) {
                 if (scaling(d.x + 0.4) - scaling(d.x - 0.4) < 2) return 2;
@@ -197,46 +184,6 @@ var FeatureViewer = (function () {
             return leveling.length;
         }
 
-        var lineBond = d3.svg.line()
-            .interpolate("step-before")
-            .x(function (d) {
-                return scaling(d.x);
-            })
-            .y(function (d) {
-                return -d.y * 10 + pathLevel;
-            });
-        var lineGen = d3.svg.line()
-
-            //          .interpolate("cardinal")
-            .x(function (d) {
-                return scaling(d.x);
-            })
-            .y(function (d) {
-                return lineYscale(-d.y) * 10 + pathLevel;
-            });
-        var lineYscale = d3.scale.linear()
-            .domain([0, -30])
-            .range([0, -20]);
-        var line = d3.svg.line()
-            .interpolate("linear")
-            .x(function (d) {
-                return scaling(d.x);
-            })
-            .y(function (d) {
-                return d.y + 6;
-            });
-
-        //Create Axis
-        var xAxis1 = d3.svg.axis()
-            .scale(scaling)
-            .tickFormat(d3.format("d"))
-            .orient("top");
-
-        var xAxis2 = d3.svg.axis()
-            .scale(scaling)
-            .tickFormat(d3.format("d"))
-            .orient("bottom");
-
         function shadeBlendConvert(p, from, to) {
             if (typeof (p) != "number" || p < -1 || p > 1 || typeof (from) != "string" || (from[0] != 'r' && from[0] != '#') || (typeof (to) != "string" && typeof (to) != "undefined")) return null; //ErrorCheck
             if (!this.sbcRip) this.sbcRip = function (d) {
@@ -258,17 +205,6 @@ var FeatureViewer = (function () {
             else return "#" + (0x100000000 + (f[3] > -1 && t[3] > -1 ? r(((t[3] - f[3]) * p + f[3]) * 255) : t[3] > -1 ? r(t[3] * 255) : f[3] > -1 ? r(f[3] * 255) : 255) * 0x1000000 + r((t[0] - f[0]) * p + f[0]) * 0x10000 + r((t[1] - f[1]) * p + f[1]) * 0x100 + r((t[2] - f[2]) * p + f[2])).toString(16).slice(f[3] > -1 || t[3] > -1 ? 1 : 3);
         }
 
-        function addXAxis(position) {
-            svgContainer.append("g")
-                .attr("class", "x axis Xaxis-top")
-                .call(xAxis1);
-
-            svgContainer.append("g")
-                .attr("class", "x axis Xaxis")
-                .attr("transform", "translate(0," + (position + 20) + ")")
-                .call(xAxis2);
-        }
-
         function updateXaxis(position) {
             svgContainer.selectAll(".Xaxis")
                 .attr("transform", "translate(0," + (position + 20) + ")")
@@ -282,17 +218,6 @@ var FeatureViewer = (function () {
                 onHeightChanged(position + 60);
             }
         }
-
-        var yAxisScale = d3.scale.ordinal()
-            .domain([0, yData.length])
-            .rangeRoundBands([0, 500], .1);
-        var yAxis = d3.svg.axis()
-            .scale(yAxisScale)
-            .tickValues(yData) //specify an array here for values
-            .tickFormat(function (d) {
-                return d
-            })
-            .orient("left");
 
         function addYAxis() {
             yAxisSVG = svg.append("g")
@@ -397,7 +322,6 @@ var FeatureViewer = (function () {
             });
         }
 
-        /** export to new utils file  */
         var preComputing = {
             path: function (object) {
                 if (typeof object.shouldSort === 'undefined' || object.shouldSort) {
@@ -925,7 +849,7 @@ var FeatureViewer = (function () {
             }
         };
 
-        this.showFilteredFeature = function (className, color, baseUrl) {
+        function showFilteredFeature(className, color, baseUrl) {
             var featureSelected = yAxisSVG.selectAll("." + className + "Arrow");
             var minY = margin.left - 105;
             var maxY = margin.left - 7;
@@ -970,14 +894,6 @@ var FeatureViewer = (function () {
             selection
                 .attr("points", function (d) {
                     return (margin.left - 105) + "," + (d.y - 3) + ", " + (margin.left - 105) + "," + (d.y + 12) + ", " + (margin.left - 10) + "," + (d.y + 12) + ", " + (margin.left - 2) + "," + (d.y + 4.5) + ", " + (margin.left - 10) + "," + (d.y - 3); // x,y points
-                });
-        };
-        this.hideFilteredFeature = function (className) {
-            yAxisSVG.selectAll("." + className + "Arrow")
-                .style("fill", "rgba(95,46,38,0.2)")
-                .attr("filter", "")
-                .attr("points", function (d) {
-                    return (margin.left - 105) + "," + (d.y - 3) + ", " + (margin.left - 105) + "," + (d.y + 12) + ", " + (margin.left - 15) + "," + (d.y + 12) + ", " + (margin.left - 7) + "," + (d.y + 4.5) + ", " + (margin.left - 15) + "," + (d.y - 3); // x,y points
                 });
         };
 
@@ -1130,11 +1046,6 @@ var FeatureViewer = (function () {
             }
         };
 
-        var brush = d3.svg.brush()
-            .x(scaling)
-            //.on("brush", brushmove)
-            .on("brushend", brushend);
-
         function addBrush() {
             svgContainer.append("g")
                 .attr("class", "brush")
@@ -1143,9 +1054,7 @@ var FeatureViewer = (function () {
                 .attr('height', Yposition + 50);
         }
 
-
-         // If brush is too small, reset view as origin
-        this.resetAll = function() {
+        this.resetAll = function () {
             //reset scale
             scaling.domain([offset.start, offset.end]);
             scalingPosition.range([offset.start, offset.end]);
@@ -1183,6 +1092,7 @@ var FeatureViewer = (function () {
             d3.select(el).selectAll(".brush").call(brush.clear());
         }
 
+         // If brush is too small, reset view as origin
         function brushend() {
             // debugger;
             d3.select(el).selectAll('div.selectedRect').remove();
@@ -1262,7 +1172,7 @@ var FeatureViewer = (function () {
         };
 
         function updateWindow() {
-            if (!svgContainer || !SVGOptions) return;
+            if (!svgContainer) return;
 
             width = el.offsetWidth - margin.left - margin.right - 17;
             d3.select(el).select("svg")
@@ -1350,7 +1260,7 @@ var FeatureViewer = (function () {
                 //     vertical.style("left", mousex + "px")});
         }
 
-        this.addRectSelection = function (svgId) {
+        function addRectSelection(svgId) {
             var featSelection = d3.select(svgId);
             var elemSelected = featSelection.data();
             var xTemp;
@@ -1422,11 +1332,82 @@ var FeatureViewer = (function () {
             if (options.animation) {
                 animation = options.animation;
             }
+
+            width = el.offsetWidth - margin.left - margin.right - 17;
+            height = 600 - margin.top - margin.bottom;
+            scaling = d3.scale.linear()
+                .domain([offset.start, offset.end])
+                .range([5, width - 5]);
+            scalingPosition = d3.scale.linear()
+                .domain([0, width])
+                .range([offset.start, offset.end]);
+
+            lineBond = d3.svg.line()
+                .interpolate("step-before")
+                .x(function (d) {
+                    return scaling(d.x);
+                })
+                .y(function (d) {
+                    return -d.y * 10 + pathLevel;
+                });
+            lineGen = d3.svg.line()
+                //          .interpolate("cardinal")
+                .x(function (d) {
+                    return scaling(d.x);
+                })
+                .y(function (d) {
+                    return lineYscale(-d.y) * 10 + pathLevel;
+                });
+                
+            lineYscale = d3.scale.linear()
+                .domain([0, -30])
+                .range([0, -20]);
+
+            line = d3.svg.line()
+                .interpolate("linear")
+                .x(function (d) {
+                    return scaling(d.x);
+                })
+                .y(function (d) {
+                    return d.y + 6;
+                });
+
+            //Create Axis
+            xAxis1 = d3.svg.axis()
+                .scale(scaling)
+                .tickFormat(d3.format("d"))
+                .orient("top");
+
+            xAxis2 = d3.svg.axis()
+                .scale(scaling)
+                .tickFormat(d3.format("d"))
+                .orient("bottom");
+
+            yAxisScale = d3.scale.ordinal()
+                .domain([0, yData.length])
+                .rangeRoundBands([0, 500], .1);
+
+            yAxis = d3.svg.axis()
+                .scale(yAxisScale)
+                .tickValues(yData) //specify an array here for values
+                .tickFormat(function (d) {
+                    return d
+                })
+                .orient("left");
+
+            brush = d3.svg.brush()
+                .x(scaling)
+                //.on("brush", brushmove)
+                .on("brushend", brushend);
             
-            svg = d3.select(el).append("svg")
-                .attr("width", width + margin.left + margin.right)
-                .attr("height", height + margin.top + margin.bottom)
-                .style("z-index", "2")
+            svg = d3.select(el)
+                    .style("position", "relative")
+                    .style("padding", "0px")
+                    .style("z-index", "2")
+                        .append("svg")
+                            .attr("width", width + margin.left + margin.right)
+                            .attr("height", height + margin.top + margin.bottom)
+                            .style("z-index", "2")
                 // .on("contextmenu", function (d, i) {
                 //     d3.event.preventDefault();
                 //     resetAll();
@@ -1534,14 +1515,20 @@ var FeatureViewer = (function () {
                 addVerticalLine();
             }
 
-            if (options.showAxis) addXAxis(Yposition);            
+            if (options.showAxis) {
+                svgContainer.append("g")
+                    .attr("class", "x axis Xaxis-top")
+                    .call(xAxis1);
+
+                svgContainer.append("g")
+                    .attr("class", "x axis Xaxis")
+                    .attr("transform", "translate(0," + (Yposition + 20) + ")")
+                    .call(xAxis2);
+            }
             addYAxis();
 
             updateSVGHeight(Yposition);
-
         }
-
-        initSVG(options);
 
         this.addFeature = function (object) {
             Yposition += 20;
@@ -1580,6 +1567,7 @@ var FeatureViewer = (function () {
             svgElement = null;
         }
 
+        initSVG(options);
     }
 
     return FeatureViewer;
