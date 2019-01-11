@@ -61,7 +61,6 @@ export default {
     },
     methods: {
         shouldExpand(expand) {
-            console.log(expand);
             if (expand) {
                 this.mini = false;
                 this.$root.$emit('navigation-resize', this.mini);
