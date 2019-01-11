@@ -9,3 +9,4 @@ thumbs.db
 pkg/
 resources/
 backend/.cache/
+.vscode/
