@@ -158,8 +158,11 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 
 func worker(jobsystem JobSystem, config ConfigRoot) {
 	log.Println("MMseqs2 worker")
-	log.Println("Using " + config.Mail.Mailer.Type + " mail transport")
-	mailer := config.Mail.Mailer.GetTransport()
+	mailer := MailTransport(NullTransport{})
+	if config.Mail.Mailer != nil {
+		log.Println("Using " + config.Mail.Mailer.Type + " mail transport")
+		mailer = config.Mail.Mailer.GetTransport()
+	}
 	for {
 		ticket, err := jobsystem.Dequeue()
 		if err != nil {
