@@ -32,7 +32,9 @@ var defaultFileContent = []byte(`{
         "index"    : 0
     },
     "mail" : {
-        "type"      : "null",
+        "mailer" : {
+			"type" : "null"
+		},
         "sender"    : "mail@example.org",
         "templates" : {
             "success" : {
@@ -78,9 +80,9 @@ type ConfigMailTemplates struct {
 }
 
 type ConfigMail struct {
-	Transport string              `json:"type"`
-	Sender    string              `json:"sender"`
-	Templates ConfigMailTemplates `json:"templates"`
+	Mailer    *ConfigMailtransport `json:"mailer" valid:"optional"`
+	Sender    string               `json:"sender"`
+	Templates ConfigMailTemplates  `json:"templates"`
 }
 
 type ConfigAuth struct {
@@ -150,7 +152,7 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 	return config, nil
 }
 
-func (c *ConfigRoot) CheckPaths() bool {
+func (c *ConfigRoot) CheckPaths() error {
 	paths := []string{c.Paths.Databases, c.Paths.Results}
 	for _, path := range paths {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -159,10 +161,10 @@ func (c *ConfigRoot) CheckPaths() bool {
 	}
 
 	if _, err := os.Stat(c.Paths.Mmseqs); err != nil {
-		return false
+		return errors.New("MMseqs2 binary was not found at " + c.Paths.Mmseqs)
 	}
 
-	return true
+	return nil
 }
 
 func (c *ConfigRoot) ReadParameters(args []string) error {

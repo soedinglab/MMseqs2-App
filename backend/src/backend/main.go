@@ -73,8 +73,8 @@ func main() {
 		panic(err)
 	}
 
-	if config.CheckPaths() == false {
-		panic("Invalid Paths Supplied")
+	if err := config.CheckPaths(); err != nil {
+		panic(err)
 	}
 
 	switch t {

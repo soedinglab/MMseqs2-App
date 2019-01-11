@@ -157,9 +157,9 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 }
 
 func worker(jobsystem JobSystem, config ConfigRoot) {
-	log.Println("MMseqs2 Worker")
-	log.Println("Using " + config.Mail.Transport + " Mail Transport")
-	mailer := Factory(config.Mail.Transport)
+	log.Println("MMseqs2 worker")
+	log.Println("Using " + config.Mail.Mailer.Type + " mail transport")
+	mailer := config.Mail.Mailer.GetTransport()
 	for {
 		ticket, err := jobsystem.Dequeue()
 		if err != nil {
@@ -196,31 +196,31 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 		switch err.(type) {
 		case *JobExecutionError, *JobInvalidError:
 			if job.Email != "" {
-				err := mailer.Send(Mail{
+				err = mailer.Send(Mail{
 					config.Mail.Sender,
 					job.Email,
 					fmt.Sprintf(config.Mail.Templates.Error.Subject, ticket),
 					fmt.Sprintf(config.Mail.Templates.Error.Body, ticket),
 				})
 				if err != nil {
-					fmt.Printf("%s", err)
+					log.Print(err)
 				}
 			}
 		case *JobTimeoutError:
 			if job.Email != "" {
-				err := mailer.Send(Mail{
+				err = mailer.Send(Mail{
 					config.Mail.Sender,
 					job.Email,
 					fmt.Sprintf(config.Mail.Templates.Timeout.Subject, ticket),
 					fmt.Sprintf(config.Mail.Templates.Timeout.Body, ticket),
 				})
 				if err != nil {
-					fmt.Printf("%s", err)
+					log.Print(err)
 				}
 			}
 		case nil:
 			if job.Email != "" {
-				err := mailer.Send(Mail{
+				err = mailer.Send(Mail{
 					config.Mail.Sender,
 					job.Email,
 					fmt.Sprintf(config.Mail.Templates.Success.Subject, ticket),
