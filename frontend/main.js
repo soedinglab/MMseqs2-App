@@ -7,9 +7,7 @@ import Vuetify from 'vuetify/lib';
 import 'vuetify/src/stylus/app.styl';
 import 'vuetify/src/stylus/components/_tables.styl';
 Vue.use(Vuetify);
-
 import 'material-design-icons/iconfont/material-icons.css';
-import './assets/style.css';
 
 Vue.use(VueRouter);
 Vue.use(VueResource);
@@ -71,3 +69,7 @@ const app = new Vue({
     router,
     render: h => h(App)
 });
+
+
+// make sure our CSS is load last
+import './assets/style.css';
