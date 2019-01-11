@@ -79,7 +79,8 @@ module.exports = (env, argv) => {
         resolve: {
             extensions: ['.js', '.vue', '.json'],
             alias: {
-                'vue$': 'vue/dist/vue.runtime.esm.js'
+                'vue$': 'vue/dist/vue.runtime.esm.js',
+                'vue-resource$': 'vue-resource/src/index.js'
             }
         },
         externals: {
@@ -88,7 +89,10 @@ module.exports = (env, argv) => {
         plugins: [
             new webpack.DefinePlugin({
                 __CONFIG__: JSON.stringify(require('./package.json').configuration),
-                __ELECTRON__: isElectron
+                __ELECTRON__: isElectron,
+                'process.env': {
+                    NODE_ENV: JSON.stringify(argv.mode)
+                }
             }),
             new VueLoaderPlugin(),
             new VuetifyLoaderPlugin(),
