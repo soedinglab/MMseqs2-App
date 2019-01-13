@@ -321,10 +321,6 @@ export default {
     flex: 0;
 }
 
-.query-panel textarea {
-    height: 100%;
-}
-
 .marv-bg .input-group__input {
     max-height: inherit;
 }
@@ -342,8 +338,9 @@ export default {
     padding-top: 0px;
 }
 
-.marv-bg textarea {
-    min-height: 330px;
+.v-textarea.marv-bg textarea {
+    height: 100%;
+    min-height: 270px;
     background-image: url("./assets/marv-search-gray.png");
     background-repeat: no-repeat;
     background-position: right 15px bottom -10px;
