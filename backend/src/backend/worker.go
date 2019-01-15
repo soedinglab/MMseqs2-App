@@ -198,6 +198,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 		err = RunJob(job, jobsystem, config)
 		switch err.(type) {
 		case *JobExecutionError, *JobInvalidError:
+			log.Print(err)
 			if job.Email != "" {
 				err = mailer.Send(Mail{
 					config.Mail.Sender,
@@ -210,6 +211,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 				}
 			}
 		case *JobTimeoutError:
+			log.Print(err)
 			if job.Email != "" {
 				err = mailer.Send(Mail{
 					config.Mail.Sender,
