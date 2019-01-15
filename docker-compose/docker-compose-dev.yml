@@ -5,11 +5,13 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile.backend
+      args: [ "NAMESPACE=" ]
 
   mmseqs-web-worker:
     build:
       context: ..
       dockerfile: Dockerfile.backend
+      args: [ "NAMESPACE=" ]
 
   mmseqs-web-webserver:
     build:

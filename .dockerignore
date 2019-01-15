@@ -6,3 +6,4 @@ resources/
 Dockerfile
 backend/.cache/
 backend/pkg/
+docker-compose*

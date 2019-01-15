@@ -1,4 +1,5 @@
-FROM soedinglab/mmseqs2 as mmseqs
+ARG NAMESPACE=soedinglab/
+FROM ${NAMESPACE}mmseqs2 as mmseqs
 
 FROM golang:alpine as mmseqs-web-builder
 RUN apk add --no-cache git gcc g++ musl-dev make zlib-dev bzip2-dev
