@@ -1,5 +1,5 @@
 SRCPATH := src/backend
-GOPATH := $(shell greadlink -f . || readlink -f . )
+GOPATH := $(shell greadlink -f . 2>/dev/null || readlink -f . 2>/dev/null )
 BINPATH ?= $(GOPATH)/build/mmseqs-backend
 
 ifdef DEBUG

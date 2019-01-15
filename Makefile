@@ -17,7 +17,7 @@ resources/icons/icon.icns resources/icons/icon.ico:
 	mkdir -p resources/icons
 	./node_modules/.bin/icon-gen -i frontend/assets/marv1-square.svg -o resources/icons/ --icns name=icon --ico name=icon
 
-CURRDIRR := $(shell greadlink -f . || readlink -f . )
+CURRDIRR := $(shell greadlink -f . 2>/dev/null || readlink -f . 2>/dev/null )
 resources/mac/mmseqs-web-backend:
 	mkdir -p resources/mac
 	cd backend/ && GOOS=darwin GOARCH=amd64  CGO_ENABLED=0 BINPATH=$(CURRDIRR)/resources/mac/mmseqs-web-backend make all
