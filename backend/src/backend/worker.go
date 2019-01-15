@@ -203,8 +203,8 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 				err = mailer.Send(Mail{
 					config.Mail.Sender,
 					job.Email,
-					fmt.Sprintf(config.Mail.Templates.Error.Subject, ticket),
-					fmt.Sprintf(config.Mail.Templates.Error.Body, ticket),
+					fmt.Sprintf(config.Mail.Templates.Error.Subject, string(ticket.Id)),
+					fmt.Sprintf(config.Mail.Templates.Error.Body, string(ticket.Id)),
 				})
 				if err != nil {
 					log.Print(err)
@@ -216,8 +216,8 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 				err = mailer.Send(Mail{
 					config.Mail.Sender,
 					job.Email,
-					fmt.Sprintf(config.Mail.Templates.Timeout.Subject, ticket),
-					fmt.Sprintf(config.Mail.Templates.Timeout.Body, ticket),
+					fmt.Sprintf(config.Mail.Templates.Timeout.Subject, string(ticket.Id)),
+					fmt.Sprintf(config.Mail.Templates.Timeout.Body, string(ticket.Id)),
 				})
 				if err != nil {
 					log.Print(err)
@@ -228,8 +228,8 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 				err = mailer.Send(Mail{
 					config.Mail.Sender,
 					job.Email,
-					fmt.Sprintf(config.Mail.Templates.Success.Subject, ticket),
-					fmt.Sprintf(config.Mail.Templates.Success.Body, ticket),
+					fmt.Sprintf(config.Mail.Templates.Success.Subject, string(ticket.Id)),
+					fmt.Sprintf(config.Mail.Templates.Success.Body, string(ticket.Id)),
 				})
 				if err != nil {
 					fmt.Printf("%s", err)
