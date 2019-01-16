@@ -13,18 +13,34 @@ import (
 )
 
 var defaultFileContent = []byte(`{
+    // should mmseqs und webserver output be printed
     "verbose": true,
     "server" : {
         "address"    : "127.0.0.1:8081",
-		"pathprefix" : "/api/",
-		"dbmanagment": false,
+        // prefix for all API endpoints
+        "pathprefix" : "/api/",
+        // enables additional API endpoints for adding databases
+        // WARNING: No additional authentication provided. Enable only within trusted network/for trusted admins.
+        "dbmanagment": false,
+        /* enable HTTP Basic Auth (optional)
+        "auth": {
+            "username" : "",
+            "password" : ""
+        },
+        */
+        // should CORS headers be set to allow requests from anywhere
         "cors"       : true
     },
+    // paths to workfolders and mmseqs, special character ~ is resolved relative to the binary location
     "paths" : {
+        // path to mmseqs databases, has to be shared between server/workers
         "databases"    : "~databases",
+        // path to job results and scratch directory, has to be shared between server/workers
         "results"      : "~jobs",
+        // path ot mmseqs binary
         "mmseqs"       : "~mmseqs"
     },
+    // connection details for redis database, not used in -local mode
     "redis" : {
         "network"  : "tcp",
         "address"  : "localhost:6379",
@@ -33,9 +49,45 @@ var defaultFileContent = []byte(`{
     },
     "mail" : {
         "mailer" : {
-			"type" : "null"
-		},
+            // three types available:
+            // null: uses NullTransport class, which ignores all sent emails
+            "type" : "null"
+            /* smtp: Uses SMTP to send emails example for gmail
+            "type" : "smtp",
+            "transport" : {
+                // full host URL with port
+                "host" : "smtp.gmail.com:587",
+                // RFC 4616  PLAIN authentication
+                "auth" : {
+                    {
+                        // empty for gmail
+                        "identity" : "",
+                        // gmail user
+                        "username" : "user@gmail.com",
+                        "password" : "password",
+                        "host" : "smtp.gmail.com",
+                    }
+                }
+            }
+            */
+            /* mailgun: Uses the mailgun API to send emails
+            "type"      : "mailgun",
+            "transport" : {
+                // mailgun domain
+                "domain" : "mail.mmseqs.com",
+                // mailgun API private key
+                "secretkey" : "key-XXXX",
+                // mailgun API public key
+                "publickey" : "pubkey-XXXX"
+            }
+            */
+        },
+        // Email FROM field
         "sender"    : "mail@example.org",
+        /* Bracket notation is also possible:
+        "sender"    : "Webserver <mail@example.org>",
+        */
+        // Email templates. First "%s" is resolved to the ticket identifier
         "templates" : {
             "success" : {
                 "subject" : "Done -- %s",

@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/DisposaBoy/JsonConfigReader"
 	"github.com/asaskevich/govalidator"
 )
 
@@ -126,7 +127,7 @@ func (p *Parser) Next() (eof bool, err error) {
 }
 
 func DecodeJsonAndValidate(r io.Reader, target interface{}) error {
-	dec := json.NewDecoder(r)
+	dec := json.NewDecoder(JsonConfigReader.New(r))
 
 	err := dec.Decode(target)
 	if err != nil {
