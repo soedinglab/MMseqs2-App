@@ -85,12 +85,13 @@ func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitivity f
 			"createindex",
 			basepath,
 			tmppath,
-			"--include-headers",
-			"true",
 			"--remove-tmp-files",
 			"true",
 			"--check-compatible",
 			"true",
+			// HACK: force translated searches in nucleotide case for now
+			"--index-type",
+			"2",
 		)
 		if err != nil {
 			return err
@@ -119,8 +120,6 @@ func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitivity f
 			tmppath,
 			"-k",
 			"5",
-			"--include-headers",
-			"true",
 			"--remove-tmp-files",
 			"true",
 			"--check-compatible",
