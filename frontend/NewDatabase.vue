@@ -40,7 +40,10 @@
                 <v-checkbox v-model="form.default" label="Include in Default"></v-checkbox>
             </v-flex>
             <v-flex xs12>
-                <v-text-field v-model="form.search" label="Extra Parameters (optional)"></v-text-field>
+                <v-text-field v-model="form.index" label="Extra Indexing Parameters (optional)"></v-text-field>
+            </v-flex>
+            <v-flex xs12>
+                <v-text-field v-model="form.search" label="Extra Search Parameters (optional)"></v-text-field>
             </v-flex>
         </v-layout>
     </div>
@@ -62,8 +65,9 @@ export default {
                 name: "",
                 version: "",
                 path: "",
-                format: "",                
+                format: "",
                 default: false,
+                index: "",
                 search: "",
             },
             formats: [

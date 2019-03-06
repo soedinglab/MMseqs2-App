@@ -125,17 +125,10 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 			jobsystem.SetStatus(request.Id, StatusError)
 			return &JobExecutionError{err}
 		}
-		sens, err := params.Display.Sensitiviy()
-		if err != nil {
-			params.Status = StatusError
-			SaveParams(file+".params", params)
-			jobsystem.SetStatus(request.Id, StatusError)
-			return &JobExecutionError{err}
-		}
 		params.Status = StatusRunning
 		SaveParams(file+".params", params)
 		jobsystem.SetStatus(request.Id, StatusRunning)
-		err = CheckDatabase(file, config.Paths.Temporary, config.Paths.Mmseqs, sens, config.Verbose)
+		err = CheckDatabase(file, params.Display, config)
 		if err != nil {
 			params.Status = StatusError
 			SaveParams(file+".params", params)

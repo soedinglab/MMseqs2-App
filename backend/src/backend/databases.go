@@ -20,6 +20,7 @@ type ParamsDisplay struct {
 	Path    string `json:"path"`
 	Default bool   `json:"default"`
 	Order   int    `json:"order"`
+	Index   string `json:"index" valid:"optional"`
 	Search  string `json:"search"`
 }
 
@@ -35,28 +36,6 @@ func (d paramsByOrder) Less(i, j int) bool {
 	return d[i].Display.Order < d[j].Display.Order
 }
 
-func (s ParamsDisplay) Sensitiviy() (float32, error) {
-	arr := strings.Fields(s.Search)
-	for i, value := range arr {
-		if value != "-s" {
-			continue
-		}
-
-		if i+1 >= len(arr) {
-			return -1, errors.New("Invalid parameter string!")
-		}
-
-		sens, err := strconv.ParseFloat(arr[i+1], 32)
-		if err != nil {
-			return -1, err
-		}
-
-		return float32(sens), nil
-	}
-
-	return -1, nil
-}
-
 type Params struct {
 	Status  Status        `json:"status"`
 	Display ParamsDisplay `json:"display"`
@@ -70,29 +49,38 @@ func GetDisplayFromParams(params []Params) []ParamsDisplay {
 	return result
 }
 
-func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitivity float32, verbose bool) error {
+func CheckDatabase(basepath string, params ParamsDisplay, config ConfigRoot) error {
+	verbose := config.Verbose
 	if fileExists(basepath + ".fasta") {
 		if !fileExists(basepath) && !fileExists(basepath+".index") {
-			err := quickExec(mmseqs, verbose, "createdb", basepath+".fasta", basepath)
+			err := quickExec(
+				config.Paths.Mmseqs,
+				config.Verbose,
+				"createdb",
+				basepath+".fasta",
+				basepath,
+			)
 			if err != nil {
 				return err
 			}
 		}
 
-		err := quickExec(
-			mmseqs,
-			verbose,
+		parameters := []string{
 			"createindex",
 			basepath,
-			tmppath,
+			config.Paths.Temporary,
 			"--remove-tmp-files",
 			"true",
 			"--check-compatible",
 			"true",
-			// HACK: force translated searches in nucleotide case for now
-			"--index-type",
-			"2",
-		)
+		}
+		parameters = append(parameters, strings.Fields(params.Index)...)
+		err := quickExec(config.Paths.Mmseqs, config.Verbose, parameters...)
+		if err != nil {
+			return err
+		}
+
+		err = quickExec(config.Paths.Mmseqs, config.Verbose, "touchdb", basepath)
 		if err != nil {
 			return err
 		}
@@ -100,7 +88,15 @@ func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitivity f
 	}
 
 	if fileExists(basepath+".sto") && !fileExists(basepath+"_msa") && !fileExists(basepath+"_msa.index") {
-		err := quickExec(mmseqs, verbose, "convertmsa", basepath+".sto", basepath+"_msa", "--identifier-field", "1")
+		err := quickExec(
+			config.Paths.Mmseqs,
+			config.Verbose,
+			"convertmsa",
+			basepath+".sto",
+			basepath+"_msa",
+			"--identifier-field",
+			"1",
+		)
 		if err != nil {
 			return err
 		}
@@ -108,16 +104,24 @@ func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitivity f
 
 	if fileExists(basepath+"_msa") && fileExists(basepath+"_msa.index") {
 		if !fileExists(basepath) && !fileExists(basepath+".index") {
-			err := quickExec(mmseqs, verbose, "msa2profile", basepath+"_msa", basepath, "--match-mode", "1")
+			err := quickExec(
+				config.Paths.Mmseqs,
+				config.Verbose,
+				"msa2profile",
+				basepath+"_msa",
+				basepath,
+				"--match-mode",
+				"1",
+			)
 			if err != nil {
 				return err
 			}
 		}
 
-		cmdParams := []string{
+		parameters := []string{
 			"createindex",
 			basepath,
-			tmppath,
+			config.Paths.Temporary,
 			"-k",
 			"5",
 			"--remove-tmp-files",
@@ -125,21 +129,13 @@ func CheckDatabase(basepath string, tmppath string, mmseqs string, sensitivity f
 			"--check-compatible",
 			"true",
 		}
-		if sensitivity != -1 {
-			s := strconv.FormatFloat(float64(sensitivity), 'f', 1, 32)
-			cmdParams = append(cmdParams, "-s")
-			cmdParams = append(cmdParams, s)
-		}
-		err := quickExec(mmseqs, verbose, cmdParams...)
+		parameters = append(parameters, strings.Fields(params.Index)...)
+		err := quickExec(config.Paths.Mmseqs, verbose, parameters...)
 		if err != nil {
 			return err
 		}
 
-		cmdParams = []string{
-			"touchdb",
-			basepath,
-		}
-		err = quickExec(mmseqs, verbose, cmdParams...)
+		err = quickExec(config.Paths.Mmseqs, verbose, "touchdb", basepath)
 		if err != nil {
 			return err
 		}

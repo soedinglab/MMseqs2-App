@@ -159,6 +159,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 					path,
 					req.FormValue("default") == "true",
 					0,
+					req.FormValue("index"),
 					req.FormValue("search"),
 				},
 			}
