@@ -1,22 +1,19 @@
 ARG NAMESPACE=soedinglab/
-FROM ${NAMESPACE}mmseqs2 as mmseqs
-
-FROM golang:alpine as mmseqs-web-builder
-RUN apk add --no-cache git gcc g++ musl-dev make zlib-dev bzip2-dev
+FROM golang:latest as mmseqs-web-builder
 
 RUN go get -u github.com/kardianos/govendor
 WORKDIR /opt/mmseqs-web
 ADD backend .
 RUN make all
 
-FROM alpine:3.7
+FROM ${NAMESPACE}mmseqs2 as mmseqs
 LABEL maintainer="Milot Mirdita <milot@mirdita.de>"
-RUN apk add --no-cache libstdc++ libgomp libbz2 zlib gawk bash ca-certificates tini
 
-COPY --from=mmseqs /usr/local/bin/mmseqs_sse42 /usr/local/bin/mmseqs_sse42
-COPY --from=mmseqs /usr/local/bin/mmseqs_avx2 /usr/local/bin/mmseqs_avx2
-COPY --from=mmseqs /usr/local/bin/mmseqs /usr/local/bin/mmseqs
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY --from=mmseqs-web-builder /opt/mmseqs-web/build/mmseqs-backend /usr/local/bin/mmseqs-web
+
+ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini /sbin/tini
+RUN chmod +x /sbin/tini
 
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/mmseqs-web"]
