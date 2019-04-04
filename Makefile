@@ -7,7 +7,7 @@ win: resources/win/mmseqs.bat resources/win/mmseqs-web-backend.exe resources/win
 mac: resources/mac/mmseqs-sse41 resources/mac/mmseqs-avx2 resources/mac/mmseqs-web-backend resources/mac/cpu-check
 linux: resources/linux/mmseqs-sse41 resources/linux/mmseqs-avx2 resources/linux/mmseqs-web-backend resources/linux/cpu-check
 
-mmseqshash := c00beb9a8c71582ba2216281c91064b4a8804733
+mmseqshash := 169de379e6d59e2f4688d2e0d94cc6c7ad816ab4
 
 resources/icons/256x256.png:
 	mkdir -p resources/icons
