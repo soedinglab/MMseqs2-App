@@ -165,8 +165,15 @@ export default {
                 return this.query_;
             },
             set: function(value) {
-                this.$localStorage.set("query", value);
+                // Fix query to always be a valid FASTA sequence
+                if (typeof(value) === 'string' && value != '') {
+                    value = value.trim();
+                    if (value[0] != '>') {
+                        value = '>unnamed\n' + value;
+                    }
+                }
                 this.query_ = value;
+                this.$localStorage.set("query", this.query_);
             }
         },
         database: {
