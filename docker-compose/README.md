@@ -96,25 +96,59 @@ cd examples/eggnog
 
 To add a new sequence database to your local MMseqs2 Search Server, place your sequences as a FASTA file with the .fasta file ending in the databases folder.
 
-Then create a .params file with the same basename (filename without the .fasta ending) in the same folder.
+Then create a `.params` file with the same basename (filename without the `.fasta` ending) in the same folder.
 
-The following command will create an empty .params file that you can customize:
+The following command will create an empty `.params` file that you can customize:
 
 ```
 BASEFASTA="sequence_db"
-echo -e "{\n \"display\": {\n  \"name\": \"\",\n  \"version\": \"\",\n  \"default\": true,\n  \"order\": 0\n, \"search\": \"\"\n }\n}" > "${BASEFASTA}.params"
+echo -e "{\n \"status\": \"PENDING\",\n \"display\": {\n  \"name\": \"\",\n  \"version\": \"\",\n  \"default\": true,\n  \"order\": 0,\n  \"index\": \"\",\n  \"search\": \"\"\n }\n}" > "${BASEFASTA}.params"
 ```
 
 Take a look at the "Params File" to customize this file.
 
 ### Setting up a Custom Profile Database
-To add a profile database to your local MMseqs2 Search Server, you need to provide multiple sequence alignments for each target profile inside an MMseqs2 indexed database. Place your MSAs as one STOCKHOLM file with the .sto file ending in the databases folder. 
+To add a profile database to your local MMseqs2 Search Server, you need to provide multiple sequence alignments for each target profile inside an MMseqs2 indexed database. Place your MSAs as one STOCKHOLM file with the `.sto` file ending in the databases folder. 
 
 ## Params File
 
-The params file is a json file with the following format:
+The params file contains a JSON object file describing each search database with the following properties:
 
-## Rebuilding the docker images
+```
+{
+  "status"    : "PENDING",   // PENDING|RUNNING|COMPLETE|ERROR|UNKNOWN
+                             //   Current status of the database, should be PENDING for a new database
+                             //   If server crashes while building the database it might be stuck in RUNNING state.
+                             //   Manually reset it to PENDING in this case
+  "display"   : {
+    "name"    : "Uniclust30",// string Human readable name of the database
+    "version" : "2018_08",   // string Description of the database, usually the version number
+    "path"    : "",          // string (optional) Database base name in the config databases folder
+                             //        will be automatically resolved and thus does not need to be specified
+    "default" : true,        // bool   Should the database be selected by default
+    "order"   : 0            // int    Order in which the databases appear in the frontend 
+    "index"   : "-s 6",      // string (optional)
+                             //   Additional parameters for MMseqs2's createindex module
+                             //     -s FLOAT Decides how many k-mers to store per target in the search database
+                             //              Sensitivity in actual search must by <= than this value (default 5.7)
+                             //   See mmseqs createindex -h for a list of all parameters
+                             //   Multiple parameters should be given as a single string: E.g. "-s 6 -v 0"
+    "search"  : "-s 6"       // string
+                             //   Additonal parameters for MMseqs2's easy-search module
+                             //   Useful parameters:
+                             //     --search-type In nucleotide-nucleotide searches:
+                             //                   2) Use translated protein to translated protein search
+                             //                   3) Use nucleotide to nucleotide search
+                             //     --num-iterations INT values > 1 will call the iterative-profile search
+                             //     -s FLOAT Search sensitivity decides how many k-mers in the prefiltering.
+                             //              Must by <= than the value given to index (default 5.7)
+                             //   See mmseqs easy-search -h for a list of all parameters
+                             //   Multiple parameters should be given as a single string: E.g. "-s 6 -v 0"
+  }
+}
+```
+
+## Rebuilding the Docker Images
 
 If you want to customize the application, you can get docker to build all images locally, instead of fetching them from the registry, by running:
 ``` bash
