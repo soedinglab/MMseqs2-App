@@ -18,17 +18,17 @@ resources/icons/icon.icns resources/icons/icon.ico:
 	./node_modules/.bin/icon-gen -i frontend/assets/marv1-square.svg -o resources/icons/ --icns name=icon --ico name=icon
 
 CURRDIRR := $(shell greadlink -f . 2>/dev/null || readlink -f . 2>/dev/null )
-resources/mac/mmseqs-web-backend:
+resources/mac/mmseqs-web-backend: backend/*.go
 	mkdir -p resources/mac
-	cd backend/ && GOOS=darwin GOARCH=amd64  CGO_ENABLED=0 BINPATH=$(CURRDIRR)/resources/mac/mmseqs-web-backend make all
+	cd backend/ && GOOS=darwin GOARCH=amd64  CGO_ENABLED=0 go build -o $(CURRDIRR)/resources/mac/mmseqs-web-backend
 
-resources/linux/mmseqs-web-backend:
+resources/linux/mmseqs-web-backend: backend/*.go
 	mkdir -p resources/linux
-	cd backend/ && GOOS=linux  GOARCH=amd64  CGO_ENABLED=0 BINPATH=$(CURRDIRR)/resources/linux/mmseqs-web-backend  make all
+	cd backend/ && GOOS=linux  GOARCH=amd64  CGO_ENABLED=0 go build -o $(CURRDIRR)/resources/linux/mmseqs-web-backend
 
-resources/win/mmseqs-web-backend.exe:
+resources/win/mmseqs-web-backend.exe: backend/*.go
 	mkdir -p resources/win
-	cd backend/ && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 BINPATH=$(CURRDIRR)/resources/win/mmseqs-web-backend.exe make all
+	cd backend/ && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o $(CURRDIRR)/resources/win/mmseqs-web-backend.exe
 
 resources/mac/cpu-check:
 	mkdir -p resources/mac
