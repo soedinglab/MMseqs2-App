@@ -7,7 +7,7 @@ services:
       - redis-volume:/var/lib/redis
 
   mmseqs-web-api:
-    image: soedinglab/mmseqs2-app-backend
+    image: "soedinglab/mmseqs2-app-backend:${TAG}"
     command: -server -config /etc/mmseqs-web/config.json
     depends_on:
       - mmseqs-web-redis
@@ -19,7 +19,7 @@ services:
       - ./jobs:/opt/mmseqs-web/jobs
 
   mmseqs-web-worker:
-    image: soedinglab/mmseqs2-app-backend
+    image: "soedinglab/mmseqs2-app-backend:${TAG}"
     command: -worker -config /etc/mmseqs-web/config.json
     depends_on:
       - mmseqs-web-api
@@ -32,7 +32,7 @@ services:
       - /tmp:exec
 
   mmseqs-web-webserver:
-    image: soedinglab/mmseqs2-app-frontend
+    image: "soedinglab/mmseqs2-app-frontend:${TAG}"
     depends_on:
       - mmseqs-web-api
     volumes:
