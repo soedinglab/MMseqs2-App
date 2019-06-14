@@ -17,7 +17,7 @@ const (
 
 type ConfigMailtransport struct {
 	Type      TransportType `json:"type" valid:"required"`
-	Transport interface{}   `json:"transport" valid:"required"`
+	Transport interface{}   `json:"transport"`
 }
 
 func (m *ConfigMailtransport) GetTransport() MailTransport {
