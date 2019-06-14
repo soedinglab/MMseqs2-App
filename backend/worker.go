@@ -70,6 +70,8 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 				config.Paths.Mmseqs,
 				parameters...,
 			)
+			// Make sure MMseqs2's progress bar doesn't break
+			cmd.Env = append(os.Environ(), "TTY=1")
 
 			if config.Verbose {
 				cmd.Stdout = os.Stdout

@@ -284,6 +284,8 @@ func quickExec(command string, verbose bool, params ...string) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
+	// Make sure MMseqs2's progress bar doesn't break
+	cmd.Env = append(os.Environ(), "TTY=1")
 
 	err := cmd.Run()
 	if err != nil {
