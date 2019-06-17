@@ -60,7 +60,8 @@
       "icon": "resources/icons/icon.ico"
     },
     "linux": {
-      "icon": "resources/icons/icon.icns"
+      "icon": "resources/icons/icon.icns",
+      "category": "Science"
     }
   },
   "devDependencies": {
