@@ -47,6 +47,8 @@ const backendBinary = join(binPath, "mmseqs-web-backend" + (platform == "win32" 
 
 app.mmseqsVersion = String(execFileSync(mmseqsBinary, ["version"])).trim()
 fp(8000, "127.0.0.1", function(err, freePort) {
+//var freePort = "9080";
+console.log(err);
 	var server = execFile(backendBinary, 
 		[
 			"-local",
@@ -86,9 +88,9 @@ fp(8000, "127.0.0.1", function(err, freePort) {
 	});
 
 	app.apiEndpoint = `http://127.0.0.1:${freePort}/`
-	app.token = new Buffer(username + ':' + password).toString('base64');
+	app.token = Buffer.from(username + ':' + password).toString('base64');
 
-	let mainWindow;
+	let mainWindow = null;
 	app.newDatabase = function (format, callback) {
 		const suffix = format == "fasta" ? ".fasta" : ".sto";
 		const title = format == "fasta" ? "Select Sequences File" : "Select MSA File";
@@ -133,10 +135,6 @@ fp(8000, "127.0.0.1", function(err, freePort) {
 		
 		mainWindow.loadURL(winURL);
 		
-		mainWindow.on('closed', () => {
-			mainWindow = null;
-		});
-		
 		mainWindow.webContents.on('new-window', (e, url) => {
 			if (url != mainWindow.webContents.getURL()) {
 				e.preventDefault();
@@ -154,7 +152,6 @@ fp(8000, "127.0.0.1", function(err, freePort) {
 	}
 
 	app.on('ready', createWindow);
-
 	app.on('window-all-closed', () => {
 		if (process.platform !== 'darwin') {
 			app.quit();
