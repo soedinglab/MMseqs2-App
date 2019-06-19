@@ -1,9 +1,9 @@
 {
   "name": "mmseqs-app",
   "productName": "MMseqs2 App",
-  "version": "0.0.0",
+  "version": "1.4.0",
   "author": "Milot Mirdita <milot@mirdita.de>",
-  "description": "Frontend for the MMseqs2 search server and app.",
+  "description": "MMseqs2 is a software suite to search and annotate huge sequence sets. We built a graphical interface to make it more useful for interactive data exploration.",
   "repository": "https://github.com/soedinglab/MMseqs2-App",
   "license": "GPL-3.0-or-later",
   "main": "dist/main.js",
@@ -35,7 +35,7 @@
     "extraFiles": [
       {
         "from": "resources/${os}",
-        "to": "Resources/bin"
+        "to": "resources/bin"
       }
     ],
     "dmg": {
