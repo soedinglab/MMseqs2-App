@@ -13,10 +13,6 @@ script:
   - if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then openssl aes-256-cbc -K $encrypted_d5229c4255f2_key -iv $encrypted_d5229c4255f2_iv -in certificate.p12.enc -out certificate.p12 -d; fi
   - if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then export CSC_LINK=./certificate.p12; fi
   - if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then unset CSC_KEY_PASSWORD; unset GH_TOKEN; fi
-  - export GOPATH="${HOME}/go"
-  - export PATH="${GOPATH}/bin:${PATH}"
-  - go get -u github.com/kardianos/govendor
-  - go get -u github.com/intel-go/cpuid
   - npm i
   - npm run electron:build
 
