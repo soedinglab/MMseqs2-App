@@ -72,7 +72,7 @@ func CheckDatabase(basepath string, params ParamsDisplay, config ConfigRoot) err
 			"--remove-tmp-files",
 			"true",
 			"--check-compatible",
-			"true",
+			"1",
 		}
 		parameters = append(parameters, strings.Fields(params.Index)...)
 		err := quickExec(config.Paths.Mmseqs, config.Verbose, parameters...)
@@ -127,7 +127,7 @@ func CheckDatabase(basepath string, params ParamsDisplay, config ConfigRoot) err
 			"--remove-tmp-files",
 			"true",
 			"--check-compatible",
-			"true",
+			"1",
 		}
 		parameters = append(parameters, strings.Fields(params.Index)...)
 		err := quickExec(config.Paths.Mmseqs, verbose, parameters...)

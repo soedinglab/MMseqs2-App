@@ -6,7 +6,7 @@ win: resources/win/mmseqs.bat resources/win/mmseqs-web-backend.exe resources/win
 mac: resources/mac/mmseqs-sse41 resources/mac/mmseqs-avx2 resources/mac/mmseqs-web-backend resources/mac/cpu-check
 linux: resources/linux/mmseqs-sse41 resources/linux/mmseqs-avx2 resources/linux/mmseqs-web-backend resources/linux/cpu-check
 
-mmseqshash := 4d0b74e22adf2bd213d30a6053e0b3650c6fdeea
+mmseqshash := 2b206ea283ff73642009fe8b1758bb83723f45f7
 
 resources/icons/icon.icns resources/icons/icon.ico: frontend/assets/marv1-square.svg
 	mkdir -p resources/icons
@@ -38,23 +38,23 @@ resources/win/cpu-check.exe: cpu-check/*.go cpu-check/go.*
 
 resources/mac/mmseqs-sse41:
 	mkdir -p resources/mac
-	cd resources/mac && wget -nv -O mmseqs.tar.gz https://mmseqs.com/archive/$(mmseqshash)/mmseqs-osx-static_sse41.tar.gz \
+	cd resources/mac && wget -nv -O mmseqs.tar.gz https://mmseqs.com/archive/$(mmseqshash)/mmseqs-osx-sse41.tar.gz \
 		&& tar --strip-components=2 -xf mmseqs.tar.gz mmseqs/bin/mmseqs && mv mmseqs mmseqs-sse41 && rm mmseqs.tar.gz
 
 resources/mac/mmseqs-avx2:
 	mkdir -p resources/mac
-	cd resources/mac && wget -nv -O mmseqs.tar.gz https://mmseqs.com/archive/$(mmseqshash)/mmseqs-osx-static_avx2.tar.gz \
+	cd resources/mac && wget -nv -O mmseqs.tar.gz https://mmseqs.com/archive/$(mmseqshash)/mmseqs-osx-avx2.tar.gz \
 		&& tar --strip-components=2 -xf mmseqs.tar.gz mmseqs/bin/mmseqs && mv mmseqs mmseqs-avx2 && rm mmseqs.tar.gz
 
 resources/linux/mmseqs-sse41:
 	mkdir -p resources/linux
-	cd resources/linux && wget -nv -O mmseqs.tar.gz https://mmseqs.com/archive/$(mmseqshash)/mmseqs-static_sse41.tar.gz \
-		&& tar --strip-components=2 -xf mmseqs.tar.gz mmseqs2/bin/mmseqs && mv mmseqs mmseqs-sse41 && rm mmseqs.tar.gz
+	cd resources/linux && wget -nv -O mmseqs.tar.gz https://mmseqs.com/archive/$(mmseqshash)/mmseqs-linux-sse41.tar.gz \
+		&& tar --strip-components=2 -xf mmseqs.tar.gz mmseqs/bin/mmseqs && mv mmseqs mmseqs-sse41 && rm mmseqs.tar.gz
 
 resources/linux/mmseqs-avx2:
 	mkdir -p resources/linux
-	cd resources/linux && wget -nv -O mmseqs.tar.gz https://mmseqs.com/archive/$(mmseqshash)/mmseqs-static_avx2.tar.gz \
-		&& tar --strip-components=2 -xf mmseqs.tar.gz mmseqs2/bin/mmseqs && mv mmseqs mmseqs-avx2 && rm mmseqs.tar.gz
+	cd resources/linux && wget -nv -O mmseqs.tar.gz https://mmseqs.com/archive/$(mmseqshash)/mmseqs-linux-avx2.tar.gz \
+		&& tar --strip-components=2 -xf mmseqs.tar.gz mmseqs/bin/mmseqs && mv mmseqs mmseqs-avx2 && rm mmseqs.tar.gz
 
 resources/win/mmseqs.bat:
 	mkdir -p resources/win
