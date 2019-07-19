@@ -30,7 +30,7 @@
                     <v-container fill-height grid-list-md>
                         <v-layout row justify-center>
                             <v-flex xs4>
-                                <img style="max-width:100%" src="./assets/marv-error_2x.png" srcset="./assets/marv-error_2x.png 2x, ./assets/marv-error_3x.png 3x" />
+                                <img style="max-width:100%" src="./assets/marv-result_2x.png" srcset="./assets/marv-result_2x.png 2x, ./assets/marv-result_3x.png 3x" />
                             </v-flex>
                             <v-flex xs8>
                                 <h3>No hits found!</h3>
@@ -245,6 +245,7 @@ export default {
             return null;
         },
         fetchData(entry) {
+            this.remove();
             this.ticket = this.$route.params.ticket;
             this.entry = this.$route.params.entry;
             this.$http.get("api/result/" + this.ticket + '/' + this.entry)
@@ -253,9 +254,15 @@ export default {
                     response.json().then((data) => {
                         if (data.alignments == null || data.alignments.length > 0) {
                             var color = colorScale();
+                            var empty = 0;
+                            var total = 0;
                             for (var i in data.results) {
                                 var db = data.results[i].db;
-                                data.results[i].color = color(db);
+                                data.results[i].color = color(db); 
+                                if (data.results[i].alignments == null) {
+                                    empty++;
+                                }
+                                total++;
                                 for (var j in data.results[i].alignments) {
                                     var item = data.results[i].alignments[j];
                                     item.href = this.tryLinkTargetToDB(item.target, db);
@@ -263,13 +270,19 @@ export default {
                                     item.active = false;
                                 }
                             }
-                            this.hits = data;
+                            if (total != 0 && empty/total == 1) {
+                                this.hits = { results: [] };
+                            } else {
+                                this.hits = data;
+                            }
                         } else {
                             this.error = "Failed";
+                            this.hits = [];
                         }
                     });
                 }, () => {
                     this.error = "Failed";
+                    this.hits = [];
                 });
         },
         remove() {
@@ -331,7 +344,7 @@ export default {
                 var color = results[res].color;
                 var alignments = results[res].alignments;
 
-                var features = []
+                var features = [];
                 var cnt = 0;
 
                 var maxScore = 0;
