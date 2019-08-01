@@ -1,6 +1,6 @@
 # MMseqs2 App and Server
 
-[MMseqs2](https://github.com/soedinglab/MMseqs2) is a software suite to search and annotate huge sequence sets. We built a graphical interface to make it more useful for interactive data exploration.
+[MMseqs2](https://github.com/soedinglab/MMseqs2) is a software suite to search and annotate huge sequence sets. We built a graphical interface to make it more useful for interactive data exploration. Check out an live instance [here](https://search.mmseqs.com).
 
 The application runs either:
 * on your workstation as a cross-platform desktop application with the help of the [electron framework](https://github.com/electron/electron)
