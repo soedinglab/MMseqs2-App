@@ -1,0 +1,12 @@
+# https://aka.ms/yaml
+
+trigger:
+  - master
+pool:
+  vmImage: 'macOS-10.14'
+steps:
+  - script: |
+      brew install curl unzip make node go wget git 
+      npm install
+      npm run electron:deps
+      npm run electron:build
