@@ -13,11 +13,13 @@ steps:
       npm install
       npm run electron:deps
   - task: DownloadSecureFile@1
-      inputs:
-        secureFile: certificate.p12 
-   - script:  npm run electron:build
-     env:
-       CSC_LINK: $(DOWNLOADSECUREFILE_SECUREFILEPATH)
-       CSC_KEY_PASSWORD: $(CSC_KEY_PASSWORD)
-       GH_TOKEN: $(GH_TOKEN)
-
+    name: certificate
+    inputs:
+      secureFile: certificate.p12
+  - task: CmdLine@2
+    inputs:
+      script: npm run electron:build
+    env:
+      CSC_LINK: $(certificate.secureFilePath)
+      CSC_KEY_PASSWORD: $(CSC_KEY_PASSWORD)
+      GH_TOKEN: $(GH_TOKEN)
