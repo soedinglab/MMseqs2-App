@@ -9,16 +9,16 @@ steps:
     inputs:
       versionSpec: '12.x'
   - script: |
-      brew install unzip
       npm install
       npm run electron:deps
+      ELECTRON=1 node ./electron/build.js
   - task: DownloadSecureFile@1
     name: certificate
     inputs:
       secureFile: certificate.p12
   - task: CmdLine@2
     inputs:
-      script: npm run electron:build
+      script: ./node_modules/.bin/electron-builder --x64 -mwl
     env:
       CSC_LINK: $(certificate.secureFilePath)
       CSC_KEY_PASSWORD: $(CSC_KEY_PASSWORD)
