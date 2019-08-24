@@ -1,7 +1,13 @@
 # https://aka.ms/yaml
 
 trigger:
-  - master
+  tags:
+    include:
+    - v*
+  branches:
+    include:
+    - master
+
 pool:
   vmImage: 'macOS-10.14'
 steps:
@@ -10,7 +16,7 @@ steps:
       versionSpec: '12.x'
   - script: |
       npm install
-      npm run electron:deps
+      make all -j $(nproc --all)
       ELECTRON=1 node ./electron/build.js
   - task: DownloadSecureFile@1
     name: certificate
