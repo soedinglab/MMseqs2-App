@@ -12,12 +12,14 @@ steps:
       npm install
       npm run electron:deps
       ELECTRON=1 node ./electron/build.js
-  - task: InstallAppleCertificate@2
+  - task: DownloadSecureFile@1
+    name: certificate
     inputs:
-      certSecureFile: certificate.p12
-      certPwd: $(CSC_KEY_PASSWORD)
+      secureFile: certificate.p12
   - task: CmdLine@2
     inputs:
       script: ./node_modules/.bin/electron-builder --x64 -mwl
     env:
+      CSC_LINK: $(certificate.secureFilePath)
+      CSC_KEY_PASSWORD: $(CSC_KEY_PASSWORD)
       GH_TOKEN: $(GH_TOKEN)
