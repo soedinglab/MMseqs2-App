@@ -6,7 +6,7 @@ win: resources/win/mmseqs.bat resources/win/mmseqs-web-backend.exe resources/win
 mac: resources/mac/mmseqs-sse41 resources/mac/mmseqs-avx2 resources/mac/mmseqs-web-backend resources/mac/cpu-check
 linux: resources/linux/mmseqs-sse41 resources/linux/mmseqs-avx2 resources/linux/mmseqs-web-backend resources/linux/cpu-check
 
-mmseqshash := 6d92cd21676ccc36531f2852f7eb747f6389435f
+mmseqshash := d1607bc8acee560772c1b0863e14c475398aa32c
 
 resources/icons/icon.icns resources/icons/icon.ico: frontend/assets/marv1-square.svg
 	mkdir -p resources/icons

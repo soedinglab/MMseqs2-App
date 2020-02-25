@@ -1,5 +1,5 @@
 ARG NAMESPACE=soedinglab/
-ARG VERSION=version-10
+ARG VERSION=version-11
 FROM golang:latest as mmseqs-web-builder
 
 RUN go get -u github.com/kardianos/govendor
