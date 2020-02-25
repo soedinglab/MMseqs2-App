@@ -1,6 +1,6 @@
 const path = require('path');
 const webpack = require('webpack');
-const WebappWebpackPlugin = require('webapp-webpack-plugin');
+const FaviconsWebpackPlugin = require('favicons-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CompressionPlugin = require('compression-webpack-plugin');
 const SriPlugin = require('webpack-subresource-integrity');
@@ -96,7 +96,7 @@ module.exports = (env, argv) => {
             }),
             new VueLoaderPlugin(),
             new VuetifyLoaderPlugin(),
-            !isElectron ? new WebappWebpackPlugin(path.resolve(__dirname, './frontend/assets/marv1.svg')) : new NullPlugin(),
+            !isElectron ? new FaviconsWebpackPlugin(path.resolve(__dirname, './frontend/assets/marv1.svg')) : new NullPlugin(),
             new HtmlWebpackPlugin({
                 template: path.resolve(__dirname, './frontend/index.html')
             }),
