@@ -260,6 +260,9 @@ var FeatureViewer = (function () {
                 .on('mouseenter', expandArrow)
                 .on('mouseleave', collapseArrow)
                 .on('touchstart', toggleArrow)
+                .style("display", function (d) {
+                    if (d.title == "") return "none";
+                })
 
             yAxisSVGgroup
                 .append("rect")
