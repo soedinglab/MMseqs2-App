@@ -116,7 +116,6 @@ T&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&n
 
 <script>
 
-import Queries from './Queries.vue'
 import Panel from './Panel.vue';
 
 require('./lib/d3/d3');
@@ -152,7 +151,7 @@ var m = null;
 
 export default {
     name: 'result',
-    components: { Queries, Panel },
+    components: { Panel },
     data() {
         return {
             ticket: "",
