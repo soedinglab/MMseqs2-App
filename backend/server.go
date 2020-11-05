@@ -268,6 +268,69 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 	}).Methods("POST")
 
+	r.HandleFunc("/ticket/msa", func(w http.ResponseWriter, req *http.Request) {
+		var request JobRequest
+
+		var query string
+		var dbs []string
+		var mode string
+		var email string
+
+		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
+			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			f, _, err := req.FormFile("q")
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(f)
+			query = buf.String()
+			dbs = req.Form["database[]"]
+			mode = req.FormValue("mode")
+			email = req.FormValue("email")
+		} else {
+			err := req.ParseForm()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			query = req.FormValue("q")
+			dbs = req.Form["database[]"]
+			mode = req.FormValue("mode")
+			email = req.FormValue("email")
+		}
+
+		databases, err := Databases(config.Paths.Databases, true)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		request, err = NewMsaJobRequest(query, dbs, databases, mode, config.Paths.Results, email)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		err = json.NewEncoder(w).Encode(result)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}).Methods("POST")
+
 	r.HandleFunc("/ticket/type/{ticket}", func(w http.ResponseWriter, req *http.Request) {
 		ticket, err := jobsystem.GetTicket(Id(mux.Vars(req)["ticket"]))
 		if err != nil {
