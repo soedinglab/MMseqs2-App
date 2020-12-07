@@ -184,9 +184,8 @@ mkdir -p "${BASE}"
 "${MMSEQS}" rmdb "${BASE}/res"
 "${MMSEQS}" rmdb "${BASE}/res_exp"
 "${MMSEQS}" rmdb "${BASE}/res_filt"
-"${MMSEQS}" rmdb "${BASE}/prof_res"
+rm -f "${BASE}/prof_res"*
 rm -rf "${BASE}/tmp"
-rmdir "${BASE}"
 `)
 		file.Close()
 
