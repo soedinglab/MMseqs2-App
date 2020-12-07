@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -133,6 +134,11 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 		jobsystem.SetStatus(request.Id, StatusComplete)
 		return nil
 	case MsaJob:
+		if len(job.Database) != 2 {
+			jobsystem.SetStatus(request.Id, StatusError)
+			return &JobExecutionError{errors.New("Invalid number of databases specifed")}
+		}
+
 		path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
 		file, _ := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
 		defer file.Close()
@@ -142,82 +148,110 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 		defer tw.Close()
 
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
-		for _, database := range job.Database {
-			params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
-			if err != nil {
-				jobsystem.SetStatus(request.Id, StatusError)
-				return &JobExecutionError{err}
-			}
 
-			scriptPath := filepath.Join(resultBase, "msa.sh")
-			file, err := os.Create(scriptPath)
-			if err != nil {
-				jobsystem.SetStatus(request.Id, StatusError)
-				return &JobExecutionError{err}
-			}
-			file.WriteString(`#!/bin/bash -e
+		scriptPath := filepath.Join(resultBase, "msa.sh")
+		file, err := os.Create(scriptPath)
+		if err != nil {
+			jobsystem.SetStatus(request.Id, StatusError)
+			return &JobExecutionError{err}
+		}
+		file.WriteString(`#!/bin/bash -e
 MMSEQS="$1"
 QUERY="$2"
-DB="$3"
+DBBASE="$3"
 BASE="$4"
+DB1="$5"
+DB1_PARAM="$6"
+DB2="$7"
+DB2_PARAM="$8"
 
 mkdir -p "${BASE}"
 "${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb"
-"${MMSEQS}" search "${BASE}/qdb" "${DB}" "${BASE}/res" "${BASE}/tmp" --num-iterations 3 --db-load-mode 2
-"${MMSEQS}" expandaln "${BASE}/qdb" "${DB}_seq" "${BASE}/res" "${DB}_aln" "${BASE}/res_exp"
-"${MMSEQS}" filterresult "${BASE}/qdb" "${DB}_seq" "${BASE}/res_exp" "${BASE}/res_filt" --diff 3000
-"${MMSEQS}" result2msa "${BASE}/qdb" "${DB}_seq" "${BASE}/res_filt" "${BASE}.sto" --filter-msa 0 --msa-format-mode 4
-"${MMSEQS}" convertalis "${BASE}/qdb" "${DB}_seq" "${BASE}/res_filt" "${BASE}.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qseq,qaln,tseq,taln
+"${MMSEQS}" search "${BASE}/qdb" "${DBBASE}/${DB1}" "${BASE}/res" "${BASE}/tmp" --num-iterations 3 --db-load-mode 2 -a
+"${MMSEQS}" expandaln "${BASE}/qdb" "${DBBASE}/${DB1}_seq" "${BASE}/res" "${DBBASE}/${DB1}_aln" "${BASE}/res_exp" --expansion-mode 1
+"${MMSEQS}" filterresult "${BASE}/qdb" "${DBBASE}/${DB1}_seq" "${BASE}/res_exp" "${BASE}/res_filt" --diff 3000
+"${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB1}_seq" "${BASE}/res_filt" "${BASE}/${DB1}.sto" --filter-msa 0 --msa-format-mode 4
+"${MMSEQS}" convertalis "${BASE}/qdb" "${DBBASE}/${DB1}_seq" "${BASE}/res_filt" "${BASE}/${DB1}.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qseq,qaln,tseq,taln
+"${MMSEQS}" result2profile "${BASE}/qdb" "${DBBASE}/${DB1}" "${BASE}/res" "${BASE}/prof_res"
+"${MMSEQS}" rmdb "${BASE}/res"
+"${MMSEQS}" search "${BASE}/prof_res" "${DBBASE}/${DB2}" "${BASE}/res" "${BASE}/tmp" --db-load-mode 2 -a
+"${MMSEQS}" expandaln "${BASE}/prof_res" "${DBBASE}/${DB2}_seq" "${BASE}/res" "${DBBASE}/${DB2}_aln" "${BASE}/res_exp" --expansion-mode 1
+"${MMSEQS}" filterresult "${BASE}/prof_res" "${DBBASE}/${DB2}_seq" "${BASE}/res_exp" "${BASE}/res_filt" --diff 3000
+"${MMSEQS}" result2msa "${BASE}/prof_res" "${DBBASE}/${DB2}_seq" "${BASE}/res_filt" "${BASE}/${DB2}.sto" --filter-msa 0 --msa-format-mode 4
+"${MMSEQS}" convertalis "${BASE}/prof_res" "${DBBASE}/${DB2}_seq" "${BASE}/res_filt" "${BASE}/${DB2}.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qseq,qaln,tseq,taln
 "${MMSEQS}" rmdb "${BASE}/qdb"
 "${MMSEQS}" rmdb "${BASE}/qdb_h"
 "${MMSEQS}" rmdb "${BASE}/res"
 "${MMSEQS}" rmdb "${BASE}/res_exp"
 "${MMSEQS}" rmdb "${BASE}/res_filt"
+"${MMSEQS}" rmdb "${BASE}/prof_res"
 rm -rf "${BASE}/tmp"
 rmdir "${BASE}"
 `)
-			file.Close()
+		file.Close()
 
-			dbResultBase := filepath.Join(resultBase, database)
+		params0, err := ReadParams(filepath.Join(config.Paths.Databases, job.Database[0]+".params"))
+		if err != nil {
+			jobsystem.SetStatus(request.Id, StatusError)
+			return &JobExecutionError{err}
+		}
 
-			parameters := []string{
-				"/bin/sh",
-				scriptPath,
-				config.Paths.Mmseqs,
-				filepath.Join(resultBase, "job.fasta"),
-				filepath.Join(config.Paths.Databases, database),
-				dbResultBase,
+		params1, err := ReadParams(filepath.Join(config.Paths.Databases, job.Database[0]+".params"))
+		if err != nil {
+			jobsystem.SetStatus(request.Id, StatusError)
+			return &JobExecutionError{err}
+		}
+
+		parameters := []string{
+			"/bin/sh",
+			scriptPath,
+			config.Paths.Mmseqs,
+			filepath.Join(resultBase, "job.fasta"),
+			config.Paths.Databases,
+			resultBase,
+			job.Database[0],
+			params0.Display.Search,
+			job.Database[1],
+			params1.Display.Search,
+		}
+
+		cmd, done, err := execCommand(config.Verbose, parameters...)
+		if err != nil {
+			jobsystem.SetStatus(request.Id, StatusError)
+			return &JobExecutionError{err}
+		}
+
+		select {
+		case <-time.After(1 * time.Hour):
+			if err := cmd.Process.Kill(); err != nil {
+				log.Printf("Failed to kill: %s\n", err)
 			}
-			parameters = append(parameters, strings.Fields(params.Display.Search)...)
-
-			cmd, done, err := execCommand(config.Verbose, parameters...)
+			jobsystem.SetStatus(request.Id, StatusError)
+			return &JobTimeoutError{}
+		case err := <-done:
 			if err != nil {
 				jobsystem.SetStatus(request.Id, StatusError)
 				return &JobExecutionError{err}
 			}
 
-			select {
-			case <-time.After(1 * time.Hour):
-				if err := cmd.Process.Kill(); err != nil {
-					log.Printf("Failed to kill: %s\n", err)
-				}
+			if err := addFile(tw, filepath.Join(resultBase, job.Database[0]+".m8")); err != nil {
 				jobsystem.SetStatus(request.Id, StatusError)
-				return &JobTimeoutError{}
-			case err := <-done:
-				if err != nil {
-					jobsystem.SetStatus(request.Id, StatusError)
-					return &JobExecutionError{err}
-				}
+				return &JobExecutionError{err}
+			}
 
-				if err := addFile(tw, dbResultBase+".m8"); err != nil {
-					jobsystem.SetStatus(request.Id, StatusError)
-					return &JobExecutionError{err}
-				}
+			if err := addFile(tw, filepath.Join(resultBase, job.Database[0]+".sto")); err != nil {
+				jobsystem.SetStatus(request.Id, StatusError)
+				return &JobExecutionError{err}
+			}
 
-				if err := addFile(tw, dbResultBase+".sto"); err != nil {
-					jobsystem.SetStatus(request.Id, StatusError)
-					return &JobExecutionError{err}
-				}
+			if err := addFile(tw, filepath.Join(resultBase, job.Database[1]+".m8")); err != nil {
+				jobsystem.SetStatus(request.Id, StatusError)
+				return &JobExecutionError{err}
+			}
+
+			if err := addFile(tw, filepath.Join(resultBase, job.Database[1]+".sto")); err != nil {
+				jobsystem.SetStatus(request.Id, StatusError)
+				return &JobExecutionError{err}
 			}
 		}
 
