@@ -98,7 +98,9 @@ func main() {
 		}()
 
 		loop := make(chan bool)
-		go worker(&jobsystem, config)
+		for i := 0; i < config.Local.Workers; i++ {
+			go worker(&jobsystem, config)
+		}
 		go server(&jobsystem, config)
 		<-loop
 		break

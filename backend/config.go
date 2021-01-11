@@ -47,6 +47,10 @@ var defaultFileContent = []byte(`{
         "password" : "",
         "index"    : 0
     },
+    // options for local/single-binary server
+    "local" : {
+        "workers"  : 1
+    },
     "mail" : {
         "mailer" : {
             // three types available:
@@ -120,6 +124,10 @@ type ConfigRedis struct {
 	DbIndex  int    `json:"index"`
 }
 
+type ConfigLocal struct {
+	Workers int `json:"workers"`
+}
+
 type ConfigMailTemplate struct {
 	Subject string `json:"subject"`
 	Body    string `json:"body"`
@@ -154,6 +162,7 @@ type ConfigRoot struct {
 	Server  ConfigServer `json:"server" valid:"required"`
 	Paths   ConfigPaths  `json:"paths" valid:"required"`
 	Redis   ConfigRedis  `json:"redis" valid:"optional"`
+	Local   ConfigLocal  `json:"local" valid:"optional"`
 	Mail    ConfigMail   `json:"mail" valid:"optional"`
 	Verbose bool         `json:"verbose"`
 }
