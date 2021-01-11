@@ -500,14 +500,14 @@ func (j *LocalJobSystem) MultiStatus(ids []string) ([]Ticket, error) {
 }
 
 func (j *LocalJobSystem) Dequeue() (*Ticket, error) {
-	// pop the tail of the queue
+	j.mutex.Lock()
+	defer j.mutex.Unlock()
 	if len(j.Queue) == 0 {
 		return nil, nil
 	}
-	j.mutex.Lock()
+	// pop the tail of the queue
 	id := j.Queue[len(j.Queue)-1]
 	j.Queue = j.Queue[:len(j.Queue)-1]
-	j.mutex.Unlock()
 	ticket, err := j.GetTicket(id)
 	if err != nil {
 		return nil, err
