@@ -37,7 +37,7 @@ var defaultFileContent = []byte(`{
         "databases"    : "~databases",
         // path to job results and scratch directory, has to be shared between server/workers
         "results"      : "~jobs",
-        // path ot mmseqs binary
+        // path to mmseqs binary
         "mmseqs"       : "~mmseqs"
     },
     // connection details for redis database, not used in -local mode
