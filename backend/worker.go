@@ -319,11 +319,11 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 			jobsystem.SetStatus(ticket.Id, StatusError)
 			continue
 		}
-		defer f.Close()
 
 		var job JobRequest
 		dec := json.NewDecoder(bufio.NewReader(f))
 		err = dec.Decode(&job)
+		f.Close()
 		if err != nil {
 			jobsystem.SetStatus(ticket.Id, StatusError)
 			continue

@@ -61,9 +61,8 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 	for _, item := range matches {
 		name := strings.TrimSuffix(item, ".index")
 		reader.Make(dbpaths(name))
-		defer reader.Delete()
-
 		data := strings.NewReader(reader.Data(entry))
+		reader.Delete()
 		var results []AlignmentEntry
 		r := AlignmentEntry{}
 		parser := NewTsvParser(data, &r)
@@ -132,14 +131,11 @@ func ResultArchive(w io.Writer, id Id, base string) error {
 	for _, item := range matches {
 		name := strings.TrimSuffix(item, ".index")
 
-		reader.Make(dbpaths(name))
-		defer reader.Delete()
-
 		result, err := os.Create(name + ".m8")
 		if err != nil {
 			return err
 		}
-
+		reader.Make(dbpaths(name))
 		for i := int64(0); i < reader.Size(); i++ {
 			data := strings.NewReader(reader.Data(i))
 			scanner := bufio.NewScanner(data)
@@ -150,6 +146,7 @@ func ResultArchive(w io.Writer, id Id, base string) error {
 				result.Write([]byte{'\n'})
 			}
 		}
+		reader.Delete()
 		result.Close()
 		if err := addFile(tw, name+".m8"); err != nil {
 			return err
