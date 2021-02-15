@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sync"
@@ -336,7 +337,12 @@ func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 	for _, file := range files {
 		job, err := getJobRequestFromFile(file)
 		if err != nil {
-			return jobsystem, err
+			dir := path.Dir(file)
+			// refuse deleting paths like /bin etc
+			if len(dir) > 4 {
+				os.RemoveAll(dir)
+			}
+			continue
 		}
 		if job.Status == StatusPending {
 			jobsystem.Queue = append(jobsystem.Queue, job.Id)
