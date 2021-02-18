@@ -184,7 +184,7 @@ rm -rf "${BASE}/tmp"
 			return &JobExecutionError{err}
 		}
 
-		params1, err := ReadParams(filepath.Join(config.Paths.Databases, job.Database[0]+".params"))
+		params1, err := ReadParams(filepath.Join(config.Paths.Databases, job.Database[1]+".params"))
 		if err != nil {
 			return &JobExecutionError{err}
 		}
