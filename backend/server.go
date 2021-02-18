@@ -148,8 +148,17 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
-				f.WriteString(data)
-				f.Close()
+				_, err = f.WriteString(data)
+				if err != nil {
+					f.Close()
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				err = f.Close()
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
 			}
 			params := Params{
 				StatusPending,

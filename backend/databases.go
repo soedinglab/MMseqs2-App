@@ -167,9 +167,14 @@ func SaveParams(file string, params Params) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	err = json.NewEncoder(f).Encode(params)
+	if err != nil {
+		f.Close()
+		return err
+	}
+
+	err = f.Close()
 	if err != nil {
 		return err
 	}

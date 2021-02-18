@@ -98,7 +98,6 @@ func addFile(tw *tar.Writer, path string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
 
 	if stat, err := file.Stat(); err == nil {
 		header := new(tar.Header)
@@ -107,20 +106,38 @@ func addFile(tw *tar.Writer, path string) error {
 		header.Mode = int64(stat.Mode())
 		header.ModTime = stat.ModTime()
 		if err := tw.WriteHeader(header); err != nil {
+			file.Close()
 			return err
 		}
 		if _, err := io.Copy(tw, file); err != nil {
+			file.Close()
 			return err
 		}
 	}
+
+	err = file.Close()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func ResultArchive(w io.Writer, id Id, base string) error {
+func ResultArchive(w io.Writer, id Id, base string) (err error) {
 	gw := gzip.NewWriter(w)
-	defer gw.Close()
+	defer func() {
+		cerr := gw.Close()
+		if err == nil {
+			err = cerr
+		}
+	}()
 	tw := tar.NewWriter(gw)
-	defer tw.Close()
+	defer func() {
+		cerr := tw.Close()
+		if err == nil {
+			err = cerr
+		}
+	}()
 
 	matches, err := filepath.Glob(filepath.Join(base, "alis_*.index"))
 	if err != nil {
@@ -147,8 +164,11 @@ func ResultArchive(w io.Writer, id Id, base string) error {
 			}
 		}
 		reader.Delete()
-		result.Close()
-		if err := addFile(tw, name+".m8"); err != nil {
+		err = result.Close()
+		if err != nil {
+			return err
+		}
+		if err = addFile(tw, name+".m8"); err != nil {
 			return err
 		}
 	}

@@ -63,16 +63,13 @@ func execCommand(verbose bool, parameters ...string) (*exec.Cmd, chan error, err
 	return cmd, done, err
 }
 
-func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
-	jobsystem.SetStatus(request.Id, StatusRunning)
-
+func RunJob(request JobRequest, config ConfigRoot) (err error) {
 	switch job := request.Job.(type) {
 	case SearchJob:
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
 		for _, database := range job.Database {
 			params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
 			if err != nil {
-				jobsystem.SetStatus(request.Id, StatusError)
 				return &JobExecutionError{err}
 			}
 			parameters := []string{
@@ -98,7 +95,6 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 
 			cmd, done, err := execCommand(config.Verbose, parameters...)
 			if err != nil {
-				jobsystem.SetStatus(request.Id, StatusError)
 				return &JobExecutionError{err}
 			}
 
@@ -107,11 +103,9 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 				if err := cmd.Process.Kill(); err != nil {
 					log.Printf("Failed to kill: %s\n", err)
 				}
-				jobsystem.SetStatus(request.Id, StatusError)
 				return &JobTimeoutError{}
 			case err := <-done:
 				if err != nil {
-					jobsystem.SetStatus(request.Id, StatusError)
 					return &JobExecutionError{err}
 				}
 			}
@@ -123,7 +117,11 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 			return &JobExecutionError{err}
 		}
 		err = ResultArchive(file, request.Id, path)
-		file.Close()
+		if err != nil {
+			file.Close()
+			return &JobExecutionError{err}
+		}
+		err = file.Close()
 		if err != nil {
 			return &JobExecutionError{err}
 		}
@@ -131,31 +129,20 @@ func RunJob(request JobRequest, jobsystem JobSystem, config ConfigRoot) error {
 		if config.Verbose {
 			log.Print("Process finished gracefully without error")
 		}
-		jobsystem.SetStatus(request.Id, StatusComplete)
 		return nil
 	case MsaJob:
 		if len(job.Database) != 2 {
-			jobsystem.SetStatus(request.Id, StatusError)
 			return &JobExecutionError{errors.New("Invalid number of databases specifed")}
 		}
-
-		path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
-		file, _ := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
-		defer file.Close()
-		gw := gzip.NewWriter(file)
-		defer gw.Close()
-		tw := tar.NewWriter(gw)
-		defer tw.Close()
 
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
 
 		scriptPath := filepath.Join(resultBase, "msa.sh")
-		file, err := os.Create(scriptPath)
+		script, err := os.Create(scriptPath)
 		if err != nil {
-			jobsystem.SetStatus(request.Id, StatusError)
 			return &JobExecutionError{err}
 		}
-		file.WriteString(`#!/bin/bash -e
+		script.WriteString(`#!/bin/bash -e
 MMSEQS="$1"
 QUERY="$2"
 DBBASE="$3"
@@ -187,17 +174,18 @@ mkdir -p "${BASE}"
 rm -f "${BASE}/prof_res"*
 rm -rf "${BASE}/tmp"
 `)
-		file.Close()
+		err = script.Close()
+		if err != nil {
+			return &JobExecutionError{err}
+		}
 
 		params0, err := ReadParams(filepath.Join(config.Paths.Databases, job.Database[0]+".params"))
 		if err != nil {
-			jobsystem.SetStatus(request.Id, StatusError)
 			return &JobExecutionError{err}
 		}
 
 		params1, err := ReadParams(filepath.Join(config.Paths.Databases, job.Database[0]+".params"))
 		if err != nil {
-			jobsystem.SetStatus(request.Id, StatusError)
 			return &JobExecutionError{err}
 		}
 
@@ -216,7 +204,6 @@ rm -rf "${BASE}/tmp"
 
 		cmd, done, err := execCommand(config.Verbose, parameters...)
 		if err != nil {
-			jobsystem.SetStatus(request.Id, StatusError)
 			return &JobExecutionError{err}
 		}
 
@@ -225,31 +212,63 @@ rm -rf "${BASE}/tmp"
 			if err := cmd.Process.Kill(); err != nil {
 				log.Printf("Failed to kill: %s\n", err)
 			}
-			jobsystem.SetStatus(request.Id, StatusError)
 			return &JobTimeoutError{}
 		case err := <-done:
 			if err != nil {
-				jobsystem.SetStatus(request.Id, StatusError)
 				return &JobExecutionError{err}
 			}
 
-			if err := addFile(tw, filepath.Join(resultBase, job.Database[0]+".m8")); err != nil {
-				jobsystem.SetStatus(request.Id, StatusError)
+			path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+			file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
+			if err != nil {
 				return &JobExecutionError{err}
 			}
 
-			if err := addFile(tw, filepath.Join(resultBase, job.Database[0]+".sto")); err != nil {
-				jobsystem.SetStatus(request.Id, StatusError)
+			err = func() (err error) {
+				gw := gzip.NewWriter(file)
+				defer func() {
+					cerr := gw.Close()
+					if err == nil {
+						err = cerr
+					}
+				}()
+				tw := tar.NewWriter(gw)
+				defer func() {
+					cerr := tw.Close()
+					if err == nil {
+						err = cerr
+					}
+				}()
+
+				if err := addFile(tw, filepath.Join(resultBase, job.Database[0]+".m8")); err != nil {
+					return err
+				}
+
+				if err := addFile(tw, filepath.Join(resultBase, job.Database[0]+".sto")); err != nil {
+					return err
+				}
+
+				if err := addFile(tw, filepath.Join(resultBase, job.Database[1]+".m8")); err != nil {
+					return err
+				}
+
+				if err := addFile(tw, filepath.Join(resultBase, job.Database[1]+".sto")); err != nil {
+					return err
+				}
+				return nil
+			}()
+
+			if err != nil {
+				file.Close()
 				return &JobExecutionError{err}
 			}
 
-			if err := addFile(tw, filepath.Join(resultBase, job.Database[1]+".m8")); err != nil {
-				jobsystem.SetStatus(request.Id, StatusError)
+			if err = file.Sync(); err != nil {
+				file.Close()
 				return &JobExecutionError{err}
 			}
 
-			if err := addFile(tw, filepath.Join(resultBase, job.Database[1]+".sto")); err != nil {
-				jobsystem.SetStatus(request.Id, StatusError)
+			if err = file.Close(); err != nil {
 				return &JobExecutionError{err}
 			}
 		}
@@ -257,35 +276,34 @@ rm -rf "${BASE}/tmp"
 		if config.Verbose {
 			log.Print("Process finished gracefully without error")
 		}
-		jobsystem.SetStatus(request.Id, StatusComplete)
 		return nil
 	case IndexJob:
 		file := filepath.Join(config.Paths.Databases, job.Path)
 		params, err := ReadParams(file + ".params")
 		if err != nil {
-			jobsystem.SetStatus(request.Id, StatusError)
 			return &JobExecutionError{err}
 		}
 		params.Status = StatusRunning
-		SaveParams(file+".params", params)
-		jobsystem.SetStatus(request.Id, StatusRunning)
+		err = SaveParams(file+".params", params)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
 		err = CheckDatabase(file, params.Display, config)
 		if err != nil {
 			params.Status = StatusError
 			SaveParams(file+".params", params)
-			jobsystem.SetStatus(request.Id, StatusError)
 			return &JobExecutionError{err}
-		} else {
-			if config.Verbose {
-				log.Println("Process finished gracefully without error")
-			}
-			params.Status = StatusComplete
-			SaveParams(file+".params", params)
-			jobsystem.SetStatus(request.Id, StatusComplete)
-			return nil
 		}
+		if config.Verbose {
+			log.Println("Process finished gracefully without error")
+		}
+		params.Status = StatusComplete
+		err = SaveParams(file+".params", params)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		return nil
 	default:
-		jobsystem.SetStatus(request.Id, StatusError)
 		return &JobInvalidError{}
 	}
 }
@@ -317,6 +335,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 		f, err := os.Open(jobFile)
 		if err != nil {
 			jobsystem.SetStatus(ticket.Id, StatusError)
+			log.Print(err)
 			continue
 		}
 
@@ -326,12 +345,15 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 		f.Close()
 		if err != nil {
 			jobsystem.SetStatus(ticket.Id, StatusError)
+			log.Print(err)
 			continue
 		}
 
-		err = RunJob(job, jobsystem, config)
+		jobsystem.SetStatus(ticket.Id, StatusRunning)
+		err = RunJob(job, config)
 		switch err.(type) {
 		case *JobExecutionError, *JobInvalidError:
+			jobsystem.SetStatus(ticket.Id, StatusError)
 			log.Print(err)
 			if job.Email != "" {
 				err = mailer.Send(Mail{
@@ -345,6 +367,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 				}
 			}
 		case *JobTimeoutError:
+			jobsystem.SetStatus(ticket.Id, StatusError)
 			log.Print(err)
 			if job.Email != "" {
 				err = mailer.Send(Mail{
@@ -358,6 +381,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 				}
 			}
 		case nil:
+			jobsystem.SetStatus(ticket.Id, StatusComplete)
 			if job.Email != "" {
 				err = mailer.Send(Mail{
 					config.Mail.Sender,

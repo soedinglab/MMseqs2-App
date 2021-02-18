@@ -212,9 +212,12 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 		if err != nil {
 			return err
 		}
-		defer file.Close()
-
 		err = json.NewEncoder(file).Encode(request)
+		if err != nil {
+			file.Close()
+			return err
+		}
+		err = file.Close()
 		if err != nil {
 			return err
 		}
@@ -364,11 +367,11 @@ func setStatusInJobFile(file string, status Status) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	var job JobRequest
 	err = DecodeJsonAndValidate(f, &job)
 	if err != nil {
+		f.Close()
 		return err
 	}
 
@@ -378,9 +381,19 @@ func setStatusInJobFile(file string, status Status) error {
 	f.Seek(0, os.SEEK_SET)
 	err = json.NewEncoder(f).Encode(job)
 	if err != nil {
+		f.Close()
 		return err
 	}
-	f.Sync()
+	err = f.Sync()
+	if err != nil {
+		f.Close()
+		return err
+	}
+
+	err = f.Close()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -471,9 +484,14 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	if err != nil {
 		return Ticket{id, StatusError}, err
 	}
-	defer file.Close()
 
 	err = json.NewEncoder(file).Encode(request)
+	if err != nil {
+		file.Close()
+		return Ticket{id, StatusError}, err
+	}
+
+	err = file.Close()
 	if err != nil {
 		return Ticket{id, StatusError}, err
 	}
