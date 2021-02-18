@@ -351,47 +351,28 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 
 		jobsystem.SetStatus(ticket.Id, StatusRunning)
 		err = RunJob(job, config)
+		mailTemplate := config.Mail.Templates.Success
 		switch err.(type) {
 		case *JobExecutionError, *JobInvalidError:
 			jobsystem.SetStatus(ticket.Id, StatusError)
 			log.Print(err)
-			if job.Email != "" {
-				err = mailer.Send(Mail{
-					config.Mail.Sender,
-					job.Email,
-					fmt.Sprintf(config.Mail.Templates.Error.Subject, string(ticket.Id)),
-					fmt.Sprintf(config.Mail.Templates.Error.Body, string(ticket.Id)),
-				})
-				if err != nil {
-					log.Print(err)
-				}
-			}
+			mailTemplate = config.Mail.Templates.Error
 		case *JobTimeoutError:
 			jobsystem.SetStatus(ticket.Id, StatusError)
 			log.Print(err)
-			if job.Email != "" {
-				err = mailer.Send(Mail{
-					config.Mail.Sender,
-					job.Email,
-					fmt.Sprintf(config.Mail.Templates.Timeout.Subject, string(ticket.Id)),
-					fmt.Sprintf(config.Mail.Templates.Timeout.Body, string(ticket.Id)),
-				})
-				if err != nil {
-					log.Print(err)
-				}
-			}
+			mailTemplate = config.Mail.Templates.Timeout
 		case nil:
 			jobsystem.SetStatus(ticket.Id, StatusComplete)
-			if job.Email != "" {
-				err = mailer.Send(Mail{
-					config.Mail.Sender,
-					job.Email,
-					fmt.Sprintf(config.Mail.Templates.Success.Subject, string(ticket.Id)),
-					fmt.Sprintf(config.Mail.Templates.Success.Body, string(ticket.Id)),
-				})
-				if err != nil {
-					fmt.Printf("%s", err)
-				}
+		}
+		if job.Email != "" {
+			err = mailer.Send(Mail{
+				config.Mail.Sender,
+				job.Email,
+				fmt.Sprintf(mailTemplate.Subject, string(ticket.Id)),
+				fmt.Sprintf(mailTemplate.Body, string(ticket.Id)),
+			})
+			if err != nil {
+				log.Print(err)
 			}
 		}
 	}
