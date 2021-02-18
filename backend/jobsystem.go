@@ -339,7 +339,9 @@ func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 
 	for _, file := range files {
 		job, err := getJobRequestFromFile(file)
-		if err != nil {
+		if err != nil ||
+			job.Status == StatusError ||
+			job.Status == StatusUnknown {
 			dir := path.Dir(file)
 			// refuse deleting paths like /bin etc
 			if len(dir) > 4 {
@@ -347,12 +349,17 @@ func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 			}
 			continue
 		}
+
+		if job.Status == StatusRunning {
+			job.Status = StatusPending
+			jobsystem.SetStatus(job.Id, StatusPending)
+		}
+
 		if job.Status == StatusPending {
 			jobsystem.Queue = append(jobsystem.Queue, job.Id)
 		}
 
 		jobsystem.Lookup[job.Id] = job.Status
-		// TODO handle StatusRunning here
 	}
 
 	return jobsystem, nil
