@@ -12,7 +12,7 @@ import (
 	"strconv"
 
 	"github.com/DisposaBoy/JsonConfigReader"
-	"github.com/asaskevich/govalidator"
+	"github.com/go-playground/validator/v10"
 )
 
 // Parser has information for parser
@@ -134,7 +134,8 @@ func DecodeJsonAndValidate(r io.Reader, target interface{}) error {
 		return err
 	}
 
-	if result, err := govalidator.ValidateStruct(target); err != nil || result != true {
+	validate := validator.New()
+	if err := validate.Struct(target); err != nil {
 		return err
 	}
 
