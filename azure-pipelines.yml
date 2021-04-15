@@ -9,11 +9,11 @@ trigger:
     - master
 
 pool:
-  vmImage: 'macOS-10.14'
+  vmImage: 'macOS-10.15'
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: '12.x'
+      versionSpec: '15.x'
   - script: |
       npm install
       make all -j $(nproc --all)
