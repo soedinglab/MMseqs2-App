@@ -1,8 +1,7 @@
 ARG NAMESPACE=soedinglab/
-ARG VERSION=version-11
+ARG VERSION=version-13
 FROM golang:latest as mmseqs-web-builder
 
-RUN go get -u github.com/kardianos/govendor
 WORKDIR /opt/mmseqs-web
 ADD backend .
 RUN go build -o mmseqs-backend
