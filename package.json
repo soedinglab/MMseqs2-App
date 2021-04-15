@@ -24,7 +24,7 @@
     "api": "raml2html --template docs/api/theme/index.nunjucks docs/api/api.raml > docs/api.html"
   },
   "configuration": {
-    "apiEndpoint": "https://search.mmseqs.com"
+    "apiEndpoint": "/"
   },
   "build": {
     "productName": "MMseqs2 Search",
