@@ -2,9 +2,9 @@
 
 all: build/icon.icns build/icon.ico win mac linux
 
-win: resources/win/mmseqs.bat resources/win/mmseqs-web-backend.exe resources/win/cpu-check.exe
+win: resources/win/mmseqs.bat resources/win/mmseqs-web-backend.exe
 mac: resources/mac/mmseqs resources/mac/arm64/mmseqs-web-backend resources/mac/x64/mmseqs-web-backend
-linux: resources/linux/mmseqs-sse41 resources/linux/mmseqs-avx2 resources/linux/mmseqs-web-backend resources/linux/cpu-check
+linux: resources/linux/mmseqs-sse41 resources/linux/mmseqs-avx2 resources/linux/mmseqs-web-backend
 
 mmseqshash := 19064f27c8d86fcdcd3daad60f6db70f6360f30b
 
@@ -29,14 +29,6 @@ resources/linux/mmseqs-web-backend: backend/*.go backend/go.*
 resources/win/mmseqs-web-backend.exe: backend/*.go backend/go.*
 	mkdir -p resources/win
 	cd backend/ && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o ../resources/win/mmseqs-web-backend.exe
-
-resources/linux/cpu-check: cpu-check/*.go cpu-check/go.*
-	mkdir -p resources/linux
-	cd cpu-check/ && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../resources/linux/cpu-check
-
-resources/win/cpu-check.exe: cpu-check/*.go cpu-check/go.*
-	mkdir -p resources/win
-	cd cpu-check/ && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ../resources/win/cpu-check.exe
 
 resources/mac/mmseqs:
 	mkdir -p resources/mac

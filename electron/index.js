@@ -36,18 +36,12 @@ const binPath = (process.env.NODE_ENV === 'production') ?
 	join(process.resourcesPath, 'bin') :
 	join(appRootDir.get(), 'resources', mapPlatform(platform));
 
-
-var simd = "universal";
-if (platform !== 'darwin') {
-	simd = String(execFileSync(join(binPath, "cpu-check" + (platform == "win32" ? ".exe" : "")))).trim()
-}
 app.os = {
 	arch: os.arch(),
-	platform: platform,
-	simd: simd
+	platform: platform
 }
 
-const mmseqsBinary = join(binPath, "mmseqs" + (platform == "win32" || platform == "darwin" ? "" : ("-" + app.os.simd)) + (platform == "win32" ? ".bat" : ""));
+const mmseqsBinary = join(binPath, "mmseqs" + (platform == "win32" ? ".bat" : ""));
 const backendBinary = join(binPath, "mmseqs-web-backend" + (platform == "win32" ? ".exe" : ""));
 
 app.mmseqsVersion = String(execFileSync(mmseqsBinary, ["version"])).trim()

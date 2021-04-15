@@ -46,7 +46,7 @@ Vue.use({
             Vue.prototype.saveResult = remote.app.saveResult;
             Vue.prototype.newDatabase = remote.app.newDatabase;
         } else {
-            Vue.prototype.__OS__ = { arch: 'web', platform: 'web', simd: 'web' };
+            Vue.prototype.__OS__ = { arch: 'web', platform: 'web' };
             Vue.prototype.mmseqsVersion = "web";
         }
     }

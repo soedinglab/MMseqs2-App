@@ -74,18 +74,10 @@
                     <v-card color="blue-grey darken-2" class="white--text">
                         <v-card-title primary-title>
                             <div>
-                                <div class="headline"><span v-if="!supportedPlatform">Uns</span><span v-else>S</span>upported Platform</div>
-                                <span class="grey--text">Current Platform: {{ __OS__.platform }} - {{ __OS__.arch }} - {{ __OS__.simd }}</span>
-                            </div>
-                        </v-card-title>
-                    </v-card>
-                </v-flex>
-                <v-flex xs12>
-                    <v-card color="blue-grey darken-2" class="white--text">
-                        <v-card-title primary-title>
-                            <div>
                                 <div class="headline">MMseqs2 Version</div>
                                 <span class="grey--text" style="word-break: break-all;">{{ mmseqsVersion }}</span>
+                                <br>
+                                <span class="grey--text">Current Platform: {{ __OS__.platform }} - {{ __OS__.arch }}</span>
                             </div>
                         </v-card-title>
                     </v-card>
@@ -118,38 +110,6 @@ export default {
     },
     watch: {
         $route: "fetchData"
-    },
-    computed: {
-        supportedPlatform() {
-            if (!__ELECTRON__) {
-                return true;
-            }
-            
-            var isSupportedOS = false;
-            switch(this.__OS__.platform) {
-                case "win32":
-                case "darwin":
-                case "linux":
-                isSupportedOS = true;
-                break;
-                default:
-                isSupportedOS = false;
-            }
-
-            const isSupportedArch = this.__OS__.arch == "x64";
-
-            var isSupportedSIMD = false;
-            switch(this.__OS__.simd) {
-                case "avx2":
-                case "sse41":
-                isSupportedSIMD = true;
-                break;
-                default:
-                isSupportedSIMD = false;
-            }
-            
-            return isSupportedOS && isSupportedArch && isSupportedSIMD;
-        }
     },
     methods: {
         fetchData() {
