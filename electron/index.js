@@ -96,7 +96,12 @@ console.log(err);
 		const title = format == "fasta" ? "Select Sequences File" : "Select MSA File";
 		dialog.showOpenDialog(mainWindow, {
 			title: title,
-		}, (selection) => {
+		}).then((result) => {
+			if (result.canceled) {
+				callback("");
+				return;
+			}
+			const selection = result.filePaths;
 			if (Array.isArray(selection) && selection.length == 1) {
 				const path = selection[0];
 				const parsed = parse(path);
@@ -117,12 +122,12 @@ console.log(err);
 		dialog.showSaveDialog(mainWindow, {
 			title: "Save Result",
 			defaultPath: `${homePath}/mmseqs_results_${id}.tar.gz`
-		}, (destination) => {
-			if (!destination) {
+		}).then((result) => {
+			if (!result.filePath) {
 				return;
 			}
 			const resultPath = `${userData}/jobs/${id}/mmseqs_results_${id}.tar.gz`;
-			createReadStream(resultPath).pipe(createWriteStream(destination));
+			createReadStream(resultPath).pipe(createWriteStream(result.filePath));
 		});
 	}
 
@@ -132,6 +137,7 @@ console.log(err);
 			useContentSize: true,
 			width: 1000,
 			webPreferences: {
+				enableRemoteModule: true,
 				nodeIntegration: true,
 			}
 		});

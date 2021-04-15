@@ -80,7 +80,7 @@
                                 <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</td>
                                 <td data-label="Target">
                                     <a :id="item.id" class="anchor"></a>
-                                    <a :href="item.href" target="_blank">{{item.target}}</a>
+                                    <a :href="item.href" target="_blank" rel="noopener">{{item.target}}</a>
                                 </td>
                                 <td data-label="Sequence Identity">{{ item.seqId }}</td>
                                 <td data-label="Score">{{ item.score }}</td>

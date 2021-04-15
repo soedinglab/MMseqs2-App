@@ -38,7 +38,7 @@ function isSameOrigin(a, b) {
     return false;
 }
 
-const webContents = win => win.webContents || win.getWebContents();
+const webContents = win => win.webContents;
 
 function create(win, opts) {
     webContents(win).on('context-menu', (e, props) => {
