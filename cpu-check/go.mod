@@ -1,4 +1,4 @@
-module "https://github.com/soedinglab/MMseqs2-App/cpu-check"
+module github.com/soedinglab/MMseqs2-App/cpu-check
 
 go 1.12
 

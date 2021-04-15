@@ -11,6 +11,9 @@ trigger:
 pool:
   vmImage: 'macOS-10.15'
 steps:
+  - task: GoTool@0
+    inputs:
+      version: '1.16.3'
   - task: NodeTool@0
     inputs:
       versionSpec: '15.x'
