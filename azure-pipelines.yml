@@ -19,7 +19,7 @@ steps:
       versionSpec: '15.x'
   - script: |
       npm install
-      make all -j $(nproc --all)
+      make all -j $(nproc --all 2>/dev/null || sysctl -n hw.ncpu)
       ELECTRON=1 node ./electron/build.js
   - task: DownloadSecureFile@1
     name: certificate

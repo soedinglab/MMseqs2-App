@@ -38,18 +38,15 @@ resources/win/cpu-check.exe: cpu-check/*.go cpu-check/go.*
 
 resources/mac/mmseqs:
 	mkdir -p resources/mac
-	cd resources/mac && wget -nv -O mmseqs.tar.gz https://mmseqs.com/archive/$(mmseqshash)/mmseqs-osx-universal.tar.gz \
-		&& tar --strip-components=2 -xf mmseqs.tar.gz mmseqs/bin/mmseqs && rm mmseqs.tar.gz
+	wget -nv -q -O - https://mmseqs.com/archive/$(mmseqshash)/mmseqs-osx-universal.tar.gz | tar -xOf - mmseqs/bin/mmseqs > resources/mac/mmseqs
 
 resources/linux/mmseqs-sse41:
 	mkdir -p resources/linux
-	cd resources/linux && wget -nv -O mmseqs.tar.gz https://mmseqs.com/archive/$(mmseqshash)/mmseqs-linux-sse41.tar.gz \
-		&& tar --strip-components=2 -xf mmseqs.tar.gz mmseqs/bin/mmseqs && mv mmseqs mmseqs-sse41 && rm mmseqs.tar.gz
+	wget -nv -q -O - https://mmseqs.com/archive/$(mmseqshash)/mmseqs-linux-sse41.tar.gz | tar -xOf - mmseqs/bin/mmseqs > resources/linux/mmseqs-sse41
 
 resources/linux/mmseqs-avx2:
 	mkdir -p resources/linux
-	cd resources/linux && wget -nv -O mmseqs.tar.gz https://mmseqs.com/archive/$(mmseqshash)/mmseqs-linux-avx2.tar.gz \
-		&& tar --strip-components=2 -xf mmseqs.tar.gz mmseqs/bin/mmseqs && mv mmseqs mmseqs-avx2 && rm mmseqs.tar.gz
+	wget -nv -q -O - https://mmseqs.com/archive/$(mmseqshash)/mmseqs-linux-avx2.tar.gz | tar -xOf - mmseqs/bin/mmseqs > resources/linux/mmseqs-avx2
 
 resources/win/mmseqs.bat:
 	mkdir -p resources/win
