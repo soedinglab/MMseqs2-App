@@ -101,6 +101,8 @@
 <span class="line">
 Q&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}</span>
 <br>
+{{'&nbsp;'.repeat(3+(alignment.alnLength+"").length)}}<span class="residues">{{formatAlnDiff(alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen), alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen))}}</span>
+<br>
 T&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span>
 </span><br>
                                 </span>
@@ -146,6 +148,9 @@ function mapPosToSeq(seq, targetPos) {
 
     return counter;
 }
+
+// cat blosum62.out  | grep -v '^#' | awk 'NR == 1 { for (i = 1; i <= NF; i++) { r[i] = $i; } next; } { col = $1; for (i = 2; i <= NF; i++) { print col,r[i-1],$i; } }' | awk '$3 > 0 && $1 != $2 { printf "\""$1""$2"\",";}'
+const blosum62Sim = [ "AG","AS","DE","DN","ED","EK","EQ","FL","FM","FW","FY","GA","HN","HQ","HY","IL","IM","IV","KE","KQ","KR","LF","LI","LM","LV","MF","MI","ML","MV","ND","NH","NQ","NS","QE","QH","QK","QN","QR","RK","RQ","SA","SN","ST","TS","VI","VL","VM","WF","WY","YF","YH","YW"];
 
 var m = null;
 
@@ -220,6 +225,23 @@ export default {
         },
         padNumber(nr, n, str){
             return Array(n-String(nr).length+1).join(str||'0')+nr;
+        },
+        formatAlnDiff(seq1, seq2) {
+            if (seq1.length != seq2.length) {
+                return "";
+            }
+
+            var res = ""
+            for (var i = 0; i < seq1.length; i++) {
+                if (seq1[i] == seq2[i]) {
+                    res += seq1[i];
+                } else if (blosum62Sim.indexOf(seq1[i] + seq2[i]) != -1) {
+                    res += '+';
+                } else {
+                    res += ' ';
+                }
+            }
+            return res;
         },
         showAlignment(item, event) {
             if (this.alignment == item) {
