@@ -27,7 +27,7 @@ steps:
       secureFile: certificate.p12
   - task: CmdLine@2
     inputs:
-      script: ./node_modules/.bin/electron-builder --x64 -mwl
+      script: ./node_modules/.bin/electron-builder -mwl
     env:
       CSC_LINK: $(certificate.secureFilePath)
       CSC_KEY_PASSWORD: $(CSC_KEY_PASSWORD)

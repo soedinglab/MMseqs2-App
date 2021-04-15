@@ -4,7 +4,7 @@ import { default as fp } from 'find-free-port';
 import { default as os } from 'os';
 import { createReadStream, createWriteStream } from 'fs';
 import { randomBytes } from 'crypto';
-import { parse, join, dirname } from 'path';
+import { parse, join } from 'path';
 import appRootDir from 'app-root-dir';
 import defaultMenu from './menu';
 import contextMenu from './context'
@@ -34,7 +34,7 @@ const mapPlatform = (platform) => {
 }
 const binPath = (process.env.NODE_ENV === 'production') ?
 	join(process.resourcesPath, 'bin') :
-	join(appRootDir.get(), 'resources', mapPlatform(platform));
+	join(appRootDir.get(), 'resources', mapPlatform(platform), os.arch());
 
 app.os = {
 	arch: os.arch(),
@@ -132,16 +132,24 @@ console.log(err);
 
 	function createWindow() {
 		mainWindow = new BrowserWindow({
+			backgroundColor: "#FAFAFA",
 			height: 615,
 			useContentSize: true,
 			width: 1000,
+			show: false,
+			// titleBarStyle: "hidden",
 			webPreferences: {
 				enableRemoteModule: true,
 				nodeIntegration: true,
+				contextIsolation: false
 			}
 		});
 		
 		mainWindow.loadURL(winURL);
+
+		mainWindow.once('ready-to-show', () => {
+			mainWindow.show()
+		});
 		
 		mainWindow.webContents.on('new-window', (e, url) => {
 			if (url != mainWindow.webContents.getURL()) {

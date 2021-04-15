@@ -9,8 +9,8 @@
   "main": "dist/main.js",
   "scripts": {
     "electron:deps": "make all",
-    "electron:build": "npm run electron:deps && cross-env ELECTRON=1 node ./electron/build.js && electron-builder --x64 -mwl",
-    "electron:dir": "npm run electron:deps && cross-env ELECTRON=1 node ./electron/build.js && electron-builder --x64 --dir",
+    "electron:build": "npm run electron:deps && cross-env ELECTRON=1 node ./electron/build.js && electron-builder -mwl",
+    "electron:dir": "npm run electron:deps && cross-env ELECTRON=1 node ./electron/build.js && electron-builder --dir",
     "electron:dev": "cross-env ELECTRON=1 node ./electron/dev-runner.js",
     "electron:pack": "npm run electron:main && cross-env ELECTRON=1 npm run frontend",
     "electron:main": "webpack -p --progress --hide-modules --colors --config ./webpack.electron.config.js",
@@ -37,10 +37,6 @@
     ],
     "extraFiles": [
       {
-        "from": "resources/${os}",
-        "to": "resources/bin"
-      },
-      {
         "from": "resources/${os}/${arch}",
         "to": "resources/bin"
       }
@@ -60,8 +56,30 @@
         }
       ]
     },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [ "x64" ]
+        }
+      ]
+    },
     "linux": {
-      "category": "Science"
+      "category": "Science",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [ "x64", "arm64" ]
+        }
+      ]
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [ "universal" ]
+        }
+      ]
     }
   },
   "devDependencies": {
