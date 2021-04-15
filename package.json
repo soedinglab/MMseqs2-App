@@ -60,14 +60,7 @@
         }
       ]
     },
-    "mac": {
-      "icon": "resources/icons/icon.icns"
-    },
-    "win": {
-      "icon": "resources/icons/icon.ico"
-    },
     "linux": {
-      "icon": "resources/icons/icon.icns",
       "category": "Science"
     }
   },

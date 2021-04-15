@@ -1,6 +1,6 @@
 .PHONY: all clean
 
-all: resources/icons/icon.icns resources/icons/icon.ico win mac linux
+all: build/icon.icns build/icon.ico win mac linux
 
 win: resources/win/mmseqs.bat resources/win/mmseqs-web-backend.exe resources/win/cpu-check.exe
 mac: resources/mac/mmseqs resources/mac/arm64/mmseqs-web-backend resources/mac/x64/mmseqs-web-backend
@@ -8,9 +8,11 @@ linux: resources/linux/mmseqs-sse41 resources/linux/mmseqs-avx2 resources/linux/
 
 mmseqshash := 19064f27c8d86fcdcd3daad60f6db70f6360f30b
 
-resources/icons/icon.icns resources/icons/icon.ico: frontend/assets/marv1-square.svg
-	mkdir -p resources/icons
-	./node_modules/.bin/icon-gen -i frontend/assets/marv1-square.svg -o resources/icons/ --icns name=icon --ico name=icon
+build/icon.icns build/icon.ico: ICONS.intermediate ;
+.INTERMEDIATE: ICONS.intermediate
+ICONS.intermediate: frontend/assets/marv1-square.svg
+	mkdir -p build
+	./node_modules/.bin/icon-gen -i frontend/assets/marv1-square.svg -o build --icns --icns-name icon --ico --ico-name icon
 
 resources/mac/x64/mmseqs-web-backend: backend/*.go backend/go.*
 	mkdir -p resources/mac/x64
@@ -55,5 +57,5 @@ resources/win/mmseqs.bat:
 	chmod -R +x resources/win/mmseqs.bat resources/win/bin/*
 
 clean:
-	@rm -f resources/icons/icon.icns resources/icons/icon.ico
+	@rm -f build/icon.icns build/icon.ico
 	@rm -rf resources/mac/* resources/linux/* resources/win/*
