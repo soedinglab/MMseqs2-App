@@ -80,6 +80,10 @@
           "arch": [ "universal" ]
         }
       ]
+    },
+    "publish": {
+      "provider": "github",
+      "releaseType": "release"
     }
   },
   "devDependencies": {
