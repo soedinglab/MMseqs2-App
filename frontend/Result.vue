@@ -268,6 +268,8 @@ export default {
                 return 'https://www.uniprot.org/uniprot/' + target;
             } else if (res.startsWith("eggnog_")) {
                 return 'http://eggnogdb.embl.de/#/app/results?target_nogs=' + target;
+            } else if (res.startsWith("cdd")) {
+                return 'https://www.ncbi.nlm.nih.gov/Structure/cdd/cddsrv.cgi?uid=' + target;
             }
             return null;
         },
