@@ -225,11 +225,11 @@ export default {
                         this.dberror = false;
                         this.databases = data.databases;
 
-                        const dbs = this.databases.filter((element) => { return element.default == true; });
-                        const paths = this.databases.map((db) => { return db.path; });
-                        if (this.database === null) {
+                        if (this.database === null || this.database.length == 0) {
+                            const dbs = this.databases.filter((element) => { return element.default == true; });
                             this.database = dbs.map((db) => { return db.path; });
                         } else {
+                            const paths = this.databases.map((db) => { return db.path; });
                             this.database = this.database.filter((elem) => {
                                 return paths.includes(elem);
                             });
