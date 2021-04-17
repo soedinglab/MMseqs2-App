@@ -456,6 +456,8 @@ a.anchor {
     border-left: 5px solid black;
     vertical-align: top;
     line-height: 3.5;
+    position: relative;
+    background-clip: padding-box;
 }
 
 tbody:hover td[rowspan], tbody tr:hover {
@@ -500,6 +502,7 @@ td, th {
 .target {
     word-break: break-word;
     height: 100% !important;
+    white-space: normal !important;
     min-height: 48px;
 }
 .hits {
@@ -554,6 +557,7 @@ justify-content: flex-end;
 text-align: right;
 border-bottom: 1px solid #eee;
 align-items: center;
+white-space: nowrap;
 }
 tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
 content: attr(data-label);
@@ -562,6 +566,7 @@ margin-right: auto;
 padding-right: 0.5em;
 text-align: left;
 width: 100%;
+word-break: keep-all;
 }
 
 }

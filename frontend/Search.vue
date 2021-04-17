@@ -326,8 +326,13 @@ export default {
 <style>
 .query-panel .actions {
     flex: 0;
-    max-height: 48px;
     padding-top: 7px;
+}
+
+@media screen and (min-width: 961px) {
+.query-panel .actions {
+    max-height: 48px;
+}
 }
 
 .marv-bg .input-group__input {
