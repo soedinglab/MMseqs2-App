@@ -84,6 +84,8 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				"--db-output",
 				"--db-load-mode",
 				"2",
+				"--write-lookup",
+				"1",
 				"--format-output",
 				"query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln",
 			}
