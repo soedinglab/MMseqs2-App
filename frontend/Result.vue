@@ -65,8 +65,14 @@
                     <table class="v-table" slot="content" style="position:relative">
                         <thead>
                             <tr>
-                                <th>Database</th>
-                                <th>Target</th>
+                                <th class="wide-1">Database</th>
+                                <th class="wide-2">
+                                    Target
+                                    <v-tooltip open-delay="300" top>
+                                        <v-icon slot="activator" style="font-size: 16px; float: right;">help_outline</v-icon>
+                                        <span>Tripple click to select whole cell (for very long identifiers)</span>
+                                    </v-tooltip>
+                                </th>
                                 <th>Sequence Id.</th>
                                 <th>Score</th>
                                 <th>E-Value</th>
@@ -78,7 +84,7 @@
                         <tbody v-for="entry in hits.results" :key="entry.db">
                             <tr v-for="(item, index) in entry.alignments" :key="item.target" :class="['hit', { 'active' : item.active }]">
                                 <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</td>
-                                <td data-label="Target">
+                                <td class="target" data-label="Target">
                                     <a :id="item.id" class="anchor"></a>
                                     <a :href="item.href" target="_blank" rel="noopener">{{item.target}}</a>
                                 </td>
@@ -471,9 +477,34 @@ td, th {
     background: #f9f9f9;
 }
 
+@media screen and (min-width: 961px) {
+.v-table {
+    table-layout: fixed;
+}
+.v-table th.wide-1 {
+    width: 18%;
+}
+.v-table th.wide-2 {
+    width: 22%;
+}
+.target {
+    overflow: hidden;
+    word-break: keep-all;
+    text-overflow: ellipsis;
+}
+}
+
 @media screen and (max-width: 960px) {
+.target {
+    word-break: break-word;
+    height: 100% !important;
+    min-height: 48px;
+}
 .hits {
     min-width: 300px;
+}
+tbody td a {
+    min-width: 100px;
 }
 
 thead {
@@ -520,6 +551,7 @@ width: auto;
 justify-content: flex-end;
 text-align: right;
 border-bottom: 1px solid #eee;
+align-items: center;
 }
 tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
 content: attr(data-label);
@@ -527,6 +559,7 @@ font-weight: 600;
 margin-right: auto;
 padding-right: 0.5em;
 text-align: left;
+width: 100%;
 }
 
 }

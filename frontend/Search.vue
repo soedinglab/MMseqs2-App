@@ -326,6 +326,8 @@ export default {
 <style>
 .query-panel .actions {
     flex: 0;
+    max-height: 48px;
+    padding-top: 7px;
 }
 
 .marv-bg .input-group__input {
@@ -343,6 +345,7 @@ export default {
 .search-component .v-text-field {
     margin-top: 0px;
     padding-top: 0px;
+    margin-bottom: 8px;
 }
 
 .v-textarea.marv-bg textarea {
@@ -362,4 +365,10 @@ code {
 .tooltip label {
     pointer-events: all;
 }
+
+.marv-bg .v-input__control, .marv-bg .v-input__slot, .marv-bg .v-text-field__slot {
+    flex: 1;
+    align-self: stretch;
+}
+
 </style>
