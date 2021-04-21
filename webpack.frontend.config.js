@@ -63,7 +63,8 @@ module.exports = (env, argv) => {
                     test: /\.(png|jpe?g|gif|svg|ttf|woff2?|eot)(\?.*)?$/,
                     loader: 'file-loader',
                     options: {
-                        name: isElectron ? '[name].[ext]' : '[name].[hash:7].[ext]'
+                        name: isElectron ? '[name].[ext]' : '[name].[hash:7].[ext]',
+                        esModule: false
                     }
                 },
                 {
