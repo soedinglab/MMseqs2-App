@@ -3,7 +3,7 @@ const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const FaviconsWebpackPlugin = require('favicons-webpack-plugin');
 const CompressionPlugin = require('compression-webpack-plugin');
-const SriPlugin = require('webpack-subresource-integrity');
+const { SubresourceIntegrityPlugin } = require('webpack-subresource-integrity');
 const VueLoaderPlugin = require('vue-loader/lib/plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const VuetifyLoaderPlugin = require('vuetify-loader/lib/plugin');
@@ -23,8 +23,8 @@ module.exports = (env, argv) => {
         output: {
             path: path.resolve(__dirname, './dist'),
             publicPath: isElectron ? '' : '/',
-            filename: isElectron ? 'renderer.js' : 'build.[hash:7].js',
-            libraryTarget: isElectron ? 'commonjs2' : 'var',
+            filename: isElectron ? 'renderer.js' : 'build.[contenthash:8].js',
+            libraryTarget: 'commonjs2',
             crossOriginLoading: 'anonymous',
         },
         module: {
@@ -63,7 +63,7 @@ module.exports = (env, argv) => {
                     test: /\.(png|jpe?g|gif|svg|ttf|woff2?|eot)(\?.*)?$/,
                     loader: 'file-loader',
                     options: {
-                        name: isElectron ? '[name].[ext]' : '[name].[hash:7].[ext]',
+                        name: isElectron ? '[name].[ext]' : '[name].[contenthash:8].[ext]',
                         esModule: false
                     }
                 },
@@ -102,9 +102,9 @@ module.exports = (env, argv) => {
                 template: path.resolve(__dirname, './frontend/index.html')
             }),
             new MiniCssExtractPlugin({
-                filename: isElectron ? 'style.css' : 'style.[hash:7].css',
+                filename: isElectron ? 'style.css' : 'style.[contenthash:8].css',
             }),
-            new SriPlugin({
+            new SubresourceIntegrityPlugin({
                 enabled: isProduction && !isElectron,
                 hashFuncNames: ['sha256', 'sha384']
             }),
@@ -115,7 +115,7 @@ module.exports = (env, argv) => {
             !isProduction && isElectron ?
                 new webpack.HotModuleReplacementPlugin() : new NullPlugin(),
         ],
-        devtool: isProduction ? '#source-map' : '#eval-source-map'
+        devtool: isProduction ? 'source-map' : 'eval-source-map'
     }
 
     if (!isProduction && !isElectron) {

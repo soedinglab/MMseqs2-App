@@ -11,7 +11,7 @@ module.exports = (env, argv) => {
             path: path.resolve(__dirname, 'dist'),
             publicPath: '/',
             filename: 'result.js',
-            libraryTarget: 'var',
+            libraryTarget: 'commonjs2',
             crossOriginLoading: 'anonymous',
         },
         module: {
@@ -49,7 +49,7 @@ module.exports = (env, argv) => {
 
             }),
         ],
-        devtool: isProduction ? false : '#eval-source-map'
+        devtool: isProduction ? false : 'eval-source-map'
     }
 
     return exports;

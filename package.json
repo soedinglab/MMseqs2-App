@@ -94,7 +94,7 @@
     "@babel/runtime": "^7.13.17",
     "app-root-dir": "^1.0.2",
     "babel-loader": "^8.2.2",
-    "compression-webpack-plugin": "^6.1.1",
+    "compression-webpack-plugin": "^7.1.2",
     "cross-env": "^7.0.3",
     "css-loader": "^5.2.4",
     "del": "^6.0.0",
@@ -103,10 +103,10 @@
     "electron-builder": "^22.10.5",
     "electron-debug": "^3.2.0",
     "electron-devtools-installer": "^3.2.0",
-    "favicons-webpack-plugin": "^4.2.0",
+    "favicons-webpack-plugin": "^5.0.2",
     "file-loader": "^6.2.0",
     "find-free-port": "=1.2.0",
-    "html-webpack-plugin": "^4.5.2",
+    "html-webpack-plugin": "^5.3.1",
     "icon-gen": "^2.1.0",
     "material-design-icons": "^3.0.1",
     "mini-css-extract-plugin": "^1.5.0",
@@ -114,7 +114,7 @@
     "raml2html": "^7.8.0",
     "style-loader": "^2.0.0",
     "stylus": "^0.54.8",
-    "stylus-loader": "^4.3.3",
+    "stylus-loader": "^5.0.0",
     "svg2png": "^4.1.1",
     "url-loader": "^4.1.1",
     "vue": "^2.6.12",
@@ -127,10 +127,10 @@
     "vuedraggable": "^2.24.3",
     "vuetify": "^1.5.24",
     "vuetify-loader": "^1.7.2",
-    "webpack": "^4.46.0",
+    "webpack": "^5.35.0",
     "webpack-cli": "^4.6.0",
     "webpack-dev-server": "^3.11.2",
     "webpack-hot-middleware": "^2.25.0",
-    "webpack-subresource-integrity": "^1.5.2"
+    "webpack-subresource-integrity": "^5.0.0-alpha.5"
   }
 }

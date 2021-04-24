@@ -36,26 +36,27 @@ function logStats (proc, data) {
   console.log(log)
 }
 
+let rendererCompiler = null
 function startRenderer () {
   return new Promise((resolve, reject) => {
     rendererConfig.entry = [path.join(__dirname, 'dev-client')].concat(rendererConfig.entry)
 
-    const compiler = webpack(rendererConfig)
-    hotMiddleware = webpackHotMiddleware(compiler, { 
+    rendererCompiler = webpack(rendererConfig)
+    hotMiddleware = webpackHotMiddleware(rendererCompiler, {
       log: false, 
       heartbeat: 2500 
     })
 
-    compiler.hooks.compilation.tap('html-webpack-plugin-after-emit', () => {
+    rendererCompiler.hooks.compilation.tap('html-webpack-plugin-after-emit', () => {
         hotMiddleware.publish({ action: 'reload' })
     })
 
-    compiler.hooks.done.tap('done', stats => {
+    rendererCompiler.hooks.done.tap('done', stats => {
       logStats('Renderer', stats)
     })
 
     const server = new WebpackDevServer(
-      compiler,
+      rendererCompiler,
       {
         contentBase: path.join(__dirname, '../'),
         quiet: true,
@@ -72,18 +73,19 @@ function startRenderer () {
   })
 }
 
+let mainCompiler = null
 function startMain () {
   return new Promise((resolve, reject) => {
     mainConfig.entry.main = [path.join(__dirname, './index.dev.js')].concat(mainConfig.entry.main)
 
-    const compiler = webpack(mainConfig)
+    mainCompiler = webpack(mainConfig)
 
-    compiler.hooks.watchRun.tapAsync('watch-run', (compilation, done) => {
+    mainCompiler.hooks.watchRun.tapAsync('watch-run', (compilation, done) => {
       hotMiddleware.publish({ action: 'compiling' })
       done()
     })
 
-    compiler.watch({}, (err, stats) => {
+    mainCompiler.watch({}, (err, stats) => {
       if (err) {
         console.log(err)
         return
@@ -118,7 +120,15 @@ function startElectron () {
   })
 
   electronProcess.on('close', () => {
-    if (!manualRestart) process.exit()
+    if (!manualRestart) {
+      if (rendererCompiler != null && 'close' in rendererCompiler) {
+        rendererCompiler.close()
+      }
+      if (mainCompiler != null && 'close' in mainCompiler) {
+        mainCompiler.close()
+      }
+      process.exit()
+    }
   })
 }
 
