@@ -17,11 +17,11 @@ module.exports = (env, argv) => {
     const isProduction = argv.mode === 'production';
 
     var exports = {
-        entry: path.resolve(__dirname, './frontend/main.js'),
+        entry: path.resolve(__dirname, './main.js'),
         target: isElectron ? 'electron-renderer' : 'web',
         mode: argv.mode,
         output: {
-            path: path.resolve(__dirname, './dist'),
+            path: path.resolve(__dirname, '../dist'),
             publicPath: isElectron ? '' : '/',
             filename: isElectron ? 'renderer.js' : 'build.[contenthash:8].js',
             crossOriginLoading: 'anonymous',
@@ -40,8 +40,8 @@ module.exports = (env, argv) => {
                             object: 'data'
                         },
                         include: [
-                            path.resolve(__dirname, './frontend'),
-                            path.resolve(__dirname, './node_modules/vuetify/src'),
+                            path.resolve(__dirname),
+                            path.resolve(__dirname, '../node_modules/vuetify/src'),
                         ]
                     }
                 },
@@ -49,13 +49,13 @@ module.exports = (env, argv) => {
                     test: /\.js$/,
                     loader: 'babel-loader',
                     include: [
-                        path.resolve(__dirname, './frontend'),
-                        path.resolve(__dirname, './node_modules/vuetify/src'),
-                        path.resolve(__dirname, './node_modules/vue-localstorage/src'),
-                        path.resolve(__dirname, './node_modules/vue-resource'),
+                        path.resolve(__dirname),
+                        path.resolve(__dirname, '../node_modules/vuetify/src'),
+                        path.resolve(__dirname, '../node_modules/vue-localstorage/src'),
+                        path.resolve(__dirname, '../node_modules/vue-resource'),
                     ],
                     exclude: [
-                        path.resolve(__dirname, './frontend/lib/d3'),
+                        path.resolve(__dirname, './lib/d3'),
                     ]
                 },
                 {
@@ -88,7 +88,7 @@ module.exports = (env, argv) => {
         },
         plugins: [
             new webpack.DefinePlugin({
-                __CONFIG__: JSON.stringify(require('./package.json').configuration),
+                __CONFIG__: JSON.stringify(require('../package.json').configuration),
                 __ELECTRON__: isElectron,
                 'process.env': {
                     NODE_ENV: JSON.stringify(argv.mode)
@@ -96,9 +96,9 @@ module.exports = (env, argv) => {
             }),
             new VueLoaderPlugin(),
             new VuetifyLoaderPlugin(),
-            !isElectron ? new FaviconsWebpackPlugin(path.resolve(__dirname, './frontend/assets/marv1.svg')) : new NullPlugin(),
+            !isElectron ? new FaviconsWebpackPlugin(path.resolve(__dirname, './assets/marv1.svg')) : new NullPlugin(),
             new HtmlWebpackPlugin({
-                template: path.resolve(__dirname, './frontend/index.html')
+                template: path.resolve(__dirname, './index.html')
             }),
             isProduction ?
                 new MiniCssExtractPlugin({

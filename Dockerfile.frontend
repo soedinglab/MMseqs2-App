@@ -9,7 +9,6 @@ ENV PYTHONIOENCODING=utf8
 RUN npm install
 
 ADD frontend frontend
-ADD webpack.frontend.config.js .
 ADD .babelrc .
 
 RUN npm run frontend

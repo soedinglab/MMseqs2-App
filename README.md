@@ -6,7 +6,7 @@ The application runs either:
 * on your workstation as a cross-platform desktop application with the help of the [electron framework](https://github.com/electron/electron)
 * on your server through docker-compose, where it can make your sequence or profile databases easily accessible over the web
 
-<p align="center"><img src="https://raw.githubusercontent.com/soedinglab/mmseqs2-app/master/mmseqs2app_logo.png" height="256" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/soedinglab/mmseqs2-app/master/frontend/assets/marv-search_1x.png" height="256" /></p>
 
 ## Desktop App
 

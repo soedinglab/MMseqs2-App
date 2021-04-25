@@ -4,11 +4,11 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 module.exports = (env, argv) => {
     const isProduction = argv.mode === 'production';
     var exports = {
-        entry: path.resolve(__dirname, 'frontend/result.js'),
+        entry: path.resolve(__dirname, 'result.js'),
         target: 'web',
         mode: argv.mode,
         output: {
-            path: path.resolve(__dirname, 'dist'),
+            path: path.resolve(__dirname, '../dist'),
             publicPath: '/',
             filename: 'result.js',
             crossOriginLoading: 'anonymous',
@@ -19,10 +19,10 @@ module.exports = (env, argv) => {
                     test: /\.js$/,
                     loader: 'babel-loader',
                     include: [
-                        path.resolve(__dirname, 'frontend'),
+                        path.resolve(__dirname),
                     ],
                     exclude: [
-                        path.resolve(__dirname, 'frontend/lib/d3'),
+                        path.resolve(__dirname, 'lib/d3'),
                     ]
                 },
                 {
@@ -43,7 +43,7 @@ module.exports = (env, argv) => {
             new HtmlWebpackPlugin({
                 inject: false,
                 cache: false,
-                template: 'frontend/result.ejs',
+                template: path.resolve(__dirname, 'result.ejs'),
                 filename: 'index.html',
 
             }),
