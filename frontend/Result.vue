@@ -1,6 +1,6 @@
 <template>
     <v-container grid-list-md fluid pa-2>
-        <v-layout row wrap>
+        <v-layout wrap>
             <v-flex xs12>
             <panel>
                 <template slot="header">
@@ -15,7 +15,7 @@
 
                 <div slot="desc" v-if="resultState == 'PENDING'">
                     <v-container fill-height grid-list-md>
-                        <v-layout row justify-center>
+                        <v-layout justify-center>
                             <v-flex xs4>
                                 <img style="max-width:100%" src="./assets/marv-search_2x.png" srcset="./assets/marv-search_2x.png 2x, ./assets/marv-search_3x.png 3x" />
                             </v-flex>
@@ -28,7 +28,7 @@
                 </div>
                 <div slot="desc" v-else-if="resultState == 'EMPTY'">
                     <v-container fill-height grid-list-md>
-                        <v-layout row justify-center>
+                        <v-layout justify-center>
                             <v-flex xs4>
                                 <img style="max-width:100%" src="./assets/marv-result_2x.png" srcset="./assets/marv-result_2x.png 2x, ./assets/marv-result_3x.png 3x" />
                             </v-flex>
@@ -41,7 +41,7 @@
                 </div>
                 <div slot="desc" v-else-if="resultState != 'RESULT'">
                     <v-container fill-height grid-list-md>
-                        <v-layout row justify-center>
+                        <v-layout justify-center>
                             <v-flex xs4>
                                 <img style="max-width:100%" src="./assets/marv-error_2x.png" srcset="./assets/marv-error_2x.png 2x, ./assets/marv-error_3x.png 3x" />
                             </v-flex>
@@ -62,14 +62,16 @@
             </v-flex>
             <v-flex xs12 v-if="hits">
                 <panel>
-                    <table class="v-table" slot="content" style="position:relative">
+                    <table class="v-table result-table" slot="content" style="position:relative">
                         <thead>
                             <tr>
                                 <th class="wide-1">Database</th>
                                 <th class="wide-2">
                                     Target
                                     <v-tooltip open-delay="300" top>
-                                        <v-icon slot="activator" style="font-size: 16px; float: right;">help_outline</v-icon>
+                                        <template v-slot:activator="{ on }">
+                                            <v-icon v-on="on" style="font-size: 16px; float: right;">mdi-help-circle-outline</v-icon>
+                                        </template>
                                         <span>Tripple click to select whole cell (for very long identifiers)</span>
                                     </v-tooltip>
                                 </th>
@@ -82,7 +84,7 @@
                             </tr>
                         </thead>
                         <tbody v-for="entry in hits.results" :key="entry.db">
-                            <tr v-for="(item, index) in entry.alignments" :key="item.target" :class="['hit', { 'active' : item.active }]">
+                            <tr v-for="(item, index) in entry.alignments" :key="item.target + index" :class="['hit', { 'active' : item.active }]">
                                 <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</td>
                                 <td class="target" data-label="Target">
                                     <a :id="item.id" class="anchor"></a>
@@ -94,13 +96,13 @@
                                 <td data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
                                 <td data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
                                 <td>
-                                    <v-btn @click="showAlignment(item, $event)" flat :outline="alignment && item.target == alignment.target" icon>
-                                        <v-icon>clear_all</v-icon>
+                                    <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
+                                        <v-icon>mdi-notification-clear-all</v-icon>
                                     </v-btn>
                                 </td>
                             </tr>
                         </tbody>
-                        <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
+                        <panel v-if="alignment != null" class="alignment monospace" :style="'top: ' + alnBoxOffset + 'px'">
                             <div class="alignment-wrapper1" slot="content">
                                 <div class="alignment-wrapper2">
                                 <span v-for="i in Math.max(1, (alignment.alnLength / lineLen)|0)" :key="i">
@@ -433,19 +435,12 @@ export default {
 };
 </script>
 
-<style>
+<style lang="scss">
 @font-face {
 font-family: InconsolataClustal;
 src: url(assets/InconsolataClustal2.woff2),
      url(assets/InconsolataClustal2.eot),
      url(assets/InconsolataClustal2.woff);
-}
-
-a.anchor {
-    display: block;
-    position: relative;
-    top: -125px;
-    visibility: hidden;
 }
 
 .hide {
@@ -460,160 +455,177 @@ a.anchor {
     background-clip: padding-box;
 }
 
-tbody:hover td[rowspan], tbody tr:hover {
-   background: #eee;
+.result-table {
+    a.anchor {
+        display: block;
+        position: relative;
+        top: -125px;
+        visibility: hidden;
+    }
+
+    a:not([href]) {
+        color: #333;
+        &:not([href]):hover {
+            text-decoration: none;
+        }
+    }
+
+    td, th {
+        padding: 0 6px;
+        text-align: left;
+    }
+
+    .hit.active {
+        background: #f9f9f9;
+    }
+
+    tbody:hover td[rowspan], tbody tr:hover {
+        background: #eee;
+    }
 }
 
-a:not([href]) {
-    color: #333;
-}
 
-a:not([href]):hover {
-    text-decoration: none;
-}
+.theme--dark {
+    .result-table {
+        a:not([href])  {
+            color: #eee;
+        }
 
-td, th {
-    padding: 0 6px;
-    text-align: left;
-}
+        .hit.active {
+            background: #333;
+        }
 
-.hit.active {
-    background: #f9f9f9;
+        tbody:hover td[rowspan], tbody tr:hover {
+            background: #333;
+        }
+    }
 }
 
 @media screen and (min-width: 961px) {
-.v-table {
-    table-layout: fixed;
-}
-.v-table th.wide-1 {
-    width: 18%;
-}
-.v-table th.wide-2 {
-    width: 22%;
-}
-.target {
-    overflow: hidden;
-    word-break: keep-all;
-    text-overflow: ellipsis;
-}
+    .result-table {
+        table-layout: fixed;
+        border-collapse: collapse;
+        width: 100%;
+        th.wide-1 {
+            width: 18%;
+        }
+        th.wide-2 {
+            width: 22% !important;
+        }
+        .target {
+            overflow: hidden;
+            word-break: keep-all;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
 }
 
 @media screen and (max-width: 960px) {
-.target {
-    word-break: break-word;
-    height: 100% !important;
-    white-space: normal !important;
-    min-height: 48px;
-}
-.hits {
-    min-width: 300px;
-}
-tbody td a {
-    min-width: 100px;
-}
+    .result-table {
+        .target {
+            word-break: break-word;
+            height: 100% !important;
+            white-space: normal !important;
+            min-height: 48px;
+        }
 
-thead {
-display: none;
-}
+        .hits {
+            min-width: 300px;
+        }
 
-tfoot th {
-border: 0;
-display: inherit;
-}
+        tbody td a {
+            min-width: 100px;
+        }
 
-tr {
-box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.1);
-max-width: 100%;
-position: relative;
-display: block;
-margin: 0.25em;
-}
+        thead {
+            display: none;
+        }
 
-tr td {
-border: 0;
-display: inherit;
-}
+        tfoot th {
+            border: 0;
+            display: inherit;
+        }
 
-tr td:last-child {
-border-bottom: 0;
-}
-tr:not(:last-child) {
-margin-bottom: 1rem;
-}
-tr:not(.is-selected) {
-background: inherit;
-}
-tr:not(.is-selected):hover {
-background-color: inherit;
-}
-tr.detail {
-margin-top: -1rem;
-}
+        tr {
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.1);
+            max-width: 100%;
+            position: relative;
+            display: block;
+            margin: 0.25em;
+        }
 
-tr:not(.detail):not(.is-empty):not(.table-footer) td {
-display: flex;
-width: auto;
-justify-content: flex-end;
-text-align: right;
-border-bottom: 1px solid #eee;
-align-items: center;
-white-space: nowrap;
-}
-tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
-content: attr(data-label);
-font-weight: 600;
-margin-right: auto;
-padding-right: 0.5em;
-text-align: left;
-width: 100%;
-word-break: keep-all;
-}
+        tr td {
+            border: 0;
+            display: inherit;
+        }
 
+        tr td:last-child {
+            border-bottom: 0;
+        }
+        tr:not(:last-child) {
+            margin-bottom: 1rem;
+        }
+        tr:not(.is-selected) {
+            background: inherit;
+        }
+        tr:not(.is-selected):hover {
+            background-color: inherit;
+        }
+        tr.detail {
+            margin-top: -1rem;
+        }
+
+        tr:not(.detail):not(.is-empty):not(.table-footer) td {
+            display: flex;
+            width: auto;
+            justify-content: flex-end;
+            text-align: right;
+            border-bottom: 1px solid #eee;
+            align-items: center;
+            white-space: nowrap;
+        }
+        tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
+            content: attr(data-label);
+            font-weight: 600;
+            margin-right: auto;
+            padding-right: 0.5em;
+            text-align: left;
+            width: 100%;
+            word-break: keep-all;
+        }
+    }
 }
 
 .alignment {
-position:absolute;
-left:4px;
-right:0;
-font-family: 'Courier New', Courier, monospace;
+    position:absolute;
+    left:8px;
+    right:0;
+
+    .residues {
+        font-family: InconsolataClustal, 'Courier New', Courier, monospace;
+    }
+
+    .alignment-wrapper1 {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .alignment-wrapper2 {
+        display:inline-block;
+        overflow-x:scroll;
+        .line {
+            display: inline-block;
+            margin-bottom: 0.5em;
+            white-space: nowrap;
+        }
+    }
 }
 
-.alignment .residues {
-font-family: InconsolataClustal, 'Courier New', Courier, monospace;
-}
-
-.alignment-wrapper1 {
-display: flex;
-justify-content: center;
-align-items: center;
-}
-
-.alignment-wrapper2 {
-display:inline-block;
-overflow-x:scroll;
-}
-
-.alignment-wrapper2 .line {
-    display: inline-block;
-    margin-bottom: 0.5em;
-    white-space: nowrap;
-}
-
-.variant{
-    stroke:rgba(0,255,154,0.6);
-    stroke-width:1px;
-}
-
-a:focus {
-    outline:0 !important;
-}
-
-.brush .extent{
-    stroke: #fff;
-    fill-opacity: .125;
-    shape-rendering: crispEdges;
-}
-
+// a:focus {
+//     outline:0 !important;
+// }
 
 .point {
     fill: #2f225d;
@@ -630,105 +642,56 @@ a:focus {
     cursor: pointer;
 }
 
-.axis path,
-.axis line {
-    fill: none;
-    stroke: #000;
-    shape-rendering: crispEdges;
-}
-
-.axis {
-    font: 10px sans-serif;
-}
-.d3-tip {
-    line-height: 1;
-    font-weight: bold;
-    padding: 12px;
-/*    background: rgba(0, 0, 0, 0.8);*/
-    background: #eee;
-/*    color: #fff;*/
-    color: black;
-    border-radius: 2px;
-}
-
-.tooltip2:after {
-    box-sizing: border-box;
-    display: inline;
-    font-size: 10px;
-    line-height: 1;
-    color: #eee;
-    content: "\25BC";
-    position: absolute;
-    text-align: left;
-    margin: -1px 0 0 0;
-    top: 98%;
-    left: 10px;
-}
-
-.tooltip2:before {
-    box-sizing: border-box;
-    display: inline;
-    font-size: 10px;
-    line-height: 1;
-    color: rgba(0, 0, 0, 0.6);
-    content: "\25BC";
-    position: absolute;
-    text-align: left;
-    margin: -1px 0 0 0;
-    top: 99%;
-    left: 10px;
-}
-.tooltip3:after {
-    box-sizing: border-box;
-    display: inline;
-    font-size: 10px;
-    line-height: 1;
-    color: #eee;
-    content: "\25BC";
-    position: absolute;
-    text-align: right;
-    margin: -1px 0 0 0;
-    top: 98%;
-    right: 10px;
-}
-.tooltip3:before {
-    box-sizing: border-box;
-    display: inline;
-    font-size: 10px;
-    line-height: 1;
-    color: rgba(0, 0, 0, 0.6);
-    content: "\25BC";
-    position: absolute;
-    text-align: right;
-    margin: -1px 0 0 0;
-    top: 99%;
-    right: 10px;
-}
-
-.yaxis{
-    background-color:green;
-}
-
-.header-help .state{
-    min-width:26px;
-    display:inline-block;
-}
-
-.header-help:hover{
-    cursor: pointer;
-    text-decoration: none;
-}
-
-.popover-title{
-    text-align: center;
-}
-
 .hits svg {
     font-size: 10px;
+
+    .axis path,
+    .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+
+    .axis {
+        font: 10px sans-serif;
+    }
+
+    .yaxis {
+        background-color:green;
+    }
+
+    path {
+        stroke:black;
+        fill: transparent;
+    }
+
+    .brush .extent{
+        stroke: #fff;
+        fill-opacity: .125;
+        shape-rendering: crispEdges;
+    }
 }
 
-.hits svg path {
-    stroke:black;
-    fill: transparent;
+.theme--dark .hits {
+    .axis path, .axis line {
+        stroke: #fff;
+    }
+
+    path {
+        stroke:#fff;
+    }
+
+    text {
+        fill:#fff;
+    }
+
+    text.yaxis {
+        fill:#000;
+    }
+
+    .brush .extent {
+        fill-opacity: .5;
+    }
 }
+
 </style>

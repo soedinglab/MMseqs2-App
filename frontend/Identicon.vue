@@ -22,7 +22,7 @@ export default {
     methods: {
         makeData(hash, size) {
             return new identicon(h(hash), {
-                background: [255, 255, 255, 255],
+                background: [0, 0, 0, 0],
                 margin: 0,
                 size: size,
                 format: "svg"

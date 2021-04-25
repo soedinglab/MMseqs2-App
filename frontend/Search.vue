@@ -1,6 +1,6 @@
 <template>
-    <v-container grid-list-md fluid pa-2 class="search-component">
-        <v-layout row wrap>
+    <v-container grid-list-md fluid px-2 py-1 class="search-component">
+        <v-layout wrap>
             <v-flex xs12 md8>
                 <panel class="query-panel d-flex fill-height" fill-height>
                     <template slot="header">
@@ -8,14 +8,16 @@
                     </template>
                     <template slot="toolbar-extra">
                         <v-tooltip open-delay="300" top>
-                            <v-icon slot="activator">help_outline</v-icon>
+                            <template v-slot:activator="{ on }">
+                                <v-icon v-on="on">mdi-help-circle-outline</v-icon>
+                            </template>
                             <span>Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file.</span>
                         </v-tooltip>
                     </template>
                     <template slot="content">
                         <v-textarea
                             aria-label="Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file." 
-                            class="marv-bg" 
+                            class="marv-bg mono"
                             hide-details 
                             v-model="query" 
                             @dragover.prevent 
@@ -25,13 +27,15 @@
                         </v-textarea>
 
                         <div class="actions">
-                        <v-dialog v-if="!$ELECTRON" v-model="showCurl" lazy absolute :disabled="searchDisabled">
-                            <v-btn slot="activator" :disabled="searchDisabled">
-                                Get cURL Command
-                            </v-btn>
+                        <v-dialog v-if="!$ELECTRON" v-model="showCurl" absolute :disabled="searchDisabled">
+                            <template v-slot:activator="{ on }">
+                                <v-btn v-on="on" :disabled="searchDisabled">
+                                    Get cURL Command
+                                </v-btn>
+                            </template>
                             <v-card>
                                 <v-card-title>
-                                    <div class="headline">cURL Command</div>
+                                    <div class="text-h5">cURL Command</div>
                                 </v-card-title>
                                 <v-card-text>
                                     Use this command to get a submit a file in fasta format to the MMseqs2 search server. Replace the 'PATH_TO_FILE' string with the path to the file.
@@ -42,7 +46,7 @@
                                 </v-card-text>
                                 <v-card-actions>
                                     <v-spacer></v-spacer>
-                                    <v-btn color="green darken-1" flat="flat" @click.native="showCurl = false">Close</v-btn>
+                                    <v-btn color="green darken-1" text @click.native="showCurl = false">Close</v-btn>
                                 </v-card-actions>
                             </v-card>
                         </v-dialog>
@@ -57,7 +61,9 @@
                     <div slot="content">
                         <div class="input-group">
                             <v-tooltip open-delay="300" top>
-                                <label slot="activator">Databases</label>
+                                <template v-slot:activator="{ on }">
+                                    <label v-on="on">Databases</label>
+                                </template>
                                 <span v-if="$ELECTRON">Choose the databases to search against and the result mode.</span>
                                 <span v-else>Choose the databases to search against, the result mode, and optionally an email to notify you when the job is done.</span>
                             </v-tooltip>
@@ -78,31 +84,35 @@
 
                         <v-radio-group v-model="mode">
                             <v-tooltip open-delay="300" top>
-                            <label slot="activator">Mode</label>
-                            <span>'All' shows all hits under an e-value cutoff. 'Greedy Best Hits' tries to cover the search query.</span>
+                                <template v-slot:activator="{ on }">
+                                    <label v-on="on">Mode</label>
+                                </template>
+                                <span>'All' shows all hits under an e-value cutoff. 'Greedy Best Hits' tries to cover the search query.</span>
                             </v-tooltip>
                             <v-radio value="accept" label="All Hits" hide-details>All</v-radio>
                             <v-radio value="summary" label="Greedy Best Hits" hide-details></v-radio>
                         </v-radio-group>
 
                         <v-tooltip v-if="!$ELECTRON" open-delay="300" top>
-                            <v-text-field slot="activator" id="email" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
+                            <template v-slot:activator="{ on }">
+                                <v-text-field v-on="on" id="email" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
+                            </template>
                             <span>Send an email when the job is done.</span>
                         </v-tooltip>
 
-                        <v-btn color="primary" block large v-on:click="search" :disabled="searchDisabled"><v-icon>search</v-icon>Search</v-btn>
+                        <v-btn color="primary" block large v-on:click="search" :disabled="searchDisabled"><v-icon>mdi-magnify</v-icon>Search</v-btn>
                     </div>
                 </panel>
             </v-flex>
         </v-layout>
-    <v-layout row wrap>
+    <v-layout wrap>
     <v-flex xs12>
-        <v-card>
+        <v-card rounded="0">
         <v-card-title primary-title class="pb-0 mb-0">
-            <div class="headline mb-0">Reference</div>
+            <div class="text-h5 mb-0">Reference</div>
         </v-card-title>
         <v-card-title primary-title class="pt-0 mt-0">
-            <p class="mb-0">Mirdita M., Steinegger M., and Söding J., <a href="https://doi.org/10.1093/bioinformatics/bty1057" target="_blank" rel="noopener">MMseqs2 desktop and local web server app for fast, interactive sequence searches</a>, <i>Bioinformatics</i>, 2019.</p>
+            <p class="text-subtitle-2 mb-0">Mirdita M., Steinegger M., and Söding J., <a href="https://doi.org/10.1093/bioinformatics/bty1057" target="_blank" rel="noopener">MMseqs2 desktop and local web server app for fast, interactive sequence searches</a>, <i>Bioinformatics</i>, 2019.</p>
         </v-card-title>
         </v-card>
     </v-flex>
@@ -323,7 +333,7 @@ export default {
 };
 </script>
 
-<style>
+<style scoped>
 .query-panel .actions {
     flex: 0;
     padding-top: 7px;
@@ -339,21 +349,21 @@ export default {
     max-height: inherit;
 }
 
-.search-component .v-input--checkbox {
+.search-component >>> .v-input--checkbox {
     margin-top: 0px;
 }
 
-.search-component .input-group label {
+.search-component >>> .input-group label {
     font-size: 16px;
 }
 
-.search-component .v-text-field {
+.search-component >>> .v-text-field {
     margin-top: 0px;
     padding-top: 0px;
     margin-bottom: 8px;
 }
 
-.v-textarea.marv-bg textarea {
+.marv-bg >>> textarea {
     height: 100%;
     min-height: 270px;
     background-image: url("./assets/marv-search-gray.png");
@@ -367,11 +377,7 @@ code {
     font-size: 0.8em;
 }
 
-.tooltip label {
-    pointer-events: all;
-}
-
-.marv-bg .v-input__control, .marv-bg .v-input__slot, .marv-bg .v-text-field__slot {
+.marv-bg >>> .v-input__control, .marv-bg >>> .v-input__slot, .marv-bg >>> .v-text-field__slot {
     flex: 1;
     align-self: stretch;
 }

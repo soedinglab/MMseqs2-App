@@ -1,6 +1,6 @@
 <template>
 <v-container grid-list-md fluid pa-2>
-    <v-layout row wrap>
+    <v-layout wrap>
     <v-flex xs12 md7>
         <panel>
             <template slot="header">
@@ -23,7 +23,7 @@
 
             <div slot="desc" v-if="error || databases.length == 0">
                 <v-container fill-height grid-list-md>
-                    <v-layout row justify-center>
+                    <v-layout justify-center>
                         <v-flex xs4>
                             <img style="max-width:100%" src="./assets/marv-error_2x.png" srcset="./assets/marv-error_2x.png 2x, ./assets/marv-error_3x.png 3x" />
                         </v-flex>
@@ -41,27 +41,27 @@
             <div slot="content">
                 <v-list two-line subheader dense>
                     <draggable v-model="databases" :options="{ handle: '.drag-handle' }">
-                    <v-list-tile v-for="(child, i) in databases" :key="i">
-                        <v-list-tile-action>
-                            <v-icon v-if="inReorder == false">dns</v-icon>
+                    <v-list-item v-for="(child, i) in databases" :key="i">
+                        <v-list-item-action>
+                            <v-icon v-if="inReorder == false">mdi-dns</v-icon>
                             <v-btn v-else style="cursor: move" icon class="drag-handle">
-                                <v-icon>reorder</v-icon>
+                                <v-icon>mdi-reorder-horizontal</v-icon>
                             </v-btn>
-                        </v-list-tile-action>
-                        <v-list-tile-content>
-                            <v-list-tile-title>
+                        </v-list-item-action>
+                        <v-list-item-content>
+                            <v-list-item-title>
                                 {{ child.name }}
-                            </v-list-tile-title>
-                            <v-list-tile-sub-title>
+                            </v-list-item-title>
+                            <v-list-item-subtitle>
                                 {{ child.version }}
-                            </v-list-tile-sub-title>
-                        </v-list-tile-content>
-                        <v-list-tile-action>
+                            </v-list-item-subtitle>
+                        </v-list-item-content>
+                        <v-list-item-action>
                             <v-btn icon @click="deleteDatabase(child.path)">
-                                <v-icon>delete</v-icon>
+                                <v-icon>mdi-delete</v-icon>
                             </v-btn>
-                        </v-list-tile-action>
-                    </v-list-tile>
+                        </v-list-item-action>
+                    </v-list-item>
                     </draggable>
                 </v-list>
             </div>
@@ -69,12 +69,12 @@
         </v-flex>
         <v-flex xs12 md5>
         <v-container grid-list-md fluid>
-            <v-layout row wrap>
+            <v-layout wrap>
                 <v-flex xs12>
                     <v-card color="blue-grey darken-2" class="white--text">
                         <v-card-title primary-title>
                             <div>
-                                <div class="headline">MMseqs2 Version</div>
+                                <div class="text-h5">MMseqs2 Version</div>
                                 <span class="grey--text" style="word-break: break-all;">{{ mmseqsVersion }}</span>
                                 <br>
                                 <span class="grey--text">Current Platform: {{ __OS__.platform }} - {{ __OS__.arch }}</span>

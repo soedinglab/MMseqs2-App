@@ -1,66 +1,61 @@
 <template>
     <div>
         <v-divider></v-divider>
-        <v-subheader class="grey--text mono">{{ticket.substr(0,30)}}…</v-subheader>
-        <v-list-tile v-if="$ELECTRON" @click="electronDownload(ticket)">
-            <v-list-tile-action>
-                <v-icon>file_download</v-icon>
-            </v-list-tile-action>
-            <v-list-tile-content>
-                <v-list-tile-title v-if="multi">
+        <v-list-item v-if="$ELECTRON" @click="electronDownload(ticket)">
+            <v-list-item-action>
+                <v-icon>mdi-file-download-outline</v-icon>
+            </v-list-item-action>
+            <v-list-item-content>
+                <v-list-item-title v-if="multi">
                     Download All
-                </v-list-tile-title>
+                </v-list-item-title>
 
-                <v-list-tile-title v-else>
+                <v-list-item-title v-else>
                     Download M8
-                </v-list-tile-title>
-            </v-list-tile-content>
-        </v-list-tile>
-        <v-list-tile v-else target="_blank" :href="$url('api/result/download/' + ticket)">
-            <v-list-tile-action>
-                <v-icon>cloud_download</v-icon>
-            </v-list-tile-action>
-            <v-list-tile-content>
-                <v-list-tile-title v-if="multi">
+                </v-list-item-title>
+            </v-list-item-content>
+        </v-list-item>
+        <v-list-item v-else target="_blank" :href="$url('api/result/download/' + ticket)">
+            <v-list-item-action>
+                <v-icon>mdi-cloud-download-outline</v-icon>
+            </v-list-item-action>
+            <v-list-item-content>
+                <v-list-item-title v-if="multi">
                     Download All
-                </v-list-tile-title>
+                </v-list-item-title>
 
-                <v-list-tile-title v-else>
+                <v-list-item-title v-else>
                     Download M8
-                </v-list-tile-title>
-            </v-list-tile-content>
-        </v-list-tile>
+                </v-list-item-title>
+            </v-list-item-content>
+        </v-list-item>
 
-        <v-list two-line subheader dense>
-            <v-list-group v-model="drawer" v-if="multi" no-action prepend-icon="list">
-                <v-list-tile slot="activator">
-                    <v-list-tile-content>
-                        <v-list-tile-title>
-                            Queries
-                        </v-list-tile-title>
-                    </v-list-tile-content>
-                    <v-list-tile-content v-if="drawer" style="align-items: flex-end;">
-                        <div>
-                            <button class="mx-1" :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.stop="previous();"><v-icon style="transform:inherit">chevron_left</v-icon></button>
-                            <button class="mx-1" :style="{'opacity' : hasNext == false ? 0.6 : 1}"  @click.stop="next();"><v-icon style="transform:inherit">chevron_right</v-icon></button>
-                        </div>
-                    </v-list-tile-content>
-                </v-list-tile>
-                <template v-if="items.length > 0">
-                <v-list-tile v-for="(child, i) in items" :key="i" :class="{ 'list__tile--active': child.id == entry }" :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}">
-                    <v-list-tile-action>
-                        <v-icon v-if="child.id == entry">label</v-icon>
-                        <v-icon v-else>label_outline</v-icon>
-                    </v-list-tile-action>
-                    <v-list-tile-content>
-                        <v-list-tile-title>
-                            {{ child.name }}
-                        </v-list-tile-title>
-                    </v-list-tile-content>
-                </v-list-tile>
-                </template>
-            </v-list-group>
-        </v-list>
+        <v-list-group v-model="drawer" v-if="multi" no-action :ripple="false" prepend-icon="mdi-format-list-bulleted">
+            <template slot="activator">
+                <v-list-item-content>
+                    <v-list-item-title>
+                        Queries
+                    </v-list-item-title>
+                    <v-list-item-subtitle v-if="drawer" class="ml-n1" @click.prevent>
+                        <button :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.prevent="previous();"><v-icon style="transform:inherit">mdi-chevron-left</v-icon></button>
+                        <button :style="{'opacity' : hasNext == false ? 0.6 : 1}"  @click.prevent="next();"><v-icon style="transform:inherit">mdi-chevron-right</v-icon></button>
+                    </v-list-item-subtitle>
+                </v-list-item-content>
+            </template>
+            <template v-if="items.length > 0">
+            <v-list-item v-for="(child, i) in items" :key="i" :class="{ 'list__item--active': child.id == entry }" :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}" style="padding-left: 16px;">
+                <v-list-item-icon>
+                    <v-icon v-if="child.id == entry">mdi-label</v-icon>
+                    <v-icon v-else>mdi-label-outline</v-icon>
+                </v-list-item-icon>
+                <v-list-item-content>
+                    <v-list-item-title>
+                        {{ child.name }}
+                    </v-list-item-title>
+                </v-list-item-content>
+            </v-list-item>
+            </template>
+        </v-list-group>
     </div>
 </template>
 
@@ -79,10 +74,6 @@ export default {
     }),
     created() {
         this.fetchData();
-        this.$root.$on('navigation-resize', this.setDrawerState);
-    },
-    beforeDestroy() {
-        this.$root.$off('navigation-resize', this.setDrawerState);
     },
     watch: {
         '$route': 'fetchData'

@@ -11,7 +11,6 @@ module.exports = (env, argv) => {
             path: path.resolve(__dirname, 'dist'),
             publicPath: '/',
             filename: 'result.js',
-            libraryTarget: 'commonjs2',
             crossOriginLoading: 'anonymous',
         },
         module: {
@@ -35,8 +34,8 @@ module.exports = (env, argv) => {
                     use: ['style-loader', 'css-loader']
                 },
                 {
-                    test: /\.styl$/,
-                    use: ['style-loader', 'css-loader', 'stylus-loader']
+                    test: /\.s[ac]ss$/i,
+                    use: ['style-loader', 'css-loader', 'sass-loader']
                 }
             ]
         },

@@ -24,7 +24,6 @@ module.exports = (env, argv) => {
             path: path.resolve(__dirname, './dist'),
             publicPath: isElectron ? '' : '/',
             filename: isElectron ? 'renderer.js' : 'build.[contenthash:8].js',
-            libraryTarget: 'commonjs2',
             crossOriginLoading: 'anonymous',
         },
         module: {
@@ -69,11 +68,11 @@ module.exports = (env, argv) => {
                 },
                 {
                     test: /\.css$/,
-                    use: [MiniCssExtractPlugin.loader, 'css-loader']
+                    use: [isProduction ? MiniCssExtractPlugin.loader : 'style-loader', 'css-loader']
                 },
                 {
-                    test: /\.styl$/,
-                    use: [MiniCssExtractPlugin.loader, 'css-loader', 'stylus-loader']
+                    test: /\.s[ac]ss$/i,
+                    use: [isProduction ? MiniCssExtractPlugin.loader : 'style-loader', 'css-loader', 'sass-loader']
                 }
             ]
         },
@@ -101,9 +100,10 @@ module.exports = (env, argv) => {
             new HtmlWebpackPlugin({
                 template: path.resolve(__dirname, './frontend/index.html')
             }),
-            new MiniCssExtractPlugin({
-                filename: isElectron ? 'style.css' : 'style.[contenthash:8].css',
-            }),
+            isProduction ?
+                new MiniCssExtractPlugin({
+                    filename: isElectron ? 'style.css' : 'style.[contenthash:8].css',
+                }) : new NullPlugin(),
             new SubresourceIntegrityPlugin({
                 enabled: isProduction && !isElectron,
                 hashFuncNames: ['sha256', 'sha384']

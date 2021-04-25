@@ -1,0 +1,327 @@
+body,
+svg text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif !important;
+}
+svg a {
+  cursor: pointer;
+}
+nav ul {
+  margin: 0;
+  padding: 0;
+}
+nav ul li {
+  display: inline-block;
+  padding: 2px 5px;
+  margin: 2px;
+  border: 1px solid #eee;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+nav ul li a {
+  text-decoration: none;
+}
+nav.collapsed {
+  max-height: 150px;
+  overflow: scroll;
+  display: block;
+  position: relative;
+}
+nav.collapsed::after {
+  content: " ";
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  display: block;
+  background: linear-gradient(0deg, #fff 0%, rgba(255,255,255,0) 100%);
+}
+@font-face {
+  font-family: InconsolataClustal;
+  src: url("assets/InconsolataClustal2.woff2");
+}
+a.anchor {
+  display: block;
+  position: relative;
+  top: -125px;
+  visibility: hidden;
+}
+.hide {
+  display: none;
+}
+tbody:hover td[rowspan],
+tbody tr:hover {
+  background: #eee;
+}
+a:not([href]) {
+  color: #333;
+}
+a:not([href]):hover {
+  text-decoration: none;
+}
+td,
+th {
+  padding: 0 6px;
+  text-align: left;
+}
+.hit.active {
+  background: #f9f9f9;
+}
+@media screen and (max-width: 960px) {
+  .hits {
+    min-width: 300px;
+  }
+  thead {
+    display: none;
+  }
+  tfoot th {
+    border: 0;
+    display: inherit;
+  }
+  tr {
+    box-shadow: 0 2px 3px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.1);
+    max-width: 100%;
+    position: relative;
+    display: block;
+    margin: 0.25em;
+  }
+  tr td {
+    border: 0;
+    display: inherit;
+  }
+  tr.alignment td {
+    padding: 0 !important;
+    justify-content: center !important;
+  }
+  tr.alignment td:before {
+    margin: 0 !important;
+  }
+  tr td:last-child {
+    border-bottom: 0;
+  }
+  tr:not(:last-child) {
+    margin-bottom: 1rem;
+  }
+  tr:not(.is-selected) {
+    background: inherit;
+  }
+  tr:not(.is-selected):hover {
+    background-color: inherit;
+  }
+  tr.detail {
+    margin-top: -1rem;
+  }
+  tr:not(.detail):not(.is-empty):not(.table-footer) td {
+    display: flex;
+    width: auto;
+    justify-content: flex-end;
+    text-align: right;
+    border-bottom: 1px solid #eee;
+    align-items: center;
+  }
+  tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
+    content: attr(data-label);
+    font-weight: 600;
+    margin-right: auto;
+    padding-right: 0.5em;
+    text-align: left;
+  }
+}
+.alignment {
+  font-family: 'Courier New', Courier, monospace;
+}
+.alignment .residues,
+.AA {
+  font-family: InconsolataClustal, 'Courier New', Courier, monospace !important;
+}
+.alignment-wrapper1 {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.alignment-wrapper2 {
+  display: inline-block;
+  overflow-x: scroll;
+  max-width: 95vw;
+}
+.alignment-wrapper2 .line {
+  display: inline-block;
+  margin: 0.5em 0;
+  white-space: nowrap;
+}
+.variant {
+  stroke: rgba(0,255,154,0.6);
+  stroke-width: 1px;
+}
+a:focus {
+  outline: 0 !important;
+}
+.brush .extent {
+  stroke: #fff;
+  fill-opacity: 0.125;
+  shape-rendering: crispEdges;
+}
+.point {
+  fill: #2f225d;
+  stroke: #afa2dc;
+}
+.selected {
+  fill: #afa2dc;
+  stroke: #2f225d;
+}
+.clear-button {
+  font: 14px sans-serif;
+  cursor: pointer;
+}
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+.axis {
+  font: 10px sans-serif;
+}
+.d3-tip {
+  line-height: 1;
+  font-weight: bold;
+  padding: 12px;
+/*    background: rgba(0, 0, 0, 0.8);*/
+  background: #eee;
+/*    color: #fff;*/
+  color: #000;
+  border-radius: 2px;
+}
+.tooltip2:after {
+  box-sizing: border-box;
+  display: inline;
+  font-size: 10px;
+  line-height: 1;
+  color: #eee;
+  content: "\25BC";
+  position: absolute;
+  text-align: left;
+  margin: -1px 0 0 0;
+  top: 98%;
+  left: 10px;
+}
+.tooltip2:before {
+  box-sizing: border-box;
+  display: inline;
+  font-size: 10px;
+  line-height: 1;
+  color: rgba(0,0,0,0.6);
+  content: "\25BC";
+  position: absolute;
+  text-align: left;
+  margin: -1px 0 0 0;
+  top: 99%;
+  left: 10px;
+}
+.tooltip3:after {
+  box-sizing: border-box;
+  display: inline;
+  font-size: 10px;
+  line-height: 1;
+  color: #eee;
+  content: "\25BC";
+  position: absolute;
+  text-align: right;
+  margin: -1px 0 0 0;
+  top: 98%;
+  right: 10px;
+}
+.tooltip3:before {
+  box-sizing: border-box;
+  display: inline;
+  font-size: 10px;
+  line-height: 1;
+  color: rgba(0,0,0,0.6);
+  content: "\25BC";
+  position: absolute;
+  text-align: right;
+  margin: -1px 0 0 0;
+  top: 99%;
+  right: 10px;
+}
+.yaxis {
+  background-color: #008000;
+}
+.header-help .state {
+  min-width: 26px;
+  display: inline-block;
+}
+.header-help:hover {
+  cursor: pointer;
+  text-decoration: none;
+}
+.popover-title {
+  text-align: center;
+}
+.hits svg {
+  font-size: 10px;
+}
+.hits svg path {
+  stroke: #000;
+  fill: transparent;
+}
+table thead tr:first-child {
+  border-bottom: 1px solid rgba(0,0,0,0.12);
+}
+table tbody tr:not(:first-child) {
+  border-top: 1px solid rgba(0,0,0,0.12);
+}
+table tfoot tr {
+  border-top: 1px solid rgba(0,0,0,0.12);
+}
+table__overflow {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+table {
+  border-radius: 2px;
+  border-collapse: collapse;
+  border-spacing: 0;
+  width: 100%;
+  max-width: 100%;
+}
+table thead td:not(:nth-child(1)),
+table tbody td:not(:nth-child(1)),
+table thead th:not(:nth-child(1)),
+table tbody th:not(:nth-child(1)),
+table thead td:first-child,
+table tbody td:first-child,
+table thead th:first-child,
+table tbody th:first-child {
+  padding: 0 24px;
+}
+table thead tr {
+  height: 56px;
+}
+table thead th {
+  font-weight: 500;
+  font-size: 12px;
+  white-space: nowrap;
+  user-select: none;
+}
+table thead th.sortable {
+  pointer-events: auto;
+}
+table thead th > div {
+  width: 100%;
+}
+table tbody td,
+table tbody th {
+  height: 48px;
+}
+table tbody td {
+  font-weight: 400;
+  font-size: 13px;
+}
+table tfoot tr {
+  height: 48px;
+}
+table tfoot tr td {
+  padding: 0 24px;
+}

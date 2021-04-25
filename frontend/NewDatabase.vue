@@ -27,7 +27,7 @@
                     ></v-select>
             </v-flex>
             <v-flex xs12 sm6>
-                <v-btn large color="primary" flat style="width: 100%; margin-left: 0;" :disabled="form.format == ''"  @click="selectPath">
+                <v-btn large color="primary" text style="width: 100%; margin-left: 0;" :disabled="form.format == ''"  @click="selectPath">
                     <template v-if="form.path == ''">
                         Select File
                     </template>

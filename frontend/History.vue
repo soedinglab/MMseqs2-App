@@ -1,37 +1,33 @@
 <template>
-<v-list two-line subheader dense>
-    <v-list-group v-if="items && items.length > 0" v-model="drawer" no-action prepend-icon="history">
-        <v-list-tile slot="activator">
-            <v-list-tile-content>
-                <v-list-tile-title>
+    <v-list-group v-if="items && items.length > 0" v-model="drawer" no-action prepend-icon="mdi-history">
+        <template slot="activator">
+            <v-list-item-content>
+                <v-list-item-title>
                     History
-                </v-list-tile-title>
-            </v-list-tile-content>
-            <v-list-tile-content v-if="drawer" style="align-items: flex-end;">
-                <div>
-                    <button class="mx-1" :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.stop="previous();"><v-icon style="transform:inherit">chevron_left</v-icon></button>
-                    <button class="mx-1" :style="{'opacity' : (page + 1) * limit >= items.length ? 0.6 : 1}"  @click.stop="next();"><v-icon style="transform:inherit">chevron_right</v-icon></button>
-                </div>
-            </v-list-tile-content>
-        </v-list-tile>
+                </v-list-item-title>
+                <v-list-item-subtitle v-if="drawer" class="ml-n1" @click.prevent>
+                    <button :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.prevent="previous();"><v-icon style="transform:inherit">mdi-chevron-left</v-icon></button>
+                    <button :style="{'opacity' : (page + 1) * limit >= items.length ? 0.6 : 1}"  @click.prevent="next();"><v-icon style="transform:inherit">mdi-chevron-right</v-icon></button>
+                </v-list-item-subtitle>
+            </v-list-item-content>
+        </template>
 
-        <v-list-tile v-for="(child, i) in items.slice(page * limit, (page + 1) * limit)" :key="i" :class="{ 'list__tile--highlighted': child.id == current }" :to="formattedRoute(child)">
-            <v-list-tile-action>
-                <identicon v-if="child.status == 'COMPLETE'" :hash="child.id">done</identicon>
-                <v-icon v-else-if="child.status == 'RUNNING'">query-builder</v-icon>
-                <v-icon v-else-if="child.status == 'PENDING'">schedule</v-icon>
-                <v-icon v-else-if="child.status == 'ERROR'">error-outline</v-icon>
-                <v-icon v-else>help</v-icon>
-            </v-list-tile-action>
-            <v-list-tile-content>
-                <v-list-tile-title>
+        <v-list-item v-for="(child, i) in items.slice(page * limit, (page + 1) * limit)" :key="i" :class="{ 'list__item--highlighted': child.id == current }" :to="formattedRoute(child)" style="padding-left: 16px;">
+            <v-list-item-icon>
+                <identicon v-if="child.status == 'COMPLETE'" :hash="child.id"></identicon>
+                <v-icon v-else-if="child.status == 'RUNNING'">mdi-clock-outline</v-icon>
+                <v-icon v-else-if="child.status == 'PENDING'">mdi-clock-outline</v-icon>
+                <v-icon v-else-if="child.status == 'ERROR'">mdi-alert-circle-outline</v-icon>
+                <v-icon v-else>mdi-help-circle-outline</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+                <v-list-item-title>
                     {{ formattedDate(child.time) }}
-                </v-list-tile-title>
-                <v-list-tile-sub-title><span class="mono">{{ child.id }}</span></v-list-tile-sub-title>
-            </v-list-tile-content>
-        </v-list-tile>
+                </v-list-item-title>
+                <v-list-item-subtitle><span class="mono">{{ child.id }}</span></v-list-item-subtitle>
+            </v-list-item-content>
+        </v-list-item>
     </v-list-group>
-</v-list>
 </template>
 
 <script>
@@ -49,10 +45,6 @@ export default {
     }),
     created() {
         this.fetchData();
-        this.$root.$on('navigation-resize', this.setDrawerState);
-    },
-    beforeDestroy() {
-        this.$root.$off('navigation-resize', this.setDrawerState);
     },
     watch: {
         '$route': 'fetchData'

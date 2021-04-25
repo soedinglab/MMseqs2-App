@@ -246,4 +246,4 @@ window.render = function (res) {
     showResults(results[0]);
 }
 
-import './result.styl';
+import './result.css';

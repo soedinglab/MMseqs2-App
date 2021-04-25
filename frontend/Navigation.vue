@@ -1,33 +1,33 @@
 <template>
 <div>
-<v-navigation-drawer absolute app permanent clipped class="grey lighten-4" :mini-variant.sync="mini">
-    <v-list class="grey lighten-4">
-        <v-list-tile to="/search">
-            <v-list-tile-action>
-                <v-icon>search</v-icon>
-            </v-list-tile-action>
-            <v-list-tile-content>
-                <v-list-tile-title>Search</v-list-tile-title>
-            </v-list-tile-content>
-        </v-list-tile>
+<v-navigation-drawer stateless app permanent clipped :class="['grey', theme.isDark ? 'darken-4' : 'lighten-4']" :mini-variant.sync="mini">
+    <v-list>
+        <v-list-item to="/search">
+            <v-list-item-action>
+                <v-icon>mdi-magnify</v-icon>
+            </v-list-item-action>
+            <v-list-item-content>
+                <v-list-item-title>Search</v-list-item-title>
+            </v-list-item-content>
+        </v-list-item>
 
         <router-view name="sidebar"></router-view>
 
         <history />
 
-        <v-list-tile v-if="$ELECTRON" to="/preferences">
-            <v-list-tile-action>
-                <v-icon>settings</v-icon>
-            </v-list-tile-action>
-            <v-list-tile-content>
-                <v-list-tile-title>Preferences</v-list-tile-title>
-            </v-list-tile-content>
-        </v-list-tile>
+        <v-list-item v-if="$ELECTRON" to="/preferences">
+            <v-list-item-action>
+                <v-icon>mdi-tune</v-icon>
+            </v-list-item-action>
+            <v-list-item-content>
+                <v-list-item-title>Preferences</v-list-item-title>
+            </v-list-item-content>
+        </v-list-item>
     </v-list>
 </v-navigation-drawer>
-<v-toolbar dense fixed clipped-left app class="ml-0 pl-3">
-    <v-toolbar-side-icon @click.stop="toggleMini"></v-toolbar-side-icon>
-    <v-toolbar-title><router-link to="/">MMseqs2 Search</router-link></v-toolbar-title>
+<v-app-bar app :height="$ELECTRON ? '72px' : '48px'" fixed clipped-left :class="['ml-0', 'pl-3', $ELECTRON ? 'pt-2' : null]" :style="{'-webkit-app-region': $ELECTRON ? 'drag' : null, '-webkit-user-select': $ELECTRON ? 'none' : null}">
+    <v-app-bar-nav-icon @click.stop="toggleMini"></v-app-bar-nav-icon>
+    <v-app-bar-title><router-link to="/" style="color: inherit; text-decoration: none">MMseqs2 Search</router-link></v-app-bar-title>
     <object style="margin-left:8px; display: inline-block; width: 38px;height: 38px;vertical-align: middle" 
             type="image/svg+xml"
             data="./assets/marv1.svg"
@@ -37,11 +37,12 @@
 
     <v-spacer></v-spacer>
     <v-toolbar-items v-once v-if="!$ELECTRON" class="hidden-sm-and-down">
-        <v-btn flat rel="external noopener" target="_blank" href="https://mmseqs.com">MMseqs2</v-btn>
-        <v-btn flat rel="external noopener" target="_blank" href="https://github.com/soedinglab/MMseqs2-App">Github</v-btn>
-        <v-btn flat rel="external noopener" target="_blank" href="http://www.mpibpc.mpg.de/soeding">Södinglab</v-btn>
+        <v-btn text rel="external noopener" target="_blank" href="https://mmseqs.com">MMseqs2</v-btn>
+        <v-btn text rel="external noopener" target="_blank" href="https://github.com/soedinglab/MMseqs2-App">Github</v-btn>
+        <v-btn text rel="external noopener" target="_blank" href="http://www.mpibpc.mpg.de/soeding">Södinglab</v-btn>
     </v-toolbar-items>
-</v-toolbar>
+</v-app-bar>
+
 </div>
 </template>
 
@@ -49,6 +50,7 @@
 import History from './History.vue';
 
 export default {
+    inject: ['theme'],
     components : { History },
     data: () => ({
         mini: true
@@ -74,10 +76,9 @@ export default {
 }
 </script>
 
-<style>
-nav .v-toolbar__title a {
-    color: inherit;
-    text-decoration: none;
+<style scoped>
+::v-deep .v-app-bar-title__content {
+    text-overflow: revert !important;
 }
 </style>
 

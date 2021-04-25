@@ -1,9 +1,9 @@
 <template>
-    <v-app toolbar id="app">
+    <v-app id="app" :class="{'electron' : $ELECTRON}">
         <navigation />
-        <v-content>
+        <v-main>
             <router-view></router-view>
-        </v-content>
+        </v-main>
     </v-app>
 </template>
 

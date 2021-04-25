@@ -1,14 +1,14 @@
 <template>
     <div class="panel-root">
-        <v-toolbar v-if="!!$slots['header'] || !!header" flat dense dark>
-            <span class="title white--text align-end">
+        <v-toolbar v-if="!!$slots['header'] || !!header" text dense dark>
+            <span class="text-h6 white--text align-end">
                 <slot v-if="$slots['header']" name="header"></slot>
                 <template v-else>{{ header }}</template>
             </span>
             <v-spacer></v-spacer>
             <slot name="toolbar-extra"></slot>
         </v-toolbar>
-        <v-card :class="['panel', { 'd-flex' : flex }, { 'force-fill-height' : fillHeight }]">
+        <v-card rounded="0" :class="['panel', { 'd-flex' : flex }, { 'force-fill-height' : fillHeight }]">
             <v-card-text v-if="$slots['desc']" class="subheading justify">
                 <slot name="desc"></slot>
             </v-card-text>
@@ -26,7 +26,7 @@ export default {
 }
 </script>
 
-<style>
+<style scoped>
 .panel-root, .panel-content {
     flex-direction: column;
 }
@@ -40,16 +40,24 @@ export default {
     height: 100% !important;
 }
 
-.panel-root .v-toolbar.theme--dark {
-    background: url('./assets/spiration-dark.png');
+.panel-root >>> .v-toolbar {
     background-repeat: repeat;
 }
 
-.panel-root .title {
+.theme--light .panel-root >>> .v-toolbar {
+    background: url('./assets/spiration-dark.png');
+    
+}
+
+.theme--dark .panel-root >>> .v-toolbar {
+    background: url('./assets/spiration-darker.png');
+}
+
+.panel-root >>> .text-h6 {
     margin-bottom: -5px;
 }
 
-.panel-root .title i.v-icon {
+.panel-root >>> .text-h6 i.v-icon {
     font-size: 1em;
     vertical-align: bottom;
 }

@@ -20,7 +20,7 @@ export default {
 }
 </script>
 
-<style>
+<style scoped>
 .btn--file {
     position: relative;
     overflow: hidden;

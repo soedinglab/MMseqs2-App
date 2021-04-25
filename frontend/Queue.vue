@@ -1,6 +1,6 @@
 <template>
 <v-container grid-list-md fluid v-if="status != 'COMPLETE'" pa-2>
-    <v-layout row>
+    <v-layout>
         <v-flex xs12 sm10>
             <panel>
                 <template slot="header">
@@ -11,7 +11,7 @@
                 </template>
 
                 <v-container grid-list-xs fluid slot="content">
-                    <v-layout row wrap>
+                    <v-layout wrap>
                         <v-flex xs12 sm6 md4 aria-hidden="true" class="status-img">
                             <img v-if="status == 'PENDING'" src="./assets/marv-search_2x.png" srcset="./assets/marv-search_2x.png 2x, ./assets/marv-search_3x.png 3x" />
                             <img v-else-if="status == 'RUNNING'" src="./assets/marv-result_2x.png" srcset="./assets/marv-result_2x.png 2x, ./assets/marv-result_3x.png 3x" />

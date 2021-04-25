@@ -137,7 +137,7 @@ console.log(err);
 			useContentSize: true,
 			width: 1000,
 			show: false,
-			// titleBarStyle: "hidden",
+			titleBarStyle: "hidden",
 			webPreferences: {
 				enableRemoteModule: true,
 				nodeIntegration: true,
@@ -192,7 +192,7 @@ console.log(err);
 	});
 
 	app.on('activate', () => {
-		if (mainWindow === null) {
+		if (BrowserWindow.getAllWindows().length === 0) {
 			createWindow();
 		}
 	});

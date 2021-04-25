@@ -2,16 +2,13 @@ import Vue from 'vue';
 import VueRouter from 'vue-router';
 import VueResource from 'vue-resource';
 import VueLocalStorage from 'vue-localstorage/src/index.js';
-
 import Vuetify from 'vuetify/lib';
-import 'vuetify/src/stylus/app.styl';
-import 'vuetify/src/stylus/components/_tables.styl';
-Vue.use(Vuetify);
-import 'material-design-icons/iconfont/material-icons.css';
+import '@mdi/font/css/materialdesignicons.min.css';
 
 Vue.use(VueRouter);
 Vue.use(VueResource);
 Vue.use(VueLocalStorage);
+Vue.use(Vuetify);
 
 import App from './App.vue';
 import Search from './Search.vue';
@@ -35,6 +32,19 @@ const router = new VueRouter({
     ],
     linkActiveClass: 'active'
 });
+
+const mq = window.matchMedia('(prefers-color-scheme: dark)')
+
+const vuetify = new Vuetify({
+    icons: {
+        iconfont: 'mdi',
+    },
+    theme: { dark: mq.matches },
+})
+
+mq.addEventListener('change', (e) => {
+    vuetify.framework.theme.dark = e.matches
+})
 
 Vue.use({
     install(Vue, options) {
@@ -67,6 +77,7 @@ if (__ELECTRON__) {
 const app = new Vue({
     el: '#app',
     router,
+    vuetify,
     render: h => h(App)
 });
 

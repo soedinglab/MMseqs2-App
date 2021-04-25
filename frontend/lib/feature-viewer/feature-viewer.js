@@ -511,15 +511,14 @@ var FeatureViewer = (function () {
                         .attr("d", line)
                         .attr("class", "sequenceLine")
                         .style("z-index", "0")
-                        .style("stroke", "black")
                         .style("stroke-dasharray", "1,3")
                         .style("stroke-width", "1px")
-                        .style("stroke-opacity", 0);
+                        .style("stroke-opacity", 1 );
 
-                    dottedSeqLine
-                        .transition()
-                        .duration(transitionDuration)
-                        .style("stroke-opacity", 1);
+                    // dottedSeqLine
+                    //     .transition()
+                    //     .duration(transitionDuration)
+                    //     .style("stroke-opacity", 1);
                 }
             },
             rectangle: function (object, position) {
@@ -1207,8 +1206,8 @@ var FeatureViewer = (function () {
             reset_axis();
         }
 
-        this.updateWindowDebounced = debounce(updateWindow, 150);
-        addEventListener("resize", this.updateWindowDebounced);
+        this.updateWindowDebounced = debounce(updateWindow, 300, false);
+        addEventListener("resize", this.updateWindowDebounced, { passive: true });
 
         function transition_data(features, start) {
             features.forEach(function (o) {
@@ -1508,11 +1507,6 @@ var FeatureViewer = (function () {
                 });
             }
 
-            if (options.brushActive) {
-                SVGOptions.brushActive = true;
-                // zoom = true;
-                addBrush();
-            }
             if (options.verticalLine) {
                 SVGOptions.verticalLine = true;
                 addVerticalLine();
@@ -1529,6 +1523,12 @@ var FeatureViewer = (function () {
                     .call(xAxis2);
             }
             addYAxis();
+
+            if (options.brushActive) {
+                SVGOptions.brushActive = true;
+                // zoom = true;
+                addBrush();
+            }
 
             updateSVGHeight(Yposition);
         }
