@@ -5,8 +5,8 @@ process.env.NODE_ENV = 'production'
 const del = require('del')
 const webpack = require('webpack')
 
-const mainConfig = require('../webpack.electron.config')
-const rendererConfig = require('../webpack.frontend.config')(null, { mode: process.env.NODE_ENV })
+const mainConfig = require('./webpack.electron.config')
+const rendererConfig = require('../frontend/webpack.frontend.config')(null, { mode: process.env.NODE_ENV })
 
 const doneLog = ' DONE '
 const errorLog = ' ERROR  '
