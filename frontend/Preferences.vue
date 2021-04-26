@@ -1,5 +1,5 @@
 <template>
-<v-container grid-list-md fluid pa-2>
+<v-container grid-list-md fluid px-2 py-1>
     <v-layout wrap>
     <v-flex xs12 md7>
         <panel>
@@ -68,16 +68,16 @@
         </panel>
         </v-flex>
         <v-flex xs12 md5>
-        <v-container grid-list-md fluid>
+        <v-container grid-list-md fluid style="margin-top:-12px;">
             <v-layout wrap>
                 <v-flex xs12>
                     <v-card>
                         <v-card-title primary-title style="background-color:#465A64; color:#fff;">
                             <div>
                                 <div class="text-h5">MMseqs2 Version</div>
-                                <span style="word-break: break-all;">{{ mmseqsVersion }}</span>
+                                <span class="text-subtitle-1" style="word-break: break-all;">{{ mmseqsVersion }}</span>
                                 <br>
-                                <span>Current Platform: {{ __OS__.platform }} - {{ __OS__.arch }}</span>
+                                <span class="text-subtitle-1">Current Platform: {{ __OS__.platform }} - {{ __OS__.arch }}</span>
                             </div>
                         </v-card-title>
                     </v-card>
