@@ -1,13 +1,13 @@
 <template>
-    <v-list-group v-if="items && items.length > 0" v-model="drawer" no-action prepend-icon="mdi-history">
+    <v-list-group v-if="items && items.length > 0" v-model="drawer" no-action :prepend-icon="$MDI.History">
         <template slot="activator">
             <v-list-item-content>
                 <v-list-item-title>
                     History
                 </v-list-item-title>
                 <v-list-item-subtitle v-if="drawer" class="ml-n1" @click.prevent>
-                    <button :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.prevent="previous();"><v-icon style="transform:inherit">mdi-chevron-left</v-icon></button>
-                    <button :style="{'opacity' : (page + 1) * limit >= items.length ? 0.6 : 1}"  @click.prevent="next();"><v-icon style="transform:inherit">mdi-chevron-right</v-icon></button>
+                    <button :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.prevent="previous();"><v-icon style="transform:inherit">{{ $MDI.ChevronLeft }}</v-icon></button>
+                    <button :style="{'opacity' : (page + 1) * limit >= items.length ? 0.6 : 1}"  @click.prevent="next();"><v-icon style="transform:inherit">{{ $MDI.ChevronRight }}</v-icon></button>
                 </v-list-item-subtitle>
             </v-list-item-content>
         </template>
@@ -15,10 +15,10 @@
         <v-list-item v-for="(child, i) in items.slice(page * limit, (page + 1) * limit)" :key="i" :class="{ 'list__item--highlighted': child.id == current }" :to="formattedRoute(child)" style="padding-left: 16px;">
             <v-list-item-icon>
                 <identicon v-if="child.status == 'COMPLETE'" :hash="child.id"></identicon>
-                <v-icon v-else-if="child.status == 'RUNNING'">mdi-clock-outline</v-icon>
-                <v-icon v-else-if="child.status == 'PENDING'">mdi-clock-outline</v-icon>
-                <v-icon v-else-if="child.status == 'ERROR'">mdi-alert-circle-outline</v-icon>
-                <v-icon v-else>mdi-help-circle-outline</v-icon>
+                <v-icon v-else-if="child.status == 'RUNNING'">{{ $MDI.ClockOutline }}</v-icon>
+                <v-icon v-else-if="child.status == 'PENDING'">{{ $MDI.ClockOutline }}</v-icon>
+                <v-icon v-else-if="child.status == 'ERROR'">{{ $MDI.HelpCircleOutline }}</v-icon>
+                <v-icon v-else>{{ $MDI.HelpCircleOutline }}</v-icon>
             </v-list-item-icon>
             <v-list-item-content>
                 <v-list-item-title>

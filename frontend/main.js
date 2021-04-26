@@ -3,7 +3,25 @@ import VueRouter from 'vue-router';
 import VueResource from 'vue-resource';
 import VueLocalStorage from 'vue-localstorage/src/index.js';
 import Vuetify from 'vuetify/lib';
-import '@mdi/font/css/materialdesignicons.min.css';
+import { 
+    mdiHistory,
+    mdiChevronLeft,
+    mdiChevronRight,
+    mdiClockOutline,
+    mdiAlertCircleOutline,
+    mdiHelpCircleOutline,
+    mdiMagnify,
+    mdiTune,
+    mdiDns,
+    mdiReorderHorizontal,
+    mdiDelete,
+    mdiFileDownloadOutline,
+    mdiCloudDownloadOutline,
+    mdiFormatListBulleted,
+    mdiLabel,
+    mdiLabelOutline,
+    mdiNotificationClearAll,
+} from '@mdi/js'
 
 Vue.use(VueRouter);
 Vue.use(VueResource);
@@ -37,7 +55,7 @@ const mq = window.matchMedia('(prefers-color-scheme: dark)')
 
 const vuetify = new Vuetify({
     icons: {
-        iconfont: 'mdi',
+        iconfont: 'mdiSvg',
     },
     theme: { dark: mq.matches },
 })
@@ -49,6 +67,25 @@ mq.addEventListener('change', (e) => {
 Vue.use({
     install(Vue, options) {
         Vue.prototype.$ELECTRON = __ELECTRON__;
+        Vue.prototype.$MDI = {
+            History: mdiHistory,
+            ChevronLeft: mdiChevronLeft,
+            ChevronRight: mdiChevronRight,
+            ClockOutline: mdiClockOutline,
+            AlertCircleOutline: mdiAlertCircleOutline,
+            HelpCircleOutline: mdiHelpCircleOutline,
+            Magnify: mdiMagnify,
+            Tune: mdiTune,
+            Dns: mdiDns,
+            ReorderHorizontal: mdiReorderHorizontal,
+            Delete: mdiDelete,
+            FileDownloadOutline: mdiFileDownloadOutline,
+            CloudDownloadOutline: mdiCloudDownloadOutline,
+            FormatListBulleted: mdiFormatListBulleted,
+            Label: mdiLabel,
+            LabelOutline: mdiLabelOutline,
+            NotificationClearAll: mdiNotificationClearAll,
+        };
         if (__ELECTRON__) {
             const remote = require('electron').remote;
             Vue.prototype.__OS__ = remote.app.os;

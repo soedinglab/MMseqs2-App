@@ -4,7 +4,7 @@
     <v-list>
         <v-list-item to="/search">
             <v-list-item-action>
-                <v-icon>mdi-magnify</v-icon>
+                <v-icon>{{ $MDI.Magnify }}</v-icon>
             </v-list-item-action>
             <v-list-item-content>
                 <v-list-item-title>Search</v-list-item-title>
@@ -17,7 +17,7 @@
 
         <v-list-item v-if="$ELECTRON" to="/preferences">
             <v-list-item-action>
-                <v-icon>mdi-tune</v-icon>
+                <v-icon>{{ $MDI.Tune }}</v-icon>
             </v-list-item-action>
             <v-list-item-content>
                 <v-list-item-title>Preferences</v-list-item-title>

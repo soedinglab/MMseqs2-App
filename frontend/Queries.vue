@@ -3,7 +3,7 @@
         <v-divider></v-divider>
         <v-list-item v-if="$ELECTRON" @click="electronDownload(ticket)">
             <v-list-item-action>
-                <v-icon>mdi-file-download-outline</v-icon>
+                <v-icon>{{ $MDI.FileDownloadOutline }}</v-icon>
             </v-list-item-action>
             <v-list-item-content>
                 <v-list-item-title v-if="multi">
@@ -17,7 +17,7 @@
         </v-list-item>
         <v-list-item v-else target="_blank" :href="$url('api/result/download/' + ticket)">
             <v-list-item-action>
-                <v-icon>mdi-cloud-download-outline</v-icon>
+                <v-icon>{{ $MDI.CloudDownloadOutline }}</v-icon>
             </v-list-item-action>
             <v-list-item-content>
                 <v-list-item-title v-if="multi">
@@ -30,23 +30,23 @@
             </v-list-item-content>
         </v-list-item>
 
-        <v-list-group v-model="drawer" v-if="multi" no-action :ripple="false" prepend-icon="mdi-format-list-bulleted">
+        <v-list-group v-model="drawer" v-if="multi" no-action :ripple="false" :prepend-icon="$MDI.FormatListBulleted">
             <template slot="activator">
                 <v-list-item-content>
                     <v-list-item-title>
                         Queries
                     </v-list-item-title>
                     <v-list-item-subtitle v-if="drawer" class="ml-n1" @click.prevent>
-                        <button :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.prevent="previous();"><v-icon style="transform:inherit">mdi-chevron-left</v-icon></button>
-                        <button :style="{'opacity' : hasNext == false ? 0.6 : 1}"  @click.prevent="next();"><v-icon style="transform:inherit">mdi-chevron-right</v-icon></button>
+                        <button :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.prevent="previous();"><v-icon style="transform:inherit">{{ $MDI.ChevronLeft }}</v-icon></button>
+                        <button :style="{'opacity' : hasNext == false ? 0.6 : 1}"  @click.prevent="next();"><v-icon style="transform:inherit">{{ $MDI.ChevronRight }}</v-icon></button>
                     </v-list-item-subtitle>
                 </v-list-item-content>
             </template>
             <template v-if="items.length > 0">
             <v-list-item v-for="(child, i) in items" :key="i" :class="{ 'list__item--active': child.id == entry }" :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}" style="padding-left: 16px;">
                 <v-list-item-icon>
-                    <v-icon v-if="child.id == entry">mdi-label</v-icon>
-                    <v-icon v-else>mdi-label-outline</v-icon>
+                    <v-icon v-if="child.id == entry">{{ $MDI.Label }}</v-icon>
+                    <v-icon v-else>{{ $MDI.LabelOutline }}</v-icon>
                 </v-list-item-icon>
                 <v-list-item-content>
                     <v-list-item-title>

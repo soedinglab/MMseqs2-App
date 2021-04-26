@@ -70,7 +70,7 @@
                                     Target
                                     <v-tooltip open-delay="300" top>
                                         <template v-slot:activator="{ on }">
-                                            <v-icon v-on="on" style="font-size: 16px; float: right;">mdi-help-circle-outline</v-icon>
+                                            <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
                                         </template>
                                         <span>Tripple click to select whole cell (for very long identifiers)</span>
                                     </v-tooltip>
@@ -97,7 +97,7 @@
                                 <td data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
                                 <td>
                                     <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
-                                        <v-icon>mdi-notification-clear-all</v-icon>
+                                        <v-icon>{{ $MDI.NotificationClearAll }}</v-icon>
                                     </v-btn>
                                 </td>
                             </tr>

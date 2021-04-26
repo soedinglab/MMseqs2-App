@@ -9,7 +9,7 @@
                     <template slot="toolbar-extra">
                         <v-tooltip open-delay="300" top>
                             <template v-slot:activator="{ on }">
-                                <v-icon v-on="on">mdi-help-circle-outline</v-icon>
+                                <v-icon v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
                             </template>
                             <span>Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file.</span>
                         </v-tooltip>
@@ -100,7 +100,7 @@
                             <span>Send an email when the job is done.</span>
                         </v-tooltip>
 
-                        <v-btn color="primary" block large v-on:click="search" :disabled="searchDisabled"><v-icon>mdi-magnify</v-icon>Search</v-btn>
+                        <v-btn color="primary" block large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>Search</v-btn>
                     </div>
                 </panel>
             </v-flex>

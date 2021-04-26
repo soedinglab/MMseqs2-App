@@ -43,9 +43,9 @@
                     <draggable v-model="databases" :options="{ handle: '.drag-handle' }">
                     <v-list-item v-for="(child, i) in databases" :key="i">
                         <v-list-item-action>
-                            <v-icon v-if="inReorder == false">mdi-dns</v-icon>
+                            <v-icon v-if="inReorder == false">{{ $MDI.Dns }}</v-icon>
                             <v-btn v-else style="cursor: move" icon class="drag-handle">
-                                <v-icon>mdi-reorder-horizontal</v-icon>
+                                <v-icon>{{ $MDI.ReorderHorizontal }}</v-icon>
                             </v-btn>
                         </v-list-item-action>
                         <v-list-item-content>
@@ -58,7 +58,7 @@
                         </v-list-item-content>
                         <v-list-item-action>
                             <v-btn icon @click="deleteDatabase(child.path)">
-                                <v-icon>mdi-delete</v-icon>
+                                <v-icon>{{ $MDI.Delete }}</v-icon>
                             </v-btn>
                         </v-list-item-action>
                     </v-list-item>
