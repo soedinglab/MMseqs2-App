@@ -71,13 +71,13 @@
         <v-container grid-list-md fluid>
             <v-layout wrap>
                 <v-flex xs12>
-                    <v-card color="blue-grey darken-2" class="white--text">
-                        <v-card-title primary-title>
+                    <v-card>
+                        <v-card-title primary-title style="background-color:#465A64; color:#fff;">
                             <div>
                                 <div class="text-h5">MMseqs2 Version</div>
-                                <span class="grey--text" style="word-break: break-all;">{{ mmseqsVersion }}</span>
+                                <span style="word-break: break-all;">{{ mmseqsVersion }}</span>
                                 <br>
-                                <span class="grey--text">Current Platform: {{ __OS__.platform }} - {{ __OS__.arch }}</span>
+                                <span>Current Platform: {{ __OS__.platform }} - {{ __OS__.arch }}</span>
                             </div>
                         </v-card-title>
                     </v-card>

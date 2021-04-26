@@ -1,7 +1,7 @@
 <template>
     <div class="panel-root">
         <v-toolbar v-if="!!$slots['header'] || !!header" text dense dark>
-            <span class="text-h6 white--text align-end">
+            <span class="text-h6 align-end">
                 <slot v-if="$slots['header']" name="header"></slot>
                 <template v-else>{{ header }}</template>
             </span>

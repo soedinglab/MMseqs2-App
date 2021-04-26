@@ -1,6 +1,6 @@
 <template>
 <div>
-<v-navigation-drawer stateless app permanent clipped :class="['grey', theme.isDark ? 'darken-4' : 'lighten-4']" :mini-variant.sync="mini">
+<v-navigation-drawer stateless app permanent clipped :mini-variant.sync="mini">
     <v-list>
         <v-list-item to="/search">
             <v-list-item-action>
@@ -50,7 +50,6 @@
 import History from './History.vue';
 
 export default {
-    inject: ['theme'],
     components : { History },
     data: () => ({
         mini: true
@@ -80,5 +79,15 @@ export default {
 ::v-deep .v-app-bar-title__content {
     text-overflow: revert !important;
 }
-</style>
+::v-deep .theme--light.v-navigation-drawer {
+    background-color: #f5f5f5;
+    border-color: #f5f5f5;
+    /* transition-duration: 0s !important; */
+    /* transition-timing-function: linear; */
+}
 
+::v-deep .theme--dark.v-navigation-drawer {
+    background-color: #212121;
+    border-color: #212121;
+}
+</style>

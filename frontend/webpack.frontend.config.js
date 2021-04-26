@@ -68,11 +68,39 @@ module.exports = (env, argv) => {
                 },
                 {
                     test: /\.css$/,
-                    use: [isProduction ? MiniCssExtractPlugin.loader : 'style-loader', 'css-loader']
+                    use: [isProduction ? MiniCssExtractPlugin.loader : 'vue-style-loader', 'css-loader']
                 },
                 {
-                    test: /\.s[ac]ss$/i,
-                    use: [isProduction ? MiniCssExtractPlugin.loader : 'style-loader', 'css-loader', 'sass-loader']
+                    test: /\.sass$/i,
+                    use: [
+                        isProduction ? MiniCssExtractPlugin.loader : 'vue-style-loader',
+                        { loader: 'css-loader', options: { esModule: false } },
+                        { 
+                            loader: 'sass-loader',
+                            options: {
+                                sassOptions: {
+                                    includePaths: [path.resolve(__dirname, "assets")]
+                                },
+                                additionalData: `@import "_variables.scss"`
+                            }
+                        }
+                    ]
+                },
+                {
+                    test: /\.scss$/i,
+                    use: [
+                        isProduction ? MiniCssExtractPlugin.loader : 'vue-style-loader',
+                        { loader: 'css-loader', options: { esModule: false } },
+                        {
+                            loader: 'sass-loader',
+                            options: {
+                                sassOptions: {
+                                    includePaths: [path.resolve(__dirname, "assets")]
+                                },
+                                additionalData: `@import "_variables.scss";`
+                            }
+                        }
+                    ]
                 }
             ]
         },

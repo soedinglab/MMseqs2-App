@@ -1,0 +1,55 @@
+$color-pack: false;
+
+$spacer: 4px;
+$spacers: ();
+@if (type-of($spacers) == list) {
+  @for $i from 0 through 3 {
+    $spacers: map-merge($spacers, ($i: $spacer * $i))
+  }
+}
+
+$negative-spacers: ();
+@if (type-of($negative-spacers) == list) {
+  @for $i from 1 through 2 {
+    $negative-spacers: map-merge($negative-spacers, ("n" + $i: -$spacer * $i))
+  }
+}
+
+$utilities: (
+    rounded: false,
+    rounded-top: false,
+    rounded-right: false,
+    rounded-bottom: false,
+    rounded-left: false,
+    rounded-top-left: false,
+    rounded-top-right: false,
+    rounded-bottom-right: false,
+    rounded-bottom-left: false,
+    text-transform: false,
+    text-overflow: false,
+    overflow: false,
+    overflow-x: false,
+    overflow-y: false,
+    overflow-wrap: false,
+    white-space: false,
+    text-decoration: false,
+    text-align: false,
+    order: false,
+    // display: false,
+    float: false,
+    flex: false,
+    flex-direction: false,
+    flex-grow: false,
+    flex-shrink: false,
+    flex-wrap: false,
+    justify-content: false,
+    align-items: false,
+    align-content: false,
+    align-self: false,
+);
+
+@import '~vuetify/src/styles/styles.sass';
+
+// @each $name, $value in $utilities {
+    // @debug $name ": " $value;
+// }
