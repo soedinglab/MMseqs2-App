@@ -507,7 +507,7 @@ src: url(assets/InconsolataClustal2.woff2),
         border-collapse: collapse;
         width: 100%;
         th.wide-1 {
-            width: 18%;
+            width: 19%;
         }
         th.wide-2 {
             width: 22% !important;
