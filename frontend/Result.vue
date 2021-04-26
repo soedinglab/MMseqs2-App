@@ -604,6 +604,7 @@ src: url(assets/InconsolataClustal2.woff2),
 
     .residues {
         font-family: InconsolataClustal, 'Courier New', Courier, monospace;
+        white-space: pre;
     }
 
     .alignment-wrapper1 {
