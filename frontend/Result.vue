@@ -439,7 +439,6 @@ export default {
 @font-face {
 font-family: InconsolataClustal;
 src: url(assets/InconsolataClustal2.woff2),
-     url(assets/InconsolataClustal2.eot),
      url(assets/InconsolataClustal2.woff);
 }
 
@@ -599,11 +598,11 @@ src: url(assets/InconsolataClustal2.woff2),
 
 .alignment {
     position:absolute;
-    left:8px;
+    left:4px;
     right:0;
 
     .residues {
-        font-family: InconsolataClustal, 'Courier New', Courier, monospace;
+        font-family: InconsolataClustal, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
         white-space: pre;
     }
 
@@ -620,6 +619,12 @@ src: url(assets/InconsolataClustal2.woff2),
             display: inline-block;
             margin-bottom: 0.5em;
             white-space: nowrap;
+        }
+    }
+
+    .theme--dark & {
+        .residues {
+            color: #fff;
         }
     }
 }
