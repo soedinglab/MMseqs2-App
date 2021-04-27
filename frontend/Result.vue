@@ -80,7 +80,7 @@
                                 <th>E-Value</th>
                                 <th>Query Pos.</th>
                                 <th>Target Pos.</th>
-                                <th>Alignment</th>
+                                <th class="alignment-action">Alignment</th>
                             </tr>
                         </thead>
                         <tbody v-for="entry in hits.results" :key="entry.db">
@@ -95,7 +95,7 @@
                                 <td data-label="E-Value">{{ item.eval }}</td>
                                 <td data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
                                 <td data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
-                                <td>
+                                <td class="alignment-action">
                                     <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
                                         <v-icon>{{ $MDI.NotificationClearAll }}</v-icon>
                                     </v-btn>
@@ -500,7 +500,7 @@ src: url(assets/InconsolataClustal2.woff2),
     }
 }
 
-@media screen and (min-width: 961px) {
+@media print, screen and (min-width: 961px) {
     .result-table {
         table-layout: fixed;
         border-collapse: collapse;
@@ -517,6 +517,12 @@ src: url(assets/InconsolataClustal2.woff2),
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+    }
+}
+
+@media print {
+    .result-table .alignment-action {
+        display: none;
     }
 }
 

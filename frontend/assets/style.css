@@ -52,3 +52,17 @@ svg a {
 main.content {
     max-width: 1536px;
 }
+
+@media print {
+    nav.v-navigation-drawer, header.v-app-bar {
+        display: none !important;
+    }
+    main {
+        padding: 1cm !important;
+    }
+    .v-card, .v-sheet {
+        border: 0px solid transparent !important;
+        outline: 0px solid transparent !important;
+        box-shadow: none !important;
+    }
+}
