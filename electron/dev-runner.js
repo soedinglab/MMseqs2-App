@@ -122,10 +122,10 @@ function startElectron () {
   electronProcess.on('close', () => {
     if (!manualRestart) {
       if (rendererCompiler != null && 'close' in rendererCompiler) {
-        rendererCompiler.close()
+        rendererCompiler.close((err) => { if (err) electronLog(err) });
       }
       if (mainCompiler != null && 'close' in mainCompiler) {
-        mainCompiler.close()
+        mainCompiler.close((err) => { if (err) electronLog(err) });
       }
       process.exit()
     }
