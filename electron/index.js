@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog, Menu } from 'electron';
+import { app, BrowserWindow, shell, dialog, Menu, systemPreferences } from 'electron';
 import { execFile, execFileSync } from 'child_process';
 import { default as fp } from 'find-free-port';
 import { default as os } from 'os';
@@ -115,6 +115,15 @@ console.log(err);
 				callback("");
 			}
 		});
+	}
+
+	app.handleTitleBarDoubleClick = () => {
+		const action = systemPreferences.getUserDefault("AppleActionOnDoubleClick", "string") || "Maximize";
+		if (action === "Minimize") {
+			mainWindow.minimize();
+		} else {
+			mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
+		}
 	}
 
 	app.saveResult = (id) => {

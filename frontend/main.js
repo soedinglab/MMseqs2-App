@@ -60,8 +60,20 @@ const vuetify = new Vuetify({
     theme: { dark: mq.matches },
 })
 
+function setBodyThemeClass(dark) {
+    if (dark) {
+        document.querySelector('body').classList.add('theme--dark');
+        document.querySelector('body').classList.remove('theme--light');
+    } else {
+        document.querySelector('body').classList.remove('theme--dark');
+        document.querySelector('body').classList.add('theme--light');
+    }
+}
+setBodyThemeClass(mq.matches);
+
 mq.addEventListener('change', (e) => {
-    vuetify.framework.theme.dark = e.matches
+    vuetify.framework.theme.dark = e.matches;
+    setBodyThemeClass(e.matches);
 })
 
 Vue.use({
@@ -91,10 +103,12 @@ Vue.use({
             Vue.prototype.__OS__ = remote.app.os;
             Vue.prototype.mmseqsVersion = remote.app.mmseqsVersion;
             Vue.prototype.saveResult = remote.app.saveResult;
+            Vue.prototype.handleTitleBarDoubleClick = remote.app.handleTitleBarDoubleClick;
             Vue.prototype.newDatabase = remote.app.newDatabase;
         } else {
             Vue.prototype.__OS__ = { arch: 'web', platform: 'web' };
             Vue.prototype.mmseqsVersion = "web";
+            Vue.prototype.saveResult = () => {};
         }
     }
 });

@@ -25,7 +25,7 @@
         </v-list-item>
     </v-list>
 </v-navigation-drawer>
-<v-app-bar app :height="$ELECTRON ? '72px' : '48px'" fixed clipped-left :class="['ml-0', 'pl-3', $ELECTRON ? 'pt-2' : null]" :style="{'-webkit-app-region': $ELECTRON ? 'drag' : null, '-webkit-user-select': $ELECTRON ? 'none' : null}">
+<v-app-bar v-on:dblclick.native="electronHandleTitleBarDoubleClick()" app :height="$ELECTRON ? '72px' : '48px'" fixed clipped-left :class="['ml-0', 'pl-3', $ELECTRON ? 'pt-2' : null]" :style="{'-webkit-app-region': $ELECTRON ? 'drag' : null, '-webkit-user-select': $ELECTRON ? 'none' : null}">
     <v-app-bar-nav-icon @click.stop="toggleMini"></v-app-bar-nav-icon>
     <v-app-bar-title><router-link to="/" style="color: inherit; text-decoration: none">MMseqs2 Search</router-link></v-app-bar-title>
     <object style="margin-left:8px; display: inline-block; width: 38px;height: 38px;vertical-align: middle" 
@@ -70,6 +70,9 @@ export default {
         toggleMini() {
             this.mini = !this.mini;
             this.$root.$emit('navigation-resize', this.mini);
+        },
+        electronHandleTitleBarDoubleClick() {
+            this.handleTitleBarDoubleClick();
         }
     }
 }
