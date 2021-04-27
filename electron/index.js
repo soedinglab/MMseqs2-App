@@ -9,8 +9,7 @@ import appRootDir from 'app-root-dir';
 import defaultMenu from './menu';
 import contextMenu from './context'
 
-const winURL = process.env.NODE_ENV === 'development'
-	? `http://localhost:9080` : `file://${__dirname}/index.html`;
+const winURL = app.isPackaged ? `file://${__dirname}/index.html` : `http://localhost:9080`;
 
 const homePath = app.getPath('home');
 const userData = app.getPath('userData');
@@ -32,7 +31,7 @@ const mapPlatform = (platform) => {
 			return "UNSUPPORTED-PLATFORM";
 	}
 }
-const binPath = (process.env.NODE_ENV === 'production') ?
+const binPath = app.isPackaged ?
 	join(process.resourcesPath, 'bin') :
 	join(appRootDir.get(), 'resources', mapPlatform(platform), os.arch());
 
@@ -172,7 +171,7 @@ console.log(err);
 		mainWindow.setAutoHideMenuBar(true);
 
 		contextMenu(mainWindow, {
-			showInspectElement: process.env.NODE_ENV !== 'production'
+			showInspectElement: !app.isPackaged
 		});
 	}
 
