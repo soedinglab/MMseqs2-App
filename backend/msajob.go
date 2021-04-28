@@ -10,9 +10,9 @@ import (
 )
 
 type MsaJob struct {
-	Size     int      `json:"size" valid:"required"`
-	Database []string `json:"database" valid:"required"`
-	Mode     string   `json:"mode" valid:"required"`
+	Size     int      `json:"size" validate:"required"`
+	Database []string `json:"database" validate:"required"`
+	Mode     string   `json:"mode" validate:"required"`
 	query    string
 }
 

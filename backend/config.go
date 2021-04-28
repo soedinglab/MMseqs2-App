@@ -140,30 +140,30 @@ type ConfigMailTemplates struct {
 }
 
 type ConfigMail struct {
-	Mailer    *ConfigMailtransport `json:"mailer" valid:"optional"`
+	Mailer    *ConfigMailtransport `json:"mailer"`
 	Sender    string               `json:"sender"`
 	Templates ConfigMailTemplates  `json:"templates"`
 }
 
 type ConfigAuth struct {
-	Username string `json:"username" valid:"required"`
-	Password string `json:"password" valid:"required"`
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
 }
 
 type ConfigServer struct {
-	Address     string      `json:"address" valid:"required"`
-	PathPrefix  string      `json:"pathprefix" valid:"optional"`
-	DbManagment bool        `json:"dbmanagment" valid:"optional"`
-	CORS        bool        `json:"cors" valid:"optional"`
-	Auth        *ConfigAuth `json:"auth" valid:"optional"`
+	Address     string      `json:"address" validate:"required"`
+	PathPrefix  string      `json:"pathprefix"`
+	DbManagment bool        `json:"dbmanagment"`
+	CORS        bool        `json:"cors"`
+	Auth        *ConfigAuth `json:"auth"`
 }
 
 type ConfigRoot struct {
-	Server  ConfigServer `json:"server" valid:"required"`
-	Paths   ConfigPaths  `json:"paths" valid:"required"`
-	Redis   ConfigRedis  `json:"redis" valid:"optional"`
-	Local   ConfigLocal  `json:"local" valid:"optional"`
-	Mail    ConfigMail   `json:"mail" valid:"optional"`
+	Server  ConfigServer `json:"server" validate:"required"`
+	Paths   ConfigPaths  `json:"paths" validate:"required"`
+	Redis   ConfigRedis  `json:"redis"`
+	Local   ConfigLocal  `json:"local"`
+	Mail    ConfigMail   `json:"mail"`
 	Verbose bool         `json:"verbose"`
 }
 

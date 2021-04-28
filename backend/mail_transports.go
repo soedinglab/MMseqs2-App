@@ -16,7 +16,7 @@ const (
 )
 
 type ConfigMailtransport struct {
-	Type      TransportType `json:"type" valid:"required"`
+	Type      TransportType `json:"type" validate:"required"`
 	Transport interface{}   `json:"transport"`
 }
 

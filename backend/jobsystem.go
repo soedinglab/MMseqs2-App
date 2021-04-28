@@ -22,11 +22,11 @@ const (
 )
 
 type JobRequest struct {
-	Id     Id          `json:"id" valid:"required"`
-	Status Status      `json:"status" valid:"required"`
-	Type   JobType     `json:"type" valid:"required"`
-	Job    interface{} `json:"job" valid:"required"`
-	Email  string      `json:"email" valid:"email,optional"`
+	Id     Id          `json:"id" validate:"required"`
+	Status Status      `json:"status" validate:"required"`
+	Type   JobType     `json:"type" validate:"required"`
+	Job    interface{} `json:"job" validate:"required"`
+	Email  string      `json:"email" validate:"email|isdefault"`
 }
 
 type jobRequest JobRequest

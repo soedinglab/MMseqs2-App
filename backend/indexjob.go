@@ -6,7 +6,7 @@ import (
 )
 
 type IndexJob struct {
-	Path string `json:"path" valid:"required"`
+	Path string `json:"path" validate:"required"`
 }
 
 func (r IndexJob) Hash() Id {

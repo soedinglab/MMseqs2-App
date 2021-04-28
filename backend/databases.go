@@ -15,14 +15,14 @@ import (
 )
 
 type Params struct {
-	Name    string `json:"name"`
+	Name    string `json:"name" validate:"required"`
 	Version string `json:"version"`
-	Path    string `json:"path"`
+	Path    string `json:"path" validate:"required"`
 	Default bool   `json:"default"`
 	Order   int    `json:"order"`
-	Index   string `json:"index" valid:"optional"`
+	Index   string `json:"index"`
 	Search  string `json:"search"`
-	Status  Status `json:"status" valid:"optional"`
+	Status  Status `json:"status"`
 }
 
 type paramsByOrder []Params
@@ -142,18 +142,18 @@ func UpgradeParams(filename string) (Params, error) {
 	}
 
 	type ParamsV1 struct {
-		Name    string `json:"name"`
+		Name    string `json:"name" validate:"required"`
 		Version string `json:"version"`
-		Path    string `json:"path"`
+		Path    string `json:"path" validate:"required"`
 		Default bool   `json:"default"`
 		Order   int    `json:"order"`
-		Index   string `json:"index" valid:"optional"`
+		Index   string `json:"index"`
 		Search  string `json:"search"`
 	}
 
 	type ParamsDisplayV1 struct {
-		Status  Status   `json:"status"`
-		Display ParamsV1 `json:"display"`
+		Status  Status   `json:"status" validate:"required"`
+		Display ParamsV1 `json:"display" validate:"required"`
 	}
 
 	var paramsOld ParamsDisplayV1
