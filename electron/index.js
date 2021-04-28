@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog, Menu, systemPreferences } from 'electron';
+import { app, BrowserWindow, shell, dialog, Menu, systemPreferences, nativeTheme } from 'electron';
 import { execFile, execFileSync } from 'child_process';
 import { default as fp } from 'find-free-port';
 import { default as os } from 'os';
@@ -140,7 +140,7 @@ console.log(err);
 
 	function createWindow() {
 		mainWindow = new BrowserWindow({
-			backgroundColor: "#FAFAFA",
+			backgroundColor: nativeTheme.shouldUseDarkColors ? '#121212' : "#fff",
 			height: 615,
 			useContentSize: true,
 			width: 1000,

@@ -60,20 +60,8 @@ const vuetify = new Vuetify({
     theme: { dark: mq.matches },
 })
 
-function setBodyThemeClass(dark) {
-    if (dark) {
-        document.querySelector('body').classList.add('theme--dark');
-        document.querySelector('body').classList.remove('theme--light');
-    } else {
-        document.querySelector('body').classList.remove('theme--dark');
-        document.querySelector('body').classList.add('theme--light');
-    }
-}
-setBodyThemeClass(mq.matches);
-
 mq.addEventListener('change', (e) => {
     vuetify.framework.theme.dark = e.matches;
-    setBodyThemeClass(e.matches);
 })
 
 Vue.use({
