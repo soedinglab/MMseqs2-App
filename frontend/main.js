@@ -21,6 +21,7 @@ import {
     mdiLabel,
     mdiLabelOutline,
     mdiNotificationClearAll,
+    mdiProgressWrench,
 } from '@mdi/js'
 
 Vue.use(VueRouter);
@@ -85,6 +86,7 @@ Vue.use({
             Label: mdiLabel,
             LabelOutline: mdiLabelOutline,
             NotificationClearAll: mdiNotificationClearAll,
+            ProgressWrench: mdiProgressWrench,
         };
         if (__ELECTRON__) {
             const remote = require('electron').remote;

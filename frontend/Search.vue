@@ -80,7 +80,10 @@
                                 </span>
                             </div>
                         </div>
-                        <v-checkbox v-else v-for="(db, index) in databases" v-model="database" :key="index" :value="db.path" :label="db.name + ' ' + db.version" hide-details></v-checkbox>
+                        <v-checkbox v-else v-for="(db, index) in databases" v-model="database" :key="index" :value="db.path" :label="db.name + ' ' + db.version" :append-icon="(db.status == 'ERROR' || db.status == 'UNKNOWN') ? $MDI.AlertCircleOutline : ((db.status == 'PENDING' || db.status == 'RUNNING') ? $MDI.ProgressWrench : undefined)" :disabled="db.status != 'COMPLETE'" hide-details></v-checkbox>
+                        <div v-if="databasesNotReady" class="alert alert-info mt-1">
+                            <span>Databases are loading...</span>
+                        </div>
 
                         <v-radio-group v-model="mode">
                             <v-tooltip open-delay="300" top>
@@ -198,6 +201,9 @@ export default {
                 this.database_ = value;
             }
         },
+        databasesNotReady: function() {
+            return this.databases.some((db) => db.status == "PENDING" || db.status == "RUNNING");
+        },
         searchDisabled() {
             return (
                 this.inSearch || this.database.length == 0 || this.query.length == 0
@@ -229,20 +235,24 @@ export default {
             );
         },
         fetchData() {
-            this.$http.get("api/databases").then(
+            this.$http.get("api/databases/all").then(
                 response => {
                     response.json().then(data => {
                         this.dberror = false;
                         this.databases = data.databases;
 
                         if (this.database === null || this.database.length == 0) {
-                            const dbs = this.databases.filter((element) => { return element.default == true; });
+                            const dbs = this.databases.filter((element) => { return element.default == true });
                             this.database = dbs.map((db) => { return db.path; });
                         } else {
                             const paths = this.databases.map((db) => { return db.path; });
                             this.database = this.database.filter((elem) => {
                                 return paths.includes(elem);
                             });
+                        }
+                        this.database = this.databases.filter((db) => { return db.status == "PENDING" || db.status == "RUNNING"; });
+                        if (this.databases.some((db) => { return db.status == "PENDING" || db.status == "RUNNING"; })) {
+                            setTimeout(this.fetchData.bind(this), 1000);
                         }
                     }).catch(() => { this.dberror = true; });
                 }).catch(() => { this.dberror = true; });

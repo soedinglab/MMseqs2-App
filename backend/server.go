@@ -71,9 +71,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 	}
 	r.HandleFunc("/databases", databasesHandler(true)).Methods("GET")
+	r.HandleFunc("/databases/all", databasesHandler(false)).Methods("GET")
 
 	if config.Server.DbManagment == true {
-		r.HandleFunc("/databases/all", databasesHandler(false)).Methods("GET")
 
 		r.HandleFunc("/databases/order", func(w http.ResponseWriter, req *http.Request) {
 			err := req.ParseForm()
