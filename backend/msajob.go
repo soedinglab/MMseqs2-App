@@ -61,7 +61,7 @@ func NewMsaJobRequest(query string, dbs []string, validDbs []Params, mode string
 
 	ids := make([]string, len(validDbs))
 	for i, item := range validDbs {
-		ids[i] = item.Display.Path
+		ids[i] = item.Path
 	}
 
 	for _, item := range job.Database {

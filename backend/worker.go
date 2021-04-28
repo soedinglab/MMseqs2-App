@@ -89,7 +89,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				"--format-output",
 				"query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln",
 			}
-			parameters = append(parameters, strings.Fields(params.Display.Search)...)
+			parameters = append(parameters, strings.Fields(params.Search)...)
 
 			if job.Mode == "summary" {
 				parameters = append(parameters, "--greedy-best-hits")
@@ -199,9 +199,9 @@ rm -rf "${BASE}/tmp"
 			config.Paths.Databases,
 			resultBase,
 			job.Database[0],
-			params0.Display.Search,
+			params0.Search,
 			job.Database[1],
-			params1.Display.Search,
+			params1.Search,
 		}
 
 		cmd, done, err := execCommand(config.Verbose, parameters...)
@@ -290,7 +290,7 @@ rm -rf "${BASE}/tmp"
 		if err != nil {
 			return &JobExecutionError{err}
 		}
-		err = CheckDatabase(file, params.Display, config)
+		err = CheckDatabase(file, params, config)
 		if err != nil {
 			params.Status = StatusError
 			SaveParams(file+".params", params)

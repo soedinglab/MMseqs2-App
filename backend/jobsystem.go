@@ -101,6 +101,19 @@ const (
 	StatusUnknown         = "UNKNOWN"
 )
 
+func (e *Status) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	if s == "" {
+		*e = StatusPending
+	} else {
+		*e = Status(s)
+	}
+	return nil
+}
+
 type Ticket struct {
 	Id        Id     `json:"id"`
 	RawStatus Status `json:"status"`

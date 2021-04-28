@@ -78,7 +78,7 @@ func NewSearchJobRequest(query string, dbs []string, validDbs []Params, mode str
 
 	ids := make([]string, len(validDbs))
 	for i, item := range validDbs {
-		ids[i] = item.Display.Path
+		ids[i] = item.Path
 	}
 
 	for _, item := range job.Database {

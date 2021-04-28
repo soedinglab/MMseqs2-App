@@ -102,7 +102,7 @@ The following command will create an empty `.params` file that you can customize
 
 ```
 BASEFASTA="sequence_db"
-echo -e "{\n \"status\": \"PENDING\",\n \"display\": {\n  \"name\": \"\",\n  \"version\": \"\",\n  \"default\": true,\n  \"order\": 0,\n  \"index\": \"\",\n  \"search\": \"\"\n }\n}" > "${BASEFASTA}.params"
+echo -e "{\n  \"name\": \"\",\n  \"version\": \"\",\n  \"default\": true,\n  \"order\": 0,\n  \"index\": \"\",\n  \"search\": \"\"\n}" > "${BASEFASTA}.params"
 ```
 
 Take a look at the "Params File" to customize this file.
@@ -116,35 +116,33 @@ The params file contains a JSON object file describing each search database with
 
 ```
 {
-  "status"    : "PENDING",   // PENDING|RUNNING|COMPLETE|ERROR|UNKNOWN
-                             //   Current status of the database, should be PENDING for a new database
-                             //   If server crashes while building the database it might be stuck in RUNNING state.
-                             //   Manually reset it to PENDING in this case
-  "display"   : {
-    "name"    : "Uniclust30",// string Human readable name of the database
-    "version" : "2018_08",   // string Description of the database, usually the version number
-    "path"    : "",          // string (optional) Database base name in the config databases folder
-                             //        will be automatically resolved and thus does not need to be specified
-    "default" : true,        // bool   Should the database be selected by default
-    "order"   : 0            // int    Order in which the databases appear in the frontend 
-    "index"   : "-s 6",      // string (optional)
-                             //   Additional parameters for MMseqs2's createindex module
-                             //     -s FLOAT Decides how many k-mers to store per target in the search database
-                             //              Sensitivity in actual search must by <= than this value (default 5.7)
-                             //   See mmseqs createindex -h for a list of all parameters
-                             //   Multiple parameters should be given as a single string: E.g. "-s 6 -v 0"
-    "search"  : "-s 6"       // string
-                             //   Additonal parameters for MMseqs2's easy-search module
-                             //   Useful parameters:
-                             //     --search-type In nucleotide-nucleotide searches:
-                             //                   2) Use translated protein to translated protein search
-                             //                   3) Use nucleotide to nucleotide search
-                             //     --num-iterations INT values > 1 will call the iterative-profile search
-                             //     -s FLOAT Search sensitivity decides how many k-mers in the prefiltering.
-                             //              Must by <= than the value given to index (default 5.7)
-                             //   See mmseqs easy-search -h for a list of all parameters
-                             //   Multiple parameters should be given as a single string: E.g. "-s 6 -v 0"
-  }
+  "name"    : "Uniclust30", // string Human readable name of the database
+  "version" : "2018_08",    // string Description of the database, usually the version number
+  "path"    : "",           // string (optional) Database base name in the config databases folder
+                            //        will be automatically resolved and thus does not need to be specified
+  "default" : true,         // bool   Should the database be selected by default
+  "order"   : 0             // int    Order in which the databases appear in the frontend 
+  "index"   : "-s 6",       // string (optional)
+                            //   Additional parameters for MMseqs2's createindex module
+                            //     -s FLOAT Decides how many k-mers to store per target in the search database
+                            //              Sensitivity in actual search must by <= than this value (default 5.7)
+                            //   See mmseqs createindex -h for a list of all parameters
+                            //   Multiple parameters should be given as a single string: E.g. "-s 6 -v 0"
+  "search"  : "-s 6"        // string
+                            //   Additonal parameters for MMseqs2's easy-search module
+                            //   Useful parameters:
+                            //     --search-type In nucleotide-nucleotide searches:
+                            //                   2) Use translated protein to translated protein search
+                            //                   3) Use nucleotide to nucleotide search
+                            //     --num-iterations INT values > 1 will call the iterative-profile search
+                            //     -s FLOAT Search sensitivity decides how many k-mers in the prefiltering.
+                            //              Must by <= than the value given to index (default 5.7)
+                            //   See mmseqs easy-search -h for a list of all parameters
+                            //   Multiple parameters should be given as a single string: E.g. "-s 6 -v 0"
+  "status"  : "PENDING",    // PENDING|RUNNING|COMPLETE|ERROR|UNKNOWN (optional)
+                            //   Current status of the database, will be PENDING for a new database
+                            //   If server crashes while building the database it might be stuck in RUNNING state.
+                            //   Manually reset it to PENDING in this case
 }
 ```
 

@@ -14,7 +14,7 @@ import (
 	"strconv"
 )
 
-type ParamsDisplay struct {
+type Params struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
 	Path    string `json:"path"`
@@ -22,6 +22,7 @@ type ParamsDisplay struct {
 	Order   int    `json:"order"`
 	Index   string `json:"index" valid:"optional"`
 	Search  string `json:"search"`
+	Status  Status `json:"status" valid:"optional"`
 }
 
 type paramsByOrder []Params
@@ -33,23 +34,10 @@ func (d paramsByOrder) Swap(i, j int) {
 	d[i], d[j] = d[j], d[i]
 }
 func (d paramsByOrder) Less(i, j int) bool {
-	return d[i].Display.Order < d[j].Display.Order
+	return d[i].Order < d[j].Order
 }
 
-type Params struct {
-	Status  Status        `json:"status"`
-	Display ParamsDisplay `json:"display"`
-}
-
-func GetDisplayFromParams(params []Params) []ParamsDisplay {
-	result := make([]ParamsDisplay, 0)
-	for _, value := range params {
-		result = append(result, value.Display)
-	}
-	return result
-}
-
-func CheckDatabase(basepath string, params ParamsDisplay, config ConfigRoot) error {
+func CheckDatabase(basepath string, params Params, config ConfigRoot) error {
 	verbose := config.Verbose
 	if fileExists(basepath + ".fasta") {
 		if !fileExists(basepath) && !fileExists(basepath+".index") {
@@ -146,17 +134,65 @@ func CheckDatabase(basepath string, params ParamsDisplay, config ConfigRoot) err
 	return nil
 }
 
+func UpgradeParams(filename string) (Params, error) {
+	var paramsNew Params
+	file, err := os.Open(filename)
+	if err != nil {
+		return paramsNew, err
+	}
+
+	type ParamsV1 struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+		Path    string `json:"path"`
+		Default bool   `json:"default"`
+		Order   int    `json:"order"`
+		Index   string `json:"index" valid:"optional"`
+		Search  string `json:"search"`
+	}
+
+	type ParamsDisplayV1 struct {
+		Status  Status   `json:"status"`
+		Display ParamsV1 `json:"display"`
+	}
+
+	var paramsOld ParamsDisplayV1
+	err = DecodeJsonAndValidate(bufio.NewReader(file), &paramsOld)
+	file.Close()
+	if err != nil {
+		return paramsNew, err
+	}
+
+	paramsNew.Name = paramsOld.Display.Name
+	paramsNew.Version = paramsOld.Display.Version
+	paramsNew.Path = paramsOld.Display.Path
+	paramsNew.Default = paramsOld.Display.Default
+	paramsNew.Order = paramsOld.Display.Order
+	paramsNew.Index = paramsOld.Display.Index
+	paramsNew.Search = paramsOld.Display.Search
+	paramsNew.Status = paramsOld.Status
+
+	err = SaveParams(filename, paramsNew)
+	if err != nil {
+		return paramsNew, err
+	}
+	return paramsNew, nil
+}
+
 func ReadParams(filename string) (Params, error) {
 	var params Params
 	file, err := os.Open(filename)
 	if err != nil {
 		return params, err
 	}
-	defer file.Close()
 
 	err = DecodeJsonAndValidate(bufio.NewReader(file), &params)
+	file.Close()
 	if err != nil {
-		return params, err
+		params, err = UpgradeParams(filename)
+		if err != nil {
+			return params, err
+		}
 	}
 
 	return params, nil
@@ -202,8 +238,8 @@ func Databases(basepath string, complete bool) ([]Params, error) {
 		base := filepath.Base(value)
 		name := strings.TrimSuffix(base, filepath.Ext(base))
 
-		if params.Display.Path != name {
-			params.Display.Path = name
+		if params.Path != name {
+			params.Path = name
 			err = SaveParams(value, params)
 			if err != nil {
 				return nil, err
@@ -232,9 +268,9 @@ func ReorderDatabases(basepath string, paths []string) ([]Params, error) {
 		found := false
 		for j := 0; j < len(res); j++ {
 			db := &res[j]
-			if db.Display.Path == path {
+			if db.Path == path {
 				found = true
-				db.Display.Order = i
+				db.Order = i
 
 				err := SaveParams(filepath.Join(basepath, path+".params"), *db)
 				if err != nil {

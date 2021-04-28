@@ -20,7 +20,7 @@ import (
 )
 
 type DatabaseResponse struct {
-	Databases []ParamsDisplay `json:"databases"`
+	Databases []Params `json:"databases"`
 }
 
 func server(jobsystem JobSystem, config ConfigRoot) {
@@ -35,7 +35,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				continue
 			}
 
-			request, err := NewIndexJobRequest(db.Display.Path, "")
+			request, err := NewIndexJobRequest(db.Path, "")
 			if err != nil {
 				panic(err)
 			}
@@ -55,21 +55,26 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		r = baseRouter
 	}
 
-	r.HandleFunc("/databases", func(w http.ResponseWriter, req *http.Request) {
-		databases, err := Databases(config.Paths.Databases, true)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+	databasesHandler := func(complete bool) func(http.ResponseWriter, *http.Request) {
+		return func(w http.ResponseWriter, req *http.Request) {
+			databases, err := Databases(config.Paths.Databases, complete)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 
-		err = json.NewEncoder(w).Encode(DatabaseResponse{GetDisplayFromParams(databases)})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+			err = json.NewEncoder(w).Encode(DatabaseResponse{databases})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 		}
-	}).Methods("GET")
+	}
+	r.HandleFunc("/databases", databasesHandler(true)).Methods("GET")
 
 	if config.Server.DbManagment == true {
+		r.HandleFunc("/databases/all", databasesHandler(false)).Methods("GET")
+
 		r.HandleFunc("/databases/order", func(w http.ResponseWriter, req *http.Request) {
 			err := req.ParseForm()
 			if err != nil {
@@ -84,7 +89,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				return
 			}
 
-			err = json.NewEncoder(w).Encode(DatabaseResponse{GetDisplayFromParams(databases)})
+			err = json.NewEncoder(w).Encode(DatabaseResponse{databases})
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -161,16 +166,14 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				}
 			}
 			params := Params{
+				req.FormValue("name"),
+				req.FormValue("version"),
+				path,
+				req.FormValue("default") == "true",
+				0,
+				req.FormValue("index"),
+				req.FormValue("search"),
 				StatusPending,
-				ParamsDisplay{
-					req.FormValue("name"),
-					req.FormValue("version"),
-					path,
-					req.FormValue("default") == "true",
-					0,
-					req.FormValue("index"),
-					req.FormValue("search"),
-				},
 			}
 
 			filename := filepath.Join(config.Paths.Databases, filepath.Base(path+".params"))
