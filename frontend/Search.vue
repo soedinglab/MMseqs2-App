@@ -392,4 +392,12 @@ code {
     align-self: stretch;
 }
 
+.theme--dark .v-input label {
+    color: #FFFFFFB3;
+}
+
+.theme--light .v-input label {
+    color: #00000099;
+}
+
 </style>
