@@ -67,3 +67,11 @@ main.content {
         box-shadow: none !important;
     }
 }
+
+#app.electron a {
+    -webkit-user-drag: none;
+}
+
+#app.electron .v-toolbar__content, #app.electron .v-input label {
+    user-select: none;
+}
