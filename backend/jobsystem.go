@@ -332,16 +332,18 @@ func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
 }
 
 type LocalJobSystem struct {
-	mutex   *sync.Mutex
-	Queue   []Id
-	Lookup  map[Id]Status
-	Results string
+	QueueMutex  *sync.Mutex
+	Queue       []Id
+	LookupMutex *sync.RWMutex
+	Lookup      map[Id]Status
+	Results     string
 }
 
 func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 	jobsystem := LocalJobSystem{}
-	jobsystem.mutex = &sync.Mutex{}
+	jobsystem.QueueMutex = &sync.Mutex{}
 	jobsystem.Queue = make([]Id, 0)
+	jobsystem.LookupMutex = &sync.RWMutex{}
 	jobsystem.Lookup = make(map[Id]Status)
 	jobsystem.Results = results
 
@@ -435,7 +437,9 @@ func getJobRequestFromFile(file string) (JobRequest, error) {
 }
 
 func (j *LocalJobSystem) SetStatus(id Id, status Status) error {
+	j.LookupMutex.Lock()
 	j.Lookup[id] = status
+	j.LookupMutex.Unlock()
 	file := j.getJobFileName(id)
 	err := setStatusInJobFile(file, status)
 	if err != nil {
@@ -445,7 +449,9 @@ func (j *LocalJobSystem) SetStatus(id Id, status Status) error {
 }
 
 func (j *LocalJobSystem) Status(id Id) (Status, error) {
+	j.LookupMutex.RLock()
 	res, ok := j.Lookup[id]
+	j.LookupMutex.RUnlock()
 	if !ok {
 		return StatusUnknown, nil
 	}
@@ -516,11 +522,12 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 		return Ticket{id, StatusError}, err
 	}
 
-	j.mutex.Lock()
 	j.SetStatus(id, StatusPending)
-	j.Queue = append(j.Queue, id)
 	t.RawStatus = StatusPending
-	j.mutex.Unlock()
+
+	j.QueueMutex.Lock()
+	j.Queue = append(j.Queue, id)
+	j.QueueMutex.Unlock()
 
 	return t, nil
 }
@@ -544,14 +551,16 @@ func (j *LocalJobSystem) MultiStatus(ids []string) ([]Ticket, error) {
 }
 
 func (j *LocalJobSystem) Dequeue() (*Ticket, error) {
-	j.mutex.Lock()
-	defer j.mutex.Unlock()
+	j.QueueMutex.Lock()
 	if len(j.Queue) == 0 {
+		j.QueueMutex.Unlock()
 		return nil, nil
 	}
 	// pop the tail of the queue
 	id := j.Queue[len(j.Queue)-1]
 	j.Queue = j.Queue[:len(j.Queue)-1]
+	j.QueueMutex.Unlock()
+
 	ticket, err := j.GetTicket(id)
 	if err != nil {
 		return nil, err
