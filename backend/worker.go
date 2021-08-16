@@ -160,8 +160,8 @@ mkdir -p "${BASE}"
 "${MMSEQS}" convertalis "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_filt" "${BASE}/uniref.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qseq,qaln,tseq,taln --db-load-mode 2
 "${MMSEQS}" rmdb "${BASE}/res"
 "${MMSEQS}" search "${BASE}/prof_res" "${DBBASE}/${DB2}" "${BASE}/res" "${BASE}/tmp" --db-load-mode 2 -a
-"${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB2}.idx" "${BASE}/res_filt" "${BASE}/pdb70.sto" --filter-msa 0 --msa-format-mode 4 --db-load-mode 2
-"${MMSEQS}" convertalis "${BASE}/qdb" "${DBBASE}/${DB2}.idx" "${BASE}/res_filt" "${BASE}/pdb70.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qseq,qaln,tseq,taln --db-load-mode 2
+"${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB2}.idx" "${BASE}/res" "${BASE}/pdb70.sto" --filter-msa 0 --msa-format-mode 4 --db-load-mode 2
+"${MMSEQS}" convertalis "${BASE}/qdb" "${DBBASE}/${DB2}.idx" "${BASE}/res" "${BASE}/pdb70.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qseq,qaln,tseq,taln --db-load-mode 2
 "${MMSEQS}" rmdb "${BASE}/qdb"
 "${MMSEQS}" rmdb "${BASE}/qdb_h"
 "${MMSEQS}" rmdb "${BASE}/res"
