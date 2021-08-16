@@ -5,12 +5,12 @@ import (
 	"bufio"
 	"compress/gzip"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -133,10 +133,6 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		}
 		return nil
 	case MsaJob:
-		if len(job.Database) != 2 {
-			return &JobExecutionError{errors.New("Invalid number of databases specifed")}
-		}
-
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
 
 		scriptPath := filepath.Join(resultBase, "msa.sh")
@@ -144,30 +140,28 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		if err != nil {
 			return &JobExecutionError{err}
 		}
-		script.WriteString(`#!/bin/bash -e
+		stockholmServer := false
+		if stockholmServer {
+			script.WriteString(`#!/bin/bash -e
 MMSEQS="$1"
 QUERY="$2"
 DBBASE="$3"
 BASE="$4"
 DB1="$5"
-DB1_PARAM="$6"
-DB2="$7"
-DB2_PARAM="$8"
-
+DB2="$6"
 mkdir -p "${BASE}"
 "${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb"
 "${MMSEQS}" search "${BASE}/qdb" "${DBBASE}/${DB1}" "${BASE}/res" "${BASE}/tmp" --num-iterations 3 --db-load-mode 2 -a
-"${MMSEQS}" expandaln "${BASE}/qdb" "${DBBASE}/${DB1}_seq" "${BASE}/res" "${DBBASE}/${DB1}_aln" "${BASE}/res_exp" --expansion-mode 1
-"${MMSEQS}" filterresult "${BASE}/qdb" "${DBBASE}/${DB1}_seq" "${BASE}/res_exp" "${BASE}/res_filt" --diff 3000
-"${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB1}_seq" "${BASE}/res_filt" "${BASE}/${DB1}.sto" --filter-msa 0 --msa-format-mode 4
-"${MMSEQS}" convertalis "${BASE}/qdb" "${DBBASE}/${DB1}_seq" "${BASE}/res_filt" "${BASE}/${DB1}.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qseq,qaln,tseq,taln
-"${MMSEQS}" result2profile "${BASE}/qdb" "${DBBASE}/${DB1}" "${BASE}/res" "${BASE}/prof_res"
+"${MMSEQS}" mvdb "${BASE}/tmp/latest/profile_1" "${BASE}/prof_res"
+"${MMSEQS}" lndb "${BASE}/qdb_h" "${BASE}/prof_res_h"
+"${MMSEQS}" expandaln "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp" --expansion-mode 1 --db-load-mode 2
+"${MMSEQS}" filterresult "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_filt" --diff 3000 --db-load-mode 2
+"${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_filt" "${BASE}/uniref.sto" --filter-msa 0 --msa-format-mode 4 --db-load-mode 2
+"${MMSEQS}" convertalis "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_filt" "${BASE}/uniref.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qseq,qaln,tseq,taln --db-load-mode 2
 "${MMSEQS}" rmdb "${BASE}/res"
 "${MMSEQS}" search "${BASE}/prof_res" "${DBBASE}/${DB2}" "${BASE}/res" "${BASE}/tmp" --db-load-mode 2 -a
-"${MMSEQS}" expandaln "${BASE}/prof_res" "${DBBASE}/${DB2}_seq" "${BASE}/res" "${DBBASE}/${DB2}_aln" "${BASE}/res_exp" --expansion-mode 1
-"${MMSEQS}" filterresult "${BASE}/prof_res" "${DBBASE}/${DB2}_seq" "${BASE}/res_exp" "${BASE}/res_filt" --diff 3000
-"${MMSEQS}" result2msa "${BASE}/prof_res" "${DBBASE}/${DB2}_seq" "${BASE}/res_filt" "${BASE}/${DB2}.sto" --filter-msa 0 --msa-format-mode 4
-"${MMSEQS}" convertalis "${BASE}/prof_res" "${DBBASE}/${DB2}_seq" "${BASE}/res_filt" "${BASE}/${DB2}.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qseq,qaln,tseq,taln
+"${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB2}.idx" "${BASE}/res_filt" "${BASE}/pdb70.sto" --filter-msa 0 --msa-format-mode 4 --db-load-mode 2
+"${MMSEQS}" convertalis "${BASE}/qdb" "${DBBASE}/${DB2}.idx" "${BASE}/res_filt" "${BASE}/pdb70.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qseq,qaln,tseq,taln --db-load-mode 2
 "${MMSEQS}" rmdb "${BASE}/qdb"
 "${MMSEQS}" rmdb "${BASE}/qdb_h"
 "${MMSEQS}" rmdb "${BASE}/res"
@@ -176,20 +170,68 @@ mkdir -p "${BASE}"
 rm -f "${BASE}/prof_res"*
 rm -rf "${BASE}/tmp"
 `)
+		} else {
+			script.WriteString(`#!/bin/bash -e
+MMSEQS="$1"
+QUERY="$2"
+DBBASE="$3"
+BASE="$4"
+DB1="$5"
+DB2="$6"
+DB3="$7"
+USE_ENV="$8"
+USE_TEMPLATES="$9"
+FILTER="${10}"
+EXPAND_EVAL=inf
+ALIGN_EVAL=10
+if [ "${FILTER}" == "1" ]; then
+  EXPAND_EVAL=0.1
+  ALIGN_EVAL=10
+fi
+
+SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a -s 8 -e 0.1 --max-seqs 10000 --pca 1.1 --pcb 4.1"
+mkdir -p "${BASE}"
+"${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb"
+"${MMSEQS}" search "${BASE}/qdb" "${DBBASE}/${DB1}" "${BASE}/res" "${BASE}/tmp" $SEARCH_PARAM
+"${MMSEQS}" expandaln "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp" -e ${EXPAND_EVAL} --expansion-mode 0 --db-load-mode 2
+"${MMSEQS}" mvdb "${BASE}/tmp/latest/profile_1" "${BASE}/prof_res"
+"${MMSEQS}" lndb "${BASE}/qdb_h" "${BASE}/prof_res_h"
+"${MMSEQS}" align "${BASE}/prof_res" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -a --pca 1.1 --pcb 4.1 -e ${ALIGN_EVAL}
+"${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/uniref.a3m" --msa-format-mode 5 --diff 1000 --filter-msa ${FILTER} --max-seq-id 0.95 --db-load-mode 2
+"${MMSEQS}" rmdb "${BASE}/res"
+"${MMSEQS}" rmdb "${BASE}/res_exp"
+"${MMSEQS}" rmdb "${BASE}/res_exp_realign"
+if [ "${USE_TEMPLATES}" = "1" ]; then
+  "${MMSEQS}" search "${BASE}/prof_res" "${DBBASE}/${DB2}" "${BASE}/res_pdb" "${BASE}/tmp" --db-load-mode 2 -s 7.5 -a -e 0.1
+  "${MMSEQS}" convertalis "${BASE}/prof_res" "${DBBASE}/${DB2}.idx" "${BASE}/res_pdb" "${BASE}/${DB2}.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,cigar --db-load-mode 2
+  "${MMSEQS}" rmdb "${BASE}/res_pdb"
+fi
+if [ "${USE_ENV}" = "1" ]; then
+  "${MMSEQS}" search "${BASE}/prof_res" "${DBBASE}/${DB3}" "${BASE}/res_env" "${BASE}/tmp" $SEARCH_PARAM
+  "${MMSEQS}" expandaln "${BASE}/prof_res" "${DBBASE}/${DB3}.idx" "${BASE}/res_env" "${DBBASE}/${DB3}.idx" "${BASE}/res_env_exp" -e ${EXPAND_EVAL} --expansion-mode 0 --db-load-mode 2
+  "${MMSEQS}" align "${BASE}/tmp/latest/profile_1" "${DBBASE}/${DB3}.idx" "${BASE}/res_env_exp" "${BASE}/res_env_exp_realign" --db-load-mode 2 -a --pca 1.1 --pcb 4.1 -e ${ALIGN_EVAL}
+  "${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB3}.idx" "${BASE}/res_env_exp_realign" "${BASE}/bfd.mgnify30.metaeuk30.smag30.a3m" --msa-format-mode 5 --db-load-mode 2
+  "${MMSEQS}" rmdb "${BASE}/res_env_exp_realign"
+  "${MMSEQS}" rmdb "${BASE}/res_env_exp"
+  "${MMSEQS}" rmdb "${BASE}/res_env"
+fi
+"${MMSEQS}" rmdb "${BASE}/qdb"
+"${MMSEQS}" rmdb "${BASE}/qdb_h"
+"${MMSEQS}" rmdb "${BASE}/res"
+rm -f -- "${BASE}/prof_res"*
+rm -rf -- "${BASE}/tmp"
+`)
+		}
 		err = script.Close()
 		if err != nil {
 			return &JobExecutionError{err}
 		}
 
-		params0, err := ReadParams(filepath.Join(config.Paths.Databases, job.Database[0]+".params"))
-		if err != nil {
-			return &JobExecutionError{err}
-		}
-
-		params1, err := ReadParams(filepath.Join(config.Paths.Databases, job.Database[1]+".params"))
-		if err != nil {
-			return &JobExecutionError{err}
-		}
+		modes := strings.Split(job.Mode, "-")
+		useEnv := isIn("env", modes) != -1
+		useTemplates := isIn("notemplates", modes) == -1
+		useFilter := isIn("nofilter", modes) == -1
+		var b2i = map[bool]int{false: 0, true: 1}
 
 		parameters := []string{
 			"/bin/sh",
@@ -198,10 +240,12 @@ rm -rf "${BASE}/tmp"
 			filepath.Join(resultBase, "job.fasta"),
 			config.Paths.Databases,
 			resultBase,
-			job.Database[0],
-			params0.Search,
-			job.Database[1],
-			params1.Search,
+			"uniref30_2106",
+			"pdb70",
+			"bfd.mgnify30.metaeuk30.smag30",
+			strconv.Itoa(b2i[useEnv]),
+			strconv.Itoa(b2i[useTemplates]),
+			strconv.Itoa(b2i[useFilter]),
 		}
 
 		cmd, done, err := execCommand(config.Verbose, parameters...)
@@ -242,21 +286,40 @@ rm -rf "${BASE}/tmp"
 					}
 				}()
 
-				if err := addFile(tw, filepath.Join(resultBase, job.Database[0]+".m8")); err != nil {
-					return err
+				if stockholmServer {
+					if err := addFile(tw, filepath.Join(resultBase, "uniref.sto")); err != nil {
+						return err
+					}
+
+					if err := addFile(tw, filepath.Join(resultBase, "uniref.m8")); err != nil {
+						return err
+					}
+
+					if err := addFile(tw, filepath.Join(resultBase, "pdb70.sto")); err != nil {
+						return err
+					}
+
+					if err := addFile(tw, filepath.Join(resultBase, "pdb70.m8")); err != nil {
+						return err
+					}
+				} else {
+					if err := addFile(tw, filepath.Join(resultBase, "uniref.a3m")); err != nil {
+						return err
+					}
+
+					if useTemplates {
+						if err := addFile(tw, filepath.Join(resultBase, "pdb70.m8")); err != nil {
+							return err
+						}
+					}
+
+					if useEnv {
+						if err := addFile(tw, filepath.Join(resultBase, "bfd.mgnify30.metaeuk30.smag30.a3m")); err != nil {
+							return err
+						}
+					}
 				}
 
-				if err := addFile(tw, filepath.Join(resultBase, job.Database[0]+".sto")); err != nil {
-					return err
-				}
-
-				if err := addFile(tw, filepath.Join(resultBase, job.Database[1]+".m8")); err != nil {
-					return err
-				}
-
-				if err := addFile(tw, filepath.Join(resultBase, job.Database[1]+".sto")); err != nil {
-					return err
-				}
 				return nil
 			}()
 
