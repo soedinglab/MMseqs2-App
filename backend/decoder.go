@@ -141,3 +141,14 @@ func DecodeJsonAndValidate(r io.Reader, target interface{}) error {
 
 	return nil
 }
+
+func DecodeJson(r io.Reader, target interface{}) error {
+	dec := json.NewDecoder(JsonConfigReader.New(r))
+
+	err := dec.Decode(target)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

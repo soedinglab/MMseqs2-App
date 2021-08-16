@@ -347,12 +347,21 @@ func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 	jobsystem.Lookup = make(map[Id]Status)
 	jobsystem.Results = results
 
-	files, err := filepath.Glob(filepath.Join(filepath.Clean(results), "*", "job.json"))
+	dirs, err := os.ReadDir(filepath.Clean(results))
 	if err != nil {
 		return jobsystem, err
 	}
 
-	for _, file := range files {
+	for _, dir := range dirs {
+		if dir.IsDir() == false {
+			continue
+		}
+		file := filepath.Join(filepath.Clean(results), dir.Name(), "job.json")
+		if _, err := os.Stat(file); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+		}
 		job, err := getJobRequestFromFile(file)
 		if err != nil ||
 			job.Status == StatusError ||
@@ -428,7 +437,7 @@ func getJobRequestFromFile(file string) (JobRequest, error) {
 	defer f.Close()
 
 	var job JobRequest
-	err = DecodeJsonAndValidate(f, &job)
+	err = DecodeJson(f, &job)
 	if err != nil {
 		return JobRequest{}, err
 	}
