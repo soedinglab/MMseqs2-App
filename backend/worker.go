@@ -197,7 +197,7 @@ mkdir -p "${BASE}"
 "${MMSEQS}" mvdb "${BASE}/tmp/latest/profile_1" "${BASE}/prof_res"
 "${MMSEQS}" lndb "${BASE}/qdb_h" "${BASE}/prof_res_h"
 "${MMSEQS}" align "${BASE}/prof_res" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -a --pca 1.1 --pcb 4.1 -e ${ALIGN_EVAL}
-"${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/uniref.a3m" --msa-format-mode 5 --diff 1000 --filter-msa ${FILTER} --max-seq-id 0.95 --db-load-mode 2
+"${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/uniref.a3m" --msa-format-mode 5 --diff 1000 --filter-msa ${FILTER} --max-seq-id 0.99 --db-load-mode 2
 "${MMSEQS}" rmdb "${BASE}/res"
 "${MMSEQS}" rmdb "${BASE}/res_exp"
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign"
@@ -210,7 +210,7 @@ if [ "${USE_ENV}" = "1" ]; then
   "${MMSEQS}" search "${BASE}/prof_res" "${DBBASE}/${DB3}" "${BASE}/res_env" "${BASE}/tmp" $SEARCH_PARAM
   "${MMSEQS}" expandaln "${BASE}/prof_res" "${DBBASE}/${DB3}.idx" "${BASE}/res_env" "${DBBASE}/${DB3}.idx" "${BASE}/res_env_exp" -e ${EXPAND_EVAL} --expansion-mode 0 --db-load-mode 2
   "${MMSEQS}" align "${BASE}/tmp/latest/profile_1" "${DBBASE}/${DB3}.idx" "${BASE}/res_env_exp" "${BASE}/res_env_exp_realign" --db-load-mode 2 -a --pca 1.1 --pcb 4.1 -e ${ALIGN_EVAL}
-  "${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB3}.idx" "${BASE}/res_env_exp_realign" "${BASE}/bfd.mgnify30.metaeuk30.smag30.a3m" --msa-format-mode 5 --db-load-mode 2
+  "${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB3}.idx" "${BASE}/res_env_exp_realign" "${BASE}/bfd.mgnify30.metaeuk30.smag30.a3m" --msa-format-mode 5 --db-load-mode 2 --diff 1000 --filter-msa 1
   "${MMSEQS}" rmdb "${BASE}/res_env_exp_realign"
   "${MMSEQS}" rmdb "${BASE}/res_env_exp"
   "${MMSEQS}" rmdb "${BASE}/res_env"
