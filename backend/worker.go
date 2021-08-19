@@ -318,6 +318,10 @@ rm -rf -- "${BASE}/tmp"
 							return err
 						}
 					}
+
+					if err := addFile(tw, scriptPath); err != nil {
+						return err
+					}
 				}
 
 				return nil
