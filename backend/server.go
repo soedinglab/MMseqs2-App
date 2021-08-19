@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/goji/httpauth"
 	"github.com/gorilla/handlers"
@@ -526,9 +525,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	srv := &http.Server{
 		Handler: h,
 		Addr:    config.Server.Address,
-
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
 	}
 
 	log.Println("MMseqs2 Webserver")
