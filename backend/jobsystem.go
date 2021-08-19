@@ -132,6 +132,7 @@ type JobSystem interface {
 	NewJob(JobRequest, string, bool) (Ticket, error)
 	MultiStatus([]string) ([]Ticket, error)
 	Dequeue() (*Ticket, error)
+	QueueLength() (int, error)
 }
 
 type RedisJobSystem struct {
@@ -331,12 +332,17 @@ func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
 	return &ticket, nil
 }
 
+func (j *RedisJobSystem) QueueLength() (int, error) {
+	return 0, errors.New("Not implemented")
+}
+
 type LocalJobSystem struct {
 	QueueMutex  *sync.Mutex
 	Queue       []Id
 	LookupMutex *sync.RWMutex
 	Lookup      map[Id]Status
 	Results     string
+	queued      int
 }
 
 func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
@@ -346,6 +352,7 @@ func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 	jobsystem.LookupMutex = &sync.RWMutex{}
 	jobsystem.Lookup = make(map[Id]Status)
 	jobsystem.Results = results
+	jobsystem.queued = 0
 
 	dirs, err := os.ReadDir(filepath.Clean(results))
 	if err != nil {
@@ -381,6 +388,7 @@ func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 
 		if job.Status == StatusPending {
 			jobsystem.Queue = append(jobsystem.Queue, job.Id)
+			jobsystem.queued += 1
 		}
 
 		jobsystem.Lookup[job.Id] = job.Status
@@ -536,6 +544,7 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 
 	j.QueueMutex.Lock()
 	j.Queue = append(j.Queue, id)
+	j.queued += 1
 	j.QueueMutex.Unlock()
 
 	return t, nil
@@ -568,6 +577,7 @@ func (j *LocalJobSystem) Dequeue() (*Ticket, error) {
 	// pop the tail of the queue
 	id := j.Queue[len(j.Queue)-1]
 	j.Queue = j.Queue[:len(j.Queue)-1]
+	j.queued -= 1
 	j.QueueMutex.Unlock()
 
 	ticket, err := j.GetTicket(id)
@@ -576,4 +586,8 @@ func (j *LocalJobSystem) Dequeue() (*Ticket, error) {
 	}
 
 	return &ticket, nil
+}
+
+func (j *LocalJobSystem) QueueLength() (int, error) {
+	return j.queued, nil
 }

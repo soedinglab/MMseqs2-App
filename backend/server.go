@@ -495,6 +495,22 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 	}).Methods("GET")
 
+	r.HandleFunc("/queue", func(w http.ResponseWriter, req *http.Request) {
+		type QueueResponse struct {
+			Length int `json:"queued"`
+		}
+		length, err := jobsystem.QueueLength()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		err = json.NewEncoder(w).Encode(QueueResponse{length})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}).Methods("GET")
+
 	h := http.Handler(r)
 	if config.Server.Auth != nil {
 		h = httpauth.SimpleBasicAuth(config.Server.Auth.Username, config.Server.Auth.Password)(h)
