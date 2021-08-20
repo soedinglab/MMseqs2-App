@@ -242,7 +242,7 @@ rm -rf -- "${BASE}/tmp"
 			resultBase,
 			"uniref30_2106",
 			"pdb70",
-			"bfd.mgnify30.metaeuk30.smag30",
+			"bfd_mgy_filter",
 			strconv.Itoa(b2i[useEnv]),
 			strconv.Itoa(b2i[useTemplates]),
 			strconv.Itoa(b2i[useFilter]),
