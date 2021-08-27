@@ -182,6 +182,7 @@ DB3="$7"
 USE_ENV="$8"
 USE_TEMPLATES="$9"
 FILTER="${10}"
+TAXONOMY="${11}"
 EXPAND_EVAL=inf
 ALIGN_EVAL=10
 DIFF=3000
@@ -206,6 +207,14 @@ mkdir -p "${BASE}"
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign"
 "${MMSEQS}" rmdb "${BASE}/res_exp"
 "${MMSEQS}" rmdb "${BASE}/res"
+if [ "${TAXONOMY}" = "1" ] && [ -e "${DBBASE}/${DB1}_taxonomy" ]; then
+  "${MMSEQS}" convertalis "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_tax" --db-output 1 --format-output "taxid,target" --db-load-mode 2
+  awk 'BEGIN { printf("%c%c%c%c",8,0,0,0); exit; }' > "${BASE}/res_exp_realign_tax.dbtype"
+  MMSEQS_FORCE_MERGE=1 "${MMSEQS}" filtertaxdb "${DBBASE}/${DB1}.idx" "${BASE}/res_exp_realign_tax" "${BASE}/res_exp_realign_tax_filt" --taxon-list '!12908&&!28384'
+  tr -d '\000' "${BASE}/res_exp_realign_tax_filt" | sort -u > "${BASE}/uniref_tax.tsv"
+  "${MMSEQS}" rmdb "${BASE}/res_exp_realign_tax_filt"
+  "${MMSEQS}" rmdb "${BASE}/res_exp_realign_tax"
+fi
 if [ "${USE_TEMPLATES}" = "1" ]; then
   "${MMSEQS}" search "${BASE}/prof_res" "${DBBASE}/${DB2}" "${BASE}/res_pdb" "${BASE}/tmp" --db-load-mode 2 -s 7.5 -a -e 0.1
   "${MMSEQS}" convertalis "${BASE}/prof_res" "${DBBASE}/${DB2}.idx" "${BASE}/res_pdb" "${BASE}/${DB2}.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,cigar --db-load-mode 2
@@ -238,6 +247,7 @@ rm -rf -- "${BASE}/tmp"
 		useEnv := isIn("env", modes) != -1
 		useTemplates := isIn("notemplates", modes) == -1
 		useFilter := isIn("nofilter", modes) == -1
+		taxonomy := isIn("taxonomy", modes) == 1
 		var b2i = map[bool]int{false: 0, true: 1}
 
 		parameters := []string{
@@ -253,6 +263,7 @@ rm -rf -- "${BASE}/tmp"
 			strconv.Itoa(b2i[useEnv]),
 			strconv.Itoa(b2i[useTemplates]),
 			strconv.Itoa(b2i[useFilter]),
+			strconv.Itoa(b2i[taxonomy]),
 		}
 
 		cmd, done, err := execCommand(config.Verbose, parameters...)
@@ -312,6 +323,12 @@ rm -rf -- "${BASE}/tmp"
 				} else {
 					if err := addFile(tw, filepath.Join(resultBase, "uniref.a3m")); err != nil {
 						return err
+					}
+
+					if taxonomy {
+						if err := addFile(tw, filepath.Join(resultBase, "uniref_tax.tsv")); err != nil {
+							return err
+						}
 					}
 
 					if useTemplates {
