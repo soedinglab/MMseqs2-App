@@ -150,12 +150,20 @@ type ConfigAuth struct {
 	Password string `json:"password" validate:"required"`
 }
 
+type ConfigRateLimit struct {
+	Rate   float64 `json:"rate" validate:"required"`
+	Burst  int     `json:"burst" validate:"required"`
+	TTL    int     `json:"ttl" validate:"required"`
+	Reason string  `json:"reason"`
+}
+
 type ConfigServer struct {
-	Address     string      `json:"address" validate:"required"`
-	PathPrefix  string      `json:"pathprefix"`
-	DbManagment bool        `json:"dbmanagment"`
-	CORS        bool        `json:"cors"`
-	Auth        *ConfigAuth `json:"auth"`
+	Address     string           `json:"address" validate:"required"`
+	PathPrefix  string           `json:"pathprefix"`
+	DbManagment bool             `json:"dbmanagment"`
+	CORS        bool             `json:"cors"`
+	Auth        *ConfigAuth      `json:"auth"`
+	RateLimit   *ConfigRateLimit `json:"ratelimit"`
 }
 
 type ConfigRoot struct {

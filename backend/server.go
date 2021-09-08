@@ -11,7 +11,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/didip/tollbooth/v6"
+	"github.com/didip/tollbooth/v6/limiter"
 	"github.com/goji/httpauth"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -216,7 +219,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}).Methods("DELETE")
 
 	}
-	r.HandleFunc("/ticket", func(w http.ResponseWriter, req *http.Request) {
+	ticketHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
 		var request JobRequest
 
 		var query string
@@ -277,9 +280,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-	}).Methods("POST")
+	}
 
-	r.HandleFunc("/ticket/msa", func(w http.ResponseWriter, req *http.Request) {
+	ticketMsaHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
 		var request JobRequest
 
 		var query string
@@ -340,7 +343,30 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-	}).Methods("POST")
+	}
+
+	if config.Server.RateLimit != nil {
+		type RateLimitResponse struct {
+			Status string `json:"status"`
+			Reason string `json:"reason"`
+		}
+		b, err := json.Marshal(RateLimitResponse{
+			Status: "RATELIMIT",
+			Reason: config.Server.RateLimit.Reason,
+		})
+		if err != nil {
+			panic(err)
+		}
+		lmt := tollbooth.NewLimiter(config.Server.RateLimit.Rate, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Duration(config.Server.RateLimit.TTL) * time.Hour}).
+			SetBurst(config.Server.RateLimit.Burst).
+			SetMessageContentType("application/json; charset=utf-8").
+			SetMessage(string(b))
+		r.Handle("/ticket", tollbooth.LimitFuncHandler(lmt, ticketHandlerFunc)).Methods("POST")
+		r.Handle("/ticket/msa", tollbooth.LimitFuncHandler(lmt, ticketMsaHandlerFunc)).Methods("POST")
+	} else {
+		r.HandleFunc("/ticket", ticketHandlerFunc).Methods("POST")
+		r.HandleFunc("/ticket/msa", ticketMsaHandlerFunc).Methods("POST")
+	}
 
 	r.HandleFunc("/ticket/type/{ticket}", func(w http.ResponseWriter, req *http.Request) {
 		ticket, err := jobsystem.GetTicket(Id(mux.Vars(req)["ticket"]))
