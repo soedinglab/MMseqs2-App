@@ -188,8 +188,9 @@ ALIGN_EVAL=10
 DIFF=3000
 QSC=-20.0
 MAX_ACCEPT=1000000
-if [ "${FILTER}" == "1" ]; then
-  EXPAND_EVAL=0.1
+if [ "${FILTER}" = "1" ]; then
+# 0.1 was not used in benchmarks due to POSIX shell bug in line above
+#  EXPAND_EVAL=0.1
   ALIGN_EVAL=10
   QSC=0.8
   MAX_ACCEPT=100000
