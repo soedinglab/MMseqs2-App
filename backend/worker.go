@@ -373,6 +373,119 @@ rm -rf -- "${BASE}/tmp"
 			log.Print("Process finished gracefully without error")
 		}
 		return nil
+	case PairJob:
+		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+
+		scriptPath := filepath.Join(resultBase, "pair.sh")
+		script, err := os.Create(scriptPath)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		script.WriteString(`#!/bin/bash -e
+MMSEQS="$1"
+QUERY="$2"
+DBBASE="$3"
+BASE="$4"
+DB1="$5"
+SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a -s 8 -e 0.1 --max-seqs 10000 --pseudo-cnt-mode 1"
+EXPAND_PARAM="--expansion-mode 0 -e inf --expand-filter-clusters 0 --max-seq-id 0.95"
+export MMSEQS_CALL_DEPTH=1
+"${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb" --shuffle 0
+"${MMSEQS}" search "${BASE}/qdb" "${DBBASE}/${DB1}" "${BASE}/res" "${BASE}/tmp" $SEARCH_PARAM
+"${MMSEQS}" expandaln "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp" --db-load-mode 2 ${EXPAND_PARAM}
+"${MMSEQS}" align   "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 --cov-mode 1 -c 0.5
+"${MMSEQS}" pairaln "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2
+"${MMSEQS}" align   "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp_realign_pair" "${BASE}/res_exp_realign_pair_bt" --db-load-mode 2 -e inf -a
+"${MMSEQS}" pairaln "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2
+"${MMSEQS}" result2msa "${BASE}/qdb" "${DBBASE}/${DB1}.idx" "${BASE}/res_final" "${BASE}/pair.a3m" --db-load-mode 2 --msa-format-mode 5
+"${MMSEQS}" rmdb "${BASE}/qdb"
+"${MMSEQS}" rmdb "${BASE}/qdb_h"
+"${MMSEQS}" rmdb "${BASE}/res"
+"${MMSEQS}" rmdb "${BASE}/res_exp"
+"${MMSEQS}" rmdb "${BASE}/res_exp_realign"
+"${MMSEQS}" rmdb "${BASE}/res_exp_realign_pair"
+"${MMSEQS}" rmdb "${BASE}/res_exp_realign_pair_bt"
+"${MMSEQS}" rmdb "${BASE}/res_final"
+rm -rf -- "${BASE}/tmp"
+`)
+		err = script.Close()
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+
+		parameters := []string{
+			"/bin/sh",
+			scriptPath,
+			config.Paths.Mmseqs,
+			filepath.Join(resultBase, "job.fasta"),
+			config.Paths.Databases,
+			resultBase,
+			"uniref30_2103",
+		}
+
+		cmd, done, err := execCommand(config.Verbose, parameters...)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+
+		select {
+		case <-time.After(1 * time.Hour):
+			if err := cmd.Process.Kill(); err != nil {
+				log.Printf("Failed to kill: %s\n", err)
+			}
+			return &JobTimeoutError{}
+		case err := <-done:
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+
+			path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+			file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+
+			err = func() (err error) {
+				gw := gzip.NewWriter(file)
+				defer func() {
+					cerr := gw.Close()
+					if err == nil {
+						err = cerr
+					}
+				}()
+				tw := tar.NewWriter(gw)
+				defer func() {
+					cerr := tw.Close()
+					if err == nil {
+						err = cerr
+					}
+				}()
+
+				if err := addFile(tw, filepath.Join(resultBase, "pair.a3m")); err != nil {
+					return err
+				}
+
+				return nil
+			}()
+
+			if err != nil {
+				file.Close()
+				return &JobExecutionError{err}
+			}
+
+			if err = file.Sync(); err != nil {
+				file.Close()
+				return &JobExecutionError{err}
+			}
+
+			if err = file.Close(); err != nil {
+				return &JobExecutionError{err}
+			}
+		}
+		if config.Verbose {
+			log.Print("Process finished gracefully without error")
+		}
+		return nil
 	case IndexJob:
 		file := filepath.Join(config.Paths.Databases, job.Path)
 		params, err := ReadParams(file + ".params")

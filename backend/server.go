@@ -345,6 +345,60 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 	}
 
+	ticketPairHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
+		var request JobRequest
+
+		var query string
+		var mode string
+		var email string
+
+		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
+			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			f, _, err := req.FormFile("q")
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(f)
+			query = buf.String()
+			mode = req.FormValue("mode")
+			email = req.FormValue("email")
+		} else {
+			err := req.ParseForm()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			query = req.FormValue("q")
+			mode = req.FormValue("mode")
+			email = req.FormValue("email")
+		}
+
+		request, err := NewPairJobRequest(query, mode, email)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		err = json.NewEncoder(w).Encode(result)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	if config.Server.RateLimit != nil {
 		type RateLimitResponse struct {
 			Status string `json:"status"`
@@ -363,9 +417,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			SetMessage(string(b))
 		r.Handle("/ticket", tollbooth.LimitFuncHandler(lmt, ticketHandlerFunc)).Methods("POST")
 		r.Handle("/ticket/msa", tollbooth.LimitFuncHandler(lmt, ticketMsaHandlerFunc)).Methods("POST")
+		r.Handle("/ticket/pair", tollbooth.LimitFuncHandler(lmt, ticketPairHandlerFunc)).Methods("POST")
 	} else {
 		r.HandleFunc("/ticket", ticketHandlerFunc).Methods("POST")
 		r.HandleFunc("/ticket/msa", ticketMsaHandlerFunc).Methods("POST")
+		r.HandleFunc("/ticket/pair", ticketPairHandlerFunc).Methods("POST")
 	}
 
 	r.HandleFunc("/ticket/type/{ticket}", func(w http.ResponseWriter, req *http.Request) {
