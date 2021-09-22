@@ -15,5 +15,6 @@ require (
 	github.com/gorilla/handlers v1.4.0
 	github.com/gorilla/mux v1.7.2
 	github.com/rs/cors v1.6.0
+	golang.org/x/sys v0.0.0-20210921065528-437939a70204 // indirect
 	gopkg.in/mailgun/mailgun-go.v1 v1.1.1
 )
