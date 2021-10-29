@@ -352,8 +352,7 @@ func (j *RedisJobSystem) QueueLength() (int, error) {
 type LocalJobSystem struct {
 	QueueMutex  *sync.Mutex
 	Queue       []Id
-	LookupMutex *sync.RWMutex
-	Lookup      map[Id]Status
+	StatusMutex *sync.Mutex
 	Results     string
 	queued      int
 }
@@ -362,8 +361,7 @@ func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 	jobsystem := LocalJobSystem{}
 	jobsystem.QueueMutex = &sync.Mutex{}
 	jobsystem.Queue = make([]Id, 0)
-	jobsystem.LookupMutex = &sync.RWMutex{}
-	jobsystem.Lookup = make(map[Id]Status)
+	jobsystem.StatusMutex = &sync.Mutex{}
 	jobsystem.Results = results
 	jobsystem.queued = 0
 
@@ -403,8 +401,6 @@ func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 			jobsystem.Queue = append(jobsystem.Queue, job.Id)
 			jobsystem.queued += 1
 		}
-
-		jobsystem.Lookup[job.Id] = job.Status
 	}
 
 	return jobsystem, nil
@@ -450,6 +446,23 @@ func setStatusInJobFile(file string, status Status) error {
 	return nil
 }
 
+func getStatusFromJobFile(file string) (Status, error) {
+	f, err := os.OpenFile(file, os.O_RDONLY, 0644)
+	if err != nil {
+		return StatusError, err
+	}
+
+	var job JobRequest
+	err = DecodeJsonAndValidate(f, &job)
+	if err != nil {
+		f.Close()
+		return StatusError, err
+	}
+
+	f.Close()
+	return job.Status, nil
+}
+
 func getJobRequestFromFile(file string) (JobRequest, error) {
 	f, err := os.Open(file)
 	if err != nil {
@@ -467,11 +480,10 @@ func getJobRequestFromFile(file string) (JobRequest, error) {
 }
 
 func (j *LocalJobSystem) SetStatus(id Id, status Status) error {
-	j.LookupMutex.Lock()
-	j.Lookup[id] = status
-	j.LookupMutex.Unlock()
 	file := j.getJobFileName(id)
+	j.StatusMutex.Lock()
 	err := setStatusInJobFile(file, status)
+	j.StatusMutex.Unlock()
 	if err != nil {
 		return err
 	}
@@ -479,11 +491,12 @@ func (j *LocalJobSystem) SetStatus(id Id, status Status) error {
 }
 
 func (j *LocalJobSystem) Status(id Id) (Status, error) {
-	j.LookupMutex.RLock()
-	res, ok := j.Lookup[id]
-	j.LookupMutex.RUnlock()
-	if !ok {
-		return StatusUnknown, nil
+	file := j.getJobFileName(id)
+	j.StatusMutex.Lock()
+	res, err := getStatusFromJobFile(file)
+	j.StatusMutex.Unlock()
+	if err != nil {
+		return StatusError, err
 	}
 	return res, nil
 }
