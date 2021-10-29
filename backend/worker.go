@@ -482,6 +482,10 @@ rm -rf -- "${BASE}/tmp"
 					return err
 				}
 
+				if err := addFile(tw, filepath.Join(resultBase, "pair.sh")); err != nil {
+					return err
+				}
+
 				return nil
 			}()
 
