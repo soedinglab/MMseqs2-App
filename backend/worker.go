@@ -212,7 +212,7 @@ if [ "${FILTER}" = "1" ]; then
   MAX_ACCEPT=100000
 fi
 export MMSEQS_CALL_DEPTH=1
-SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a -s 8 -e 0.1 --max-seqs 10000"
+SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a --k-score 'seq:96,prof:80' -e 0.1 --max-seqs 10000"
 FILTER_PARAM="--filter-msa ${FILTER} --filter-min-enable 1000 --diff ${DIFF} --qid 0.0,0.2,0.4,0.6,0.8,1.0 --qsc 0 --max-seq-id 0.95"
 EXPAND_PARAM="--expansion-mode 0 -e ${EXPAND_EVAL} --expand-filter-clusters ${FILTER} --max-seq-id 0.95"
 mkdir -p "${BASE}"
@@ -404,7 +404,7 @@ QUERY="$2"
 DBBASE="$3"
 BASE="$4"
 DB1="$5"
-SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a -s 8 -e 0.1 --max-seqs 10000"
+SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a --k-score 'seq:96,prof:80' -e 0.1 --max-seqs 10000"
 EXPAND_PARAM="--expansion-mode 0 -e inf --expand-filter-clusters 0 --max-seq-id 0.95"
 export MMSEQS_CALL_DEPTH=1
 "${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb" --shuffle 0
