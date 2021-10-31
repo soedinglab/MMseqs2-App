@@ -448,7 +448,9 @@ func setStatusInJobFile(file string, status Status) error {
 
 func getStatusFromJobFile(file string) (Status, error) {
 	f, err := os.OpenFile(file, os.O_RDONLY, 0644)
-	if err != nil {
+	if errors.Is(err, os.ErrNotExist) {
+		return StatusUnknown, nil
+	} else if err != nil {
 		return StatusError, err
 	}
 

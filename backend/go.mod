@@ -1,6 +1,6 @@
 module github.com/soedinglab/MMseqs2-App
 
-go 1.12
+go 1.13
 
 require (
 	github.com/DisposaBoy/JsonConfigReader v0.0.0-20171218180944-5ea4d0ddac55
