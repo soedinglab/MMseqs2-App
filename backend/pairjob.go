@@ -9,7 +9,7 @@ import (
 
 type PairJob struct {
 	Size  int    `json:"size" validate:"required"`
-	Mode  string `json:"mode" validate:"required"`
+	Mode  string `json:"mode"`
 	query string
 }
 
