@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -59,6 +61,13 @@ func main() {
 	var config ConfigRoot
 	var err error
 	if len(configFile) > 0 {
+		if _, err := os.Stat(configFile); errors.Is(err, os.ErrNotExist) {
+			log.Println("Creating config file: " + configFile)
+			err = WriteDefaultConfig(configFile)
+			if err != nil {
+				panic(err)
+			}
+		}
 		config, err = ReadConfigFromFile(configFile)
 
 	} else {

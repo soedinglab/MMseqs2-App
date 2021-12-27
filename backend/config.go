@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -202,6 +203,10 @@ func DefaultConfig() (ConfigRoot, error) {
 	relativeTo := filepath.Dir(ex)
 
 	return ReadConfig(r, relativeTo)
+}
+
+func WriteDefaultConfig(path string) error {
+	return ioutil.WriteFile(path, []byte(defaultFileContent), 0644)
 }
 
 func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
