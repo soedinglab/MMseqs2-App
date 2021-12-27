@@ -31,6 +31,10 @@ export default {
     flex-direction: column;
 }
 
+.panel-root header, .panel-content {
+    contain: content;
+}
+
 .panel-root nav {
     flex: 0;
 }

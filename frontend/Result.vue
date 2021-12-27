@@ -102,10 +102,12 @@
                                 </td>
                             </tr>
                         </tbody>
-                        <panel v-if="alignment != null" class="alignment monospace" :style="'top: ' + alnBoxOffset + 'px'">
-                            <div class="alignment-wrapper1" slot="content">
-                                <div class="alignment-wrapper2">
-                                <span v-for="i in Math.max(1, (alignment.alnLength / lineLen)|0)" :key="i">
+                    </table>
+                </panel>
+                <panel v-if="alignment != null" class="alignment monospace" :style="'top: ' + alnBoxOffset + 'px'">
+                    <div class="alignment-wrapper1" slot="content">
+                        <div class="alignment-wrapper2">
+                        <span v-for="i in Math.max(1, (alignment.alnLength / lineLen)|0)" :key="i">
 <span class="line">
 Q&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}</span>
 <br>
@@ -113,11 +115,9 @@ Q&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&n
 <br>
 T&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span>
 </span><br>
-                                </span>
-                                </div>
-                            </div>
-                        </panel>
-                    </table>
+                        </span>
+                        </div>
+                    </div>
                 </panel>
             </v-flex>
         </v-layout>
@@ -161,6 +161,15 @@ function mapPosToSeq(seq, targetPos) {
 const blosum62Sim = [ "AG","AS","DE","DN","ED","EK","EQ","FL","FM","FW","FY","GA","HN","HQ","HY","IL","IM","IV","KE","KQ","KR","LF","LI","LM","LV","MF","MI","ML","MV","ND","NH","NQ","NS","QE","QH","QK","QN","QR","RK","RQ","SA","SN","ST","TS","VI","VL","VM","WF","WY","YF","YH","YW"];
 
 var m = null;
+
+function getAbsOffsetTop($el) {
+    var sum = 0;
+    while ($el) {
+        sum += $el.offsetTop;
+        $el = $el.offsetParent;
+    }
+    return sum;
+}
 
 export default {
     name: 'result',
@@ -258,7 +267,8 @@ export default {
                 this.alignment = item;
             }
             var $el = event.target.closest('.hit');
-            this.alnBoxOffset = $el.offsetTop + $el.offsetHeight + 1;
+            // FIXME: dont hardcode navigation bar height (48px)
+            this.alnBoxOffset = getAbsOffsetTop($el) + $el.offsetHeight - 48;
         },
         tryLinkTargetToDB(target, db) {
             var res = db.toLowerCase();
