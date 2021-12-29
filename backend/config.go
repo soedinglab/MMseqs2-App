@@ -14,6 +14,8 @@ import (
 )
 
 var defaultFileContent = []byte(`{
+	// One of: mmseqs,foldseek,colabfold,predictprotein
+	"app": "mmseqs",
     // should mmseqs und webserver output be printed
     "verbose": true,
     "server" : {
@@ -116,6 +118,7 @@ type ConfigPaths struct {
 	Results   string `json:"results"`
 	Temporary string `json:"temporary"`
 	Mmseqs    string `json:"mmseqs"`
+	FoldSeek  string `json:"foldseek`
 }
 
 type ConfigRedis struct {
@@ -167,7 +170,17 @@ type ConfigServer struct {
 	RateLimit   *ConfigRateLimit `json:"ratelimit"`
 }
 
+type ConfigApp string
+
+const (
+	AppMMseqs2        ConfigApp = "mmseqs"
+	AppFoldSeek                 = "foldseek"
+	AppColabFold                = "colabfold"
+	AppPredictProtein           = "predictprotein"
+)
+
 type ConfigRoot struct {
+	App     ConfigApp    `json:"app" validate:"oneof=mmseqs foldseek colabfold colabfold"`
 	Server  ConfigServer `json:"server" validate:"required"`
 	Paths   ConfigPaths  `json:"paths" validate:"required"`
 	Redis   ConfigRedis  `json:"redis"`
@@ -234,7 +247,11 @@ func (c *ConfigRoot) CheckPaths() error {
 		}
 	}
 
-	if _, err := os.Stat(c.Paths.Mmseqs); err != nil {
+	if c.App == AppFoldSeek {
+		if _, err := os.Stat(c.Paths.FoldSeek); err != nil {
+			return errors.New("FoldSeek binary was not found at " + c.Paths.FoldSeek)
+		}
+	} else if _, err := os.Stat(c.Paths.Mmseqs); err != nil {
 		return errors.New("MMseqs2 binary was not found at " + c.Paths.Mmseqs)
 	}
 

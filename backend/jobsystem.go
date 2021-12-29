@@ -16,10 +16,11 @@ import (
 type JobType string
 
 const (
-	JobSearch JobType = "search"
-	JobIndex          = "index"
-	JobMsa            = "msa"
-	JobPair           = "pair"
+	JobSearch          JobType = "search"
+	JobIndex                   = "index"
+	JobMsa                     = "msa"
+	JobPair                    = "pair"
+	JobStructureSearch         = "structuresearch"
 )
 
 type JobRequest struct {
@@ -44,6 +45,13 @@ func (m *JobRequest) UnmarshalJSON(b []byte) error {
 	switch jr.Type {
 	case JobSearch:
 		var j SearchJob
+		if err := json.Unmarshal(msg, &j); err != nil {
+			return err
+		}
+		(*m).Job = j
+		return nil
+	case JobStructureSearch:
+		var j StructureSearchJob
 		if err := json.Unmarshal(msg, &j); err != nil {
 			return err
 		}
@@ -80,6 +88,11 @@ func (m *JobRequest) WriteSupportFiles(base string) error {
 	case JobSearch:
 		if j, ok := m.Job.(SearchJob); ok {
 			return j.WriteFasta(filepath.Join(base, "job.fasta"))
+		}
+		return errors.New("Invalid Job Type")
+	case JobStructureSearch:
+		if j, ok := m.Job.(StructureSearchJob); ok {
+			return j.WritePDB(filepath.Join(base, "job.pdb"))
 		}
 		return errors.New("Invalid Job Type")
 	case JobMsa:

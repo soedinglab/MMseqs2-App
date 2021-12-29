@@ -1,4 +1,5 @@
 {
+    "app": "mmseqs",
     "verbose": true,
     "server" : {
         "address"    : "0.0.0.0:3000",

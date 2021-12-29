@@ -148,6 +148,73 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			log.Print("Process finished gracefully without error")
 		}
 		return nil
+	case StructureSearchJob:
+		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		for _, database := range job.Database {
+			params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+			parameters := []string{
+				config.Paths.FoldSeek,
+				"easy-search",
+				filepath.Join(resultBase, "job.pdb"),
+				filepath.Join(config.Paths.Databases, database),
+				filepath.Join(resultBase, "alis_"+database),
+				filepath.Join(resultBase, "tmp"),
+				// "--shuffle",
+				// "0",
+				"--db-output",
+				"--db-load-mode",
+				"2",
+				"--write-lookup",
+				"1",
+				"--format-output",
+				"query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln",
+			}
+			parameters = append(parameters, strings.Fields(params.Search)...)
+
+			if job.Mode == "summary" {
+				parameters = append(parameters, "--greedy-best-hits")
+			}
+
+			cmd, done, err := execCommand(config.Verbose, parameters...)
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+
+			select {
+			case <-time.After(1 * time.Hour):
+				if err := killCommand(cmd); err != nil {
+					log.Printf("Failed to kill: %s\n", err)
+				}
+				return &JobTimeoutError{}
+			case err := <-done:
+				if err != nil {
+					return &JobExecutionError{err}
+				}
+			}
+		}
+
+		path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+		file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		err = ResultArchive(file, request.Id, path)
+		if err != nil {
+			file.Close()
+			return &JobExecutionError{err}
+		}
+		err = file.Close()
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+
+		if config.Verbose {
+			log.Print("Process finished gracefully without error")
+		}
+		return nil
 	case MsaJob:
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
 
@@ -156,8 +223,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		if err != nil {
 			return &JobExecutionError{err}
 		}
-		stockholmServer := false
-		if stockholmServer {
+		if config.App == AppPredictProtein {
 			script.WriteString(`#!/bin/bash -e
 MMSEQS="$1"
 QUERY="$2"
@@ -324,7 +390,7 @@ rm -rf -- "${BASE}/tmp"
 					}
 				}()
 
-				if stockholmServer {
+				if config.App == AppPredictProtein {
 					if err := addFile(tw, filepath.Join(resultBase, "uniref.sto")); err != nil {
 						return err
 					}

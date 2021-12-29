@@ -220,8 +220,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 	}
 	ticketHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
-		var request JobRequest
-
 		var query string
 		var dbs []string
 		var mode string
@@ -264,7 +262,15 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email)
+		var request JobRequest
+		if config.App == AppMMseqs2 {
+			request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email)
+		} else if config.App == AppFoldSeek {
+			request, err = NewStructureSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email)
+		} else {
+			http.Error(w, "Job type not supported by this server", http.StatusBadRequest)
+			return
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -415,13 +421,25 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			SetBurst(config.Server.RateLimit.Burst).
 			SetMessageContentType("application/json; charset=utf-8").
 			SetMessage(string(b))
-		r.Handle("/ticket", tollbooth.LimitFuncHandler(lmt, ticketHandlerFunc)).Methods("POST")
-		r.Handle("/ticket/msa", tollbooth.LimitFuncHandler(lmt, ticketMsaHandlerFunc)).Methods("POST")
-		r.Handle("/ticket/pair", tollbooth.LimitFuncHandler(lmt, ticketPairHandlerFunc)).Methods("POST")
+		if config.App == AppMMseqs2 || config.App == AppFoldSeek {
+			r.Handle("/ticket", tollbooth.LimitFuncHandler(lmt, ticketHandlerFunc)).Methods("POST")
+		}
+		if config.App == AppColabFold || config.App == AppPredictProtein {
+			r.Handle("/ticket/msa", tollbooth.LimitFuncHandler(lmt, ticketMsaHandlerFunc)).Methods("POST")
+		}
+		if config.App == AppColabFold {
+			r.Handle("/ticket/pair", tollbooth.LimitFuncHandler(lmt, ticketPairHandlerFunc)).Methods("POST")
+		}
 	} else {
-		r.HandleFunc("/ticket", ticketHandlerFunc).Methods("POST")
-		r.HandleFunc("/ticket/msa", ticketMsaHandlerFunc).Methods("POST")
-		r.HandleFunc("/ticket/pair", ticketPairHandlerFunc).Methods("POST")
+		if config.App == AppMMseqs2 || config.App == AppFoldSeek {
+			r.HandleFunc("/ticket", ticketHandlerFunc).Methods("POST")
+		}
+		if config.App == AppColabFold || config.App == AppPredictProtein {
+			r.HandleFunc("/ticket/msa", ticketMsaHandlerFunc).Methods("POST")
+		}
+		if config.App == AppColabFold {
+			r.HandleFunc("/ticket/pair", ticketPairHandlerFunc).Methods("POST")
+		}
 	}
 
 	r.HandleFunc("/ticket/type/{ticket}", func(w http.ResponseWriter, req *http.Request) {

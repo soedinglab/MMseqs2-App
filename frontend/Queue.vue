@@ -76,6 +76,9 @@ export default {
                                             case "search":
                                                 this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
                                                 break;
+                                            case "structuresearch":
+                                                this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
+                                                break;
                                             case "index":
                                                 this.$router.replace({ name: 'preferences' });
                                                 break;
