@@ -74,7 +74,7 @@
                     <v-card>
                         <v-card-title primary-title style="background-color:#465A64; color:#fff;">
                             <div>
-                                <div class="text-h5">MMseqs2 Version</div>
+                                <div class="text-h5">{{ $STRINGS.APP_NAME }} Version</div>
                                 <span class="text-subtitle-1" style="word-break: break-all;">{{ mmseqsVersion }}</span>
                                 <br>
                                 <span class="text-subtitle-1">Current Platform: {{ __OS__.platform }} - {{ __OS__.arch }}</span>

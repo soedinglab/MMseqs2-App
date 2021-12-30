@@ -20,7 +20,7 @@ steps:
   - script: |
       npm install
       make all -j $(nproc --all 2>/dev/null || sysctl -n hw.ncpu)
-      ELECTRON=1 node ./electron/build.js
+      ELECTRON=1 FRONTEND_APP=mmseqs node ./electron/build.js
   - task: DownloadSecureFile@1
     name: certificate
     inputs:

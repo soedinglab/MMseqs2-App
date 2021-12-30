@@ -34,6 +34,12 @@ import Search from './Search.vue';
 import Queue from './Queue.vue';
 import Queries from './Queries.vue';
 
+const appStrings = {
+    mmseqs: require('./assets/mmseqs.en_US.po').default,
+    foldseek: require('./assets/foldseek.en_US.po').default,
+};
+window.document.title = appStrings[__APP__].APP_NAME + " Search Server";
+
 const router = new VueRouter({
     mode: __ELECTRON__ ? 'hash' : 'history',
     routes: [
@@ -67,6 +73,8 @@ mq.addEventListener('change', (e) => {
 
 Vue.use({
     install(Vue, options) {
+        Vue.prototype.$APP = __APP__;
+        Vue.prototype.$STRINGS = appStrings[__APP__];
         Vue.prototype.$ELECTRON = __ELECTRON__;
         Vue.prototype.$MDI = {
             History: mdiHistory,

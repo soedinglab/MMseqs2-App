@@ -27,19 +27,20 @@
 </v-navigation-drawer>
 <v-app-bar v-on:dblclick.native="electronHandleTitleBarDoubleClick()" app :height="$ELECTRON ? '72px' : '48px'" fixed clipped-left :class="['ml-0', 'pl-3', $ELECTRON ? 'pt-2' : null]" :style="{'-webkit-app-region': $ELECTRON ? 'drag' : null, '-webkit-user-select': $ELECTRON ? 'none' : null}">
     <v-app-bar-nav-icon @click.stop="toggleMini"></v-app-bar-nav-icon>
-    <v-app-bar-title><router-link to="/" style="color: inherit; text-decoration: none">MMseqs2 Search</router-link></v-app-bar-title>
-    <object style="margin-left:8px; display: inline-block; width: 38px;height: 38px;vertical-align: middle" 
+    <v-app-bar-title><router-link to="/" style="color: inherit; text-decoration: none">{{ $STRINGS.APP_NAME }} Search</router-link></v-app-bar-title>
+    <object style="margin-left:8px; display: inline-block; width: 38px;height: 38px;vertical-align: middle"
+            v-if="$APP == 'mmseqs'"
             type="image/svg+xml"
             data="./assets/marv1.svg"
             aria-hidden="true">
         <img src="./assets/marv1.png" style="max-width:100%" />
     </object>
+    <img v-if="$APP == 'foldseek'" src="./assets/marv-foldseek-small.png" style="margin-left:8px; display: inline-block; width: 48px;height: 48px;vertical-align: middle" aria-hidden="true" />
 
     <v-spacer></v-spacer>
     <v-toolbar-items v-once v-if="!$ELECTRON" class="hidden-sm-and-down">
-        <v-btn text rel="external noopener" target="_blank" href="https://mmseqs.com">MMseqs2</v-btn>
-        <v-btn text rel="external noopener" target="_blank" href="https://github.com/soedinglab/MMseqs2-App">Github</v-btn>
-        <v-btn text rel="external noopener" target="_blank" href="http://www.mpibpc.mpg.de/soeding">Södinglab</v-btn>
+        <v-btn text rel="external noopener" target="_blank"
+               v-for="i in ($STRINGS.NAV_URL_COUNT - 0)" :key="i" :href="$STRINGS['NAV_URL_' + i]">{{ $STRINGS["NAV_TITLE_" + i]}}</v-btn>
     </v-toolbar-items>
 </v-app-bar>
 

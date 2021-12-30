@@ -11,18 +11,18 @@
                             <template v-slot:activator="{ on }">
                                 <v-icon v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
                             </template>
-                            <span>Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file.</span>
+                            <span>{{ $STRINGS.QUERIES_HELP }}</span>
                         </v-tooltip>
                     </template>
                     <template slot="content">
                         <v-textarea
-                            aria-label="Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file." 
+                            :aria-label="$STRINGS.QUERIES_HELP"
                             class="marv-bg mono"
                             hide-details 
                             v-model="query" 
                             @dragover.prevent 
                             @drop="fileDrop($event)" 
-                            placeholder="Enter a list of either protein or nucleotide sequences in FASTA format or upload a FASTA file." 
+                            :placeholder="$STRINGS.QUERIES_HELP"
                             spellcheck="false">
                         </v-textarea>
 
@@ -38,7 +38,7 @@
                                     <div class="text-h5">cURL Command</div>
                                 </v-card-title>
                                 <v-card-text>
-                                    Use this command to get a submit a file in fasta format to the MMseqs2 search server. Replace the 'PATH_TO_FILE' string with the path to the file.
+                                    {{ $STRINGS.CURL_INTRO }}
                                 <br>
                                 <code>curl -X POST -F q=@PATH_TO_FILE <span v-if="email">-F 'email={{email}}'</span> -F 'mode={{mode}}' <span v-for="(path, i) in database" :key="i">-F 'database[]={{ path }}' </span> {{ origin() + '/api/ticket' }}</code>
                                 <br>
@@ -51,7 +51,7 @@
                             </v-card>
                         </v-dialog>
 
-                        <file-button id="file" label="Upload FASTA File" v-on:upload="upload"></file-button>
+                        <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
                         </div>
                     </template>
                 </panel>
@@ -92,7 +92,7 @@
                                 </template>
                                 <span>'All' shows all hits under an e-value cutoff. 'Greedy Best Hits' tries to cover the search query.</span>
                             </v-tooltip>
-                            <v-radio value="accept" label="All Hits" hide-details>All</v-radio>
+                            <v-radio value="accept" label="All Hits" hide-details></v-radio>
                             <v-radio value="summary" label="Greedy Best Hits" hide-details></v-radio>
                         </v-radio-group>
 
@@ -115,7 +115,7 @@
             <div class="text-h5 mb-0">Reference</div>
         </v-card-title>
         <v-card-title primary-title class="pt-0 mt-0">
-            <p class="text-subtitle-2 mb-0">Mirdita M., Steinegger M., and Söding J., <a href="https://doi.org/10.1093/bioinformatics/bty1057" target="_blank" rel="noopener">MMseqs2 desktop and local web server app for fast, interactive sequence searches</a>, <i>Bioinformatics</i>, 2019.</p>
+            <p class="text-subtitle-2 mb-0" v-html="$STRINGS.CITATION"></p>
         </v-card-title>
         </v-card>
     </v-flex>
@@ -172,14 +172,14 @@ export default {
                 if (this.query_ == null) {
                 this.query_ = this.$localStorage.get(
                     "query",
-                    ">TEST\nMPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC"
+                    __APP__ == "mmseqs" ? ">TEST\nMPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC" : ''
                 );
                 }
                 return this.query_;
             },
             set: function(value) {
                 // Fix query to always be a valid FASTA sequence
-                if (typeof(value) === 'string' && value != '') {
+                if (__APP__ == "mmseqs" && typeof(value) === 'string' && value != '') {
                     value = value.trim();
                     if (value[0] != '>') {
                         value = '>unnamed\n' + value;

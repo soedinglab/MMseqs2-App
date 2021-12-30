@@ -8,7 +8,18 @@ const VueLoaderPlugin = require('vue-loader/lib/plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const VuetifyLoaderPlugin = require('vuetify-loader/lib/plugin');
 
-const isElectron = typeof (process.env.ELECTRON) != "undefined";
+const isElectron = typeof(process.env.ELECTRON) != "undefined";
+
+const frontendApp = process.env.FRONTEND_APP;
+if (typeof(frontendApp) == "undefined") {
+    console.error("Specify FRONTEND_APP environment variable to choose which app should be built (mmseqs|foldseek)");
+    process.exit(1);
+}
+
+if (['mmseqs', 'foldseek'].includes(frontendApp) == false) {
+    console.error("FRONTEND_APP environment variable must be one of mmseqs|foldseek");
+    process.exit(1);
+}
 
 function NullPlugin() { }
 NullPlugin.prototype.apply = function () { };
@@ -101,7 +112,14 @@ module.exports = (env, argv) => {
                             }
                         }
                     ]
-                }
+                },
+                {
+                    test: /\.po$/,
+                    use: [
+                        // { loader: 'babel-loader' },
+                        { loader: path.resolve('./frontend/lib/po-loader.js') },
+                    ]
+                },
             ]
         },
         resolve: {
@@ -118,9 +136,10 @@ module.exports = (env, argv) => {
             new webpack.DefinePlugin({
                 __CONFIG__: JSON.stringify(require('../package.json').configuration),
                 __ELECTRON__: isElectron,
+                __APP__: JSON.stringify(frontendApp),
                 'process.env': {
                     NODE_ENV: JSON.stringify(argv.mode)
-                }
+                },
             }),
             new VueLoaderPlugin(),
             new VuetifyLoaderPlugin(),

@@ -283,7 +283,18 @@ export default {
             } else if (res.startsWith("cdd")) {
                 return 'https://www.ncbi.nlm.nih.gov/Structure/cdd/cddsrv.cgi?uid=' + target;
             }
+
+            if (__APP__ == "foldseek" && target.startsWith("AF-")) {
+                return 'https://www.alphafold.ebi.ac.uk/entry/' + target.replaceAll(/-F1-model_v1\.(cif|pdb)\.gz_[A-Z0-9]+$/g, '');
+            }
+
             return null;
+        },
+        tryFixTargetName(target, db) {
+            if (__APP__ == "foldseek" && target.startsWith("AF-")) {
+                return target.replaceAll(/\.(cif|pdb)\.gz_[A-Z0-9]+$/g, '');
+            }
+            return target;
         },
         fetchData(entry) {
             this.remove();
@@ -307,6 +318,7 @@ export default {
                                 for (var j in data.results[i].alignments) {
                                     var item = data.results[i].alignments[j];
                                     item.href = this.tryLinkTargetToDB(item.target, db);
+                                    item.target = this.tryFixTargetName(item.target, db);
                                     item.id = 'result-' + i + '-' + j;
                                     item.active = false;
                                 }
