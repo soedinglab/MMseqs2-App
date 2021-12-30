@@ -242,15 +242,14 @@ export default {
                         this.databases = data.databases;
 
                         if (this.database === null || this.database.length == 0) {
-                            const dbs = this.databases.filter((element) => { return element.default == true });
-                            this.database = dbs.map((db) => { return db.path; });
+                            this.database = this.databases.filter((element) => { return element.default == true });
                         } else {
                             const paths = this.databases.map((db) => { return db.path; });
                             this.database = this.database.filter((elem) => {
                                 return paths.includes(elem);
                             });
                         }
-                        this.database = this.databases.filter((db) => { return db.status == "PENDING" || db.status == "RUNNING"; });
+                        this.database = this.databases.filter((db) => { return db.status == "COMPLETE"; }).map(db => db.path);
                         if (this.databases.some((db) => { return db.status == "PENDING" || db.status == "RUNNING"; })) {
                             setTimeout(this.fetchData.bind(this), 1000);
                         }
