@@ -143,7 +143,7 @@ module.exports = (env, argv) => {
             }),
             new VueLoaderPlugin(),
             new VuetifyLoaderPlugin(),
-            !isElectron ? new FaviconsWebpackPlugin(path.resolve(__dirname, './assets/marv1.svg')) : new NullPlugin(),
+            !isElectron && isProduction ? new FaviconsWebpackPlugin(path.resolve(__dirname, './assets/marv1.svg')) : new NullPlugin(),
             new HtmlWebpackPlugin({
                 template: path.resolve(__dirname, './index.html')
             }),
