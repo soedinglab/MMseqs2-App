@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "POT-Creation-Date: \n"
-"PO-Revision-Date: 2021-12-30 23:00+0100\n"
+"PO-Revision-Date: 2021-12-31 11:44+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: en_US\n"
@@ -58,3 +58,32 @@ msgid "CURL_INTRO"
 msgstr ""
 " Use this command to get a submit a file in fasta format to the MMseqs2 "
 "search server. Replace the ‘PATH_TO_FILE’ string with the path to the file."
+
+msgid "MODE_HELP"
+msgstr ""
+"‘All’ shows all hits under an e-value cutoff. ‘Greedy Best Hits’ tries to "
+"cover the search query."
+
+msgid "MODE_COUNT"
+msgstr "2"
+
+msgid "MODE_DEFAULT_KEY"
+msgstr "accept"
+
+msgid "MODE_KEY_1"
+msgstr "accept"
+
+msgid "MODE_TITLE_1"
+msgstr "All Hits"
+
+msgid "MODE_KEY_2"
+msgstr "summary"
+
+msgid "MODE_TITLE_2"
+msgstr "Greedy Best Hits"
+
+msgid "MODE_KEY_3"
+msgstr ""
+
+msgid "MODE_TITLE_3"
+msgstr ""

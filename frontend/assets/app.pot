@@ -33,3 +33,30 @@ msgstr ""
 
 msgid "CURL_INTRO"
 msgstr ""
+
+msgid "MODE_HELP"
+msgstr ""
+
+msgid "MODE_COUNT"
+msgstr ""
+
+msgid "MODE_DEFAULT_KEY"
+msgstr ""
+
+msgid "MODE_KEY_1"
+msgstr ""
+
+msgid "MODE_TITLE_1"
+msgstr ""
+
+msgid "MODE_KEY_2"
+msgstr ""
+
+msgid "MODE_TITLE_2"
+msgstr ""
+
+msgid "MODE_KEY_3"
+msgstr ""
+
+msgid "MODE_TITLE_3"
+msgstr ""

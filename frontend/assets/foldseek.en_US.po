@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "POT-Creation-Date: \n"
-"PO-Revision-Date: 2021-12-30 23:05+0100\n"
+"PO-Revision-Date: 2021-12-31 11:40+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: en_US\n"
@@ -47,4 +47,33 @@ msgid "UPLOAD_LABEL"
 msgstr "Upload PDB File"
 
 msgid "CURL_INTRO"
-msgstr " Use this command to get a submit a file in PDB format to the FoldSeek search server. Replace the ‘PATH_TO_FILE’ string with the path to the file."
+msgstr ""
+" Use this command to get a submit a file in PDB format to the FoldSeek "
+"search server. Replace the ‘PATH_TO_FILE’ string with the path to the file."
+
+msgid "MODE_HELP"
+msgstr ""
+
+msgid "MODE_COUNT"
+msgstr "3"
+
+msgid "MODE_DEFAULT_KEY"
+msgstr "3di"
+
+msgid "MODE_KEY_1"
+msgstr "3di"
+
+msgid "MODE_TITLE_1"
+msgstr "3DI"
+
+msgid "MODE_KEY_2"
+msgstr "tmalign"
+
+msgid "MODE_TITLE_2"
+msgstr "TM-align"
+
+msgid "MODE_KEY_3"
+msgstr "3diaa"
+
+msgid "MODE_TITLE_3"
+msgstr "3DI+AA"

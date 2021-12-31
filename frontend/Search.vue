@@ -90,10 +90,14 @@
                                 <template v-slot:activator="{ on }">
                                     <label v-on="on">Mode</label>
                                 </template>
-                                <span>'All' shows all hits under an e-value cutoff. 'Greedy Best Hits' tries to cover the search query.</span>
+                                <span>{{ $STRINGS.MODE_HELP }}</span>
                             </v-tooltip>
-                            <v-radio value="accept" label="All Hits" hide-details></v-radio>
-                            <v-radio value="summary" label="Greedy Best Hits" hide-details></v-radio>
+                            <v-radio hide-details
+                                     v-for="i in ($STRINGS.MODE_COUNT - 0)"
+                                     :key="i"
+                                     :value="$STRINGS['MODE_KEY_' + i]"
+                                     :label="$STRINGS['MODE_TITLE_' + i]"
+                                     ></v-radio>
                         </v-radio-group>
 
                         <v-tooltip v-if="!$ELECTRON" open-delay="300" top>
@@ -149,7 +153,7 @@ export default {
     computed: {
         mode: {
             get: function() {
-                this.mode_ = this.$localStorage.get("mode", "accept");
+                this.mode_ = this.$localStorage.get("mode", this.$STRINGS.MODE_DEFAULT_KEY);
                 return this.mode_;
             },
             set: function(value) {

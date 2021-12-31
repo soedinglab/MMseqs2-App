@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -155,6 +156,11 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			if err != nil {
 				return &JobExecutionError{err}
 			}
+			var mode2num = map[string]string{"3di": "0", "tmalign": "1", "3diaa": "2"}
+			mode, found := mode2num[job.Mode]
+			if !found {
+				return &JobExecutionError{errors.New("Invalid mode selected")}
+			}
 			parameters := []string{
 				config.Paths.FoldSeek,
 				"easy-search",
@@ -164,6 +170,8 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				filepath.Join(resultBase, "tmp"),
 				// "--shuffle",
 				// "0",
+				"--alignment-mode",
+				mode,
 				"--db-output",
 				"--db-load-mode",
 				"2",
