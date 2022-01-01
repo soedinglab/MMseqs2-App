@@ -90,7 +90,7 @@
                                 <template v-slot:activator="{ on }">
                                     <label v-on="on">Mode</label>
                                 </template>
-                                <span>{{ $STRINGS.MODE_HELP }}</span>
+                                <span v-html="$STRINGS.MODE_HELP"></span>
                             </v-tooltip>
                             <v-radio hide-details
                                      v-for="i in ($STRINGS.MODE_COUNT - 0)"
