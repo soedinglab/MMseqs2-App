@@ -72,6 +72,7 @@
                         <div v-if="databases.length == 0">
                             <div :class="['alert', { 'alert-info': !dberror }, { 'alert-danger': dberror }]">
                                 <span v-if="dberror">Could not query available databases!</span>
+                                <span v-else-if="dbqueried == false">Loading databases...</span>
                                 <span v-else>
                                     No databases found! <br />
                                     <span v-if="$ELECTRON">
@@ -137,6 +138,7 @@ export default {
     data() {
         return {
             dberror: false,
+            dbqueried: false,
             databases: [],
             inSearch: false,
             status: {
@@ -242,6 +244,7 @@ export default {
             this.$http.get("api/databases/all").then(
                 response => {
                     response.json().then(data => {
+                        this.dbqueried = true;
                         this.dberror = false;
                         this.databases = data.databases;
 

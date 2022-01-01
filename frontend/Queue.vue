@@ -90,7 +90,7 @@ export default {
                                 });
                                 break;
                             default:
-                                this.error = "Please wait."
+                                this.error = "Please wait..."
                                 setTimeout(this.fetchData.bind(this), 1000);
                                 break;
                         }
