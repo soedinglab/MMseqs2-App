@@ -107,7 +107,7 @@
                 <panel v-if="alignment != null" class="alignment monospace" :style="'top: ' + alnBoxOffset + 'px'">
                     <div class="alignment-wrapper1" slot="content">
                         <div class="alignment-wrapper2">
-                        <span v-for="i in Math.max(1, (alignment.alnLength / lineLen)|0)" :key="i">
+                        <span v-for="i in Math.max(1, Math.ceil(alignment.alnLength / lineLen))" :key="i">
 <span class="line">
 Q&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}</span>
 <br>
