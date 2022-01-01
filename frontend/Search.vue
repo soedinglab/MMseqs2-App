@@ -176,7 +176,7 @@ export default {
                 if (this.query_ == null) {
                 this.query_ = this.$localStorage.get(
                     "query",
-                    __APP__ == "mmseqs" ? ">TEST\nMPKIIEAIYENGVFKPLQKVDLKEGEKAKIVLESISDKTFGILKASETEIKKVLEEIDDFWGVC" : ''
+                    this.$STRINGS.QUERY_DEFAULT
                 );
                 }
                 return this.query_;

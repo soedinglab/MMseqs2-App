@@ -60,3 +60,6 @@ msgstr ""
 
 msgid "MODE_TITLE_3"
 msgstr ""
+
+msgid "QUERY_DEFAULT"
+msgstr ""
