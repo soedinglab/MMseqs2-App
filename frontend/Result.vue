@@ -286,14 +286,14 @@ export default {
             }
 
             if (__APP__ == "foldseek" && target.startsWith("AF-")) {
-                return 'https://www.alphafold.ebi.ac.uk/entry/' + target.replaceAll(/-F1-model_v1\.(cif|pdb)\.gz_[A-Z0-9]+$/g, '');
+                return 'https://www.alphafold.ebi.ac.uk/entry/' + target.replaceAll(/-F1-model_v[0-9]+\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
             }
 
             return null;
         },
         tryFixTargetName(target, db) {
             if (__APP__ == "foldseek" && target.startsWith("AF-")) {
-                return target.replaceAll(/\.(cif|pdb)\.gz_[A-Z0-9]+$/g, '');
+                return target.replaceAll(/\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
             }
             return target;
         },
