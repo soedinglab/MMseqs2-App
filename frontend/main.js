@@ -3,7 +3,7 @@ import VueRouter from 'vue-router';
 import VueResource from 'vue-resource';
 import VueLocalStorage from 'vue-localstorage/src/index.js';
 import Vuetify from 'vuetify/lib';
-import { 
+import {
     mdiHistory,
     mdiChevronLeft,
     mdiChevronRight,

@@ -21,6 +21,13 @@ if (['mmseqs', 'foldseek'].includes(frontendApp) == false) {
     process.exit(1);
 }
 
+const fs = require('fs');
+const parsePo = require('./lib/po-reader');
+const appStrings = {
+    mmseqs: parsePo(fs.readFileSync('./frontend/assets/mmseqs.en_US.po', { encoding: 'utf8', flag: 'r' })).translations,
+    foldseek: parsePo(fs.readFileSync('./frontend/assets/foldseek.en_US.po', { encoding: 'utf8', flag: 'r' })).translations,
+};
+
 function NullPlugin() { }
 NullPlugin.prototype.apply = function () { };
 
@@ -150,7 +157,8 @@ module.exports = (env, argv) => {
                         : path.resolve(__dirname, './assets/marv-foldseek.png')
                 ) : new NullPlugin(),
             new HtmlWebpackPlugin({
-                template: path.resolve(__dirname, './index.html')
+                template: path.resolve(__dirname, './index.html'),
+                APP_NAME: appStrings[frontendApp].APP_NAME
             }),
             isProduction ?
                 new MiniCssExtractPlugin({
