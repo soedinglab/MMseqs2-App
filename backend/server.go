@@ -558,7 +558,29 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		err = json.NewEncoder(w).Encode(results)
+		request, err := getJobRequestFromFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.json"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var mode string
+		switch job := request.Job.(type) {
+		case SearchJob:
+		case StructureSearchJob:
+		case MsaJob:
+		case PairJob:
+			mode = job.Mode
+		default:
+			mode = ""
+		}
+		type AlignmentModeResponse struct {
+			Query   FastaEntry     `json:"query"`
+			Mode    string         `json:"mode"`
+			Results []SearchResult `json:"results"`
+		}
+
+		err = json.NewEncoder(w).Encode(AlignmentModeResponse{results.Query, mode, results.Results})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

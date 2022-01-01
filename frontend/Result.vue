@@ -77,7 +77,7 @@
                                 </th>
                                 <th>Sequence Id.</th>
                                 <th>Score</th>
-                                <th>E-Value</th>
+                                <th>{{ $APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value' }}</th>
                                 <th>Query Pos.</th>
                                 <th>Target Pos.</th>
                                 <th class="alignment-action">Alignment</th>
@@ -92,7 +92,7 @@
                                 </td>
                                 <td data-label="Sequence Identity">{{ item.seqId }}</td>
                                 <td data-label="Score">{{ item.score }}</td>
-                                <td data-label="E-Value">{{ item.eval }}</td>
+                                <td :data-label="$APP == 'foldseek' && $parent.mode == 'tmalign' ? 'TM-score' : 'E-Value'">{{ item.eval }}</td>
                                 <td data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
                                 <td data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
                                 <td class="alignment-action">
@@ -178,6 +178,7 @@ export default {
         return {
             ticket: "",
             error: "",
+            mode: "",
             entry: 0,
             hits: null,
             alignment: null,
@@ -304,6 +305,9 @@ export default {
                 .then((response) => {
                     this.error = "";
                     response.json().then((data) => {
+                        if ("mode" in data) {
+                            this.mode = data.mode;
+                        }
                         if (data.alignments == null || data.alignments.length > 0) {
                             var color = colorScale();
                             var empty = 0;
@@ -427,10 +431,11 @@ export default {
                         reverse = true;
                     }
 
+                    var prefix = __APP__ == "foldseek" && this.mode == "tmalign" ? "TM" : "E";
                     var f = {
                         "x": mapPosToSeq(data.query.sequence, start),
                         "y": mapPosToSeq(data.query.sequence, end),
-                        "description": alignments[i]["target"] + " (E: " + alignments[i]["eval"] + ")",
+                        "description": alignments[i]["target"] + " (" + prefix + ": " + alignments[i]["eval"] + ")",
                         "id": cnt,
                         "color": colorHsl.rgb(),
                         "href": '#' + alignments[i]["id"],
