@@ -567,8 +567,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		var mode string
 		switch job := request.Job.(type) {
 		case SearchJob:
+			mode = job.Mode
 		case StructureSearchJob:
+			mode = job.Mode
 		case MsaJob:
+			mode = job.Mode
 		case PairJob:
 			mode = job.Mode
 		default:
