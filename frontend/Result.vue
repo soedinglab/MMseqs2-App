@@ -408,6 +408,9 @@ export default {
                 var minScore = Number.MAX_VALUE;
                 for (var i in alignments) {
                     var score = alignments[i]["eval"];
+                    if (__APP__ == "foldseek" && this.mode == "tmalign") {
+                        score = Math.pow(10, -(10 * score));
+                    }
                     if (score >= maxScore) {
                         maxScore = score;
                     }
@@ -419,6 +422,9 @@ export default {
 
                 for (var i in alignments) {
                     var score = alignments[i]["eval"];
+                    if (__APP__ == "foldseek" && this.mode == "tmalign") {
+                        score = Math.pow(10, -(10 * score));
+                    }
                     var colorHsl = d3.rgb(color).hsl();
                     var r = lerp(minScore/maxScore, 1, score/maxScore);
                     colorHsl.l = clamp(colorHsl.l * Math.pow(0.65, -r), 0.1, 0.9);
