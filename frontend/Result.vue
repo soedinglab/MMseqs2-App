@@ -4,7 +4,7 @@
             <v-flex xs12>
             <panel>
                 <template slot="header">
-                    <span class="hidden-sm-and-down">Results for Job:&nbsp;</span><small>{{ ticket }}</small>
+                    <span class="hidden-sm-and-down">Results for Job:&nbsp;</span><small class="ticket">{{ ticket }}</small>
                 </template>
 
                 <template slot="toolbar-extra">
@@ -485,6 +485,15 @@ src: url(assets/InconsolataClustal2.woff2),
     line-height: 3.5;
     position: relative;
     background-clip: padding-box;
+}
+
+@media print, screen and (max-width: 599px) {
+small.ticket {
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    display: block;
+}
 }
 
 .result-table {

@@ -360,6 +360,10 @@ export default {
     padding-top: 7px;
 }
 
+.query-panel .actions button {
+    margin: 5px 5px 5px 0;
+}
+
 @media screen and (min-width: 961px) {
 .query-panel .actions {
     max-height: 48px;
