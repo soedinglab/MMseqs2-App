@@ -157,7 +157,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				filepath.Join(resultBase, "tmp"),
 				// "--shuffle",
 				// "0",
-				"--alignment-mode",
+				"--alignment-type",
 				mode,
 				"--db-output",
 				"--db-load-mode",
