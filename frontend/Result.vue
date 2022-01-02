@@ -109,11 +109,11 @@
                         <div class="alignment-wrapper2">
                         <span v-for="i in Math.max(1, Math.ceil(alignment.alnLength / lineLen))" :key="i">
 <span class="line">
-Q&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}</span>
+Q&nbsp;{{padNumber(alignment.qStartPos + (i-1)*lineLen, (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}</span>
 <br>
-{{'&nbsp;'.repeat(3+(alignment.alnLength+"").length)}}<span class="residues">{{formatAlnDiff(alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen), alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen))}}</span>
+{{'&nbsp;'.repeat(3+(Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length)}}<span class="residues">{{formatAlnDiff(alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen), alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen))}}</span>
 <br>
-T&nbsp;{{padNumber((i-1)*lineLen, (alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span>
+T&nbsp;{{padNumber(alignment.dbStartPos + (i-1)*lineLen, (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span>
 </span><br>
                         </span>
                         </div>
