@@ -56,9 +56,6 @@ export default {
         }
     },
     methods: {
-        setDrawerState(state) {
-            this.drawer = !state;
-        },
         previous() {
             if (this.page == 0) {
                 return;
@@ -78,9 +75,17 @@ export default {
             this.items = this.$localStorage.get('history');
 
             let tickets = [];
+            var hasCurrent = false;
             for (let i in this.items) {
+                if (this.current == this.items[i].id) {
+                    hasCurrent = true;
+                }
                 tickets.push(this.items[i].id);
                 this.items[i].status = "UNKNOWN";
+            }
+            if (this.current != undefined && hasCurrent == false) {
+                tickets.unshift(this.current);
+                this.items.unshift({ id: this.current, status: "UNKNOWN", time: +(new Date()) })
             }
 
             this.$http.post('api/tickets', { tickets: tickets }, { emulateJSON: true }).then(
