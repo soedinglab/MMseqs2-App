@@ -1,6 +1,6 @@
 <template>
 <div>
-<v-navigation-drawer stateless app permanent clipped :mini-variant.sync="mini">
+<v-navigation-drawer stateless app permanent clipped :mini-variant.sync="mini" :expand-on-hover="false" ref="drawer">
     <v-list>
         <v-list-item to="/search">
             <v-list-item-action>
@@ -57,6 +57,10 @@ export default {
     }),
     created() {
         this.$root.$on('multi', this.shouldExpand);
+    },
+    mounted() {
+        // defeat https://github.com/vuetifyjs/vuetify/pull/14523
+        Object.defineProperty(this.$refs.drawer._data, 'isMouseover', { get: () => { false } })
     },
     beforeDestroy() {
         this.$root.$off('multi', this.shouldExpand);
