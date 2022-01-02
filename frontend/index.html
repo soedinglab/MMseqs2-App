@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="x-ua-compatible" content="ie=edge">
+<% if (ENABLE_CSP) { %><meta http-equiv="Content-Security-Policy" content="default-src 'self' data: 'unsafe-inline'; connect-src http://127.0.0.1:*"><% } %>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title><%= htmlWebpackPlugin.options.APP_NAME %> Search Server</title>
+<title><%= APP_NAME %> Search Server</title>
 </head>
 <div id="app"></div>

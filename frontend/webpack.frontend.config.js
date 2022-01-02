@@ -158,7 +158,10 @@ module.exports = (env, argv) => {
                 ) : new NullPlugin(),
             new HtmlWebpackPlugin({
                 template: path.resolve(__dirname, './index.html'),
-                APP_NAME: appStrings[frontendApp].APP_NAME
+                templateParameters: {
+                    APP_NAME: appStrings[frontendApp].APP_NAME,
+                    ENABLE_CSP: isElectron && isProduction
+                }
             }),
             isProduction ?
                 new MiniCssExtractPlugin({
