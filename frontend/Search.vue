@@ -184,8 +184,8 @@ export default {
                 return this.query_;
             },
             set: function(value) {
-                // Fix query to always be a valid FASTA sequence
                 if (__APP__ == "mmseqs" && typeof(value) === 'string' && value != '') {
+                    // Fix query to always be a valid FASTA sequence
                     value = value.trim();
                     if (value[0] != '>') {
                         value = '>unnamed\n' + value;
@@ -269,6 +269,11 @@ export default {
                 database: this.database,
                 mode: this.mode
             };
+            if (__APP__ == "foldseek" && typeof(data.q) === 'string' && data.q != '') {
+                if (data.q[data.q.length - 1] != '\n') {
+                    data.q += '\n';
+                }
+            }
             if (!__ELECTRON__ && this.email != "") {
                 data.email = this.email;
             }
