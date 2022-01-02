@@ -79,9 +79,6 @@ export default {
         '$route': 'fetchData'
     },
     methods: {
-        setDrawerState(state) {
-            this.drawer = !state;
-        },
         previous() {
             if (this.page == 0) {
                 return;
@@ -112,6 +109,9 @@ export default {
                         this.items = data.lookup;
                         this.hasNext = data.hasNext;
                         this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)  
+                        if (this.multi) {
+                            this.drawer = true;
+                        }
                         this.$root.$emit('multi', this.multi);
                     }
                 });
