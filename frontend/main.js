@@ -97,7 +97,7 @@ Vue.use({
             ProgressWrench: mdiProgressWrench,
         };
         if (__ELECTRON__) {
-            const remote = require('electron').remote;
+            const remote = require('@electron/remote');
             Vue.prototype.__OS__ = remote.app.os;
             Vue.prototype.mmseqsVersion = remote.app.mmseqsVersion;
             Vue.prototype.saveResult = remote.app.saveResult;
@@ -112,7 +112,7 @@ Vue.use({
 });
 
 if (__ELECTRON__) {
-    const remote = require('electron').remote;
+    const remote = require('@electron/remote');
     Vue.url.options.root = remote.app.apiEndpoint;
     if (remote.app.token && remote.app.token.length > 0) {
         Vue.http.interceptors.push(function (request) {

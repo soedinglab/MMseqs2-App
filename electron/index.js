@@ -9,6 +9,8 @@ import appRootDir from 'app-root-dir';
 import defaultMenu from './menu';
 import contextMenu from './context'
 
+require('@electron/remote/main').initialize()
+
 const winURL = app.isPackaged ? `file://${__dirname}/index.html` : `http://localhost:9080`;
 
 const homePath = app.getPath('home');
@@ -152,6 +154,8 @@ console.log(err);
 				contextIsolation: false
 			}
 		});
+
+		require('@electron/remote/main').enable(mainWindow.webContents)
 		
 		mainWindow.loadURL(winURL);
 

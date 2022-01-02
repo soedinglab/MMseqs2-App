@@ -7,7 +7,7 @@
 
 /* eslint-disable */
 
-// Install `electron-debug` with `devtron`
+// Install `electron-debug`
 require('electron-debug')({ showDevTools: { mode: "detach" } })
 
 // Install `vue-devtools`
