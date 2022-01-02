@@ -11,12 +11,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
 type JobExecutionError struct {
@@ -47,9 +44,7 @@ func execCommand(verbose bool, parameters ...string) (*exec.Cmd, chan error, err
 		parameters[1:]...,
 	)
 
-	if runtime.GOOS != "windows" {
-		cmd.SysProcAttr = &unix.SysProcAttr{Setpgid: true}
-	}
+	SetSysProcAttr(cmd)
 
 	// Make sure MMseqs2's progress bar doesn't break
 	cmd.Env = append(os.Environ(), "TTY=0")
@@ -70,14 +65,6 @@ func execCommand(verbose bool, parameters ...string) (*exec.Cmd, chan error, err
 	}()
 
 	return cmd, done, err
-}
-
-func killCommand(cmd *exec.Cmd) error {
-	if runtime.GOOS != "windows" {
-		return unix.Kill(-cmd.Process.Pid, unix.SIGKILL)
-	} else {
-		return cmd.Process.Kill()
-	}
 }
 
 func RunJob(request JobRequest, config ConfigRoot) (err error) {
@@ -119,7 +106,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 
 			select {
 			case <-time.After(1 * time.Hour):
-				if err := killCommand(cmd); err != nil {
+				if err := KillCommand(cmd); err != nil {
 					log.Printf("Failed to kill: %s\n", err)
 				}
 				return &JobTimeoutError{}
@@ -193,7 +180,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 
 			select {
 			case <-time.After(1 * time.Hour):
-				if err := killCommand(cmd); err != nil {
+				if err := KillCommand(cmd); err != nil {
 					log.Printf("Failed to kill: %s\n", err)
 				}
 				return &JobTimeoutError{}
@@ -367,7 +354,7 @@ rm -rf -- "${BASE}/tmp"
 
 		select {
 		case <-time.After(1 * time.Hour):
-			if err := killCommand(cmd); err != nil {
+			if err := KillCommand(cmd); err != nil {
 				log.Printf("Failed to kill: %s\n", err)
 			}
 			return &JobTimeoutError{}
@@ -521,7 +508,7 @@ rm -rf -- "${BASE}/tmp"
 
 		select {
 		case <-time.After(1 * time.Hour):
-			if err := killCommand(cmd); err != nil {
+			if err := KillCommand(cmd); err != nil {
 				log.Printf("Failed to kill: %s\n", err)
 			}
 			return &JobTimeoutError{}
