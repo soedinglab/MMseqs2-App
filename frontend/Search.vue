@@ -212,7 +212,7 @@ export default {
         },
         searchDisabled() {
             return (
-                this.inSearch || this.database.length == 0 || this.query.length == 0
+                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0
             );
         },
         error() {
