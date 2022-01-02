@@ -7,6 +7,7 @@ const { SubresourceIntegrityPlugin } = require('webpack-subresource-integrity');
 const VueLoaderPlugin = require('vue-loader/lib/plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const VuetifyLoaderPlugin = require('vuetify-loader/lib/plugin');
+const ImageMinimizerPlugin = require("image-minimizer-webpack-plugin");
 
 const isElectron = typeof(process.env.ELECTRON) != "undefined";
 
@@ -78,11 +79,7 @@ module.exports = (env, argv) => {
                 },
                 {
                     test: /\.(png|jpe?g|gif|svg|ttf|woff2?|eot)(\?.*)?$/,
-                    loader: 'file-loader',
-                    options: {
-                        name: isElectron ? '[name].[ext]' : '[name].[contenthash:8].[ext]',
-                        esModule: false
-                    }
+                    type: 'asset/resource'
                 },
                 {
                     test: /\.css$/,
@@ -172,9 +169,19 @@ module.exports = (env, argv) => {
                 hashFuncNames: ['sha256', 'sha384']
             }),
             new CompressionPlugin({
-                test: isProduction && !isElectron ? /\.(js|html|css|svg)(\?.*)?$/i : undefined,
+                test: isProduction && !isElectron ? /\.(js|html|css|svg|woff2?)(\?.*)?$/i : undefined,
                 minRatio: 1
             }),
+            isProduction ? new ImageMinimizerPlugin({
+                minimizer: {
+                    implementation: ImageMinimizerPlugin.imageminMinify,
+                    options: {
+                        plugins: [
+                            ["pngquant", { speed: 1, strip: true }],
+                        ],
+                    },
+                },
+            }) : new NullPlugin(),
             !isProduction && isElectron ?
                 new webpack.HotModuleReplacementPlugin() : new NullPlugin(),
         ],
