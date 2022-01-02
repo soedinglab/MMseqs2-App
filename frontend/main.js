@@ -107,6 +107,7 @@ Vue.use({
             Vue.prototype.__OS__ = { arch: 'web', platform: 'web' };
             Vue.prototype.mmseqsVersion = "web";
             Vue.prototype.saveResult = () => {};
+            Vue.prototype.handleTitleBarDoubleClick = () => {};
         }
     }
 });
