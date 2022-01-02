@@ -9,6 +9,7 @@ body {
 @media screen and (prefers-color-scheme: dark) {
     html, body {
         background-color: #121212;
+        color-scheme: dark;
     }
 }
 
