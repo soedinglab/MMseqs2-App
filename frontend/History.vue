@@ -72,20 +72,20 @@ export default {
             this.current = this.$route.params.ticket;
 
             this.error = false;
-            this.items = this.$localStorage.get('history');
+            var itemsTmp = this.$localStorage.get('history');
 
             let tickets = [];
             var hasCurrent = false;
-            for (let i in this.items) {
-                if (this.current == this.items[i].id) {
+            for (let i in itemsTmp) {
+                if (this.current == itemsTmp[i].id) {
                     hasCurrent = true;
                 }
-                tickets.push(this.items[i].id);
-                this.items[i].status = "UNKNOWN";
+                tickets.push(itemsTmp[i].id);
+                itemsTmp[i].status = "UNKNOWN";
             }
             if (this.current != undefined && hasCurrent == false) {
                 tickets.unshift(this.current);
-                this.items.unshift({ id: this.current, status: "UNKNOWN", time: +(new Date()) })
+                itemsTmp.unshift({ id: this.current, status: "UNKNOWN", time: +(new Date()) })
             }
 
             this.$http.post('api/tickets', { tickets: tickets }, { emulateJSON: true }).then(
@@ -99,12 +99,12 @@ export default {
                                 include = true;
                             } else if (data[i].status == "UNKNOWN") {
                                 include = false;
-                            } else if ((now - this.items[i].time) < (1000 * 60 * 60 * 24 * 7)) {
+                            } else if ((now - itemsTmp[i].time) < (1000 * 60 * 60 * 24 * 7)) {
                                 include = true;
                             }
 
                             if (include) {
-                                var entry = this.items[i];
+                                var entry = itemsTmp[i];
                                 entry.status = data[i].status;
                                 items.push(entry);
                             }
