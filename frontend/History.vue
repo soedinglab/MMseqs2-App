@@ -98,6 +98,7 @@ export default {
                     response.json().then((data) => {
                         var now = +(new Date());
                         var items = [];
+                        var hasPending = false;
                         for (var i in data) {
                             var include = false;
                             if (data[i].status == "COMPLETE") {
@@ -108,6 +109,10 @@ export default {
                                 include = true;
                             }
 
+                            if (data[i].status == "PENDING" || data[i].status == "RUNNING") {
+                                hasPending = true;
+                            }
+
                             if (include) {
                                 var entry = itemsTmp[i];
                                 entry.status = data[i].status;
@@ -116,6 +121,9 @@ export default {
                         }
                         this.items = items;
                         this.$localStorage.set('history', items);
+                        if (hasPending) {
+                            setTimeout(this.fetchData.bind(this), 5000);
+                        }
                     });
                 }, () => {
                     this.error = true;
