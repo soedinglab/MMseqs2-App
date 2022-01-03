@@ -1,6 +1,6 @@
 <template>
 <div>
-<v-navigation-drawer stateless app permanent clipped :mini-variant.sync="mini" :expand-on-hover="false" ref="drawer">
+<v-navigation-drawer stateless app permanent clipped :mini-variant="mini" :expand-on-hover="false" ref="drawer">
     <v-list>
         <v-list-item to="/search">
             <v-list-item-action>
@@ -67,10 +67,8 @@ export default {
     },
     methods: {
         shouldExpand(expand) {
-            if (expand) {
-                this.mini = false;
-                this.$root.$emit('navigation-resize', this.mini);
-            }
+            this.mini = !expand;
+            this.$root.$emit('navigation-resize', this.mini);
         },
         toggleMini() {
             this.mini = !this.mini;
