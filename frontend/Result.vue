@@ -92,7 +92,7 @@
                                 </td>
                                 <td data-label="Sequence Identity">{{ item.seqId }}</td>
                                 <td data-label="Score">{{ item.score }}</td>
-                                <td :data-label="$APP == 'foldseek' && $parent.mode == 'tmalign' ? 'TM-score' : 'E-Value'">{{ item.eval }}</td>
+                                <td :data-label="$APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value'">{{ item.eval }}</td>
                                 <td data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
                                 <td data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
                                 <td class="alignment-action">
