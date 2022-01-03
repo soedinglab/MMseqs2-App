@@ -156,7 +156,7 @@ module.exports = (env, argv) => {
             new HtmlWebpackPlugin({
                 template: path.resolve(__dirname, './index.html'),
                 templateParameters: {
-                    APP_NAME: appStrings[frontendApp].APP_NAME,
+                    STRINGS: appStrings[frontendApp],
                     ENABLE_CSP: isElectron && isProduction
                 }
             }),

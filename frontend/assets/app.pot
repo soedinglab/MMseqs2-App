@@ -1,6 +1,9 @@
 msgid "APP_NAME"
 msgstr ""
 
+msgid "APP_DESCRIPTION"
+msgstr ""
+
 msgid "CITATION"
 msgstr ""
 
