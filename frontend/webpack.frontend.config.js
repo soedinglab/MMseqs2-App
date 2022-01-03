@@ -42,8 +42,11 @@ module.exports = (env, argv) => {
         output: {
             path: path.resolve(__dirname, '../dist'),
             publicPath: isElectron ? '' : '/',
-            filename: isElectron ? 'renderer.js' : 'build.[contenthash:8].js',
+            filename: isElectron ? 'renderer.js' : '[contenthash:20].js',
             crossOriginLoading: 'anonymous',
+        },
+        cache: {
+            type: 'filesystem'
         },
         module: {
             rules: [
@@ -90,7 +93,7 @@ module.exports = (env, argv) => {
                     use: [
                         isProduction ? MiniCssExtractPlugin.loader : 'vue-style-loader',
                         { loader: 'css-loader', options: { esModule: false } },
-                        { 
+                        {
                             loader: 'sass-loader',
                             options: {
                                 sassOptions: {
@@ -120,7 +123,6 @@ module.exports = (env, argv) => {
                 {
                     test: /\.po$/,
                     use: [
-                        // { loader: 'babel-loader' },
                         { loader: path.resolve('./frontend/lib/po-loader.js') },
                     ]
                 },
@@ -148,11 +150,22 @@ module.exports = (env, argv) => {
             new VueLoaderPlugin(),
             new VuetifyLoaderPlugin(),
             !isElectron && isProduction ? 
-                new FaviconsWebpackPlugin(
-                    frontendApp == 'mmseqs' 
+                new FaviconsWebpackPlugin({
+                    logo: frontendApp == 'mmseqs'
                         ? path.resolve(__dirname, './assets/marv1.svg')
-                        : path.resolve(__dirname, './assets/marv-foldseek.png')
-                ) : new NullPlugin(),
+                        : path.resolve(__dirname, './assets/marv-foldseek.png'),
+                    prefix: 'f-[contenthash:20]/',
+                    favicons: {
+                        icons: {
+                            appleStartup: false,
+                            android: false,
+                            coast: false,
+                            windows: false,
+                            yandex: false,
+                            firefox: false
+                        }
+                    }
+                }) : new NullPlugin(),
             new HtmlWebpackPlugin({
                 template: path.resolve(__dirname, './index.html'),
                 templateParameters: {
@@ -162,14 +175,14 @@ module.exports = (env, argv) => {
             }),
             isProduction ?
                 new MiniCssExtractPlugin({
-                    filename: isElectron ? 'style.css' : 'style.[contenthash:8].css',
+                    filename: isElectron ? 'style.css' : '[contenthash:20].css',
                 }) : new NullPlugin(),
             new SubresourceIntegrityPlugin({
                 enabled: isProduction && !isElectron,
                 hashFuncNames: ['sha256', 'sha384']
             }),
             new CompressionPlugin({
-                test: isProduction && !isElectron ? /\.(js|html|css|svg|woff2?)(\?.*)?$/i : undefined,
+                test: isProduction && !isElectron ? /\.(js|html|css|svg|woff2?|map|ico)(\?.*)?$/i : undefined,
                 minRatio: 1
             }),
             isProduction ? new ImageMinimizerPlugin({
