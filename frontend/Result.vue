@@ -489,10 +489,8 @@ src: url(assets/InconsolataClustal2.woff2),
 
 @media print, screen and (max-width: 599px) {
 small.ticket {
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
-    display: block;
+    display: inline-block;
+    line-height: 0.9;
 }
 }
 
