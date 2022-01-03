@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "POT-Creation-Date: \n"
-"PO-Revision-Date: 2022-01-01 20:11+0100\n"
+"PO-Revision-Date: 2022-01-03 12:23+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: en_US\n"
@@ -20,25 +20,25 @@ msgid "CITATION"
 msgstr "TBD"
 
 msgid "NAV_URL_COUNT"
-msgstr "1"
+msgstr "3"
 
 msgid "NAV_TITLE_1"
-msgstr "FoldSeek"
+msgstr "GitHub"
 
 msgid "NAV_URL_1"
 msgstr "https://foldseek.com"
 
 msgid "NAV_TITLE_2"
-msgstr ""
+msgstr "Söding Lab"
 
 msgid "NAV_URL_2"
-msgstr ""
+msgstr "https://www.mpinat.mpg.de/soeding"
 
 msgid "NAV_TITLE_3"
-msgstr ""
+msgstr "Steinegger Lab"
 
 msgid "NAV_URL_3"
-msgstr ""
+msgstr "https://steineggerlab.com/"
 
 msgid "QUERIES_HELP"
 msgstr "Enter a protein structure in PDB format or upload a PDB file."
