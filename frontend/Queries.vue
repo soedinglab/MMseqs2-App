@@ -76,7 +76,12 @@ export default {
         this.fetchData();
     },
     watch: {
-        '$route': 'fetchData'
+        '$route': 'fetchData',
+        drawer: function (val, oldVal) {
+            if (val == true) {
+                this.$root.$emit('multi', true);
+            }
+        }
     },
     methods: {
         previous() {
@@ -111,8 +116,8 @@ export default {
                         this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)  
                         if (this.multi) {
                             this.drawer = true;
+                            this.$root.$emit('multi', true);
                         }
-                        this.$root.$emit('multi', this.multi);
                     }
                 });
             }).catch(() => {

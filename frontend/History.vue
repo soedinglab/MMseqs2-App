@@ -47,7 +47,12 @@ export default {
         this.fetchData();
     },
     watch: {
-        '$route': 'fetchData'
+        '$route': 'fetchData',
+        drawer: function (val, oldVal) {
+            if (val == true) {
+                this.$root.$emit('multi', true);
+            }
+        }
     },
     localStorage: {
         history: {
