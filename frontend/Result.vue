@@ -301,6 +301,7 @@ export default {
             this.remove();
             this.ticket = this.$route.params.ticket;
             this.entry = this.$route.params.entry;
+            this.alignment = null;
             this.$http.get("api/result/" + this.ticket + '/' + this.entry)
                 .then((response) => {
                     this.error = "";
