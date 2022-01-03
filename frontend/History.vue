@@ -15,10 +15,10 @@
         <v-list-item v-for="(child, i) in items.slice(page * limit, (page + 1) * limit)" :key="i" :class="{ 'list__item--highlighted': child.id == current }" :to="formattedRoute(child)" style="padding-left: 16px;">
             <v-list-item-icon>
                 <identicon v-if="child.status == 'COMPLETE'" :hash="child.id"></identicon>
-                <v-icon v-else-if="child.status == 'RUNNING'">{{ $MDI.ClockOutline }}</v-icon>
-                <v-icon v-else-if="child.status == 'PENDING'">{{ $MDI.ClockOutline }}</v-icon>
-                <v-icon v-else-if="child.status == 'ERROR'">{{ $MDI.HelpCircleOutline }}</v-icon>
-                <v-icon v-else>{{ $MDI.HelpCircleOutline }}</v-icon>
+                <v-icon large v-else-if="child.status == 'RUNNING'">{{ $MDI.ClockOutline }}</v-icon>
+                <v-icon large v-else-if="child.status == 'PENDING'">{{ $MDI.ClockOutline }}</v-icon>
+                <v-icon large v-else-if="child.status == 'ERROR'">{{ $MDI.HelpCircleOutline }}</v-icon>
+                <v-icon large v-else>{{ $MDI.HelpCircleOutline }}</v-icon>
             </v-list-item-icon>
             <v-list-item-content>
                 <v-list-item-title>
