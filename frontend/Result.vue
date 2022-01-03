@@ -276,7 +276,7 @@ export default {
             if (res.startsWith("pfam")) {
                 return 'https://pfam.xfam.org/family/' + target;
             } else if (res.startsWith("pdb")) {
-                return 'https://www.rcsb.org/pdb/explore.do?structureId=' + target.split('_')[0];
+                return 'https://www.rcsb.org/pdb/explore.do?structureId=' + target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '').split('_')[0];
             } else if (res.startsWith("uniclust") || res.startsWith("uniprot") || res.startsWith("sprot") || res.startsWith("swissprot")) {
                 return 'https://www.uniprot.org/uniprot/' + target;
             } else if (res.startsWith("eggnog_")) {
@@ -292,8 +292,13 @@ export default {
             return null;
         },
         tryFixTargetName(target, db) {
-            if (__APP__ == "foldseek" && target.startsWith("AF-")) {
-                return target.replaceAll(/\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
+            var res = db.toLowerCase();
+            if (__APP__ == "foldseek") {
+                if (target.startsWith("AF-")) {
+                    return target.replaceAll(/\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
+                } else if (res.startsWith("pdb")) {
+                    return target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '');
+                }
             }
             return target;
         },
