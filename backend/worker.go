@@ -76,6 +76,10 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			if err != nil {
 				return &JobExecutionError{err}
 			}
+			columns := "query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln"
+			if params.Taxonomy {
+				columns += ",taxid,taxname"
+			}
 			parameters := []string{
 				config.Paths.Mmseqs,
 				"easy-search",
@@ -91,7 +95,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				"--write-lookup",
 				"1",
 				"--format-output",
-				"query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln",
+				columns,
 			}
 			parameters = append(parameters, strings.Fields(params.Search)...)
 
@@ -148,6 +152,10 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			if !found {
 				return &JobExecutionError{errors.New("Invalid mode selected")}
 			}
+			columns := "query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln"
+			if params.Taxonomy {
+				columns += ",taxid,taxname"
+			}
 			parameters := []string{
 				config.Paths.FoldSeek,
 				"easy-search",
@@ -165,7 +173,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				"--write-lookup",
 				"1",
 				"--format-output",
-				"query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln",
+				columns,
 			}
 			parameters = append(parameters, strings.Fields(params.Search)...)
 

@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,22 +13,24 @@ import (
 )
 
 type AlignmentEntry struct {
-	Query         string  `json:"query"`
-	Target        string  `json:"target"`
-	SeqId         float32 `json:"seqId"`
-	AlnLength     int     `json:"alnLength"`
-	Missmatches   int     `json:"missmatches"`
-	Gapsopened    int     `json:"gapsopened"`
-	QueryStartPos int     `json:"qStartPos"`
-	QueryEndPos   int     `json:"qEndPos"`
-	DbStartPos    int     `json:"dbStartPos"`
-	DbEndPos      int     `json:"dbEndPos"`
-	Eval          float64 `json:"eval"`
-	Score         int     `json:"score"`
-	QueryLength   int     `json:"qLen"`
-	DbLength      int     `json:"dbLen"`
-	QueryAln      string  `json:"qAln"`
-	DbAln         string  `json:"dbAln"`
+	Query         string      `json:"query"`
+	Target        string      `json:"target"`
+	SeqId         float32     `json:"seqId"`
+	AlnLength     int         `json:"alnLength"`
+	Missmatches   int         `json:"missmatches"`
+	Gapsopened    int         `json:"gapsopened"`
+	QueryStartPos int         `json:"qStartPos"`
+	QueryEndPos   int         `json:"qEndPos"`
+	DbStartPos    int         `json:"dbStartPos"`
+	DbEndPos      int         `json:"dbEndPos"`
+	Eval          float64     `json:"eval"`
+	Score         int         `json:"score"`
+	QueryLength   int         `json:"qLen"`
+	DbLength      int         `json:"dbLen"`
+	QueryAln      string      `json:"qAln"`
+	DbAln         string      `json:"dbAln"`
+	TaxonId       json.Number `json:"taxId,omitempty"`
+	TaxonName     string      `json:"taxName,omitempty"`
 }
 
 type FastaEntry struct {

@@ -15,14 +15,15 @@ import (
 )
 
 type Params struct {
-	Name    string `json:"name" validate:"required"`
-	Version string `json:"version"`
-	Path    string `json:"path" validate:"required"`
-	Default bool   `json:"default"`
-	Order   int    `json:"order"`
-	Index   string `json:"index"`
-	Search  string `json:"search"`
-	Status  Status `json:"status"`
+	Name     string `json:"name" validate:"required"`
+	Version  string `json:"version"`
+	Path     string `json:"path" validate:"required"`
+	Default  bool   `json:"default"`
+	Order    int    `json:"order"`
+	Taxonomy bool   `json:"taxonomy`
+	Index    string `json:"index"`
+	Search   string `json:"search"`
+	Status   Status `json:"status"`
 }
 
 type paramsByOrder []Params
