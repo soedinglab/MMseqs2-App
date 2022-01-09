@@ -75,8 +75,9 @@
                                         <span>Tripple click to select whole cell (for very long identifiers)</span>
                                     </v-tooltip>
                                 </th>
-                                <th>Sequence Id.</th>
-                                <th>Score</th>
+                                <th v-if="taxonomy"  class="wide-1">Scientific Name</th>
+                                <th class="thin">Seq. Id.</th>
+                                <th class="thin">Score</th>
                                 <th>{{ $APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value' }}</th>
                                 <th>Query Pos.</th>
                                 <th>Target Pos.</th>
@@ -86,10 +87,11 @@
                         <tbody v-for="entry in hits.results" :key="entry.db">
                             <tr v-for="(item, index) in entry.alignments" :key="item.target + index" :class="['hit', { 'active' : item.active }]">
                                 <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</td>
-                                <td class="target" data-label="Target">
+                                <td class="long" data-label="Target">
                                     <a :id="item.id" class="anchor"></a>
                                     <a :href="item.href" target="_blank" rel="noopener">{{item.target}}</a>
                                 </td>
+                                <td v-if="taxonomy" data-label="Taxonomy" class="long"><a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" target="_blank" rel="noopener" :title="item.taxName">{{ item.taxName }}</a></td>
                                 <td data-label="Sequence Identity">{{ item.seqId }}</td>
                                 <td data-label="Score">{{ item.score }}</td>
                                 <td :data-label="$APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value'">{{ item.eval }}</td>
@@ -182,6 +184,7 @@ export default {
             entry: 0,
             hits: null,
             alignment: null,
+            taxonomy: false,
             alnBoxOffset: 0,
             lineLen: 80,
         };
@@ -307,6 +310,7 @@ export default {
             this.ticket = this.$route.params.ticket;
             this.entry = this.$route.params.entry;
             this.alignment = null;
+            this.taxonomy = false;
             this.$http.get("api/result/" + this.ticket + '/' + this.entry)
                 .then((response) => {
                     this.error = "";
@@ -331,6 +335,12 @@ export default {
                                     item.target = this.tryFixTargetName(item.target, db);
                                     item.id = 'result-' + i + '-' + j;
                                     item.active = false;
+                                    if (__APP__ != "foldseek" || this.mode != "tmalign") {
+                                        item.eval = item.eval.toExponential(3);
+                                    }
+                                    if ("taxId" in item) {
+                                        this.taxonomy = true;
+                                    }
                                 }
                             }
                             if (total != 0 && empty/total == 1) {
@@ -413,7 +423,7 @@ export default {
                 var maxScore = 0;
                 var minScore = Number.MAX_VALUE;
                 for (var i in alignments) {
-                    var score = alignments[i]["eval"];
+                    var score = Number.parseFloat(alignments[i]["eval"]);
                     if (__APP__ == "foldseek" && this.mode == "tmalign") {
                         score = Math.pow(10, -(10 * score));
                     }
@@ -427,7 +437,7 @@ export default {
                 }
 
                 for (var i in alignments) {
-                    var score = alignments[i]["eval"];
+                    var score = Number.parseFloat(alignments[i]["eval"]);
                     if (__APP__ == "foldseek" && this.mode == "tmalign") {
                         score = Math.pow(10, -(10 * score));
                     }
@@ -527,6 +537,10 @@ small.ticket {
     tbody:hover td[rowspan], tbody tr:hover {
         background: #eee;
     }
+
+    .alignment-action {
+        text-align: center;
+    }
 }
 
 
@@ -552,12 +566,15 @@ small.ticket {
         border-collapse: collapse;
         width: 100%;
         th.wide-1 {
-            width: 19%;
+            width: 15%;
         }
         th.wide-2 {
             width: 22% !important;
         }
-        .target {
+        th.thin {
+            width: 7% !important;
+        }
+        .long {
             overflow: hidden;
             word-break: keep-all;
             text-overflow: ellipsis;
@@ -574,7 +591,7 @@ small.ticket {
 
 @media screen and (max-width: 960px) {
     .result-table {
-        .target {
+        .long {
             word-break: break-word;
             height: 100% !important;
             white-space: normal !important;
@@ -633,7 +650,7 @@ small.ticket {
             justify-content: flex-end;
             text-align: right;
             border-bottom: 1px solid #eee;
-            align-items: center;
+            // align-items: center;
             white-space: nowrap;
         }
         tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
