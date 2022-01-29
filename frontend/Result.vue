@@ -173,6 +173,21 @@ function getAbsOffsetTop($el) {
     return sum;
 }
 
+function debounce(func, wait, immediate) {
+    var timeout;
+    return function() {
+        var context = this, args = arguments;
+        var later = function() {
+            timeout = null;
+            if (!immediate) func.apply(context, args);
+        };
+        var callNow = immediate && !timeout;
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+        if (callNow) func.apply(context, args);
+    };
+};
+
 export default {
     name: 'result',
     components: { Panel },
@@ -184,15 +199,18 @@ export default {
             entry: 0,
             hits: null,
             alignment: null,
+            activeTarget: null,
             taxonomy: false,
             alnBoxOffset: 0,
             lineLen: 80,
         };
     },
     created() {
+        window.addEventListener("resize", this.handleAlignmentBoxResize, { passive: true });
         this.$root.$on('navigation-resize', this.updateWindow);
     },
     beforeDestroy() {
+        window.removeEventListener("resize", this.handleAlignmentBoxResize);
         this.$root.$off('navigation-resize', this.updateWindow);
         this.remove();
     },
@@ -267,13 +285,19 @@ export default {
         showAlignment(item, event) {
             if (this.alignment == item) {
                 this.alignment = null;
+                this.activeTarget = null;
             } else {
                 this.alignment = item;
+                this.activeTarget = event.target.closest('.hit');
+                // FIXME: dont hardcode navigation bar height (48px)
+                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight - 48;
             }
-            var $el = event.target.closest('.hit');
-            // FIXME: dont hardcode navigation bar height (48px)
-            this.alnBoxOffset = getAbsOffsetTop($el) + $el.offsetHeight - 48;
         },
+        handleAlignmentBoxResize: debounce(function() {
+            if (this.activeTarget != null) {
+                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight - 48;
+            }
+        }, 32, false),
         tryLinkTargetToDB(target, db) {
             var res = db.toLowerCase();
             if (res.startsWith("pfam")) {
