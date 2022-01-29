@@ -51,6 +51,8 @@
                             </v-card>
                         </v-dialog>
 
+                        <load-acession-button v-if="$APP == 'foldseek'" v-on:select="query = $event"></load-acession-button>
+
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
                         </div>
                     </template>
@@ -131,10 +133,11 @@
 <script>
 import Panel from "./Panel.vue";
 import FileButton from "./FileButton.vue";
+import LoadAcessionButton from './LoadAcessionButton.vue';
 
 export default {
     name: "search",
-    components: { Panel, FileButton },
+    components: { Panel, FileButton, LoadAcessionButton },
     data() {
         return {
             dberror: false,
@@ -354,14 +357,18 @@ export default {
 };
 </script>
 
+<style>
+
+.query-panel .actions button {
+    margin: 5px 5px 5px 0;
+}
+
+</style>
+
 <style scoped>
 .query-panel .actions {
     flex: 0;
     padding-top: 7px;
-}
-
-.query-panel .actions button {
-    margin: 5px 5px 5px 0;
 }
 
 @media screen and (min-width: 961px) {
