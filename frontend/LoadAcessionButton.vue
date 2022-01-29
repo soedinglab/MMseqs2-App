@@ -30,7 +30,7 @@ export default {
         return {
             loading: false,
             error: "",
-            show: true,
+            show: false,
             source: 'PDB',
             accession: '',
             sources: [
