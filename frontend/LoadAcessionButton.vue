@@ -52,7 +52,7 @@ export default {
                 url = "https://files.rcsb.org/download/" + this.accession.toUpperCase() + ".pdb";
                 fun = simpleFetch;
             } else if (this.source == "AlphaFoldDB") {
-                url = "https://www.alphafold.ebi.ac.uk/api/search?q=(text:*" + this.accession + " OR text:" + this.accession + "*)&type=main&start=0&rows=1"
+                url = "https://alphafold.ebi.ac.uk/api/search?q=(text:*" + this.accession + " OR text:" + this.accession + "*)&type=main&start=0&rows=1"
                 fun = response => {
                     response.json().then(data => {
                         const docs = data.docs;
