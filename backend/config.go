@@ -180,7 +180,7 @@ const (
 )
 
 type ConfigRoot struct {
-	App     ConfigApp    `json:"app" validate:"oneof=mmseqs foldseek colabfold colabfold"`
+	App     ConfigApp    `json:"app" validate:"oneof=mmseqs foldseek colabfold predictprotein"`
 	Server  ConfigServer `json:"server" validate:"required"`
 	Paths   ConfigPaths  `json:"paths" validate:"required"`
 	Redis   ConfigRedis  `json:"redis"`
