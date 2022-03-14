@@ -313,7 +313,7 @@ export default {
             }
 
             if (__APP__ == "foldseek" && target.startsWith("AF-")) {
-                return 'https://www.alphafold.ebi.ac.uk/entry/' + target.replaceAll(/-F1-model_v[0-9]+\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
+                return 'https://www.alphafold.ebi.ac.uk/entry/' + target.replaceAll(/-F[0-9]+-model_v[0-9]+\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
             }
 
             return null;
