@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -33,14 +34,43 @@ type AlignmentEntry struct {
 	TaxonName     string      `json:"taxName,omitempty"`
 }
 
+type FoldseekAlignmentEntry struct {
+	Query         string      `json:"query"`
+	Target        string      `json:"target"`
+	SeqId         float32     `json:"seqId"`
+	AlnLength     int         `json:"alnLength"`
+	Missmatches   int         `json:"missmatches"`
+	Gapsopened    int         `json:"gapsopened"`
+	QueryStartPos int         `json:"qStartPos"`
+	QueryEndPos   int         `json:"qEndPos"`
+	DbStartPos    int         `json:"dbStartPos"`
+	DbEndPos      int         `json:"dbEndPos"`
+	Eval          float64     `json:"eval"`
+	Score         int         `json:"score"`
+	QueryLength   int         `json:"qLen"`
+	DbLength      int         `json:"dbLen"`
+	QueryAln      string      `json:"qAln"`
+	DbAln         string      `json:"dbAln"`
+	QueryCa       string      `json:"qCa"`
+	TargetCa      string      `json:"tCa"`
+	TaxonId       json.Number `json:"taxId,omitempty"`
+	TaxonName     string      `json:"taxName,omitempty"`
+}
+
+func (a AlignmentEntry) isAlignmentEntry() {}
+func (f FoldseekAlignmentEntry) isAlignmentEntry() {}
+type EntryInterface interface {
+	isAlignmentEntry()
+}
+
 type FastaEntry struct {
 	Header   string `json:"header"`
 	Sequence string `json:"sequence"`
 }
 
 type SearchResult struct {
-	Database   string           `json:"db"`
-	Alignments []AlignmentEntry `json:"alignments"`
+	Database   string                    `json:"db"`
+	Alignments []EntryInterface  `json:"alignments"`
 }
 
 type AlignmentResponse struct {
@@ -52,7 +82,11 @@ func dbpaths(path string) (string, string) {
 	return path, path + ".index"
 }
 
-func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
+func describe(i interface{}) {
+	fmt.Printf("(%v, %T)\n", i, i)
+}
+
+func Alignments(id Id, entry int64, jobsbase string, jobtype ConfigApp) (AlignmentResponse, error) {
 	base := filepath.Join(jobsbase, string(id))
 	matches, err := filepath.Glob(filepath.Join(filepath.Clean(base), "alis_*.index"))
 	if err != nil {
@@ -66,9 +100,17 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 		reader.Make(dbpaths(name))
 		data := strings.NewReader(reader.Data(entry))
 		reader.Delete()
-		var results []AlignmentEntry
-		r := AlignmentEntry{}
-		parser := NewTsvParser(data, &r)
+
+		var results []EntryInterface
+		var r EntryInterface
+
+		if jobtype == "foldseek" {
+			r = &FoldseekAlignmentEntry{}
+		} else {
+			r = &AlignmentEntry{}
+		}
+
+		parser := NewTsvParser(data, r)
 		for {
 			eof, err := parser.Next()
 			if eof {

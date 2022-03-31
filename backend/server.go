@@ -552,8 +552,8 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-
-		results, err := Alignments(ticket.Id, int64(id), config.Paths.Results)
+		
+		results, err := Alignments(ticket.Id, int64(id), config.Paths.Results, config.App)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
