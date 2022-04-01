@@ -552,8 +552,14 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		
-		results, err := Alignments(ticket.Id, int64(id), config.Paths.Results, config.App)
+
+		var results AlignmentResponse
+		switch config.App {
+		case "foldseek":
+			results, err = FSAlignments(ticket.Id, int64(id), config.Paths.Results)
+		default:
+			results, err = Alignments(ticket.Id, int64(id), config.Paths.Results)
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
