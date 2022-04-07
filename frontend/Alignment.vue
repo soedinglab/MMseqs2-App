@@ -1,6 +1,7 @@
 <template>
     <div class="alignment-wrapper-inner">
-        <span class="line">Select the target sequence to highlight it in the visualisation.</span><br>
+        <h4>Select the target sequence to highlight it in the visualisation.</h4>
+	<br>
         <span v-for="i in Math.max(1, Math.ceil(alignment.alnLength / lineLen))" :key="i">
             <span class="line">
                 Q&nbsp;{{padNumber(getQueryRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}</span>
@@ -97,8 +98,7 @@ export default {
 }
 .alignment-wrapper-inner {
     display: inline-block;
-    overflow-x: scroll;
-    /* flex: 1 1 auto; */
+    overflow-x: auto;
 }
 .alignment-wrapper-inner .line {
     display: inline-block;
