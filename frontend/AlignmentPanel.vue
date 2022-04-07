@@ -27,7 +27,7 @@ import StructureViewer from './StructureViewer.vue'
 
 function makePositionMap(realStart, alnString) {
     let map = new Map()
-    for (let i = 0, gaps = 0; i < alnString.length; i++) {
+    for (let i = 0, gaps = 0; i <= alnString.length; i++) {
         if (alnString[i] === '-') map.set(i, null) && gaps++
         else map.set(i, realStart + i - gaps)
     }
@@ -49,11 +49,14 @@ export default {
             if (!this.alignment) return
             this.$refs.structureViewer.setSelectionData(start, end)
         },
+        updateMaps() {
+            if (!this.alignment) return
+            this.queryMap = makePositionMap(this.alignment.qStartPos, this.alignment.qAln)
+            this.targetMap = makePositionMap(this.alignment.dbStartPos, this.alignment.dbAln)
+        },
     },
-    beforeMount() {
-        this.queryMap = makePositionMap(this.alignment.qStartPos, this.alignment.qAln)
-        this.targetMap = makePositionMap(this.alignment.dbStartPos, this.alignment.dbAln)
-    },
+    watch: { 'alignment': function() { this.updateMaps() } },
+    beforeMount() { this.updateMaps() },
 }
 </script>
 
@@ -61,7 +64,7 @@ export default {
 .alignment-wrapper-outer {
     display: inline-flex;
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
     align-items: center;
 }

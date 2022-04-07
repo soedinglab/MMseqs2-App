@@ -109,7 +109,8 @@ export default {
                     let qPos = this.queryMap.get(i) - 1
                     let tPos = this.targetMap.get(i) - 1
                     // Don't grab any coordinates outside of the current selection
-                    if (this.selection && !(tPos >= this.selection[0] && tPos <= this.selection[1]))
+                    // NGL selections are 1-indexed, so subtract 1 from the selection start
+                    if (this.selection && !(tPos >= this.selection[0] - 1 && tPos < this.selection[1]))
                         continue
                     let qXYZ = [qAtoms.x[qPos], qAtoms.y[qPos], qAtoms.z[qPos]]
                     let tXYZ = [tAtoms.x[tPos], tAtoms.y[tPos], tAtoms.z[tPos]]
@@ -117,6 +118,10 @@ export default {
                 }
             }
             return matches
+        },
+        handleResize() {
+            if (!this.$refs.viewport) return
+            this.$refs.viewport.handleResize()
         },
         toggleFullscreen() {
             if (!this.stage) return
@@ -139,8 +144,8 @@ export default {
             this.selection = [start, end]
         },
         setSelection(val) {
-            if (val === 'full') this.setSelectionData(0, this.alignment.dbLen)
-            else this.setSelectionData(this.alignment.dbStartPos - 1, this.alignment.dbEndPos)
+            if (val === 'full') this.setSelectionData(1, this.alignment.dbLen)
+            else this.setSelectionData(this.alignment.dbStartPos, this.alignment.dbEndPos)
         },
         // Update arrow shape on shape update
         renderArrows() {
@@ -196,19 +201,23 @@ export default {
 <style>
 .structure-panel {
     display: flex;
-    position: relative;
-    flex: 1 1 auto;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    flex: 0 0 auto;
 }
 .structure-buttons {
     display: flex;
     flex-direction: column;
+    width: min-content;
 }
 .structure-wrapper {
-    position: relative;
-    flex: 1 1 auto;
+    width: 300px;
+    height: 300px;
+    margin: .5em;
 }
 .structure-viewer {
-    width: 300px;
-    height: 250px;
+    width: 100%;
+    height: 100%;
 }
 </style>
