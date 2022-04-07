@@ -63,13 +63,13 @@ type FastaEntry struct {
 }
 
 type SearchResult struct {
-	Database   string `json:"db"`
-	Alignments interface{}    `json:"alignments"`
+	Database   string      `json:"db"`
+	Alignments interface{} `json:"alignments"`
 }
 
 type AlignmentResponse struct {
-	Query   FastaEntry   `json:"query"`
-	Results []SearchResult          `json:"results"`
+	Query   FastaEntry     `json:"query"`
+	Results []SearchResult `json:"results"`
 }
 
 func dbpaths(path string) (string, string) {
