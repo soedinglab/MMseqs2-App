@@ -21,15 +21,29 @@
                 <v-radio label="Full" value="full" style="font-size: 12px!important;"/>
             </v-radio-group>
 
-            <v-btn small v-on:click="toggleFullscreen()" style="margin-bottom: 0.5em;">Fullscreen</v-btn>
-            <v-btn small v-on:click="resetView()" style="margin-bottom: 0.5em;">Reset View</v-btn>
-            <v-btn small v-on:click="toggleArrows()">Arrows</v-btn>
+            <v-btn
+                small
+                v-on:click="toggleFullscreen()"
+                style="margin-bottom: 0.5em;"
+                title="Enter fullscreen mode - press ESC to exit"
+            >Fullscreen</v-btn>
+            <v-btn
+                small
+                v-on:click="resetView()"
+                style="margin-bottom: 0.5em;"
+                title="Resets the view to the original position and zoom level"
+            >Reset View</v-btn>
+            <v-btn
+                small
+                v-on:click="toggleArrows()"
+                title="Draw arrows between aligned residues"
+            >Arrows</v-btn>
         </div>
     </div>
 </template>
 
 <script>
-require('./lib/ngl.dev.js');
+var NGL = require('ngl');
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
 function createArrows(matches) {
@@ -84,7 +98,7 @@ const offsetStructure = (structure, offset = 0.5) => {
 export default {
     data: () => ({
         'showTarget': 'aligned',
-        'showArrows': true,
+        'showArrows': false,
         'selection': null,
     }),
     props: {
@@ -212,7 +226,7 @@ export default {
     width: min-content;
 }
 .structure-wrapper {
-    width: 300px;
+    width: 350px;
     height: 300px;
     margin: .5em;
 }
