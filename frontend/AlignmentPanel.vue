@@ -70,4 +70,21 @@ export default {
     justify-content: center;
     align-items: center;
 }
+
+@media screen and (max-width: 960px) {
+    .alignment-wrapper-outer {
+        display: flex;
+        flex-direction: column;
+    }
+    .structure-panel {
+        padding-top: 1em;
+    }
+}
+
+@media screen and (min-width: 961px) {
+    .structure-panel {
+        padding-left: 1em;
+    }
+}
+
 </style>
