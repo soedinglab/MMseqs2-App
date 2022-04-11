@@ -152,7 +152,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			if !found {
 				return &JobExecutionError{errors.New("Invalid mode selected")}
 			}
-			columns := "query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln"
+			columns := "query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln,qca,tca"
 			if params.Taxonomy {
 				columns += ",taxid,taxname"
 			}

@@ -22,6 +22,12 @@ import {
     mdiLabelOutline,
     mdiNotificationClearAll,
     mdiProgressWrench,
+    mdiRestore,
+    mdiFullscreen,
+    mdiArrowRightCircle,
+    mdiArrowRightCircleOutline,
+    mdiCircle,
+    mdiCircleHalf,
 } from '@mdi/js'
 
 Vue.use(VueRouter);
@@ -95,6 +101,12 @@ Vue.use({
             LabelOutline: mdiLabelOutline,
             NotificationClearAll: mdiNotificationClearAll,
             ProgressWrench: mdiProgressWrench,
+            Restore: mdiRestore,
+            Fullscreen: mdiFullscreen,
+            ArrowRightCircle: mdiArrowRightCircle,
+            ArrowRightCircleOutline: mdiArrowRightCircleOutline,
+            Circle: mdiCircle,
+            CircleHalf: mdiCircleHalf,
         };
         if (__ELECTRON__) {
             const remote = require('@electron/remote');

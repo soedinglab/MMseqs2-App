@@ -73,8 +73,10 @@ func (p *Parser) Next() (eof bool, err error) {
 			// skip empty index
 			continue
 		}
+
 		// get target field
 		field := p.ref.Field(idx - 1)
+
 		switch field.Kind() {
 		case reflect.String:
 			field.SetString(record)

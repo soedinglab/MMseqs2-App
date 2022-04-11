@@ -72,7 +72,7 @@
                                         <template v-slot:activator="{ on }">
                                             <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
                                         </template>
-                                        <span>Tripple click to select whole cell (for very long identifiers)</span>
+                                        <span>Triple click to select whole cell (for very long identifiers)</span>
                                     </v-tooltip>
                                 </th>
                                 <th v-if="taxonomy"  class="wide-1">Scientific Name</th>
@@ -106,20 +106,13 @@
                         </tbody>
                     </table>
                 </panel>
-                <panel v-if="alignment != null" class="alignment monospace" :style="'top: ' + alnBoxOffset + 'px'">
-                    <div class="alignment-wrapper1" slot="content">
-                        <div class="alignment-wrapper2">
-                        <span v-for="i in Math.max(1, Math.ceil(alignment.alnLength / lineLen))" :key="i">
-<span class="line">
-Q&nbsp;{{padNumber(alignment.qStartPos + (i-1)*lineLen, (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}</span>
-<br>
-{{'&nbsp;'.repeat(3+(Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length)}}<span class="residues">{{formatAlnDiff(alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen), alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen))}}</span>
-<br>
-T&nbsp;{{padNumber(alignment.dbStartPos + (i-1)*lineLen, (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span>
-</span><br>
-                        </span>
-                        </div>
-                    </div>
+
+                <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
+                    <AlignmentPanel
+                        slot="content"
+                        :alignment="alignment"
+                        :lineLen="lineLen"
+                    />
                 </panel>
             </v-flex>
         </v-layout>
@@ -129,6 +122,7 @@ T&nbsp;{{padNumber(alignment.dbStartPos + (i-1)*lineLen, (Math.max(alignment.qSt
 <script>
 
 import Panel from './Panel.vue';
+import AlignmentPanel from './AlignmentPanel.vue';
 
 require('./lib/d3/d3');
 
@@ -159,9 +153,6 @@ function mapPosToSeq(seq, targetPos) {
     return counter;
 }
 
-// cat blosum62.out  | grep -v '^#' | awk 'NR == 1 { for (i = 1; i <= NF; i++) { r[i] = $i; } next; } { col = $1; for (i = 2; i <= NF; i++) { print col,r[i-1],$i; } }' | awk '$3 > 0 && $1 != $2 { printf "\""$1""$2"\",";}'
-const blosum62Sim = [ "AG","AS","DE","DN","ED","EK","EQ","FL","FM","FW","FY","GA","HN","HQ","HY","IL","IM","IV","KE","KQ","KR","LF","LI","LM","LV","MF","MI","ML","MV","ND","NH","NQ","NS","QE","QH","QK","QN","QR","RK","RQ","SA","SN","ST","TS","VI","VL","VM","WF","WY","YF","YH","YW"];
-
 var m = null;
 
 function getAbsOffsetTop($el) {
@@ -190,7 +181,7 @@ function debounce(func, wait, immediate) {
 
 export default {
     name: 'result',
-    components: { Panel },
+    components: { Panel, AlignmentPanel },
     data() {
         return {
             ticket: "",
@@ -261,26 +252,6 @@ export default {
             if (m != null) {
                 m.updateWindowDebounced();
             }
-        },
-        padNumber(nr, n, str){
-            return Array(n-String(nr).length+1).join(str||'0')+nr;
-        },
-        formatAlnDiff(seq1, seq2) {
-            if (seq1.length != seq2.length) {
-                return "";
-            }
-
-            var res = ""
-            for (var i = 0; i < seq1.length; i++) {
-                if (seq1[i] == seq2[i]) {
-                    res += seq1[i];
-                } else if (blosum62Sim.indexOf(seq1[i] + seq2[i]) != -1) {
-                    res += '+';
-                } else {
-                    res += ' ';
-                }
-            }
-            return res;
         },
         showAlignment(item, event) {
             if (this.alignment == item) {
@@ -372,6 +343,7 @@ export default {
                             } else {
                                 this.hits = data;
                             }
+                            
                         } else {
                             this.error = "Failed";
                             this.hits = [];
@@ -699,21 +671,18 @@ small.ticket {
         white-space: pre;
     }
 
-    .alignment-wrapper1 {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
+    /* .alignment-wrapper-outer { */
+    /*     display: inline-flex; */
+    /*     flex-direction: row; */
+    /*     flex-wrap: wrap; */
+    /*     justify-content: center; */
+    /*     align-items: center; */
+    /* } */
 
-    .alignment-wrapper2 {
-        display:inline-block;
-        overflow-x:scroll;
-        .line {
-            display: inline-block;
-            margin-bottom: 0.5em;
-            white-space: nowrap;
-        }
-    }
+    /* .structure-wrapper1 { */
+    /*     position: relative; */
+    /*     flex: 1 1 auto; */
+    /* } */
 
     .theme--dark & {
         .residues {

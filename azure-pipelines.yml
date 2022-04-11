@@ -25,10 +25,15 @@ steps:
     name: certificate
     inputs:
       secureFile: certificate.p12
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
   - task: CmdLine@2
     inputs:
-      script: ./node_modules/.bin/electron-builder -mwl
-    env:
-      CSC_LINK: $(certificate.secureFilePath)
-      CSC_KEY_PASSWORD: $(CSC_KEY_PASSWORD)
-      GH_TOKEN: $(GH_TOKEN)
+      ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
+        script: ./node_modules/.bin/electron-builder -mwl
+      ${{ else }}:
+        script: ./node_modules/.bin/electron-builder -mwl -c.mac.identity=null -p never
+    ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
+      env:
+        CSC_LINK: $(certificate.secureFilePath)
+        CSC_KEY_PASSWORD: $(CSC_KEY_PASSWORD)
+        GH_TOKEN: $(GH_TOKEN)
