@@ -43,11 +43,11 @@
 </template>
 
 <script>
-var NGL = require('ngl');
+import { Shape, Stage, superpose } from 'ngl';
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
 function createArrows(matches) {
-    const shape = new NGL.Shape('shape')
+    const shape = new Shape('shape')
     for (let i = 0; i < matches.length; i++) {
         const [a, b] = matches[i]
         shape.addArrow(a, b, [0, 1, 1], 0.4)
@@ -107,7 +107,8 @@ export default {
         'tColour': { type: String, default: "red" },
         'qRepr': { type: String, default: "ribbon" },
         'tRepr': { type: String, default: "ribbon" },
-        'bgColour': { type: String, default: "white" },
+        'bgColourLight': { type: String, default: "white" },
+        'bgColourDark': { type: String, default: "#eee" },
         'queryMap': { type: Map, default: null },
         'targetMap': { type: Map, default: null },
     },
@@ -191,12 +192,12 @@ export default {
         },
     },
     mounted() {
-        this.stage = new NGL.Stage(this.$refs.viewport, { backgroundColor: this.bgColour })
+        this.stage = new Stage(this.$refs.viewport, { backgroundColor: this.$vuetify.theme.dark ? this.bgColourDark : this.bgColourLight })
         Promise.all([
             this.stage.loadFile(mockPDB(this.alignment.qCa), {ext: 'pdb', firstModelOnly: true}),
             this.stage.loadFile(mockPDB(this.alignment.tCa), {ext: 'pdb', firstModelOnly: true})
         ]).then(([query, target]) => {
-            NGL.superpose(target.structure, query.structure)
+            superpose(target.structure, query.structure)
             this.queryRepr = query.addRepresentation(this.qRepr, {color: this.qColour})
             this.targetRepr = target.addRepresentation(
                 this.tRepr,
@@ -233,5 +234,8 @@ export default {
 .structure-viewer {
     width: 100%;
     height: 100%;
+}
+.structure-viewer canvas {
+    border-radius: 2px;
 }
 </style>
