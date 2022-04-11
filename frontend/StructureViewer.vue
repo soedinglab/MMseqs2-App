@@ -197,7 +197,7 @@ export default {
             this.stage.loadFile(mockPDB(this.alignment.qCa), {ext: 'pdb', firstModelOnly: true}),
             this.stage.loadFile(mockPDB(this.alignment.tCa), {ext: 'pdb', firstModelOnly: true})
         ]).then(([query, target]) => {
-            superpose(target.structure, query.structure)
+            superpose(target.structure, query.structure, {align: true})
             this.queryRepr = query.addRepresentation(this.qRepr, {color: this.qColour})
             this.targetRepr = target.addRepresentation(
                 this.tRepr,
