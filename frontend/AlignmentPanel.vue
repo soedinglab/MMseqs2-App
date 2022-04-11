@@ -23,7 +23,6 @@
 
 <script>
 import Alignment from './Alignment.vue'
-import StructureViewer from './StructureViewer.vue'
 
 function makePositionMap(realStart, alnString) {
     let map = new Map()
@@ -35,7 +34,7 @@ function makePositionMap(realStart, alnString) {
 }
 
 export default {
-    components: { StructureViewer, Alignment },
+    components: { StructureViewer: () => __APP__ == "foldseek" ? import('./StructureViewer.vue') : null, Alignment },
     data: () => ({
         queryMap: null,
         targetMap: null,
