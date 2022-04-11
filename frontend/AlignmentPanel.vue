@@ -15,7 +15,7 @@
             :queryMap="queryMap"
             :targetMap="targetMap"
             bgColourLight="white"
-            bgColourDark="#eee"
+            bgColourDark="#1E1E1E"
             qColour="lightgrey"
             tColour="red"
             ref="structureViewer"

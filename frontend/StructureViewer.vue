@@ -1,40 +1,35 @@
 <template>
-    <Panel class="structure-panel" ref="panel" :elevation="0" v-if="'qCa' in alignment && 'tCa' in alignment">
-        <template slot="header">&nbsp;</template>
-        <template slot="toolbar-extra">
-            <v-toolbar-items>
-               <v-btn v-if="showTarget == 'aligned'"
-                    v-on:click="showTarget = 'full'" dark
-                    title="Show only the aligned portion of the target structure"
-                ><v-icon>{{ $MDI.CircleHalf }}</v-icon></v-btn>
-                <v-btn v-else
-                    v-on:click="showTarget = 'aligned'" dark
-                    title="Show the entire target structure"
-                ><v-icon>{{ $MDI.Circle }}</v-icon></v-btn>
-                 <v-btn
-                    v-on:click="toggleArrows()" dark :input-value="showArrows"
-                    title="Draw arrows between aligned residues"
-                ><v-icon v-if="showArrows">{{ $MDI.ArrowRightCircle }}</v-icon>
-                 <v-icon v-else>{{ $MDI.ArrowRightCircleOutline }}</v-icon></v-btn>
-                <v-btn
-                    v-on:click="resetView()" dark
-                    :input-value="
-                        selection != null
-                            && ((selection[0] != alignment.dbStartPos || selection[1] != alignment.dbEndPos) && (selection[0] != 1 || selection[1] != alignment.dbLen))"
-                    title="Reset the view to the original position and zoom level"
-                ><v-icon>{{ $MDI.Restore }}</v-icon></v-btn>
-                <v-btn
-                    v-on:click="toggleFullscreen()" dark
-                    title="Enter fullscreen mode - press ESC to exit"
-                ><v-icon>{{ $MDI.Fullscreen }}</v-icon></v-btn>
-            </v-toolbar-items>
-        </template>
-        <div slot="content">
-            <div class="structure-wrapper">
-                <div class="structure-viewer" ref="viewport" />
-            </div>
+    <div class="structure-panel" v-if="'qCa' in alignment && 'tCa' in alignment">
+        <div class="structure-wrapper">
+            <div class="structure-viewer" ref="viewport" />
         </div>
-    </Panel>
+        <v-toolbar-items class="toolbar">
+            <v-btn v-if="showTarget == 'aligned'"
+                v-on:click="showTarget = 'full'"
+                title="Show only the aligned portion of the target structure"
+            ><v-icon>{{ $MDI.CircleHalf }}</v-icon></v-btn>
+            <v-btn v-else
+                v-on:click="showTarget = 'aligned'"
+                title="Show the entire target structure"
+            ><v-icon>{{ $MDI.Circle }}</v-icon></v-btn>
+                <v-btn
+                v-on:click="toggleArrows()" :input-value="showArrows"
+                title="Draw arrows between aligned residues"
+            ><v-icon v-if="showArrows">{{ $MDI.ArrowRightCircle }}</v-icon>
+                <v-icon v-else>{{ $MDI.ArrowRightCircleOutline }}</v-icon></v-btn>
+            <v-btn
+                v-on:click="resetView()"
+                :input-value="
+                    selection != null
+                        && ((selection[0] != alignment.dbStartPos || selection[1] != alignment.dbEndPos) && (selection[0] != 1 || selection[1] != alignment.dbLen))"
+                title="Reset the view to the original position and zoom level"
+            ><v-icon>{{ $MDI.Restore }}</v-icon></v-btn>
+            <v-btn
+                v-on:click="toggleFullscreen()"
+                title="Enter fullscreen mode - press ESC to exit"
+            ><v-icon>{{ $MDI.Fullscreen }}</v-icon></v-btn>
+        </v-toolbar-items>
+    </div>
 </template>
 
 <script>
@@ -193,7 +188,7 @@ export default {
         if (typeof(this.alignment.qCa) == "undefined" || typeof(this.alignment.tCa) == "undefined")
             return;
         console.log(this.alignment)
-        this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor })
+        this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: 0.40 })
         Promise.all([
             this.stage.loadFile(mockPDB(this.alignment.qCa), {ext: 'pdb', firstModelOnly: true}),
             this.stage.loadFile(mockPDB(this.alignment.tCa), {ext: 'pdb', firstModelOnly: true})
@@ -224,27 +219,28 @@ export default {
 </script>
 
 <style>
-/* .structure-panel {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    flex: 0 0 auto;
-} */
-/* .structure-buttons {
-    display: flex;
-    flex-direction: column;
-    width: min-content;
-} */
 .structure-wrapper {
-    width: 450px;
+    width: 400px;
     height: 300px;
 }
+/* @media only screen and (max-width: 600px) {
+    .structure-wrapper {
+        width: 300px;
+    }
+} */
 .structure-viewer {
     width: 100%;
     height: 100%;
 }
 .structure-viewer canvas {
     border-radius: 2px;
+}
+.structure-panel {
+    position: relative;
+}
+.structure-panel .toolbar {
+    position: absolute;
+    bottom: 0;
+    right: 0;
 }
 </style>
