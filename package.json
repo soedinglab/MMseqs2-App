@@ -23,7 +23,7 @@
     "api": "raml2html --template docs/api/theme/index.nunjucks docs/api/api.raml > docs/api.html"
   },
   "configuration": {
-    "apiEndpoint": "/"
+    "apiEndpoint": "http://localhost:3000"
   },
   "build": {
     "productName": "MMseqs2 Search",
@@ -59,7 +59,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [ "x64" ]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -68,7 +70,10 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": [ "x64", "arm64" ]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ]
     },
@@ -76,7 +81,9 @@
       "target": [
         {
           "target": "dmg",
-          "arch": [ "universal" ]
+          "arch": [
+            "universal"
+          ]
         }
       ]
     },
@@ -136,5 +143,9 @@
     "webpack-dev-server": "^3.11.3",
     "webpack-hot-middleware": "^2.25.1",
     "webpack-subresource-integrity": "^5.0.0"
+  },
+  "dependencies": {
+    "ngl": "^0.10.4",
+    "typescript-language-server": "^0.9.7"
   }
 }
