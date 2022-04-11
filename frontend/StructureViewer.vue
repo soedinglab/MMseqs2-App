@@ -1,49 +1,45 @@
 <template>
-    <div class="structure-panel" ref="panel">
-        <div class="structure-wrapper">
-            <div class="structure-viewer" ref="viewport" />
+    <Panel class="structure-panel" ref="panel" :elevation="0" v-if="'qCa' in alignment && 'tCa' in alignment">
+        <template slot="header">&nbsp;</template>
+        <template slot="toolbar-extra">
+            <v-toolbar-items>
+               <v-btn v-if="showTarget == 'aligned'"
+                    v-on:click="showTarget = 'full'" dark
+                    title="Show only the aligned portion of the target structure"
+                ><v-icon>{{ $MDI.CircleHalf }}</v-icon></v-btn>
+                <v-btn v-else
+                    v-on:click="showTarget = 'aligned'" dark
+                    title="Show the entire target structure"
+                ><v-icon>{{ $MDI.Circle }}</v-icon></v-btn>
+                 <v-btn
+                    v-on:click="toggleArrows()" dark :input-value="showArrows"
+                    title="Draw arrows between aligned residues"
+                ><v-icon v-if="showArrows">{{ $MDI.ArrowRightCircle }}</v-icon>
+                 <v-icon v-else>{{ $MDI.ArrowRightCircleOutline }}</v-icon></v-btn>
+                <v-btn
+                    v-on:click="resetView()" dark
+                    :input-value="
+                        selection != null
+                            && ((selection[0] != alignment.dbStartPos || selection[1] != alignment.dbEndPos) && (selection[0] != 1 || selection[1] != alignment.dbLen))"
+                    title="Reset the view to the original position and zoom level"
+                ><v-icon>{{ $MDI.Restore }}</v-icon></v-btn>
+                <v-btn
+                    v-on:click="toggleFullscreen()" dark
+                    title="Enter fullscreen mode - press ESC to exit"
+                ><v-icon>{{ $MDI.Fullscreen }}</v-icon></v-btn>
+            </v-toolbar-items>
+        </template>
+        <div slot="content">
+            <div class="structure-wrapper">
+                <div class="structure-viewer" ref="viewport" />
+            </div>
         </div>
-        <div class="structure-buttons">
-            <v-radio-group dense label="Target" mandatory max="1" v-model="showTarget">
-                <template slot="label">
-                    Target
-                    <v-tooltip open-delay="300" top>
-                        <template v-slot:activator="{ on }">
-                            <v-icon v-on="on" style="font-size: 16px; ">{{ $MDI.HelpCircleOutline }}</v-icon>
-                        </template>
-                        <span>
-                            Select 'Aligned' to show only the aligned portion of the<br>
-                            target structure, or 'Full' to show the entire structure.
-                        </span>
-                    </v-tooltip>
-                </template>
-                <v-radio label="Aligned" value="aligned" style="font-size: 12px;"/>
-                <v-radio label="Full" value="full" style="font-size: 12px!important;"/>
-            </v-radio-group>
-
-            <v-btn
-                small
-                v-on:click="toggleFullscreen()"
-                style="margin-bottom: 0.5em;"
-                title="Enter fullscreen mode - press ESC to exit"
-            >Fullscreen</v-btn>
-            <v-btn
-                small
-                v-on:click="resetView()"
-                style="margin-bottom: 0.5em;"
-                title="Resets the view to the original position and zoom level"
-            >Reset View</v-btn>
-            <v-btn
-                small
-                v-on:click="toggleArrows()"
-                title="Draw arrows between aligned residues"
-            >Arrows</v-btn>
-        </div>
-    </div>
+    </Panel>
 </template>
 
 <script>
 import { Shape, Stage, superpose } from 'ngl';
+import Panel from './Panel.vue';
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
 function createArrows(matches) {
@@ -96,6 +92,7 @@ const offsetStructure = (structure, offset = 0.5) => {
 }
 
 export default {
+    components: { Panel },
     data: () => ({
         'showTarget': 'aligned',
         'showArrows': false,
@@ -192,7 +189,11 @@ export default {
         },
     },
     mounted() {
-        this.stage = new Stage(this.$refs.viewport, { backgroundColor: this.$vuetify.theme.dark ? this.bgColourDark : this.bgColourLight })
+        const bgColor = this.$vuetify.theme.dark ? this.bgColourDark : this.bgColourLight;
+        if (typeof(this.alignment.qCa) == "undefined" || typeof(this.alignment.tCa) == "undefined")
+            return;
+        console.log(this.alignment)
+        this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor })
         Promise.all([
             this.stage.loadFile(mockPDB(this.alignment.qCa), {ext: 'pdb', firstModelOnly: true}),
             this.stage.loadFile(mockPDB(this.alignment.tCa), {ext: 'pdb', firstModelOnly: true})
@@ -206,30 +207,38 @@ export default {
             this.setSelection(this.showTarget)
             query.autoView()
         })
+        this.stage.signals.fullscreenChanged.add((isFullscreen) => {
+            if (isFullscreen) {
+                this.stage.viewer.setBackground('#ffffff')
+            } else {
+                this.stage.viewer.setBackground(bgColor)
+            }
+        })
     },
     beforeDestroy() {
+        if (typeof(this.stage) == 'undefined')
+            return
         this.stage.dispose() 
     }
 }
 </script>
 
 <style>
-.structure-panel {
+/* .structure-panel {
     display: flex;
     flex-direction: row;
     justify-content: center;
     align-items: center;
     flex: 0 0 auto;
-}
-.structure-buttons {
+} */
+/* .structure-buttons {
     display: flex;
     flex-direction: column;
     width: min-content;
-}
+} */
 .structure-wrapper {
-    width: 350px;
+    width: 450px;
     height: 300px;
-    margin: .5em;
 }
 .structure-viewer {
     width: 100%;

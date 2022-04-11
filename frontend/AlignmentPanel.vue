@@ -83,7 +83,7 @@ export default {
 
 @media screen and (min-width: 961px) {
     .structure-panel {
-        padding-left: 1em;
+        padding-left: 2em;
     }
 }
 
