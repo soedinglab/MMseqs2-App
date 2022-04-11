@@ -107,7 +107,7 @@
                     </table>
                 </panel>
 
-                <panel v-if="alignment != null" class="alignment monospace" :style="'top: ' + alnBoxOffset + 'px'">
+                <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
                     <AlignmentPanel
                         slot="content"
                         :alignment="alignment"

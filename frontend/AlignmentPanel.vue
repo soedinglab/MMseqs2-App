@@ -9,11 +9,13 @@
             @selected="setUserSelection"
         />
         <StructureViewer
+            v-if="$APP == 'foldseek'"
             :key="`struc2-${alignment.id}`"
             :alignment="alignment"
             :queryMap="queryMap"
             :targetMap="targetMap"
-            bgColour="white"
+            bgColourLight="white"
+            bgColourDark="#eee"
             qColour="lightgrey"
             tColour="red"
             ref="structureViewer"
@@ -46,6 +48,7 @@ export default {
     methods: {
         setUserSelection([start, end]) {
             if (!this.alignment) return
+            if (__APP__ != "foldseek") return
             this.$refs.structureViewer.setSelectionData(start, end)
         },
         updateMaps() {
