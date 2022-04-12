@@ -212,7 +212,6 @@ export default {
         'selection': function([start, end]) {
             this.setSelectionByRange(start, end)
             this.renderArrows()
-        console.log(this.alignment)
         },
     },
     mounted() {
