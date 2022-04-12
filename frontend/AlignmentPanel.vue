@@ -9,11 +9,13 @@
             @selected="setUserSelection"
         />
         <StructureViewer
+            v-if="$APP == 'foldseek'"
             :key="`struc2-${alignment.id}`"
             :alignment="alignment"
             :queryMap="queryMap"
             :targetMap="targetMap"
-            bgColour="white"
+            bgColourLight="white"
+            bgColourDark="#1E1E1E"
             qColour="lightgrey"
             tColour="red"
             ref="structureViewer"
@@ -23,7 +25,6 @@
 
 <script>
 import Alignment from './Alignment.vue'
-import StructureViewer from './StructureViewer.vue'
 
 function makePositionMap(realStart, alnString) {
     let map = new Map()
@@ -35,7 +36,7 @@ function makePositionMap(realStart, alnString) {
 }
 
 export default {
-    components: { StructureViewer, Alignment },
+    components: { StructureViewer: () => __APP__ == "foldseek" ? import('./StructureViewer.vue') : null, Alignment },
     data: () => ({
         queryMap: null,
         targetMap: null,
@@ -47,6 +48,7 @@ export default {
     methods: {
         setUserSelection([start, end]) {
             if (!this.alignment) return
+            if (__APP__ != "foldseek") return
             this.$refs.structureViewer.setSelectionData(start, end)
         },
         updateMaps() {
@@ -67,5 +69,21 @@ export default {
     flex-wrap: nowrap;
     justify-content: center;
     align-items: center;
+}
+
+@media screen and (max-width: 960px) {
+    .alignment-wrapper-outer {
+        display: flex;
+        flex-direction: column;
+    }
+    .structure-panel {
+        padding-top: 1em;
+    }
+}
+
+@media screen and (min-width: 961px) {
+    .structure-panel {
+        padding-left: 2em;
+    }
 }
 </style>

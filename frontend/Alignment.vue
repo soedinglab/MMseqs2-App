@@ -1,8 +1,6 @@
 <template>
-    <div class="alignment-wrapper-inner">
-        <h4>Select the target sequence to highlight it in the visualisation.</h4>
-	<br>
-        <span v-for="i in Math.max(1, Math.ceil(alignment.alnLength / lineLen))" :key="i">
+    <div v-if="$APP == 'foldseek'" class="alignment-wrapper-inner">
+        <span class="monospace" v-for="i in Math.max(1, Math.ceil(alignment.alnLength / lineLen))" :key="i">
             <span class="line">
                 Q&nbsp;{{padNumber(getQueryRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}</span>
                 <br>
@@ -11,6 +9,7 @@
                 T&nbsp;{{padNumber(getTargetRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues" @pointerup="onSelectText(i)">{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span>
             </span><br>
         </span>
+        <small style="float:right">Select target residues to highlight their structure</small>
     </div>
 </template>
 

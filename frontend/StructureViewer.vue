@@ -1,53 +1,45 @@
 <template>
-    <div class="structure-panel" ref="panel">
+    <div class="structure-panel" v-if="'qCa' in alignment && 'tCa' in alignment">
         <div class="structure-wrapper">
             <div class="structure-viewer" ref="viewport" />
         </div>
-        <div class="structure-buttons">
-            <v-radio-group dense label="Target" mandatory max="1" v-model="showTarget">
-                <template slot="label">
-                    Target
-                    <v-tooltip open-delay="300" top>
-                        <template v-slot:activator="{ on }">
-                            <v-icon v-on="on" style="font-size: 16px; ">{{ $MDI.HelpCircleOutline }}</v-icon>
-                        </template>
-                        <span>
-                            Select 'Aligned' to show only the aligned portion of the<br>
-                            target structure, or 'Full' to show the entire structure.
-                        </span>
-                    </v-tooltip>
-                </template>
-                <v-radio label="Aligned" value="aligned" style="font-size: 12px;"/>
-                <v-radio label="Full" value="full" style="font-size: 12px!important;"/>
-            </v-radio-group>
-
-            <v-btn
-                small
-                v-on:click="toggleFullscreen()"
-                style="margin-bottom: 0.5em;"
-                title="Enter fullscreen mode - press ESC to exit"
-            >Fullscreen</v-btn>
-            <v-btn
-                small
-                v-on:click="resetView()"
-                style="margin-bottom: 0.5em;"
-                title="Resets the view to the original position and zoom level"
-            >Reset View</v-btn>
-            <v-btn
-                small
-                v-on:click="toggleArrows()"
+        <v-toolbar-items class="toolbar">
+            <v-btn v-if="showTarget == 'aligned'"
+                v-on:click="showTarget = 'full'"
+                title="Show only the aligned portion of the target structure"
+            ><v-icon>{{ $MDI.CircleHalf }}</v-icon></v-btn>
+            <v-btn v-else
+                v-on:click="showTarget = 'aligned'"
+                title="Show the entire target structure"
+            ><v-icon>{{ $MDI.Circle }}</v-icon></v-btn>
+                <v-btn
+                v-on:click="toggleArrows()" :input-value="showArrows"
                 title="Draw arrows between aligned residues"
-            >Arrows</v-btn>
-        </div>
+            ><v-icon v-if="showArrows">{{ $MDI.ArrowRightCircle }}</v-icon>
+                <v-icon v-else>{{ $MDI.ArrowRightCircleOutline }}</v-icon></v-btn>
+            <v-btn
+                v-on:click="resetView()"
+                :input-value="
+                    selection != null
+                        && ((selection[0] != alignment.dbStartPos || selection[1] != alignment.dbEndPos)
+						&& (selection[0] != 1 || selection[1] != alignment.dbLen))"
+                title="Reset the view to the original position and zoom level"
+            ><v-icon>{{ $MDI.Restore }}</v-icon></v-btn>
+            <v-btn
+                v-on:click="toggleFullscreen()"
+                title="Enter fullscreen mode - press ESC to exit"
+            ><v-icon>{{ $MDI.Fullscreen }}</v-icon></v-btn>
+        </v-toolbar-items>
     </div>
 </template>
 
 <script>
-var NGL = require('ngl');
+import { Shape, Stage, superpose } from 'ngl';
+import Panel from './Panel.vue';
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
 function createArrows(matches) {
-    const shape = new NGL.Shape('shape')
+    const shape = new Shape('shape')
     for (let i = 0; i < matches.length; i++) {
         const [a, b] = matches[i]
         shape.addArrow(a, b, [0, 1, 1], 0.4)
@@ -96,6 +88,7 @@ const offsetStructure = (structure, offset = 0.5) => {
 }
 
 export default {
+    components: { Panel },
     data: () => ({
         'showTarget': 'aligned',
         'showArrows': false,
@@ -107,7 +100,8 @@ export default {
         'tColour': { type: String, default: "red" },
         'qRepr': { type: String, default: "ribbon" },
         'tRepr': { type: String, default: "ribbon" },
-        'bgColour': { type: String, default: "white" },
+        'bgColourLight': { type: String, default: "white" },
+        'bgColourDark': { type: String, default: "#eee" },
         'queryMap': { type: Map, default: null },
         'targetMap': { type: Map, default: null },
     },
@@ -191,12 +185,16 @@ export default {
         },
     },
     mounted() {
-        this.stage = new NGL.Stage(this.$refs.viewport, { backgroundColor: this.bgColour })
+        const bgColor = this.$vuetify.theme.dark ? this.bgColourDark : this.bgColourLight;
+        if (typeof(this.alignment.qCa) == "undefined" || typeof(this.alignment.tCa) == "undefined")
+            return;
+        console.log(this.alignment)
+        this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: 0.40 })
         Promise.all([
             this.stage.loadFile(mockPDB(this.alignment.qCa), {ext: 'pdb', firstModelOnly: true}),
             this.stage.loadFile(mockPDB(this.alignment.tCa), {ext: 'pdb', firstModelOnly: true})
         ]).then(([query, target]) => {
-            NGL.superpose(target.structure, query.structure)
+            superpose(target.structure, query.structure, {align: true})
             this.queryRepr = query.addRepresentation(this.qRepr, {color: this.qColour})
             this.targetRepr = target.addRepresentation(
                 this.tRepr,
@@ -205,33 +203,45 @@ export default {
             this.setSelection(this.showTarget)
             query.autoView()
         })
+        this.stage.signals.fullscreenChanged.add((isFullscreen) => {
+            if (isFullscreen) {
+                this.stage.viewer.setBackground('#ffffff')
+            } else {
+                this.stage.viewer.setBackground(bgColor)
+            }
+        })
     },
     beforeDestroy() {
+        if (typeof(this.stage) == 'undefined')
+            return
         this.stage.dispose() 
     }
 }
 </script>
 
 <style>
-.structure-panel {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    flex: 0 0 auto;
-}
-.structure-buttons {
-    display: flex;
-    flex-direction: column;
-    width: min-content;
-}
 .structure-wrapper {
-    width: 350px;
+    width: 400px;
     height: 300px;
-    margin: .5em;
 }
+/* @media only screen and (max-width: 600px) {
+    .structure-wrapper {
+        width: 300px;
+    }
+} */
 .structure-viewer {
     width: 100%;
     height: 100%;
+}
+.structure-viewer canvas {
+    border-radius: 2px;
+}
+.structure-panel {
+    position: relative;
+}
+.structure-panel .toolbar {
+    position: absolute;
+    bottom: 0;
+    right: 0;
 }
 </style>
