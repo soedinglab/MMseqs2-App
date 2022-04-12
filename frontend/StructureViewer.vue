@@ -106,27 +106,6 @@ export default {
         'targetMap': { type: Map, default: null },
     },
     methods: {
-        // Parse two strings and pair corresponding XYZ coordinates from two arrays if both
-        // characters are not '-'
-        parseAlns(aln1, aln2, qStruc, tStruc) {
-            const matches = new Array()
-            let qAtoms = qStruc.atomStore
-            let tAtoms = tStruc.atomStore
-            for (let i = 0; i < aln1.length; i++) {
-                if (aln1[i] !== '-' && aln2[i] !== '-') {
-                    let qPos = this.queryMap.get(i) - 1
-                    let tPos = this.targetMap.get(i) - 1
-                    // Don't grab any coordinates outside of the current selection
-                    // NGL selections are 1-indexed, so subtract 1 from the selection start
-                    if (this.selection && !(tPos >= this.selection[0] - 1 && tPos < this.selection[1]))
-                        continue
-                    let qXYZ = [qAtoms.x[qPos], qAtoms.y[qPos], qAtoms.z[qPos]]
-                    let tXYZ = [tAtoms.x[tPos], tAtoms.y[tPos], tAtoms.z[tPos]]
-                    matches.push([qXYZ, tXYZ])
-                }
-            }
-            return matches
-        },
         superposeStructures(qStruc, tStruc) {
             let atoms1 = this.qMatches.flatMap(match => match.xyz())
             let atoms2 = this.tMatches.flatMap(match => match.xyz())
