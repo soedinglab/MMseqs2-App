@@ -16,7 +16,7 @@ steps:
       version: '1.16.3'
   - task: NodeTool@0
     inputs:
-      versionSpec: '15.x'
+      versionSpec: '16.x'
   - script: |
       npm install
       make all -j $(nproc --all 2>/dev/null || sysctl -n hw.ncpu)

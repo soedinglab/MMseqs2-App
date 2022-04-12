@@ -1,0 +1,16 @@
+{
+    "name": "mmseqs-app-docs",
+    "productName": "MMseqs2 App Docs",
+    "version": "0.0.1",
+    "author": "Milot Mirdita <milot@mirdita.de>",
+    "description": "API documentation for MMseqs2 App",
+    "repository": "https://github.com/soedinglab/MMseqs2-App",
+    "license": "GPL-3.0-or-later",
+    "scripts": {
+        "raml": "raml2html --template api/theme/index.nunjucks api/api.raml > api.html"
+    },
+    "dependencies": {
+        "nunjucks": "^3.2.3",
+        "raml2html": "^7.8.0"
+    }
+}

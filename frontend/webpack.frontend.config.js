@@ -204,11 +204,9 @@ module.exports = (env, argv) => {
     if (!isProduction && !isElectron) {
         exports.devServer = {
             historyApiFallback: true,
-            noInfo: true,
             proxy: {
                 '/api': {
-                    target: 'http://localhost:3000',
-                    logLevel: 'debug'
+                    target: 'http://localhost:3000'
                 }
             }
         };
