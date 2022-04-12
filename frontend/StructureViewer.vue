@@ -34,7 +34,7 @@
 </template>
 
 <script>
-import { Shape, Stage, superpose, Superposition, Selection } from 'ngl';
+import { Shape, Stage, Superposition } from 'ngl';
 import Panel from './Panel.vue';
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
