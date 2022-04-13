@@ -35,6 +35,7 @@
 <script>
 import { Shape, Stage, Superposition } from 'ngl';
 import Panel from './Panel.vue';
+import { pulchra } from 'pulchra-wasm';
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
 function createArrows(matches) {
@@ -69,7 +70,7 @@ function mockPDB(ca) {
             + '  1.00  0.00           C  '
         )
     }
-    return new Blob([pdb.join('\n')], { type: 'text/plain' })
+    return pdb.join('\n')
 }
 
 /**
@@ -198,18 +199,23 @@ export default {
             return;
         this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: 0.40 })
         Promise.all([
-            this.stage.loadFile(mockPDB(this.alignment.qCa), {ext: 'pdb', firstModelOnly: true}),
-            this.stage.loadFile(mockPDB(this.alignment.tCa), {ext: 'pdb', firstModelOnly: true})
-        ]).then(([query, target]) => {
-            this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
-            this.superposeStructures(query.structure, target.structure)
-            this.queryRepr = query.addRepresentation(this.qRepr, {color: this.qColour})
-            this.targetRepr = target.addRepresentation(
-                this.tRepr,
-                {color: this.tColour, colorScheme: 'uniform'}
-            )
-            this.setSelection(this.showTarget)
-            query.autoView()
+            pulchra(mockPDB(this.alignment.qCa)),
+            pulchra(mockPDB(this.alignment.tCa))
+            ]).then(([qPdb, tPdb]) => {
+                Promise.all([
+                    this.stage.loadFile(new Blob([qPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
+                    this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true})
+                ]).then(([query, target]) => {
+                    this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
+                    this.superposeStructures(query.structure, target.structure)
+                    this.queryRepr = query.addRepresentation(this.qRepr, {color: this.qColour})
+                    this.targetRepr = target.addRepresentation(
+                        this.tRepr,
+                        {color: this.tColour, colorScheme: 'uniform'}
+                    )
+                    this.setSelection(this.showTarget)
+                    query.autoView()
+                })
         })
         this.stage.signals.fullscreenChanged.add((isFullscreen) => {
             if (isFullscreen) {

@@ -114,6 +114,7 @@
     "imagemin-pngquant": "^9.0.2",
     "mini-css-extract-plugin": "^2.6.0",
     "ngl": "<=2.0.0-dev.40",
+    "pulchra-wasm": "^0.0.1",
     "sass": "<1.33.0",
     "sass-loader": "^12.6.0",
     "style-loader": "^3.3.1",

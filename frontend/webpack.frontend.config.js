@@ -126,6 +126,10 @@ module.exports = (env, argv) => {
                         { loader: path.resolve('./frontend/lib/po-loader.js') },
                     ]
                 },
+                {
+                    test: /\.wasm$/,
+                    type: 'asset/resource'
+                }
             ]
         },
         resolve: {
@@ -134,6 +138,9 @@ module.exports = (env, argv) => {
                 'vue$': 'vue/dist/vue.runtime.esm.js',
                 'vue-resource$': 'vue-resource/src/index.js'
             }
+        },
+        experiments: {
+            asyncWebAssembly: false
         },
         externals: {
             got: 'got'
@@ -182,7 +189,7 @@ module.exports = (env, argv) => {
                 hashFuncNames: ['sha256', 'sha384']
             }),
             new CompressionPlugin({
-                test: isProduction && !isElectron ? /\.(js|html|css|svg|woff2?|map|ico)(\?.*)?$/i : undefined,
+                test: isProduction && !isElectron ? /\.(js|html|css|svg|woff2?|map|ico|wasm)(\?.*)?$/i : undefined,
                 minRatio: 1
             }),
             isProduction ? new ImageMinimizerPlugin({
