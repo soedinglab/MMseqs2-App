@@ -195,9 +195,10 @@ export default {
     },
     mounted() {
         const bgColor = this.$vuetify.theme.dark ? this.bgColourDark : this.bgColourLight;
+        const ambientIntensity = this.$vuetify.theme.dark ? 0.4 : 0.2;
         if (typeof(this.alignment.qCa) == "undefined" || typeof(this.alignment.tCa) == "undefined")
             return;
-        this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: 0.40 })
+        this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: ambientIntensity })
         Promise.all([
             pulchra(mockPDB(this.alignment.qCa)),
             pulchra(mockPDB(this.alignment.tCa))
@@ -220,8 +221,10 @@ export default {
         this.stage.signals.fullscreenChanged.add((isFullscreen) => {
             if (isFullscreen) {
                 this.stage.viewer.setBackground('#ffffff')
+                this.stage.viewer.setLight(undefined, undefined, undefined, 0.2)
             } else {
                 this.stage.viewer.setBackground(bgColor)
+                this.stage.viewer.setLight(undefined, undefined, undefined, ambientIntensity)
             }
         })
     },
