@@ -47,12 +47,20 @@ function createArrows(matches) {
     return shape
 }
 
+const oneToThree = {
+  "A":"ALA", "R":"ARG", "N":"ASN", "D":"ASP",
+  "C":"CYS", "E":"GLU", "Q":"GLN", "G":"GLY",
+  "H":"HIS", "I":"ILE", "L":"LEU", "K":"LYS",
+  "M":"MET", "F":"PHE", "P":"PRO", "S":"SER",
+  "T":"THR", "W":"TRP", "Y":"TYR", "V":"VAL",
+  "U":"SEC", "O":"PHL", "X":"XAA"
+};
 /**
  * Create a mock PDB from Ca data
  * Follows the spacing spec from https://www.wwpdb.org/documentation/file-format-content/format33/sect9.html#ATOM
  * Will have to change if/when swapping to fuller data
  */
-function mockPDB(ca) {
+function mockPDB(ca, seq) {
     const atoms = ca.split(',')
     const pdb = new Array()
     let j = 1
@@ -61,7 +69,7 @@ function mockPDB(ca) {
         pdb.push(
             'ATOM  '
             + j.toString().padStart(5)
-            + '  CA  ARG A'
+            + '  CA  ' + oneToThree[seq != "" && (atoms.length/3) == seq.length ? seq[i/3] : 'A'] + ' A'
             + j.toString().padStart(4)
             + '    '
             + x.toString().padStart(8)
@@ -96,6 +104,7 @@ export default {
     }),
     props: {
         'alignment': Object,
+        'query': String,
         'qColour': { type: String, default: "white" },
         'tColour': { type: String, default: "red" },
         'qRepr': { type: String, default: "ribbon" },
@@ -200,8 +209,8 @@ export default {
             return;
         this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: ambientIntensity })
         Promise.all([
-            pulchra(mockPDB(this.alignment.qCa)),
-            pulchra(mockPDB(this.alignment.tCa))
+            pulchra(mockPDB(this.alignment.qCa, this.query)),
+            pulchra(mockPDB(this.alignment.tCa, ""))
             ]).then(([qPdb, tPdb]) => {
                 Promise.all([
                     this.stage.loadFile(new Blob([qPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),

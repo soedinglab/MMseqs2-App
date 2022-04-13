@@ -110,6 +110,7 @@
                 <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
                     <AlignmentPanel
                         slot="content"
+                        :query="query"
                         :alignment="alignment"
                         :lineLen="lineLen"
                     />
@@ -189,6 +190,7 @@ export default {
             mode: "",
             entry: 0,
             hits: null,
+            query: "",
             alignment: null,
             activeTarget: null,
             taxonomy: false,
@@ -310,6 +312,7 @@ export default {
                 .then((response) => {
                     this.error = "";
                     response.json().then((data) => {
+                        this.query = data.query.sequence;
                         if ("mode" in data) {
                             this.mode = data.mode;
                         }

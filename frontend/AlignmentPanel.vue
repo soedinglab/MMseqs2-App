@@ -12,6 +12,7 @@
             <StructureViewer
                 :key="`struc2-${alignment.id}`"
                 :alignment="alignment"
+                :query="query"
                 :queryMap="queryMap"
                 :targetMap="targetMap"
                 bgColourLight="white"
@@ -44,6 +45,7 @@ export default {
     }),
     props: {
         alignment: { type: Object, required: true, },
+        query: { type: String, required: true, },
         lineLen: { type: Number, required: true, },
     },
     methods: {
