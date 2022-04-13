@@ -533,6 +533,28 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		io.Copy(w, bufio.NewReader(file))
 	}).Methods("GET")
 
+    r.HandleFunc("/result/{ticket}/pdb", func(w http.ResponseWriter, req *http.Request) {
+        vars := mux.Vars(req)
+        ticket, err := jobsystem.GetTicket(Id(vars["ticket"]))
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+        pdb, err := os.ReadFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.pdb"))
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+        type PdbResponse struct {
+            Pdb string `json:"pdb"`
+        }
+        err = json.NewEncoder(w).Encode(PdbResponse{string(pdb)})
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+    }).Methods("GET")
+
 	r.HandleFunc("/result/{ticket}/{entry}", func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
 		id, err := strconv.ParseUint(vars["entry"], 10, 64)
