@@ -8,18 +8,19 @@
             :targetMap="targetMap"
             @selected="setUserSelection"
         />
-        <StructureViewer
-            v-if="$APP == 'foldseek'"
-            :key="`struc2-${alignment.id}`"
-            :alignment="alignment"
-            :queryMap="queryMap"
-            :targetMap="targetMap"
-            bgColourLight="white"
-            bgColourDark="#1E1E1E"
-            qColour="lightgrey"
-            tColour="red"
-            ref="structureViewer"
-        />
+        <div v-if="$APP == 'foldseek'" class="alignment-structure-wrapper">
+            <StructureViewer
+                :key="`struc2-${alignment.id}`"
+                :alignment="alignment"
+                :queryMap="queryMap"
+                :targetMap="targetMap"
+                bgColourLight="white"
+                bgColourDark="#1E1E1E"
+                qColour="lightgrey"
+                tColour="red"
+                ref="structureViewer"
+            />
+        </div>
     </div>
 </template>
 
@@ -71,18 +72,23 @@ export default {
     align-items: center;
 }
 
+.alignment-structure-wrapper {
+    min-width:450px;
+    min-height:300px;
+}
+
 @media screen and (max-width: 960px) {
     .alignment-wrapper-outer {
         display: flex;
         flex-direction: column;
     }
-    .structure-panel {
+    .alignment-structure-wrapper {
         padding-top: 1em;
     }
 }
 
 @media screen and (min-width: 961px) {
-    .structure-panel {
+    .alignment-structure-wrapper {
         padding-left: 2em;
     }
 }
