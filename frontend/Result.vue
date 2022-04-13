@@ -113,6 +113,7 @@
                         :query="query"
                         :alignment="alignment"
                         :lineLen="lineLen"
+                        :queryPDB="queryPDB"
                     />
                 </panel>
             </v-flex>
@@ -192,6 +193,7 @@ export default {
             hits: null,
             query: "",
             alignment: null,
+			queryPDB: null,
             activeTarget: null,
             taxonomy: false,
             alnBoxOffset: 0,
@@ -306,6 +308,7 @@ export default {
             this.remove();
             this.ticket = this.$route.params.ticket;
             this.entry = this.$route.params.entry;
+            this.queryPDB = null;
             this.alignment = null;
             this.taxonomy = false;
             this.$http.get("api/result/" + this.ticket + '/' + this.entry)
@@ -313,6 +316,12 @@ export default {
                     this.error = "";
                     response.json().then((data) => {
                         this.query = data.query.sequence;
+
+                        if (__APP__ == "foldseek") {
+                            this.$http.get("api/result/" + this.ticket + '/pdb').then((response) => {
+                                response.json().then((data) => { this.queryPDB = data.pdb; });
+                            });
+                        }
                         if ("mode" in data) {
                             this.mode = data.mode;
                         }
