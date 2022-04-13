@@ -4,6 +4,9 @@
             <div class="structure-viewer" ref="viewport" />
         </div>
         <v-toolbar-items class="toolbar">
+            <v-btn v-on:click="makeImage()"
+                title="Save image"
+            ><v-icon>{{ $MDI.FileDownloadOutline }}</v-icon></v-btn>
             <v-btn v-if="showTarget == 'aligned'"
                 v-on:click="showTarget = 'full'"
                 title="Show only the aligned portion of the target structure"
@@ -187,7 +190,23 @@ export default {
             this.arrowShape.addRepresentation('buffer')
             this.arrowShape.setVisibility(this.showArrows)
         },
-
+        makeImage() {
+            if (!this.stage) return
+            this.stage.viewer.setLight(undefined, undefined, undefined, 0.2)
+            this.stage.makeImage({
+                trim: true,
+                factor: 8,
+                antialias: true,
+                transparent: true,
+                }).then((blob) => {
+                this.stage.viewer.setLight(undefined, undefined, undefined, this.$vuetify.theme.dark ? 0.4 : 0.2)
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = this.$route.params.ticket + '-' + this.alignment.target + ".png";
+                link.click();
+                URL.revokeObjectURL(link.href);
+            })
+        }
     },
     watch: {
         'showTarget': function(val, _) {
