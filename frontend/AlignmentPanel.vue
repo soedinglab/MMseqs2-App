@@ -12,7 +12,6 @@
             <StructureViewer
                 :key="`struc2-${alignment.id}`"
                 :alignment="alignment"
-                :query="query"
                 :queryPDB="queryPDB"
                 :queryMap="queryMap"
                 :targetMap="targetMap"
@@ -48,7 +47,6 @@ export default {
     }),
     props: {
         alignment: { type: Object, required: true, },
-        query: { type: String, required: true, },
         lineLen: { type: Number, required: true, },
 	queryPDB: { type: String, required: false }
     },

@@ -193,7 +193,7 @@ export default {
             hits: null,
             query: "",
             alignment: null,
-			queryPDB: null,
+            queryPDB: null,
             activeTarget: null,
             taxonomy: false,
             alnBoxOffset: 0,
@@ -315,8 +315,6 @@ export default {
                 .then((response) => {
                     this.error = "";
                     response.json().then((data) => {
-                        this.query = data.query.sequence;
-
                         if (__APP__ == "foldseek") {
                             this.$http.get("api/result/" + this.ticket + '/pdb').then((response) => {
                                 response.json().then((data) => { this.queryPDB = data.pdb; });

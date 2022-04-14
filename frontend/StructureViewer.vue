@@ -107,14 +107,13 @@ export default {
     components: { Panel },
     data: () => ({
         'showTarget': 'aligned',
-	'showFullQuery': false,
+        'showFullQuery': false,
         'showArrows': false,
         'selection': null,
         'queryChain': 'A',
     }),
     props: {
         'alignment': Object,
-        'query': String,
         'queryPDB': String,
         'qColour': { type: String, default: "white" },
         'tColour': { type: String, default: "red" },
