@@ -110,10 +110,9 @@
                 <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
                     <AlignmentPanel
                         slot="content"
-                        :query="query"
+                        :queryFile="queryFile"
                         :alignment="alignment"
                         :lineLen="lineLen"
-                        :queryPDB="queryPDB"
                     />
                 </panel>
             </v-flex>
@@ -191,9 +190,8 @@ export default {
             mode: "",
             entry: 0,
             hits: null,
-            query: "",
+            queryFile: "",
             alignment: null,
-            queryPDB: null,
             activeTarget: null,
             taxonomy: false,
             alnBoxOffset: 0,
@@ -308,7 +306,7 @@ export default {
             this.remove();
             this.ticket = this.$route.params.ticket;
             this.entry = this.$route.params.entry;
-            this.queryPDB = null;
+            this.queryFile = "";
             this.alignment = null;
             this.taxonomy = false;
             this.$http.get("api/result/" + this.ticket + '/' + this.entry)
@@ -316,8 +314,8 @@ export default {
                     this.error = "";
                     response.json().then((data) => {
                         if (__APP__ == "foldseek") {
-                            this.$http.get("api/result/" + this.ticket + '/pdb').then((response) => {
-                                response.json().then((data) => { this.queryPDB = data.pdb; });
+                            this.$http.get("api/result/" + this.ticket + '/query').then((response) => {
+                                response.json().then((data) => { this.queryFile = data.query; });
                             });
                         }
                         if ("mode" in data) {

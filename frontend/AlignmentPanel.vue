@@ -12,15 +12,15 @@
             <StructureViewer
                 :key="`struc2-${alignment.id}`"
                 :alignment="alignment"
-                :queryPDB="queryPDB"
+                :queryFile="queryFile"
                 :queryMap="queryMap"
                 :targetMap="targetMap"
                 bgColourLight="white"
                 bgColourDark="#1E1E1E"
                 qColour="lightgrey"
                 tColour="red"
-		qRepr="cartoon"
-		tRepr="cartoon"
+                qRepr="cartoon"
+                tRepr="cartoon"
                 ref="structureViewer"
             />
         </div>
@@ -48,7 +48,7 @@ export default {
     props: {
         alignment: { type: Object, required: true, },
         lineLen: { type: Number, required: true, },
-	queryPDB: { type: String, required: false }
+        queryFile: { type: String, required: false }
     },
     methods: {
         setUserSelection([start, end]) {

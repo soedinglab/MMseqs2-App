@@ -1,5 +1,5 @@
 <template>
-    <div class="structure-panel" v-if="this.queryPDB && 'tCa' in alignment">
+    <div class="structure-panel" v-if="this.queryFile && 'tCa' in alignment">
         <div class="structure-wrapper">
             <div class="structure-viewer" ref="viewport" />
         </div>
@@ -114,7 +114,7 @@ export default {
     }),
     props: {
         'alignment': Object,
-        'queryPDB': String,
+        'queryFile': String,
         'qColour': { type: String, default: "white" },
         'tColour': { type: String, default: "red" },
         'qRepr': { type: String, default: "ribbon" },
@@ -251,12 +251,12 @@ export default {
     mounted() {
         const bgColor = this.$vuetify.theme.dark ? this.bgColourDark : this.bgColourLight;
         const ambientIntensity = this.$vuetify.theme.dark ? 0.4 : 0.2;
-        if (typeof(this.queryPDB) == "undefined" || typeof(this.alignment.tCa) == "undefined")
+        if (typeof(this.queryFile) == "undefined" || typeof(this.alignment.tCa) == "undefined")
             return;
         this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: ambientIntensity })
         pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq)).then(tPdb => {
             Promise.all([
-                this.stage.loadFile(new Blob([this.queryPDB], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
+                this.stage.loadFile(new Blob([this.queryFile], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true})
             ]).then(([query, target]) => {
                 // Selections on structures don't have relative indexing, so add an
