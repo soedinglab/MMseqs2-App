@@ -7,6 +7,11 @@
             <v-btn v-on:click="makeImage()"
                 title="Save image"
             ><v-icon>{{ $MDI.FileDownloadOutline }}</v-icon></v-btn>
+            <v-btn
+                v-on:click="toggleFullQuery()" :input-value="showFullQuery"
+                title="Show the entire query structure"
+            ><v-icon v-if="showFullQuery">{{ $MDI.Circle }}</v-icon>
+                <v-icon v-else>{{ $MDI.CircleHalf }}</v-icon></v-btn>
             <v-btn v-if="showTarget == 'aligned'"
                 v-on:click="showTarget = 'full'"
                 title="Show only the aligned portion of the target structure"
@@ -15,7 +20,7 @@
                 v-on:click="showTarget = 'aligned'"
                 title="Show the entire target structure"
             ><v-icon>{{ $MDI.Circle }}</v-icon></v-btn>
-                <v-btn
+            <v-btn
                 v-on:click="toggleArrows()" :input-value="showArrows"
                 title="Draw arrows between aligned residues"
             ><v-icon v-if="showArrows">{{ $MDI.ArrowRightCircle }}</v-icon>
@@ -102,6 +107,7 @@ export default {
     components: { Panel },
     data: () => ({
         'showTarget': 'aligned',
+	'showFullQuery': false,
         'showArrows': false,
         'selection': null,
         'queryChain': 'A',
@@ -165,6 +171,10 @@ export default {
             if (!this.stage || !this.arrowShape) return
             this.showArrows = !this.showArrows
         },
+        toggleFullQuery() {
+            if (!this.stage) return
+            this.showFullQuery = !this.showFullQuery
+        },
         setSelectionByRange(start, end) {
             if (!this.targetRepr) return
             this.targetRepr.setSelection(`${start}-${end}`)
@@ -175,6 +185,10 @@ export default {
         setSelection(val) {
             if (val === 'full') this.setSelectionData(1, this.alignment.dbLen)
             else this.setSelectionData(this.alignment.dbStartPos, this.alignment.dbEndPos)
+        },
+        setQuerySelection() {
+            this.queryRepr.setSelection(this.queryChainSele)
+            this.queryRepr.parent.autoView(this.queryChainSele)
         },
         // Update arrow shape on shape update
         renderArrows() {
@@ -222,15 +236,18 @@ export default {
             this.setSelectionByRange(start, end)
             this.renderArrows()
         },
+        'showFullQuery': function() {
+            if (!this.stage) return
+            this.setQuerySelection()
+        }
     },
     computed: {
-        queryChainId: function() { return this.queryChain.charCodeAt(0) - 'A'.charCodeAt(0) }
+        queryChainId: function() { return this.queryChain.charCodeAt(0) - 'A'.charCodeAt(0) },
+        queryChainSele: function() { return (this.showFullQuery) ? '' : `:${this.queryChain}` },
     },
     beforeMount() {
         let qChain = this.alignment.query.match(/_([A-Z]+?)/gm)
-        if (qChain) {
-            this.queryChain = qChain[0].replace('_', '')
-        }
+        if (qChain) this.queryChain = qChain[0].replace('_', '')
     },
     mounted() {
         const bgColor = this.$vuetify.theme.dark ? this.bgColourDark : this.bgColourLight;
@@ -243,6 +260,8 @@ export default {
                 this.stage.loadFile(new Blob([this.queryPDB], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true})
             ]).then(([query, target]) => {
+                // Selections on structures don't have relative indexing, so add an
+                // offset based on the chain
                 if (this.queryChainId > 0) {
                     let cp = query.structure.getChainProxy(this.queryChainId)
                     for (const key of this.queryMap.keys())
@@ -256,7 +275,7 @@ export default {
                     {color: this.tColour, colorScheme: 'uniform'}
                 )
                 this.setSelection(this.showTarget)
-                query.autoView()
+                this.setQuerySelection()
             })
         })
         this.stage.signals.fullscreenChanged.add((isFullscreen) => {
