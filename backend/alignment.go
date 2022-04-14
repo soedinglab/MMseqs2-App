@@ -50,8 +50,8 @@ type FoldseekAlignmentEntry struct {
 	DbLength      int         `json:"dbLen"`
 	QueryAln      string      `json:"qAln"`
 	DbAln         string      `json:"dbAln"`
-	QueryCa       string      `json:"qCa"`
 	TargetCa      string      `json:"tCa"`
+	TargetSeq     string      `json:"tSeq"`
 	TaxonId       json.Number `json:"taxId,omitempty"`
 	TaxonName     string      `json:"taxName,omitempty"`
 }
