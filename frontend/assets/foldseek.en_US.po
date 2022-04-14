@@ -62,37 +62,28 @@ msgstr ""
 
 msgid "MODE_HELP"
 msgstr ""
-"<strong>3Di:</strong> fast prefilter of structures using the 3Di alphabet "
-"and alignment using the 3Di alphabet based Smith-Waterman-Gotoh (local "
-"alignment) <br>\n"
-"<strong>TM-align:</strong> fast prefilter using the 3Di alphabet and "
-"alignment using TM-align (global-alignment) <br>\n"
 "<strong>3Di/AA:</strong> fast prefilter using the 3Di alphabet and alignment "
-"using the 3Di alphabet+BLOSUM62 based Smith-Waterman-Gotoh (local alignment)"
+"using the 3Di alphabet+BLOSUM62 based Smith-Waterman-Gotoh (local alignment)<br>\n"
+"<strong>TM-align:</strong> fast prefilter using the 3Di alphabet and "
+"alignment using TM-align (global-alignment)"
 
 msgid "MODE_COUNT"
-msgstr "3"
+msgstr "2"
 
 msgid "MODE_DEFAULT_KEY"
 msgstr "3diaa"
 
 msgid "MODE_KEY_1"
-msgstr "3di"
+msgstr "3diaa"
 
 msgid "MODE_TITLE_1"
-msgstr "3Di"
+msgstr "3Di/AA"
 
 msgid "MODE_KEY_2"
 msgstr "tmalign"
 
 msgid "MODE_TITLE_2"
 msgstr "TM-align"
-
-msgid "MODE_KEY_3"
-msgstr "3diaa"
-
-msgid "MODE_TITLE_3"
-msgstr "3Di/AA"
 
 msgid "QUERY_DEFAULT"
 msgstr ""
