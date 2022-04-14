@@ -13,12 +13,15 @@
                 :key="`struc2-${alignment.id}`"
                 :alignment="alignment"
                 :query="query"
+                :queryPDB="queryPDB"
                 :queryMap="queryMap"
                 :targetMap="targetMap"
                 bgColourLight="white"
                 bgColourDark="#1E1E1E"
                 qColour="lightgrey"
                 tColour="red"
+		qRepr="cartoon"
+		tRepr="cartoon"
                 ref="structureViewer"
             />
         </div>
@@ -47,6 +50,7 @@ export default {
         alignment: { type: Object, required: true, },
         query: { type: String, required: true, },
         lineLen: { type: Number, required: true, },
+	queryPDB: { type: String, required: false }
     },
     methods: {
         setUserSelection([start, end]) {
