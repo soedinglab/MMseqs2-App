@@ -553,7 +553,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 		type QueryResponse struct {
-			query string `json:"query"`
+			Query string `json:"query"`
 		}
 		err = json.NewEncoder(w).Encode(QueryResponse{string(query)})
 		if err != nil {
