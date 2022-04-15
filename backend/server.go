@@ -555,11 +555,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		type QueryResponse struct {
 			query string `json:"query"`
 		}
-		err = json.NewEncoder(w).Encode(QueryResponse{string(query)})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		w.Write(query)
 	}).Methods("GET")
 
 	r.HandleFunc("/result/{ticket}/{entry}", func(w http.ResponseWriter, req *http.Request) {

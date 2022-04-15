@@ -1,5 +1,5 @@
 <template>
-    <div class="structure-panel" v-if="this.queryFile && 'tCa' in alignment">
+    <div class="structure-panel" v-if="'tCa' in alignment">
         <div class="structure-wrapper">
             <div class="structure-viewer" ref="viewport" />
         </div>
@@ -238,7 +238,8 @@ export default {
         'showFullQuery': function() {
             if (!this.stage) return
             this.setQuerySelection()
-        }
+        },
+        '$route': function() {}
     },
     computed: {
         queryChainId: function() { return this.queryChain.charCodeAt(0) - 'A'.charCodeAt(0) },
@@ -251,13 +252,16 @@ export default {
     mounted() {
         const bgColor = this.$vuetify.theme.dark ? this.bgColourDark : this.bgColourLight;
         const ambientIntensity = this.$vuetify.theme.dark ? 0.4 : 0.2;
-        if (typeof(this.queryFile) == "undefined" || typeof(this.alignment.tCa) == "undefined")
+        if (typeof(this.alignment.tCa) == "undefined")
             return;
         this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: ambientIntensity })
-        pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq)).then(tPdb => {
+        Promise.all([
+            this.$http.get("api/result/" + this.$route.params.ticket + '/query'),
+            pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
+        ]).then(([qResponse, tPdb]) => {
             Promise.all([
-                this.stage.loadFile(new Blob([this.queryFile], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
-                this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true})
+                this.stage.loadFile(new Blob([qResponse.body], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
+                this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
             ]).then(([query, target]) => {
                 // Selections on structures don't have relative indexing, so add an
                 // offset based on the chain

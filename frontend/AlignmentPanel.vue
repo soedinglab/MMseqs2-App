@@ -12,7 +12,6 @@
             <StructureViewer
                 :key="`struc2-${alignment.id}`"
                 :alignment="alignment"
-                :queryFile="queryFile"
                 :queryMap="queryMap"
                 :targetMap="targetMap"
                 bgColourLight="white"
@@ -47,8 +46,7 @@ export default {
     }),
     props: {
         alignment: { type: Object, required: true, },
-        lineLen: { type: Number, required: true, },
-        queryFile: { type: String, required: false }
+        lineLen: { type: Number, required: true, }
     },
     methods: {
         setUserSelection([start, end]) {
