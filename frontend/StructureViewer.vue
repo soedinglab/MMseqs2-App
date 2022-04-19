@@ -42,7 +42,7 @@
 </template>
 
 <script>
-import { Shape, Stage, Selection, PdbWriter, Superposition } from 'ngl';
+import { Shape, Stage, Selection, Superposition } from 'ngl';
 import Panel from './Panel.vue';
 import { pulchra } from 'pulchra-wasm';
 import { tmalign, parseMatrix } from 'tmalign-wasm';
