@@ -309,15 +309,13 @@ export default {
             this.queryFile = "";
             this.alignment = null;
             this.taxonomy = false;
+            this.$http.get("api/result/" + this.ticket + '/query').then((response) => {
+                response.json().then((data) => { this.queryFile = data.query });
+            });
             this.$http.get("api/result/" + this.ticket + '/' + this.entry)
                 .then((response) => {
                     this.error = "";
                     response.json().then((data) => {
-                        if (__APP__ == "foldseek") {
-                            this.$http.get("api/result/" + this.ticket + '/query').then((response) => {
-                                response.json().then((data) => { this.queryFile = data.query; });
-                            });
-                        }
                         if ("mode" in data) {
                             this.mode = data.mode;
                         }

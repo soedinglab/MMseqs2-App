@@ -29,7 +29,8 @@
                 v-on:click="resetView()"
                 :input-value="
                     selection != null
-                        && ((selection[0] != alignment.dbStartPos || selection[1] != alignment.dbEndPos) && (selection[0] != 1 || selection[1] != alignment.dbLen))"
+                        && ((selection[0] != alignment.dbStartPos || selection[1] != alignment.dbEndPos)
+                        && (selection[0] != 1 || selection[1] != alignment.dbLen))"
                 title="Reset the view to the original position and zoom level"
             ><v-icon>{{ $MDI.Restore }}</v-icon></v-btn>
             <v-btn
@@ -41,9 +42,10 @@
 </template>
 
 <script>
-import { Shape, Stage, Selection, Superposition } from 'ngl';
+import { Shape, Stage, Selection, PdbWriter, Superposition } from 'ngl';
 import Panel from './Panel.vue';
 import { pulchra } from 'pulchra-wasm';
+import { tmalign, parse, parseMatrix } from 'tmalign-wasm?foo=bar62';
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
 function createArrows(matches) {
@@ -63,6 +65,7 @@ const oneToThree = {
   "T":"THR", "W":"TRP", "Y":"TYR", "V":"VAL",
   "U":"SEC", "O":"PHL", "X":"XAA"
 };
+
 /**
  * Create a mock PDB from Ca data
  * Follows the spacing spec from https://www.wwpdb.org/documentation/file-format-content/format33/sect9.html#ATOM
@@ -103,6 +106,58 @@ const offsetStructure = (structure, offset = 0.5) => {
 	return structure
 }
 
+/* ------ The rotation matrix to rotate Chain_1 to Chain_2 ------ */
+/* m               t[m]        u[m][0]        u[m][1]        u[m][2] */
+/* 0     161.2708425765   0.0663961888  -0.6777150909  -0.7323208325 */
+/* 1     109.4205584665  -0.9559071424  -0.2536229340   0.1480437178 */
+/* 2      29.1924015422  -0.2860648199   0.6902011757  -0.6646722921 */
+/* Code for rotating Structure A from (x,y,z) to (X,Y,Z): */
+/* for(i=0; i<L; i++) */
+/* { */
+/*    X[i] = t[0] + u[0][0]*x[i] + u[0][1]*y[i] + u[0][2]*z[i]; */
+/*    Y[i] = t[1] + u[1][0]*x[i] + u[1][1]*y[i] + u[1][2]*z[i]; */
+/*    Z[i] = t[2] + u[2][0]*x[i] + u[2][1]*y[i] + u[2][2]*z[i]; */
+/* } */
+const transformStructure = (structure, t, u) => {
+    structure.eachAtom(atom => {
+        const [x, y, z] = [atom.x, atom.y, atom.z]
+        atom.x = t[0] + u[0][0] * x + u[0][1] * y + u[0][2] * z
+        atom.y = t[1] + u[1][0] * x + u[1][1] * y + u[1][2] * z
+        atom.z = t[2] + u[2][0] * x + u[2][1] * y + u[2][2] * z
+    })
+    return structure
+}
+
+// Get XYZ coordinates of CA of a given residue
+const xyz = (structure, resIndex) => {
+    var rp = structure.getResidueProxy()
+    var ap = structure.getAtomProxy()
+    rp.index = resIndex
+    ap.index = rp.getAtomIndexByName('CA')
+    return [ap.x, ap.y, ap.z]
+}
+
+// Given an NGL AtomProxy, return the corresponding PDB line
+const atomToPDBRow = (ap) => {
+    const { serial, atomname, resname, chainname, resno, inscode, x, y, z } = ap
+    return `ATOM  ${serial.toString().padStart(5)}${atomname.padStart(4)}  ${resname.padStart(3)} ${chainname.padStart(1)}${resno.toString().padStart(4)} ${inscode.padStart(1)}  ${x.toFixed(3).padStart(8)}${y.toFixed(3).padStart(8)}${z.toFixed(3).padStart(8)}`
+}
+
+// Map 1-based indices in a selection to residue index/resno
+const makeChainMap = (structure, sele) => {
+    let idx = 1
+    let map = new Map()
+    structure.eachResidue(rp => { map.set(idx++, { index: rp.index, resno: rp.resno }) }, new Selection(sele))
+    return map
+}
+
+// Generate a subsetted PDB file from a structure and selection
+const makeSubPDB = (structure, sele) => {
+    let pdb = []
+    structure.eachAtom(ap => { pdb.push(atomToPDBRow(ap)) }, new Selection(sele))
+    return pdb.join('\n')
+}
+
 export default {
     components: { Panel },
     data: () => ({
@@ -111,6 +166,7 @@ export default {
         'showArrows': false,
         'selection': null,
         'queryChain': 'A',
+        'qChainResMap': null,
     }),
     props: {
         'alignment': Object,
@@ -140,17 +196,12 @@ export default {
             if (aln1.length !== aln2.length) return
             this.qMatches = []
             this.tMatches = []
-            const xyz = (map, index, structure) => {
-                var rp = structure.getResidueProxy()
-                rp.index = map.get(index) - 1
-                var ap = structure.getAtomProxy()
-                ap.index = rp.getAtomIndexByName('CA')
-                return [ap.x, ap.y, ap.z]
-            }
             for (let i = 0; i < aln1.length; i++) {
                 if (aln1[i] === '-' || aln2[i] === '-') continue
-                this.qMatches.push({ index: this.queryMap.get(i) - 1, xyz: () => xyz(this.queryMap, i, str1) })
-                this.tMatches.push({ index: this.targetMap.get(i) - 1, xyz: () => xyz(this.targetMap, i, str2) })
+                let qIdx = this.qChainResMap.get(this.queryMap.get(i)).index
+                let tIdx = this.targetMap.get(i) - 1
+                this.qMatches.push({ index: qIdx, xyz: () => xyz(str1, qIdx) })
+                this.tMatches.push({ index: tIdx, xyz: () => xyz(str2, tIdx) })
             }
         },
         handleResize() {
@@ -243,6 +294,12 @@ export default {
     computed: {
         queryChainId: function() { return this.queryChain.charCodeAt(0) - 'A'.charCodeAt(0) },
         queryChainSele: function() { return (this.showFullQuery) ? '' : `:${this.queryChain}` },
+        querySubSele: function() {
+            if (!this.queryChainSele || !this.qChainResMap) return ''
+            let start = `${this.qChainResMap.get(this.alignment.qStartPos).resno}`
+            let end = `${this.qChainResMap.get(this.alignment.qEndPos).resno}`
+            return `${start}-${end}${this.queryChainSele}`
+        }
     },
     beforeMount() {
         let qChain = this.alignment.query.match(/_([A-Z]+?)/gm)
@@ -254,27 +311,36 @@ export default {
         if (typeof(this.queryFile) == "undefined" || typeof(this.alignment.tCa) == "undefined")
             return;
         this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: ambientIntensity })
+
         pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq)).then(tPdb => {
             Promise.all([
                 this.stage.loadFile(new Blob([this.queryFile], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
-                this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true})
+                this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
             ]).then(([query, target]) => {
-                // Selections on structures don't have relative indexing, so add an
-                // offset based on the chain
-                if (this.queryChainId > 0) {
-                    let cp = query.structure.getChainProxy(this.queryChainId)
-                    for (const key of this.queryMap.keys())
-                        this.queryMap.set(key, this.queryMap.get(key) + cp.residueOffset)
-                }
+                // Map 1-based indices to residue index/resno; only need for query structure
+                this.qChainResMap = makeChainMap(query.structure, this.queryChainSele)
                 this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
-                this.superposeStructures(query.structure, target.structure)
-                this.queryRepr = query.addRepresentation(this.qRepr, {color: this.qColour})
-                this.targetRepr = target.addRepresentation(
-                    this.tRepr,
-                    {color: this.tColour, colorScheme: 'uniform'}
-                )
-                this.setSelection(this.showTarget)
-                this.setQuerySelection()
+
+                // Generate subsetted PDBs for TM-align
+                let qSubPdb = makeSubPDB(query.structure, this.querySubSele)
+                let tSubPdb = makeSubPDB(target.structure, `${this.alignment.dbStartPos}-${this.alignment.dbEndPos}`)
+                let alnFasta = `>target\n${this.alignment.dbAln}\n\n>query\n${this.alignment.qAln}`
+
+                // Re-align target to query using TM-align for better superposition
+                // Target 1st since TM-align generates superposition matrix for 1st structure
+                tmalign(tSubPdb, qSubPdb, alnFasta).then(out => {
+                    let { t, u } = parseMatrix(out.matrix)
+                    transformStructure(target.structure, t, u)
+                    this.queryRepr = query.addRepresentation(this.qRepr, {color: this.qColour})
+                    this.targetRepr = target.addRepresentation(
+                        this.tRepr,
+                        {color: this.tColour, colorScheme: 'uniform'}
+                    )
+                }).then(() => {
+                    query.autoView()
+                    this.setSelection(this.showTarget)
+                    this.setQuerySelection()
+                })
             })
         })
         this.stage.signals.fullscreenChanged.add((isFullscreen) => {
