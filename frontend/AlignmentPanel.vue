@@ -30,6 +30,7 @@
 <script>
 import Alignment from './Alignment.vue'
 
+// Map indices in the alignment to the corresponding indices in the structure
 function makePositionMap(realStart, alnString) {
     let map = new Map()
     for (let i = 0, gaps = 0; i <= alnString.length; i++) {
