@@ -181,13 +181,6 @@ export default {
         'targetMap': { type: Map, default: null },
     },
     methods: {
-        superposeStructures(qStruc, tStruc) {
-            let atoms1 = this.qMatches.flatMap(match => match.xyz())
-            let atoms2 = this.tMatches.flatMap(match => match.xyz())
-            var matrix = new Superposition(new Float32Array(atoms2), new Float32Array(atoms1))
-            matrix.transform(tStruc)
-            qStruc.refreshPosition()
-        },
         // Parses two alignment strings, and saves matching residues
         // Each match contains the index of the residue in the structure and a callback
         // function to retrieve the residue's CA XYZ coordinates to allow retrieval
