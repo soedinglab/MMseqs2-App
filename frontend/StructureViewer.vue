@@ -45,7 +45,7 @@
 import { Shape, Stage, Selection, Superposition } from 'ngl';
 import Panel from './Panel.vue';
 import { pulchra } from 'pulchra-wasm';
-import { tmalign, parseMatrix } from 'tmalign-wasm';
+import { tmalign, parseMatrix } from 'tmalign-wasm?q=123';
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
 function createArrows(matches) {
@@ -318,7 +318,7 @@ export default {
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
         ]).then(([qResponse, tPdb]) => {
             Promise.all([
-                this.stage.loadFile(new Blob([qResponse.body], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
+                this.stage.loadFile(new Blob([qResponse.body.query], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
             ]).then(([query, target]) => {
                 // Map 1-based indices to residue index/resno; only need for query structure
