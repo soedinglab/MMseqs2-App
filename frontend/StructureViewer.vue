@@ -45,7 +45,7 @@
 import { Shape, Stage, Selection, Superposition } from 'ngl';
 import Panel from './Panel.vue';
 import { pulchra } from 'pulchra-wasm';
-import { tmalign, parseMatrix } from 'tmalign-wasm?q=123';
+import { tmalign, parseMatrix } from 'tmalign-wasm';
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
 function createArrows(matches) {
