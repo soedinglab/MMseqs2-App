@@ -110,7 +110,6 @@
                 <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
                     <AlignmentPanel
                         slot="content"
-                        :queryFile="queryFile"
                         :alignment="alignment"
                         :lineLen="lineLen"
                     />
@@ -190,7 +189,6 @@ export default {
             mode: "",
             entry: 0,
             hits: null,
-            queryFile: "",
             alignment: null,
             activeTarget: null,
             taxonomy: false,
@@ -306,12 +304,8 @@ export default {
             this.remove();
             this.ticket = this.$route.params.ticket;
             this.entry = this.$route.params.entry;
-            this.queryFile = "";
             this.alignment = null;
             this.taxonomy = false;
-            this.$http.get("api/result/" + this.ticket + '/query').then((response) => {
-                response.json().then((data) => { this.queryFile = data.query });
-            });
             this.$http.get("api/result/" + this.ticket + '/' + this.entry)
                 .then((response) => {
                     this.error = "";

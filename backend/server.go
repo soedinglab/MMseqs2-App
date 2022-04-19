@@ -460,6 +460,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			JobType JobType `json:"type"`
 		}
 
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 		err = json.NewEncoder(w).Encode(TypeReponse{request.Type})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -474,6 +475,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
+		w.Header().Set("Cache-Control", "no-cache, no-store")
 		err = json.NewEncoder(w).Encode(ticket)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -530,6 +532,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
 		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 		io.Copy(w, bufio.NewReader(file))
 	}).Methods("GET")
 
@@ -555,11 +558,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		type QueryResponse struct {
 			Query string `json:"query"`
 		}
-		err = json.NewEncoder(w).Encode(QueryResponse{string(query)})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		w.Write(query)
 	}).Methods("GET")
 
 	r.HandleFunc("/result/{ticket}/{entry}", func(w http.ResponseWriter, req *http.Request) {
@@ -619,6 +620,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			Results []SearchResult `json:"results"`
 		}
 
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 		err = json.NewEncoder(w).Encode(AlignmentModeResponse{results.Query, mode, results.Results})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -647,6 +649,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 		result, err := Lookup(ticket.Id, page, limit, config.Paths.Results)
 		err = json.NewEncoder(w).Encode(result)
 		if err != nil {
@@ -664,6 +667,8 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+
+		w.Header().Set("Cache-Control", "no-cache, no-store")
 		err = json.NewEncoder(w).Encode(QueueResponse{length})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
