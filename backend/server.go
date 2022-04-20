@@ -67,7 +67,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				return
 			}
 
-			w.Header().Set("Cache-Control", "public, max-age=3600")
 			err = json.NewEncoder(w).Encode(DatabaseResponse{databases})
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
