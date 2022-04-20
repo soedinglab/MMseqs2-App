@@ -111,6 +111,10 @@
                         </v-tooltip>
 
                         <v-btn color="primary" block large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>Search</v-btn>
+
+                        <div v-if="errorMessage != ''" class="v-alert red mt-2">
+                            <span>{{ errorMessage }}</span>
+                        </div>
                     </div>
                 </panel>
             </v-flex>
@@ -146,10 +150,7 @@ export default {
             dbqueried: false,
             databases: [],
             inSearch: false,
-            status: {
-                type: "",
-                message: ""
-            },
+            errorMessage: "",
             showCurl: false,
             mode: this.$STRINGS.MODE_DEFAULT_KEY,
             email: "",
@@ -182,9 +183,6 @@ export default {
             return (
                 this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0
             );
-        },
-        error() {
-            return this.status.type == "error";
         }
     },
     created() {
@@ -276,7 +274,7 @@ export default {
                 )
             }).then(response => {
                 const data = response.data;
-                this.status.message = this.status.type = "";
+                this.errorMessage = "";
                 this.inSearch = false;
                 if (data.status == "PENDING" || data.status == "RUNNING") {
                     this.addToHistory(data.id);
@@ -291,16 +289,13 @@ export default {
                         params: { ticket: data.id, entry: 0 }
                     });
                 } else {
-                    this.resultError("Error loading search result")();
+                    this.errorMessage = "Error loading search result";
                 }
-            }).catch(this.resultError("Error loading search result"));
-        },
-        resultError(message) {
-            return () => {
-                this.status.type = "error";
-                this.status.message = message;
+            }).catch(() => {
+                this.errorMessage = "Error loading search result";
+            }).finally(() => {
                 this.inSearch = false;
-            }
+            });
         },
         fileDrop(event) {
             event.preventDefault();
