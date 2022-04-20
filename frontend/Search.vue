@@ -285,14 +285,10 @@ export default {
             this.$axios.post("api/ticket", convertToQueryUrl(data), {
                 transformRequest: this.$axios.defaults.transformRequest.concat(
                     (data, headers) => {
-                        console.log(data)
-                        console.log(headers)
-                        // compress strings if over 1KB
                         if (typeof data === 'string' && data.length > 1024) {
                             headers['Content-Encoding'] = 'gzip';
                             return gzip(data);
                         } else {
-                            // delete is slow apparently, faster to set to undefined
                             headers['Content-Encoding'] = undefined;
                             return data;
                         }
