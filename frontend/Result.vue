@@ -128,6 +128,7 @@ require('./lib/d3/d3');
 
 import feature from './lib/feature-viewer/feature-viewer.js';
 import colorScale from './lib/ColorScale';
+import { debounce } from './lib/debounce';
 
 function lerp(v0, v1, t) {
     return v0*(1-t)+v1*t
@@ -163,21 +164,6 @@ function getAbsOffsetTop($el) {
     }
     return sum;
 }
-
-function debounce(func, wait, immediate) {
-    var timeout;
-    return function() {
-        var context = this, args = arguments;
-        var later = function() {
-            timeout = null;
-            if (!immediate) func.apply(context, args);
-        };
-        var callNow = immediate && !timeout;
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-        if (callNow) func.apply(context, args);
-    };
-};
 
 export default {
     name: 'result',

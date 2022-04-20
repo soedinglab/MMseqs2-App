@@ -33,6 +33,7 @@
 <script>
 import Identicon from './Identicon.vue';
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
+import { debounce } from './lib/debounce';
 
 export default {
     components: { Identicon },
@@ -74,7 +75,7 @@ export default {
             }
             this.page += 1;
         },
-        fetchData() {
+        fetchData: debounce(function() {
             this.current = this.$route.params.ticket;
 
             this.error = false;
@@ -128,7 +129,7 @@ export default {
                 }, () => {
                     this.error = true;
                 });
-        },
+        }, 16, true),
         formattedRoute(element) {
             if (element.status == 'COMPLETE') {
                 return '/result/' + element.id + '/0';
