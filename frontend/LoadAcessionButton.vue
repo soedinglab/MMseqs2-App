@@ -48,7 +48,7 @@ export default {
             // make a new axios instance to not leak the electron access token
             const axios = create();
             const simpleFetch = response => {
-                    this.$emit('select', response.body);
+                    this.$emit('select', response.data);
                     this.show = false;
                     this.loading = false;
                 };
