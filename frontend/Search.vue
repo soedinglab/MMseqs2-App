@@ -261,7 +261,7 @@ export default {
             if (__ELECTRON__) {
                 data.email = "";
             }
-            // this.$axios.post("api/ticket", qs.stringify(data, { arrayFormat: 'brackets' })).then(
+            this.inSearch = true;
             this.$axios.post("api/ticket", convertToQueryUrl(data), {
                 transformRequest: this.$axios.defaults.transformRequest.concat(
                     (data, headers) => {
