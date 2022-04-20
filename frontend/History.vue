@@ -32,6 +32,7 @@
 
 <script>
 import Identicon from './Identicon.vue';
+import { convertToQueryUrl } from './lib/convertToQueryUrl';
 
 export default {
     components: { Identicon },
@@ -93,7 +94,7 @@ export default {
                 itemsTmp.unshift({ id: this.current, status: "UNKNOWN", time: +(new Date()) })
             }
 
-            this.$axios.post('api/tickets', { tickets: tickets }).then(
+            this.$axios.post('api/tickets', convertToQueryUrl({ tickets: tickets })).then(
                 (response) => {
                     const data = response.data;
                     var now = +(new Date());
