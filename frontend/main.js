@@ -1,6 +1,5 @@
 import Vue from 'vue';
 import VueRouter from 'vue-router';
-import VueLocalStorage from 'vue-localstorage/src/index.js';
 import Vuetify from 'vuetify/lib';
 import { create } from 'axios';
 
@@ -32,7 +31,6 @@ import {
 } from '@mdi/js'
 
 Vue.use(VueRouter);
-Vue.use(VueLocalStorage);
 Vue.use(Vuetify);
 
 import App from './App.vue';

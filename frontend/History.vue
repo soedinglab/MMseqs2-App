@@ -45,21 +45,23 @@ export default {
         page: 0,
         limit: 7
     }),
+    mounted() {
+        if (localStorage.history) {
+            this.items = JSON.parse(localStorage.history);
+        }
+    },
     created() {
         this.fetchData();
     },
     watch: {
         '$route': 'fetchData',
+        items(value) {
+            localStorage.history = JSON.stringify(value);
+        },
         drawer: function (val, oldVal) {
             if (val == true) {
                 this.$root.$emit('multi', true);
             }
-        }
-    },
-    localStorage: {
-        history: {
-            type: Array,
-            default: []
         }
     },
     methods: {
@@ -79,7 +81,7 @@ export default {
             this.current = this.$route.params.ticket;
 
             this.error = false;
-            var itemsTmp = this.$localStorage.get('history');
+            var itemsTmp = this.items;
 
             let tickets = [];
             var hasCurrent = false;
@@ -122,7 +124,6 @@ export default {
                         }
                     }
                     this.items = items;
-                    this.$localStorage.set('history', items);
                     if (hasPending) {
                         setTimeout(this.fetchData.bind(this), 5000);
                     }

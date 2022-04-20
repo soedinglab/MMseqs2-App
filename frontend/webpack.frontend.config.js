@@ -72,16 +72,14 @@ module.exports = (env, argv) => {
                     loader: 'babel-loader',
                     include: [
                         path.resolve(__dirname),
-                        path.resolve(__dirname, '../node_modules/vuetify/src'),
-                        path.resolve(__dirname, '../node_modules/vue-localstorage/src'),
-                        path.resolve(__dirname, '../node_modules/vue-resource'),
+                        path.resolve(__dirname, '../node_modules/vuetify/src')
                     ],
                     exclude: [
                         path.resolve(__dirname, './lib/d3'),
                     ]
                 },
                 {
-                    test: /\.(png|jpe?g|gif|svg|ttf|woff2?|eot)(\?.*)?$/,
+                    test: /\.(png|jpe?g|gif|svg|ttf|woff2?|eot|wasm)(\?.*)?$/,
                     type: 'asset/resource'
                 },
                 {
@@ -125,25 +123,17 @@ module.exports = (env, argv) => {
                     use: [
                         { loader: path.resolve('./frontend/lib/po-loader.js') },
                     ]
-                },
-                {
-                    test: /\.wasm$/,
-                    type: 'asset/resource'
                 }
             ]
         },
         resolve: {
             extensions: ['.js', '.vue', '.json'],
             alias: {
-                'vue$': 'vue/dist/vue.runtime.esm.js',
-                'vue-resource$': 'vue-resource/src/index.js'
+                'vue$': 'vue/dist/vue.runtime.esm.js'
             }
         },
         experiments: {
             asyncWebAssembly: false
-        },
-        externals: {
-            got: 'got'
         },
         plugins: [
             new webpack.DefinePlugin({

@@ -105,7 +105,7 @@
 
                         <v-tooltip v-if="!$ELECTRON" open-delay="300" top>
                             <template v-slot:activator="{ on }">
-                                <v-text-field v-on="on" id="email" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
+                                <v-text-field v-on="on" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
                             </template>
                             <span>Send an email when the job is done.</span>
                         </v-tooltip>
@@ -151,67 +151,30 @@ export default {
                 message: ""
             },
             showCurl: false,
-            mode_: null,
-            email_: null,
-            query_: null,
-            database_: null
+            mode: this.$STRINGS.MODE_DEFAULT_KEY,
+            email: "",
+            query: this.$STRINGS.QUERY_DEFAULT,
+            database: []
         };
     },
+    mounted() {
+        if (localStorage.mode) {
+            this.mode = localStorage.mode;
+        }
+        if (localStorage.email) {
+            this.email = localStorage.email;
+        }
+        if (localStorage.query) {
+            this.query = localStorage.query;
+        }
+        if (localStorage.database) {
+            this.database = JSON.parse(localStorage.database);
+        }
+        if (localStorage.databases) {
+            this.databases = JSON.parse(localStorage.databases);
+        }
+    },
     computed: {
-        mode: {
-            get: function() {
-                this.mode_ = this.$localStorage.get("mode", this.$STRINGS.MODE_DEFAULT_KEY);
-                return this.mode_;
-            },
-            set: function(value) {
-                this.$localStorage.set("mode", value);
-                this.mode_ = value;
-            }
-        },
-        email: {
-            get: function() {
-                this.email_ = this.$localStorage.get("email", "");
-                return this.email_;
-            },
-            set: function(value) {
-                this.$localStorage.set("email", value);
-                this.email_ = value;
-            }
-        },
-        query: {
-            get: function() {
-                if (this.query_ == null) {
-                this.query_ = this.$localStorage.get(
-                    "query",
-                    this.$STRINGS.QUERY_DEFAULT
-                );
-                }
-                return this.query_;
-            },
-            set: function(value) {
-                if (__APP__ == "mmseqs" && typeof(value) === 'string' && value != '') {
-                    // Fix query to always be a valid FASTA sequence
-                    value = value.trim();
-                    if (value[0] != '>') {
-                        value = '>unnamed\n' + value;
-                    }
-                }
-                this.query_ = value;
-                this.$localStorage.set("query", this.query_);
-            }
-        },
-        database: {
-            get: function() {
-                if (this.database_ == null) {
-                    this.database_ = JSON.parse(this.$localStorage.get("database", "[]"));
-                }
-                return this.database_;
-            },
-            set: function(value) {
-                this.$localStorage.set("database", JSON.stringify(value));
-                this.database_ = value;
-            }
-        },
         databasesNotReady: function() {
             return this.databases.some((db) => db.status == "PENDING" || db.status == "RUNNING");
         },
@@ -224,17 +187,26 @@ export default {
             return this.status.type == "error";
         }
     },
-    localStorage: {
-        history: {
-            type: Array,
-            default: []
-        }
-    },
     created() {
         this.fetchData();
     },
     watch: {
-        $route: "fetchData"
+        $route: "fetchData",
+        mode(value) {
+            localStorage.mode = value;
+        },
+        email(value) {
+            localStorage.email = value;
+        },
+        query(value) {
+            localStorage.query = value;
+        },
+        database(value) {
+            localStorage.database = JSON.stringify(value);
+        },
+        databases(value) {
+            localStorage.databases = JSON.stringify(value);
+        },
     },
     methods: {
         origin() {
@@ -271,15 +243,23 @@ export default {
             var data = {
                 q: this.query,
                 database: this.database,
-                mode: this.mode
+                mode: this.mode,
+                email: this.email
             };
             if (__APP__ == "foldseek" && typeof(data.q) === 'string' && data.q != '') {
                 if (data.q[data.q.length - 1] != '\n') {
                     data.q += '\n';
                 }
             }
-            if (!__ELECTRON__ && this.email != "") {
-                data.email = this.email;
+            if (__APP__ == "mmseqs" && typeof(value) === 'string' && data.q != '') {
+                // Fix query to always be a valid FASTA sequence
+                data.q = data.q.trim();
+                if (data.q[0] != '>') {
+                    data.q = '>unnamed\n' + data.q;
+                }
+            }
+            if (__ELECTRON__) {
+                data.email = "";
             }
             // this.$axios.post("api/ticket", qs.stringify(data, { arrayFormat: 'brackets' })).then(
             this.$axios.post("api/ticket", convertToQueryUrl(data), {
@@ -343,13 +323,18 @@ export default {
                 return;
             }
 
-            let history = this.$localStorage.get("history");
+            let history;
+            if (localStorage.history) {
+                history = JSON.parse(localStorage.history);
+            } else {
+                history = [];
+            }
 
             let found = -1;
             for (let i in history) {
                 if (history[i].id == uuid) {
-                found = i;
-                break;
+                    found = i;
+                    break;
                 }
             }
 
@@ -362,7 +347,7 @@ export default {
                 history.unshift(tmp);
             }
 
-            this.$localStorage.set("history", history);
+            localStorage.history = JSON.stringify(history);
         }
     }
 };
