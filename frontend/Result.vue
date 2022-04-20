@@ -306,49 +306,47 @@ export default {
             this.entry = this.$route.params.entry;
             this.alignment = null;
             this.taxonomy = false;
-            this.$http.get("api/result/" + this.ticket + '/' + this.entry)
+            this.$axios.get("api/result/" + this.ticket + '/' + this.entry)
                 .then((response) => {
                     this.error = "";
-                    response.json().then((data) => {
-                        if ("mode" in data) {
-                            this.mode = data.mode;
+                    const data = response.data;
+                    if ("mode" in data) {
+                        this.mode = data.mode;
+                    }
+                    if (data.alignments == null || data.alignments.length > 0) {
+                        var color = colorScale();
+                        var empty = 0;
+                        var total = 0;
+                        for (var i in data.results) {
+                            var db = data.results[i].db;
+                            data.results[i].color = color(db); 
+                            if (data.results[i].alignments == null) {
+                                empty++;
+                            }
+                            total++;
+                            for (var j in data.results[i].alignments) {
+                                var item = data.results[i].alignments[j];
+                                item.href = this.tryLinkTargetToDB(item.target, db);
+                                item.target = this.tryFixTargetName(item.target, db);
+                                item.id = 'result-' + i + '-' + j;
+                                item.active = false;
+                                if (__APP__ != "foldseek" || this.mode != "tmalign") {
+                                    item.eval = item.eval.toExponential(3);
+                                }
+                                if ("taxId" in item) {
+                                    this.taxonomy = true;
+                                }
+                            }
                         }
-                        if (data.alignments == null || data.alignments.length > 0) {
-                            var color = colorScale();
-                            var empty = 0;
-                            var total = 0;
-                            for (var i in data.results) {
-                                var db = data.results[i].db;
-                                data.results[i].color = color(db); 
-                                if (data.results[i].alignments == null) {
-                                    empty++;
-                                }
-                                total++;
-                                for (var j in data.results[i].alignments) {
-                                    var item = data.results[i].alignments[j];
-                                    item.href = this.tryLinkTargetToDB(item.target, db);
-                                    item.target = this.tryFixTargetName(item.target, db);
-                                    item.id = 'result-' + i + '-' + j;
-                                    item.active = false;
-                                    if (__APP__ != "foldseek" || this.mode != "tmalign") {
-                                        item.eval = item.eval.toExponential(3);
-                                    }
-                                    if ("taxId" in item) {
-                                        this.taxonomy = true;
-                                    }
-                                }
-                            }
-                            if (total != 0 && empty/total == 1) {
-                                this.hits = { results: [] };
-                            } else {
-                                this.hits = data;
-                            }
-                            
+                        if (total != 0 && empty/total == 1) {
+                            this.hits = { results: [] };
                         } else {
-                            this.error = "Failed";
-                            this.hits = [];
+                            this.hits = data;
                         }
-                    });
+                    } else {
+                        this.error = "Failed";
+                        this.hits = [];
+                    }
                 }, () => {
                     this.error = "Failed";
                     this.hits = [];

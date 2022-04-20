@@ -134,6 +134,18 @@
 import Panel from "./Panel.vue";
 import FileButton from "./FileButton.vue";
 import LoadAcessionButton from './LoadAcessionButton.vue';
+import { gzip } from 'pako';
+
+function convertToQueryUrl(obj) {
+    const params = new URLSearchParams(obj);
+    for (const [key, value] of Object.entries(obj)) {
+        if (Array.isArray(value)) {
+            params.delete(key);
+            value.forEach((v) => params.append(key + '[]', v));
+        }
+    }
+    return params.toString();
+}
 
 export default {
     name: "search",
@@ -244,26 +256,25 @@ export default {
             );
         },
         fetchData() {
-            this.$http.get("api/databases/all").then(
+            this.$axios.get("api/databases/all").then(
                 response => {
-                    response.json().then(data => {
-                        this.dbqueried = true;
-                        this.dberror = false;
-                        this.databases = data.databases;
+                    const data = response.data;
+                    this.dbqueried = true;
+                    this.dberror = false;
+                    this.databases = data.databases;
 
-                        if (this.database === null || this.database.length == 0) {
-                            this.database = this.databases.filter((element) => { return element.default == true });
-                        } else {
-                            const paths = this.databases.map((db) => { return db.path; });
-                            this.database = this.database.filter((elem) => {
-                                return paths.includes(elem);
-                            });
-                        }
-                        this.database = this.databases.filter((db) => { return db.status == "COMPLETE"; }).map(db => db.path);
-                        if (this.databases.some((db) => { return db.status == "PENDING" || db.status == "RUNNING"; })) {
-                            setTimeout(this.fetchData.bind(this), 1000);
-                        }
-                    }).catch(() => { this.dberror = true; });
+                    if (this.database === null || this.database.length == 0) {
+                        this.database = this.databases.filter((element) => { return element.default == true });
+                    } else {
+                        const paths = this.databases.map((db) => { return db.path; });
+                        this.database = this.database.filter((elem) => {
+                            return paths.includes(elem);
+                        });
+                    }
+                    this.database = this.databases.filter((db) => { return db.status == "COMPLETE"; }).map(db => db.path);
+                    if (this.databases.some((db) => { return db.status == "PENDING" || db.status == "RUNNING"; })) {
+                        setTimeout(this.fetchData.bind(this), 1000);
+                    }
                 }).catch(() => { this.dberror = true; });
         },
         search(event) {
@@ -280,28 +291,42 @@ export default {
             if (!__ELECTRON__ && this.email != "") {
                 data.email = this.email;
             }
-            this.inSearch = true;
-            this.$http.post("api/ticket", data, { emulateJSON: true }).then(
-                response => {
-                    response.json().then(data => {
-                        this.status.message = this.status.type = "";
-                        this.inSearch = false;
-                        if (data.status == "PENDING" || data.status == "RUNNING") {
-                            this.addToHistory(data.id);
-                            this.$router.push({
-                                name: "queue",
-                                params: { ticket: data.id }
-                            });
-                        } else if (data.status == "COMPLETE") {
-                            this.addToHistory(data.id);
-                            this.$router.push({
-                                name: "result",
-                                params: { ticket: data.id, entry: 0 }
-                            });
+            // this.$axios.post("api/ticket", qs.stringify(data, { arrayFormat: 'brackets' })).then(
+            this.$axios.post("api/ticket", convertToQueryUrl(data), {
+                transformRequest: this.$axios.defaults.transformRequest.concat(
+                    (data, headers) => {
+                        console.log(data)
+                        console.log(headers)
+                        // compress strings if over 1KB
+                        if (typeof data === 'string' && data.length > 1024) {
+                            headers['Content-Encoding'] = 'gzip';
+                            return gzip(data);
                         } else {
-                            this.resultError("Error loading search result")();
+                            // delete is slow apparently, faster to set to undefined
+                            headers['Content-Encoding'] = undefined;
+                            return data;
                         }
-                }).catch(this.resultError("Error loading search result"));
+                    }
+                )
+            }).then(response => {
+                const data = response.data;
+                this.status.message = this.status.type = "";
+                this.inSearch = false;
+                if (data.status == "PENDING" || data.status == "RUNNING") {
+                    this.addToHistory(data.id);
+                    this.$router.push({
+                        name: "queue",
+                        params: { ticket: data.id }
+                    });
+                } else if (data.status == "COMPLETE") {
+                    this.addToHistory(data.id);
+                    this.$router.push({
+                        name: "result",
+                        params: { ticket: data.id, entry: 0 }
+                    });
+                } else {
+                    this.resultError("Error loading search result")();
+                }
             }).catch(this.resultError("Error loading search result"));
         },
         resultError(message) {

@@ -57,6 +57,8 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		r = baseRouter
 	}
 
+	r.Use(Decompress)
+
 	databasesHandler := func(complete bool) func(http.ResponseWriter, *http.Request) {
 		return func(w http.ResponseWriter, req *http.Request) {
 			databases, err := Databases(config.Paths.Databases, complete)

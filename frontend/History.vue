@@ -93,38 +93,37 @@ export default {
                 itemsTmp.unshift({ id: this.current, status: "UNKNOWN", time: +(new Date()) })
             }
 
-            this.$http.post('api/tickets', { tickets: tickets }, { emulateJSON: true }).then(
+            this.$axios.post('api/tickets', { tickets: tickets }).then(
                 (response) => {
-                    response.json().then((data) => {
-                        var now = +(new Date());
-                        var items = [];
-                        var hasPending = false;
-                        for (var i in data) {
-                            var include = false;
-                            if (data[i].status == "COMPLETE") {
-                                include = true;
-                            } else if (data[i].status == "UNKNOWN") {
-                                include = false;
-                            } else if ((now - itemsTmp[i].time) < (1000 * 60 * 60 * 24 * 7)) {
-                                include = true;
-                            }
-
-                            if (data[i].status == "PENDING" || data[i].status == "RUNNING") {
-                                hasPending = true;
-                            }
-
-                            if (include) {
-                                var entry = itemsTmp[i];
-                                entry.status = data[i].status;
-                                items.push(entry);
-                            }
+                    const data = response.data;
+                    var now = +(new Date());
+                    var items = [];
+                    var hasPending = false;
+                    for (var i in data) {
+                        var include = false;
+                        if (data[i].status == "COMPLETE") {
+                            include = true;
+                        } else if (data[i].status == "UNKNOWN") {
+                            include = false;
+                        } else if ((now - itemsTmp[i].time) < (1000 * 60 * 60 * 24 * 7)) {
+                            include = true;
                         }
-                        this.items = items;
-                        this.$localStorage.set('history', items);
-                        if (hasPending) {
-                            setTimeout(this.fetchData.bind(this), 5000);
+
+                        if (data[i].status == "PENDING" || data[i].status == "RUNNING") {
+                            hasPending = true;
                         }
-                    });
+
+                        if (include) {
+                            var entry = itemsTmp[i];
+                            entry.status = data[i].status;
+                            items.push(entry);
+                        }
+                    }
+                    this.items = items;
+                    this.$localStorage.set('history', items);
+                    if (hasPending) {
+                        setTimeout(this.fetchData.bind(this), 5000);
+                    }
                 }, () => {
                     this.error = true;
                 });

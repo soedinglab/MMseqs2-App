@@ -307,11 +307,11 @@ export default {
         this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: ambientIntensity })
 
         Promise.all([
-            this.$http.get("api/result/" + this.$route.params.ticket + '/query'),
+            this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
         ]).then(([qResponse, tPdb]) => {
             Promise.all([
-                this.stage.loadFile(new Blob([qResponse.body.query], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
+                this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
             ]).then(([query, target]) => {
                 // Map 1-based indices to residue index/resno; only need for query structure

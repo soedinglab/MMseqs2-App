@@ -95,15 +95,15 @@ export default {
             }
 
             this.apiError = false;
-            this.$http.post("api/database", this.form, { emulateJSON: true }).then(
+            // TODO: test
+            this.$axios.post("api/database", this.form).then(
             response => {
-               response.json().then(data => {
-                    this.$router.push({
-                        name: "queue",
-                        params: { ticket: data.id }
-                    });
-                    this.close();
-                }).catch(() => this.apiError = true);
+                const data = response.data;
+                this.$router.push({
+                    name: "queue",
+                    params: { ticket: data.id }
+                });
+                this.close();
             }).catch(() => this.apiError = true);
         },
         close() {

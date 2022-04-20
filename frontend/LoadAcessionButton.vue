@@ -24,6 +24,8 @@
 </template>
 
 <script>
+import { create } from 'axios';
+
 export default {
     name: 'load-accession-button',
     data() {
@@ -43,6 +45,8 @@ export default {
         load() {
             let url;
             let fun;
+            // make a new axios instance to not leak the electron access token
+            const axios = create();
             const simpleFetch = response => {
                     this.$emit('select', response.body);
                     this.show = false;
@@ -54,27 +58,26 @@ export default {
             } else if (this.source == "AlphaFoldDB") {
                 url = "https://alphafold.ebi.ac.uk/api/search?q=(text:*" + this.accession + " OR text:" + this.accession + "*)&type=main&start=0&rows=1"
                 fun = response => {
-                    response.json().then(data => {
-                        const docs = data.docs;
-                        if (docs.length == 0) {
+                    const data = response.data;
+                    const docs = data.docs;
+                    if (docs.length == 0) {
+                        this.error = "Accession not found";
+                        this.loading = false;
+                        return;
+                    }
+                    const cif = "https://alphafold.ebi.ac.uk/files/" + docs[0].entryId + "-model_v" + docs[0].latestVersion + ".pdb"
+                    axios.get(cif)
+                        .then(simpleFetch)
+                        .catch(() => {
                             this.error = "Accession not found";
                             this.loading = false;
-                            return;
-                        }
-                        const cif = "https://alphafold.ebi.ac.uk/files/" + docs[0].entryId + "-model_v" + docs[0].latestVersion + ".pdb"
-                        this.$http.get(cif)
-                            .then(simpleFetch)
-                            .catch(() => {
-                                this.error = "Accession not found";
-                                this.loading = false;
-                            })
-                    })
+                        })
                 };
             } else {
                 return;
             }
             this.loading = true;
-            this.$http.get(url)
+            axios.get(url)
                 .then(fun)
                 .catch(() => {
                     this.error = "Accession not found";
