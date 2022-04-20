@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/didip/tollbooth/v6"
 	"github.com/didip/tollbooth/v6/limiter"
 	"github.com/goji/httpauth"
@@ -538,7 +539,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		io.Copy(w, bufio.NewReader(file))
 	}).Methods("GET")
 
-	r.HandleFunc("/result/{ticket}/query", func(w http.ResponseWriter, req *http.Request) {
+	queryHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
 		ticket, err := jobsystem.GetTicket(Id(vars["ticket"]))
 		if err != nil {
@@ -563,9 +564,10 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		w.Write(query)
-	}).Methods("GET")
+	})
+	r.Handle("/result/{ticket}/query", gziphandler.GzipHandler(queryHandler)).Methods("GET")
 
-	r.HandleFunc("/result/{ticket}/{entry}", func(w http.ResponseWriter, req *http.Request) {
+	resultHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
 		id, err := strconv.ParseUint(vars["entry"], 10, 64)
 		if err != nil {
@@ -629,7 +631,8 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-	}).Methods("GET")
+	})
+	r.Handle("/result/{ticket}/{entry}", gziphandler.GzipHandler(resultHandler)).Methods("GET")
 
 	r.HandleFunc("/result/queries/{ticket}/{limit}/{page}", func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
