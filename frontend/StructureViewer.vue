@@ -341,6 +341,7 @@ export default {
                 })
             })
         })
+	window.addEventListener('resize', () => this.stage.handleResize())
         this.stage.signals.fullscreenChanged.add((isFullscreen) => {
             if (isFullscreen) {
                 this.stage.viewer.setBackground('#ffffff')
