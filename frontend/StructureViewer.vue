@@ -357,7 +357,24 @@ export default {
             Promise.all([
                 this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
-            ]).then(([query, target]) => {
+            ])
+            .then(([query, target]) => {
+                // fix query if its course-grained (i.e. non-complete backbone)
+                // foldseek doesn't care about the oxygen, but NGL does
+                if (query.structure.getAtomProxy().isCg()) {
+                    return new Promise((resolve, reject) => {
+                        pulchra(qResponse.data)
+                        .then((queryPdb) => {
+                            this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true})
+                            .then((query) => { resolve([query, target]) })
+                            .catch(reject)
+                        }).catch(reject)
+                    })
+                } else {
+                    return [query, target];
+                }
+            })
+            .then(([query, target]) => {
                 // Map 1-based indices to residue index/resno; only need for query structure
                 this.qChainResMap = makeChainMap(query.structure, this.queryChainSele)
                 this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
