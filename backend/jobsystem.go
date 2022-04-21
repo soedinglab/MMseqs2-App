@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/go-redis/redis"
 )
 
@@ -28,7 +29,7 @@ type JobRequest struct {
 	Status Status      `json:"status" validate:"required"`
 	Type   JobType     `json:"type" validate:"required"`
 	Job    interface{} `json:"job" validate:"required"`
-	Email  string      `json:"email" validate:"email|isdefault"`
+	Email  string      `json:"email" validate:"omitempty,email"`
 }
 
 type jobRequest JobRequest
@@ -530,6 +531,11 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	id := request.Id
 	res, err := j.Status(id)
 	if err != nil {
+		return Ticket{id, StatusError}, err
+	}
+
+	validate := validator.New()
+	if err := validate.Struct(request); err != nil {
 		return Ticket{id, StatusError}, err
 	}
 

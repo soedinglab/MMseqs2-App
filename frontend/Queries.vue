@@ -15,7 +15,7 @@
                 </v-list-item-title>
             </v-list-item-content>
         </v-list-item>
-        <v-list-item v-else target="_blank" :href="$url('api/result/download/' + ticket)">
+        <v-list-item v-else target="_blank" :href="url('api/result/download/' + ticket)">
             <v-list-item-action>
                 <v-icon>{{ $MDI.CloudDownloadOutline }}</v-icon>
             </v-list-item-action>
@@ -60,6 +60,8 @@
 </template>
 
 <script>
+import buildFullPath from 'axios/lib/core/buildFullPath.js'
+
 export default {
     data: () => ({
         ticket: null,
@@ -108,21 +110,25 @@ export default {
 
             this.error = "";
             this.ticket = this.$route.params.ticket;
-            this.$http.get("api/result/queries/" + this.ticket + "/" + this.limit + "/" + this.page).then((response) => {
-                response.json().then((data) => {
-                    if (data.lookup) {
-                        this.items = data.lookup;
-                        this.hasNext = data.hasNext;
-                        this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)  
-                        if (this.multi) {
-                            this.drawer = true;
-                            this.$root.$emit('multi', true);
-                        }
+            this.$axios.get("api/result/queries/" + this.ticket + "/" + this.limit + "/" + this.page).then((response) => {
+                const data = response.data;
+                if (data.lookup) {
+                    this.items = data.lookup;
+                    this.hasNext = data.hasNext;
+                    this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)
+                    if (this.multi) {
+                        this.drawer = true;
+                        this.$root.$emit('multi', true);
                     }
-                });
+                }
             }).catch(() => {
                 this.status = "error";
             });
+        },
+        url(url) {
+            // workaround was fixed in axios git, remove when axios is updated
+            const fullUrl = buildFullPath(this.$axios.defaults.baseURL, url);
+            return this.$axios.getUri({ url: fullUrl })
         },
         electronDownload(ticket) {
             this.saveResult(ticket);

@@ -32,6 +32,8 @@
 
 <script>
 import Identicon from './Identicon.vue';
+import { convertToQueryUrl } from './lib/convertToQueryUrl';
+import { debounce } from './lib/debounce';
 
 export default {
     components: { Identicon },
@@ -43,21 +45,23 @@ export default {
         page: 0,
         limit: 7
     }),
+    mounted() {
+        if (localStorage.history) {
+            this.items = JSON.parse(localStorage.history);
+        }
+    },
     created() {
         this.fetchData();
     },
     watch: {
         '$route': 'fetchData',
+        items(value) {
+            localStorage.history = JSON.stringify(value);
+        },
         drawer: function (val, oldVal) {
             if (val == true) {
                 this.$root.$emit('multi', true);
             }
-        }
-    },
-    localStorage: {
-        history: {
-            type: Array,
-            default: []
         }
     },
     methods: {
@@ -73,11 +77,11 @@ export default {
             }
             this.page += 1;
         },
-        fetchData() {
+        fetchData: debounce(function() {
             this.current = this.$route.params.ticket;
 
             this.error = false;
-            var itemsTmp = this.$localStorage.get('history');
+            var itemsTmp = this.items;
 
             let tickets = [];
             var hasCurrent = false;
@@ -93,42 +97,40 @@ export default {
                 itemsTmp.unshift({ id: this.current, status: "UNKNOWN", time: +(new Date()) })
             }
 
-            this.$http.post('api/tickets', { tickets: tickets }, { emulateJSON: true }).then(
+            this.$axios.post('api/tickets', convertToQueryUrl({ tickets: tickets })).then(
                 (response) => {
-                    response.json().then((data) => {
-                        var now = +(new Date());
-                        var items = [];
-                        var hasPending = false;
-                        for (var i in data) {
-                            var include = false;
-                            if (data[i].status == "COMPLETE") {
-                                include = true;
-                            } else if (data[i].status == "UNKNOWN") {
-                                include = false;
-                            } else if ((now - itemsTmp[i].time) < (1000 * 60 * 60 * 24 * 7)) {
-                                include = true;
-                            }
-
-                            if (data[i].status == "PENDING" || data[i].status == "RUNNING") {
-                                hasPending = true;
-                            }
-
-                            if (include) {
-                                var entry = itemsTmp[i];
-                                entry.status = data[i].status;
-                                items.push(entry);
-                            }
+                    const data = response.data;
+                    var now = +(new Date());
+                    var items = [];
+                    var hasPending = false;
+                    for (var i in data) {
+                        var include = false;
+                        if (data[i].status == "COMPLETE") {
+                            include = true;
+                        } else if (data[i].status == "UNKNOWN") {
+                            include = false;
+                        } else if ((now - itemsTmp[i].time) < (1000 * 60 * 60 * 24 * 7)) {
+                            include = true;
                         }
-                        this.items = items;
-                        this.$localStorage.set('history', items);
-                        if (hasPending) {
-                            setTimeout(this.fetchData.bind(this), 5000);
+
+                        if (data[i].status == "PENDING" || data[i].status == "RUNNING") {
+                            hasPending = true;
                         }
-                    });
+
+                        if (include) {
+                            var entry = itemsTmp[i];
+                            entry.status = data[i].status;
+                            items.push(entry);
+                        }
+                    }
+                    this.items = items;
+                    if (hasPending) {
+                        setTimeout(this.fetchData.bind(this), 5000);
+                    }
                 }, () => {
                     this.error = true;
                 });
-        },
+        }, 16, true),
         formattedRoute(element) {
             if (element.status == 'COMPLETE') {
                 return '/result/' + element.id + '/0';

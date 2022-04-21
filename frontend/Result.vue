@@ -128,6 +128,7 @@ require('./lib/d3/d3');
 
 import feature from './lib/feature-viewer/feature-viewer.js';
 import colorScale from './lib/ColorScale';
+import { debounce } from './lib/debounce';
 
 function lerp(v0, v1, t) {
     return v0*(1-t)+v1*t
@@ -163,21 +164,6 @@ function getAbsOffsetTop($el) {
     }
     return sum;
 }
-
-function debounce(func, wait, immediate) {
-    var timeout;
-    return function() {
-        var context = this, args = arguments;
-        var later = function() {
-            timeout = null;
-            if (!immediate) func.apply(context, args);
-        };
-        var callNow = immediate && !timeout;
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-        if (callNow) func.apply(context, args);
-    };
-};
 
 export default {
     name: 'result',
@@ -283,8 +269,12 @@ export default {
                 return 'https://www.ncbi.nlm.nih.gov/Structure/cdd/cddsrv.cgi?uid=' + target;
             }
 
-            if (__APP__ == "foldseek" && target.startsWith("AF-")) {
-                return 'https://www.alphafold.ebi.ac.uk/entry/' + target.replaceAll(/-F[0-9]+-model_v[0-9]+\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
+            if (__APP__ == "foldseek") {
+                if (target.startsWith("AF-")) {
+                    return 'https://www.alphafold.ebi.ac.uk/entry/' + target.replaceAll(/-F[0-9]+-model_v[0-9]+\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
+                } else if (target.startsWith("GMGC")) {
+                    return 'https://gmgc.embl.de/search.cgi?search_id=' + target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '')
+                }
             }
 
             return null;
@@ -294,7 +284,7 @@ export default {
             if (__APP__ == "foldseek") {
                 if (target.startsWith("AF-")) {
                     return target.replaceAll(/\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
-                } else if (res.startsWith("pdb")) {
+                } else if (res.startsWith("pdb") || res.startsWith("GMGC")) {
                     return target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '');
                 }
             }
@@ -306,49 +296,47 @@ export default {
             this.entry = this.$route.params.entry;
             this.alignment = null;
             this.taxonomy = false;
-            this.$http.get("api/result/" + this.ticket + '/' + this.entry)
+            this.$axios.get("api/result/" + this.ticket + '/' + this.entry)
                 .then((response) => {
                     this.error = "";
-                    response.json().then((data) => {
-                        if ("mode" in data) {
-                            this.mode = data.mode;
+                    const data = response.data;
+                    if ("mode" in data) {
+                        this.mode = data.mode;
+                    }
+                    if (data.alignments == null || data.alignments.length > 0) {
+                        var color = colorScale();
+                        var empty = 0;
+                        var total = 0;
+                        for (var i in data.results) {
+                            var db = data.results[i].db;
+                            data.results[i].color = color(db); 
+                            if (data.results[i].alignments == null) {
+                                empty++;
+                            }
+                            total++;
+                            for (var j in data.results[i].alignments) {
+                                var item = data.results[i].alignments[j];
+                                item.href = this.tryLinkTargetToDB(item.target, db);
+                                item.target = this.tryFixTargetName(item.target, db);
+                                item.id = 'result-' + i + '-' + j;
+                                item.active = false;
+                                if (__APP__ != "foldseek" || this.mode != "tmalign") {
+                                    item.eval = item.eval.toExponential(3);
+                                }
+                                if ("taxId" in item) {
+                                    this.taxonomy = true;
+                                }
+                            }
                         }
-                        if (data.alignments == null || data.alignments.length > 0) {
-                            var color = colorScale();
-                            var empty = 0;
-                            var total = 0;
-                            for (var i in data.results) {
-                                var db = data.results[i].db;
-                                data.results[i].color = color(db); 
-                                if (data.results[i].alignments == null) {
-                                    empty++;
-                                }
-                                total++;
-                                for (var j in data.results[i].alignments) {
-                                    var item = data.results[i].alignments[j];
-                                    item.href = this.tryLinkTargetToDB(item.target, db);
-                                    item.target = this.tryFixTargetName(item.target, db);
-                                    item.id = 'result-' + i + '-' + j;
-                                    item.active = false;
-                                    if (__APP__ != "foldseek" || this.mode != "tmalign") {
-                                        item.eval = item.eval.toExponential(3);
-                                    }
-                                    if ("taxId" in item) {
-                                        this.taxonomy = true;
-                                    }
-                                }
-                            }
-                            if (total != 0 && empty/total == 1) {
-                                this.hits = { results: [] };
-                            } else {
-                                this.hits = data;
-                            }
-                            
+                        if (total != 0 && empty/total == 1) {
+                            this.hits = { results: [] };
                         } else {
-                            this.error = "Failed";
-                            this.hits = [];
+                            this.hits = data;
                         }
-                    });
+                    } else {
+                        this.error = "Failed";
+                        this.hits = [];
+                    }
                 }, () => {
                     this.error = "Failed";
                     this.hits = [];

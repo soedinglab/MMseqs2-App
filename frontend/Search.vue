@@ -105,12 +105,16 @@
 
                         <v-tooltip v-if="!$ELECTRON" open-delay="300" top>
                             <template v-slot:activator="{ on }">
-                                <v-text-field v-on="on" id="email" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
+                                <v-text-field v-on="on" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
                             </template>
                             <span>Send an email when the job is done.</span>
                         </v-tooltip>
 
                         <v-btn color="primary" block large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>Search</v-btn>
+
+                        <div v-if="errorMessage != ''" class="v-alert red mt-2">
+                            <span>{{ errorMessage }}</span>
+                        </div>
                     </div>
                 </panel>
             </v-flex>
@@ -134,6 +138,8 @@
 import Panel from "./Panel.vue";
 import FileButton from "./FileButton.vue";
 import LoadAcessionButton from './LoadAcessionButton.vue';
+import { gzip } from 'pako';
+import { convertToQueryUrl } from './lib/convertToQueryUrl';
 
 export default {
     name: "search",
@@ -144,72 +150,32 @@ export default {
             dbqueried: false,
             databases: [],
             inSearch: false,
-            status: {
-                type: "",
-                message: ""
-            },
+            errorMessage: "",
             showCurl: false,
-            mode_: null,
-            email_: null,
-            query_: null,
-            database_: null
+            mode: this.$STRINGS.MODE_DEFAULT_KEY,
+            email: "",
+            query: this.$STRINGS.QUERY_DEFAULT,
+            database: []
         };
     },
+    mounted() {
+        if (localStorage.mode) {
+            this.mode = localStorage.mode;
+        }
+        if (localStorage.email) {
+            this.email = localStorage.email;
+        }
+        if (localStorage.query) {
+            this.query = localStorage.query;
+        }
+        if (localStorage.database) {
+            this.database = JSON.parse(localStorage.database);
+        }
+        if (localStorage.databases) {
+            this.databases = JSON.parse(localStorage.databases);
+        }
+    },
     computed: {
-        mode: {
-            get: function() {
-                this.mode_ = this.$localStorage.get("mode", this.$STRINGS.MODE_DEFAULT_KEY);
-                return this.mode_;
-            },
-            set: function(value) {
-                this.$localStorage.set("mode", value);
-                this.mode_ = value;
-            }
-        },
-        email: {
-            get: function() {
-                this.email_ = this.$localStorage.get("email", "");
-                return this.email_;
-            },
-            set: function(value) {
-                this.$localStorage.set("email", value);
-                this.email_ = value;
-            }
-        },
-        query: {
-            get: function() {
-                if (this.query_ == null) {
-                this.query_ = this.$localStorage.get(
-                    "query",
-                    this.$STRINGS.QUERY_DEFAULT
-                );
-                }
-                return this.query_;
-            },
-            set: function(value) {
-                if (__APP__ == "mmseqs" && typeof(value) === 'string' && value != '') {
-                    // Fix query to always be a valid FASTA sequence
-                    value = value.trim();
-                    if (value[0] != '>') {
-                        value = '>unnamed\n' + value;
-                    }
-                }
-                this.query_ = value;
-                this.$localStorage.set("query", this.query_);
-            }
-        },
-        database: {
-            get: function() {
-                if (this.database_ == null) {
-                    this.database_ = JSON.parse(this.$localStorage.get("database", "[]"));
-                }
-                return this.database_;
-            },
-            set: function(value) {
-                this.$localStorage.set("database", JSON.stringify(value));
-                this.database_ = value;
-            }
-        },
         databasesNotReady: function() {
             return this.databases.some((db) => db.status == "PENDING" || db.status == "RUNNING");
         },
@@ -217,22 +183,28 @@ export default {
             return (
                 this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0
             );
-        },
-        error() {
-            return this.status.type == "error";
-        }
-    },
-    localStorage: {
-        history: {
-            type: Array,
-            default: []
         }
     },
     created() {
         this.fetchData();
     },
     watch: {
-        $route: "fetchData"
+        $route: "fetchData",
+        mode(value) {
+            localStorage.mode = value;
+        },
+        email(value) {
+            localStorage.email = value;
+        },
+        query(value) {
+            localStorage.query = value;
+        },
+        database(value) {
+            localStorage.database = JSON.stringify(value);
+        },
+        databases(value) {
+            localStorage.databases = JSON.stringify(value);
+        },
     },
     methods: {
         origin() {
@@ -244,72 +216,86 @@ export default {
             );
         },
         fetchData() {
-            this.$http.get("api/databases/all").then(
+            this.$axios.get("api/databases/all").then(
                 response => {
-                    response.json().then(data => {
-                        this.dbqueried = true;
-                        this.dberror = false;
-                        this.databases = data.databases;
+                    const data = response.data;
+                    this.dbqueried = true;
+                    this.dberror = false;
+                    this.databases = data.databases;
 
-                        if (this.database === null || this.database.length == 0) {
-                            this.database = this.databases.filter((element) => { return element.default == true });
-                        } else {
-                            const paths = this.databases.map((db) => { return db.path; });
-                            this.database = this.database.filter((elem) => {
-                                return paths.includes(elem);
-                            });
-                        }
-                        this.database = this.databases.filter((db) => { return db.status == "COMPLETE"; }).map(db => db.path);
-                        if (this.databases.some((db) => { return db.status == "PENDING" || db.status == "RUNNING"; })) {
-                            setTimeout(this.fetchData.bind(this), 1000);
-                        }
-                    }).catch(() => { this.dberror = true; });
+                    if (this.database === null || this.database.length == 0) {
+                        this.database = this.databases.filter((element) => { return element.default == true });
+                    } else {
+                        const paths = this.databases.map((db) => { return db.path; });
+                        this.database = this.database.filter((elem) => {
+                            return paths.includes(elem);
+                        });
+                    }
+                    this.database = this.databases.filter((db) => { return db.status == "COMPLETE"; }).map(db => db.path);
+                    if (this.databases.some((db) => { return db.status == "PENDING" || db.status == "RUNNING"; })) {
+                        setTimeout(this.fetchData.bind(this), 1000);
+                    }
                 }).catch(() => { this.dberror = true; });
         },
         search(event) {
             var data = {
                 q: this.query,
                 database: this.database,
-                mode: this.mode
+                mode: this.mode,
+                email: this.email
             };
             if (__APP__ == "foldseek" && typeof(data.q) === 'string' && data.q != '') {
                 if (data.q[data.q.length - 1] != '\n') {
                     data.q += '\n';
                 }
             }
-            if (!__ELECTRON__ && this.email != "") {
-                data.email = this.email;
+            if (__APP__ == "mmseqs" && typeof(value) === 'string' && data.q != '') {
+                // Fix query to always be a valid FASTA sequence
+                data.q = data.q.trim();
+                if (data.q[0] != '>') {
+                    data.q = '>unnamed\n' + data.q;
+                }
+            }
+            if (__ELECTRON__) {
+                data.email = "";
             }
             this.inSearch = true;
-            this.$http.post("api/ticket", data, { emulateJSON: true }).then(
-                response => {
-                    response.json().then(data => {
-                        this.status.message = this.status.type = "";
-                        this.inSearch = false;
-                        if (data.status == "PENDING" || data.status == "RUNNING") {
-                            this.addToHistory(data.id);
-                            this.$router.push({
-                                name: "queue",
-                                params: { ticket: data.id }
-                            });
-                        } else if (data.status == "COMPLETE") {
-                            this.addToHistory(data.id);
-                            this.$router.push({
-                                name: "result",
-                                params: { ticket: data.id, entry: 0 }
-                            });
+            this.$axios.post("api/ticket", convertToQueryUrl(data), {
+                transformRequest: this.$axios.defaults.transformRequest.concat(
+                    (data, headers) => {
+                        if (typeof data === 'string' && data.length > 1024) {
+                            headers['Content-Encoding'] = 'gzip';
+                            return gzip(data);
                         } else {
-                            this.resultError("Error loading search result")();
+                            headers['Content-Encoding'] = undefined;
+                            return data;
                         }
-                }).catch(this.resultError("Error loading search result"));
-            }).catch(this.resultError("Error loading search result"));
-        },
-        resultError(message) {
-            return () => {
-                this.status.type = "error";
-                this.status.message = message;
+                    }
+                )
+            }).then(response => {
+                const data = response.data;
+                this.errorMessage = "";
                 this.inSearch = false;
-            }
+                if (data.status == "PENDING" || data.status == "RUNNING") {
+                    this.addToHistory(data.id);
+                    this.$router.push({
+                        name: "queue",
+                        params: { ticket: data.id }
+                    });
+                } else if (data.status == "COMPLETE") {
+                    this.addToHistory(data.id);
+                    this.$router.push({
+                        name: "result",
+                        params: { ticket: data.id, entry: 0 }
+                    });
+                } else {
+                    this.errorMessage = "Error loading search result";
+                }
+            }).catch(() => {
+                this.errorMessage = "Error loading search result";
+            }).finally(() => {
+                this.inSearch = false;
+            });
         },
         fileDrop(event) {
             event.preventDefault();
@@ -332,13 +318,18 @@ export default {
                 return;
             }
 
-            let history = this.$localStorage.get("history");
+            let history;
+            if (localStorage.history) {
+                history = JSON.parse(localStorage.history);
+            } else {
+                history = [];
+            }
 
             let found = -1;
             for (let i in history) {
                 if (history[i].id == uuid) {
-                found = i;
-                break;
+                    found = i;
+                    break;
                 }
             }
 
@@ -351,7 +342,7 @@ export default {
                 history.unshift(tmp);
             }
 
-            this.$localStorage.set("history", history);
+            localStorage.history = JSON.stringify(history);
         }
     }
 };

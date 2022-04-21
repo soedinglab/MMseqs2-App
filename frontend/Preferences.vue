@@ -114,35 +114,28 @@ export default {
     methods: {
         fetchData() {
             this.error = false;
-            this.$http.get("api/databases").then(
+            this.$axios.get("api/databases").then(
                 response => {
-                    response.json().then(data => {
-                        this.databases = data.databases;
-                        this.error = false;
-                    }).catch(this.apiError);
+                    const data = response.data;
+                    this.databases = data.databases;
+                    this.error = false;
                 }).catch(this.apiError);
         },
         saveOrder() {
             this.inReorder = false;
             const database = this.databases.map(x => { return x.path; });
-            this.$http.post("api/databases/order", { database }, { emulateJSON: true }).then(
+            this.$axios.post("api/databases/order", { database }).then(
                 response => {
-                    response.json().then(data => {
-                        this.databases = data.databases;
-                        this.error = false;
-                    }).catch(this.apiError);
+                    const data = response.data;
+                    this.databases = data.databases;
+                    this.error = false;
                 }).catch(this.apiError);
         },
         deleteDatabase(path) {
             if (confirm("Are you sure?") == true) {
-                this.$http.delete("api/database", { params: { path: path }, emulateJSON: true }).then(
-                response => {
-                    if (response.status != 200) {
-                        this.apiError();
-                    } else {
-                        this.fetchData();
-                    }
-                }).catch(this.apiError);
+                this.$axios.delete("api/database", { params: { path: path }})
+                    .then(() => {this.fetchData(); })
+                    .catch(this.apiError);
             }
         },
         apiError() {

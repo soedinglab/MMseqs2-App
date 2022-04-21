@@ -54,47 +54,45 @@ export default {
                 return;
             }
 
-            this.$http.get("api/ticket/" + ticket).then(
+            this.$axios.get("api/ticket/" + ticket).then(
                 (response) => {
-                    response.json().then((data) => {
-                        this.status = data.status;
-                        switch (this.status) {
-                            case "UNKNOWN":
-                                this.status = "FAILED";
-                                this.error = "No record of this job submission exists.";
-                                break;
-                            case "ERROR":
-                            case "FAILED":
-                                this.status = "FAILED";
-                                this.error = "Job failed. Please try again later.";
-                                break;
-                            case "COMPLETE":
-                                this.$http.get("api/ticket/type/" + ticket).then(
-                                (response) => {
-                                    response.json().then((data) => {
-                                        switch (data.type) {
-                                            case "search":
-                                                this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
-                                                break;
-                                            case "structuresearch":
-                                                this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
-                                                break;
-                                            case "index":
-                                                this.$router.replace({ name: 'preferences' });
-                                                break;
-                                            default:
-                                                this.status = "FAILED";
-                                                this.error = "Job failed. Please try again later.";
-                                        }
-                                    })
-                                });
-                                break;
-                            default:
-                                this.error = "Please wait..."
-                                setTimeout(this.fetchData.bind(this), 1000);
-                                break;
-                        }
-                    });
+                    const data = response.data;
+                    this.status = data.status;
+                    switch (this.status) {
+                        case "UNKNOWN":
+                            this.status = "FAILED";
+                            this.error = "No record of this job submission exists.";
+                            break;
+                        case "ERROR":
+                        case "FAILED":
+                            this.status = "FAILED";
+                            this.error = "Job failed. Please try again later.";
+                            break;
+                        case "COMPLETE":
+                            this.$axios.get("api/ticket/type/" + ticket).then(
+                            (response) => {
+                                const data = response.data;
+                                switch (data.type) {
+                                    case "search":
+                                        this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
+                                        break;
+                                    case "structuresearch":
+                                        this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
+                                        break;
+                                    case "index":
+                                        this.$router.replace({ name: 'preferences' });
+                                        break;
+                                    default:
+                                        this.status = "FAILED";
+                                        this.error = "Job failed. Please try again later.";
+                                }
+                            })
+                            break;
+                        default:
+                            this.error = "Please wait..."
+                            setTimeout(this.fetchData.bind(this), 1000);
+                            break;
+                    }
                 },
                 () => {
                     this.status = "FAILED";

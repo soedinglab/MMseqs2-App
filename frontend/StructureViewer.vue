@@ -1,51 +1,75 @@
 <template>
     <div class="structure-panel" v-if="'tCa' in alignment">
-        <div class="structure-wrapper">
+        <div class="structure-wrapper" ref="structurepanel">
+            <div v-if="tmAlignResults" class="tmscore-panel" v-bind="tmPanelBindings">
+                TM-Score: {{ tmAlignResults.tmScore }}
+            </div>
+            <div class="toolbar-panel">
+                <v-btn
+                    v-bind="tbButtonBindings"
+                    v-on:click="makeImage()"
+                    title="Save image"
+                >
+                    <span v-if="isFullscreen">Save image</span>
+                    <v-icon v-bind="tbIconBindings">{{ $MDI.FileDownloadOutline }}</v-icon>
+                </v-btn>
+                <v-btn
+                    v-bind="tbButtonBindings"
+                    v-on:click="toggleFullQuery()"
+                    title="Toggle between the entire query structure and aligned region"
+                >
+                    <span v-if="isFullscreen">Toggle full query</span>
+                    <v-icon v-bind="tbIconBindings" style='color: grey;' v-if="showFullQuery">{{ $MDI.Circle }}</v-icon>
+                    <v-icon v-bind="tbIconBindings" style='color: grey;' v-else>{{ $MDI.CircleHalf }}</v-icon>
+                </v-btn>
+                <v-btn
+                    v-bind="tbButtonBindings"
+                    v-on:click="toggleFullTarget()"
+                    title="Toggle between the entire target structure and aligned region"
+                >
+                    <span v-if="isFullscreen">Toggle full target</span>
+                    <v-icon v-bind="tbIconBindings" style='color: red;' v-if="showTarget == 'aligned'">{{ $MDI.CircleHalf }}</v-icon>
+                    <v-icon v-bind="tbIconBindings" style='color: red;' v-else>{{ $MDI.Circle }}</v-icon>
+                </v-btn>
+                <v-btn
+                    v-bind="tbButtonBindings"
+                    v-on:click="toggleArrows()"
+                    title="Draw arrows between aligned residues"
+                >
+                    <span v-if="isFullscreen">Toggle arrows</span>
+                    <v-icon v-bind="tbIconBindings" v-if="showArrows">{{ $MDI.ArrowRightCircle }}</v-icon>
+                    <v-icon v-bind="tbIconBindings" v-else>{{ $MDI.ArrowRightCircleOutline }}</v-icon>
+                </v-btn>
+                <v-btn
+                    v-bind="tbButtonBindings"
+                    v-on:click="resetView()"
+                    :input-value="
+                        selection != null
+                            && ((selection[0] != alignment.dbStartPos || selection[1] != alignment.dbEndPos)
+                            && (selection[0] != 1 || selection[1] != alignment.dbLen))"
+                    title="Reset the view to the original position and zoom level"
+                >
+                    <span v-if="isFullscreen">Reset view</span>
+                    <v-icon v-bind="tbIconBindings">{{ $MDI.Restore }}</v-icon>
+                </v-btn>
+                <v-btn v-bind="tbButtonBindings"
+                    v-on:click="toggleFullscreen()"
+                    title="Enter fullscreen mode - press ESC to exit"
+                >
+                    <span v-if="isFullscreen">Fullscreen</span>
+                    <v-icon v-bind="tbIconBindings">{{ $MDI.Fullscreen }}</v-icon>
+                </v-btn>
+            </div>
             <div class="structure-viewer" ref="viewport" />
         </div>
-        <v-toolbar-items class="toolbar">
-            <v-btn v-on:click="makeImage()"
-                title="Save image"
-            ><v-icon>{{ $MDI.FileDownloadOutline }}</v-icon></v-btn>
-            <v-btn
-                v-on:click="toggleFullQuery()" :input-value="showFullQuery"
-                title="Show the entire query structure"
-            ><v-icon v-if="showFullQuery">{{ $MDI.Circle }}</v-icon>
-                <v-icon v-else>{{ $MDI.CircleHalf }}</v-icon></v-btn>
-            <v-btn v-if="showTarget == 'aligned'"
-                v-on:click="showTarget = 'full'"
-                title="Show only the aligned portion of the target structure"
-            ><v-icon>{{ $MDI.CircleHalf }}</v-icon></v-btn>
-            <v-btn v-else
-                v-on:click="showTarget = 'aligned'"
-                title="Show the entire target structure"
-            ><v-icon>{{ $MDI.Circle }}</v-icon></v-btn>
-            <v-btn
-                v-on:click="toggleArrows()" :input-value="showArrows"
-                title="Draw arrows between aligned residues"
-            ><v-icon v-if="showArrows">{{ $MDI.ArrowRightCircle }}</v-icon>
-                <v-icon v-else>{{ $MDI.ArrowRightCircleOutline }}</v-icon></v-btn>
-            <v-btn
-                v-on:click="resetView()"
-                :input-value="
-                    selection != null
-                        && ((selection[0] != alignment.dbStartPos || selection[1] != alignment.dbEndPos)
-                        && (selection[0] != 1 || selection[1] != alignment.dbLen))"
-                title="Reset the view to the original position and zoom level"
-            ><v-icon>{{ $MDI.Restore }}</v-icon></v-btn>
-            <v-btn
-                v-on:click="toggleFullscreen()"
-                title="Enter fullscreen mode - press ESC to exit"
-            ><v-icon>{{ $MDI.Fullscreen }}</v-icon></v-btn>
-        </v-toolbar-items>
     </div>
 </template>
 
 <script>
-import { Shape, Stage, Selection, Superposition } from 'ngl';
+import { Shape, Stage, Selection, download } from 'ngl';
 import Panel from './Panel.vue';
 import { pulchra } from 'pulchra-wasm';
-import { tmalign, parseMatrix } from 'tmalign-wasm';
+import { tmalign, parse, parseMatrix } from 'tmalign-wasm';
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
 function createArrows(matches) {
@@ -167,6 +191,8 @@ export default {
         'selection': null,
         'queryChain': 'A',
         'qChainResMap': null,
+        'isFullscreen': false,
+        'tmAlignResults': null,
     }),
     props: {
         'alignment': Object,
@@ -203,7 +229,7 @@ export default {
         },
         toggleFullscreen() {
             if (!this.stage) return
-            this.stage.toggleFullscreen()
+            this.stage.toggleFullscreen(this.$refs.structurepanel)
         },
         resetView() {
             if (!this.stage) return
@@ -217,6 +243,10 @@ export default {
         toggleFullQuery() {
             if (!this.stage) return
             this.showFullQuery = !this.showFullQuery
+        },
+        toggleFullTarget() {
+            if (!this.stage) return
+            this.showTarget = this.showTarget === 'aligned' ? 'full' : 'aligned'
         },
         setSelectionByRange(start, end) {
             if (!this.targetRepr) return
@@ -254,16 +284,12 @@ export default {
             this.stage.viewer.setLight(undefined, undefined, undefined, 0.2)
             this.stage.makeImage({
                 trim: true,
-                factor: 8,
+                factor: (this.isFullscreen) ? 1 : 8,
                 antialias: true,
                 transparent: true,
             }).then((blob) => {
                 this.stage.viewer.setLight(undefined, undefined, undefined, this.$vuetify.theme.dark ? 0.4 : 0.2)
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = this.$route.params.ticket + '-' + this.alignment.target + ".png";
-                link.click();
-                URL.revokeObjectURL(link.href);
+                download(blob, this.$route.params.ticket + '-' + this.alignment.target + ".png")
             })
         }
     },
@@ -294,6 +320,23 @@ export default {
             let start = `${this.qChainResMap.get(this.alignment.qStartPos).resno}`
             let end = `${this.qChainResMap.get(this.alignment.qEndPos).resno}`
             return `${start}-${end} AND ${this.queryChainSele}`
+        },
+        tmPanelBindings: function() {
+            return (this.isFullscreen) ? { 'style': 'margin-top: 10px; font-size: 2em;' } : {  }
+        },
+        tbIconBindings: function() {
+            return (this.isFullscreen) ? { 'right': true } : {}
+        },
+        tbButtonBindings: function() {
+            return (this.isFullscreen) ? {
+                'large': true,
+                'small': false,
+                'style': 'margin-left: 5px; margin-bottom: 10px;',
+            } : {
+                'large': false,
+                'small': true,
+                'style': ''
+            }
         }
     },
     beforeMount() {
@@ -308,11 +351,11 @@ export default {
         this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: ambientIntensity })
 
         Promise.all([
-            this.$http.get("api/result/" + this.$route.params.ticket + '/query'),
+            this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
         ]).then(([qResponse, tPdb]) => {
             Promise.all([
-                this.stage.loadFile(new Blob([qResponse.body.query], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
+                this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
             ]).then(([query, target]) => {
                 // Map 1-based indices to residue index/resno; only need for query structure
@@ -327,6 +370,7 @@ export default {
                 // Re-align target to query using TM-align for better superposition
                 // Target 1st since TM-align generates superposition matrix for 1st structure
                 tmalign(tSubPdb, qSubPdb, alnFasta).then(out => {
+                    this.tmAlignResults = parse(out.output)
                     let { t, u } = parseMatrix(out.matrix)
                     transformStructure(target.structure, t, u)
                     this.queryRepr = query.addRepresentation(this.qRepr, {color: this.qColour})
@@ -346,9 +390,11 @@ export default {
             if (isFullscreen) {
                 this.stage.viewer.setBackground('#ffffff')
                 this.stage.viewer.setLight(undefined, undefined, undefined, 0.2)
+                this.isFullscreen = true
             } else {
                 this.stage.viewer.setBackground(bgColor)
                 this.stage.viewer.setLight(undefined, undefined, undefined, ambientIntensity)
+                this.isFullscreen = false
             }
         })
     },
@@ -381,9 +427,23 @@ export default {
 .structure-panel {
     position: relative;
 }
-.structure-panel .toolbar {
+.toolbar-panel {
+    display: inline-flex;
+    flex-direction: row;
     position: absolute;
+    justify-content: center;
+    width: 100%;
     bottom: 0;
-    right: 0;
+    z-index: 1;
+}
+.tmscore-panel {
+    position: absolute;
+    text-align: center;
+    width: 100%;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    font-family: monospace;
+    color: rgb(31, 119, 180);
 }
 </style>
