@@ -287,12 +287,13 @@ export default {
     },
     computed: {
         queryChainId: function() { return this.queryChain.charCodeAt(0) - 'A'.charCodeAt(0) },
-        queryChainSele: function() { return (this.showFullQuery) ? '' : `:${this.queryChain}` },
+        queryChainSele: function() { return (this.showFullQuery) ? '' :
+            `(:${this.queryChain.toUpperCase()} OR :${this.queryChain.toLowerCase()})` },
         querySubSele: function() {
             if (!this.queryChainSele || !this.qChainResMap) return ''
             let start = `${this.qChainResMap.get(this.alignment.qStartPos).resno}`
             let end = `${this.qChainResMap.get(this.alignment.qEndPos).resno}`
-            return `${start}-${end}${this.queryChainSele}`
+            return `${start}-${end} AND ${this.queryChainSele}`
         }
     },
     beforeMount() {
