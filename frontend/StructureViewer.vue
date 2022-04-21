@@ -198,8 +198,8 @@ export default {
             }
         },
         handleResize() {
-            if (!this.$refs.viewport) return
-            this.$refs.viewport.handleResize()
+            if (!this.stage) return
+            this.stage.handleResize()
         },
         toggleFullscreen() {
             if (!this.stage) return
@@ -341,7 +341,7 @@ export default {
                 })
             })
         })
-	window.addEventListener('resize', () => this.stage.handleResize())
+        window.addEventListener('resize', this.handleResize)
         this.stage.signals.fullscreenChanged.add((isFullscreen) => {
             if (isFullscreen) {
                 this.stage.viewer.setBackground('#ffffff')
@@ -356,6 +356,7 @@ export default {
         if (typeof(this.stage) == 'undefined')
             return
         this.stage.dispose() 
+        window.removeEventListener('resize', this.handleResize)
     }
 }
 </script>
