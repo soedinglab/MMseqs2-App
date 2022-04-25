@@ -116,20 +116,6 @@ function mockPDB(ca, seq) {
     return pdb.join('\n')
 }
 
-/**
- * Shift structure x, y, z coordinates by some offset
- * @param {StructureComponent} structure
- * @param {float} offset
- */
-const offsetStructure = (structure, offset = 0.5) => {
-	structure.structure.eachAtom(atom => {
-		atom.x = atom.x + offset;	
-		atom.y = atom.y + offset;	
-		atom.z = atom.z + offset;	
-	})
-	return structure
-}
-
 /* ------ The rotation matrix to rotate Chain_1 to Chain_2 ------ */
 /* m               t[m]        u[m][0]        u[m][1]        u[m][2] */
 /* 0     161.2708425765   0.0663961888  -0.6777150909  -0.7323208325 */
