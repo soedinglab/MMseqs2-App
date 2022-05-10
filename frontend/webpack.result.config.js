@@ -52,8 +52,7 @@ module.exports = (env, argv) => {
                 },
                 {
                     test: /\.wasm$/,
-                    type: 'javascript/auto',
-                    loader: 'url-loader',
+                    type: 'asset/inline',
                 },
                 {
                     test: /\.css$/,
@@ -78,6 +77,9 @@ module.exports = (env, argv) => {
                     ? JSON.stringify('Foldseek')
                     : JSON.stringify('MMSeqs'),
                 __APP__: JSON.stringify(frontendApp)
+            }),
+            new webpack.optimize.LimitChunkCountPlugin({
+                maxChunks: 1
             })
         ],
         devtool: isProduction ? false : 'eval-source-map'
