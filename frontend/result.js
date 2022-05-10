@@ -696,7 +696,6 @@ function showResults(data){
 }
 
 window.render = function (res) {
-    console.log('results', res)
     results = res;
     var queries = [];
     for (var r in results) {
