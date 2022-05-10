@@ -1,5 +1,17 @@
 const path = require('path');
+const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+
+const frontendApp = process.env.FRONTEND_APP;
+if (typeof(frontendApp) == "undefined") {
+    console.error("Specify FRONTEND_APP environment variable to choose which app should be built (mmseqs|foldseek)");
+    process.exit(1);
+}
+
+if (['mmseqs', 'foldseek'].includes(frontendApp) == false) {
+    console.error("FRONTEND_APP environment variable must be one of mmseqs|foldseek");
+    process.exit(1);
+}
 
 module.exports = (env, argv) => {
     const isProduction = argv.mode === 'production';
@@ -7,12 +19,20 @@ module.exports = (env, argv) => {
         entry: path.resolve(__dirname, 'result.js'),
         target: 'web',
         mode: argv.mode,
+        experiments: {
+            // futureDefaults: true,
+            // syncWebAssembly: true,
+            asyncWebAssembly: false,
+        },
         output: {
             path: path.resolve(__dirname, '../dist'),
             publicPath: '/',
             filename: 'result.js',
             crossOriginLoading: 'anonymous',
         },
+        // optimization: {
+        //     minimize: false
+        // },
         module: {
             rules: [
                 {
@@ -27,7 +47,13 @@ module.exports = (env, argv) => {
                 },
                 {
                     test: /\.(png|jpe?g|gif|svg|ttf|woff2?|eot)(\?.*)?$/,
-                    use: ['url-loader']
+                    type: 'asset/inline',
+                    // dependency: { not: ['url'] }
+                },
+                {
+                    test: /\.wasm$/,
+                    type: 'javascript/auto',
+                    loader: 'url-loader',
                 },
                 {
                     test: /\.css$/,
@@ -45,8 +71,14 @@ module.exports = (env, argv) => {
                 cache: false,
                 template: path.resolve(__dirname, 'result.ejs'),
                 filename: 'index.html',
-
+                chunks: 'all'
             }),
+            new webpack.DefinePlugin({
+                __TITLE__: frontendApp === 'foldseek'
+                    ? JSON.stringify('Foldseek')
+                    : JSON.stringify('MMSeqs'),
+                __APP__: JSON.stringify(frontendApp)
+            })
         ],
         devtool: isProduction ? false : 'eval-source-map'
     }
