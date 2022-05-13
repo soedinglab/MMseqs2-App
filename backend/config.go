@@ -134,7 +134,7 @@ type ConfigPaths struct {
 	Results   string                `json:"results"`
 	Temporary string                `json:"temporary"`
 	Mmseqs    string                `json:"mmseqs"`
-	FoldSeek  string                `json:"foldseek`
+	FoldSeek  string                `json:"foldseek"`
 	ColabFold *ConfigColabFoldPaths `json:"colabfold"`
 }
 

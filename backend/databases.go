@@ -20,7 +20,7 @@ type Params struct {
 	Path     string `json:"path" validate:"required"`
 	Default  bool   `json:"default"`
 	Order    int    `json:"order"`
-	Taxonomy bool   `json:"taxonomy`
+	Taxonomy bool   `json:"taxonomy"`
 	Index    string `json:"index"`
 	Search   string `json:"search"`
 	Status   Status `json:"status"`
