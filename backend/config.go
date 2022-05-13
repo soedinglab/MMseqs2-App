@@ -40,6 +40,16 @@ var defaultFileContent = []byte(`{
         "databases"    : "~databases",
         // path to job results and scratch directory, has to be shared between server/workers
         "results"      : "~jobs",
+        /*
+        // paths to colabfold templates
+        "colabfold"    : {
+            "pdbdivided"  : "~pdbdivided",
+            "pdbobsolete" : "~pdbobsolete",
+            "pdb70"       : "~pdb70"
+        },
+        */
+        // path to foldseek binary
+        "foldseek"     : "~foldseek",
         // path to mmseqs binary
         "mmseqs"       : "~mmseqs"
     },
@@ -113,12 +123,19 @@ var defaultFileContent = []byte(`{
 }
 `)
 
+type ConfigColabFoldPaths struct {
+	Pdb70       string `json:"pdb70"`
+	PdbDivided  string `json:"pdbdivided"`
+	PdbObsolete string `json:"pdbobsolete"`
+}
+
 type ConfigPaths struct {
-	Databases string `json:"databases"`
-	Results   string `json:"results"`
-	Temporary string `json:"temporary"`
-	Mmseqs    string `json:"mmseqs"`
-	FoldSeek  string `json:"foldseek`
+	Databases string                `json:"databases"`
+	Results   string                `json:"results"`
+	Temporary string                `json:"temporary"`
+	Mmseqs    string                `json:"mmseqs"`
+	FoldSeek  string                `json:"foldseek`
+	ColabFold *ConfigColabFoldPaths `json:"colabfold"`
 }
 
 type ConfigRedis struct {

@@ -82,7 +82,7 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 		return AlignmentResponse{}, err
 	}
 
-	reader := Reader{}
+	reader := Reader[uint32]{}
 	var res []SearchResult
 	for _, item := range matches {
 		name := strings.TrimSuffix(item, ".index")
@@ -126,7 +126,7 @@ func FSAlignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error
 		return AlignmentResponse{}, err
 	}
 
-	reader := Reader{}
+	reader := Reader[uint32]{}
 	var res []SearchResult
 	for _, item := range matches {
 		name := strings.TrimSuffix(item, ".index")
@@ -214,7 +214,7 @@ func ResultArchive(w io.Writer, id Id, base string) (err error) {
 		return err
 	}
 
-	reader := Reader{}
+	reader := Reader[uint32]{}
 	for _, item := range matches {
 		name := strings.TrimSuffix(item, ".index")
 
