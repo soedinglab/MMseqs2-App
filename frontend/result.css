@@ -221,7 +221,6 @@ th {
     0px 2px 2px 0px rgba(0,0,0,.14),
     2px 1px 2px 0px rgba(0,0,0,.12);
   border-style: none;
-  border-color: -internal-light-dark(rgb(118, 118, 118), rgb(133, 133, 133));
   border-width: thin;
   outline: 0;
   transition-duration: .28s;
