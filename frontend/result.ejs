@@ -4,17 +4,17 @@
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MMseqs2 Alignment Result</title>
+		<title><%= __TITLE__ %> Alignment Result</title>
 </head>
 
-<h1>MMseqs2 Alignment Results</h1>
+<h1><%= __TITLE__ %> Alignment Results</h1>
 
 <h2>Select query <button id="toggleList" style="float:right">Toggle List</button></h2>
 <nav id="queryList" class="collapsed">
 </nav>
 
 <h2 id="currentQuery"></h1>
-<h3>Visualization <button class="hide" id="resetZoom" aria-hidden="true" style="float:right">Reset Zoom</button></h2>
+<h3>Visualization <button class="hide" id="resetZoom" aria-hidden="true" style="float:right">Reset Zoom</button></h3>
 <div id="hitsParent">
     <div style="position:relative;">
         <div style="position:absolute;top:0;left:0;right:0;bottom:0;">
@@ -23,7 +23,7 @@
     </div>
 </div>
 
-<h3>Results <button id="toggleAlignments" style="float:right">Toggle Alignments</button></h2>
+<h3>Results <button id="toggleAlignments" style="float:right">Toggle Alignments</button></h3>
 <div>
     <table>
         <thead>
@@ -44,3 +44,4 @@
 <% for(let jsFile of htmlWebpackPlugin.files.js) {%>
 <script><%= compilation.assets[jsFile.substr(htmlWebpackPlugin.files.publicPath.length)].source() %></script>
 <% } %>
+
