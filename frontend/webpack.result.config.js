@@ -20,8 +20,6 @@ module.exports = (env, argv) => {
         target: 'web',
         mode: argv.mode,
         experiments: {
-            // futureDefaults: true,
-            // syncWebAssembly: true,
             asyncWebAssembly: false,
         },
         output: {
@@ -30,9 +28,6 @@ module.exports = (env, argv) => {
             filename: 'result.js',
             crossOriginLoading: 'anonymous',
         },
-        // optimization: {
-        //     minimize: false
-        // },
         module: {
             rules: [
                 {
@@ -48,7 +43,6 @@ module.exports = (env, argv) => {
                 {
                     test: /\.(png|jpe?g|gif|svg|ttf|woff2?|eot)(\?.*)?$/,
                     type: 'asset/inline',
-                    // dependency: { not: ['url'] }
                 },
                 {
                     test: /\.wasm$/,
