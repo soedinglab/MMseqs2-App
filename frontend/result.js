@@ -10,6 +10,7 @@ const MDIArrowRightCircle = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink
 const MDIArrowRightCircleOutline = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="24" height="24" viewBox="0 0 24 24"><path d="M6,13V11H14L10.5,7.5L11.92,6.08L17.84,12L11.92,17.92L10.5,16.5L14,13H6M22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2A10,10 0 0,1 22,12M20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12Z" /></svg>'
 const MDIRestore = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="24" height="24" viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z" /></svg>'
 const MDIFullscreen = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="24" height="24" viewBox="0 0 24 24"><path d="M5,5H10V7H7V10H5V5M14,5H19V10H17V7H14V5M17,14H19V19H14V17H17V14M10,17V19H5V14H7V17H10Z" /></svg>'
+const MDIExpand = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="24" height="24" viewBox="0 0 24 24"><path d="M5,13H19V11H5M3,17H17V15H3M7,7V9H21V7"></path></svg>'
 
 const blosum62Sim = [
     "AG", "AS", "DE", "DN",
@@ -136,6 +137,8 @@ var $queryList = document.getElementById("queryList");
 var $tbody = document.getElementById("tableBody");
 var $resetZoom = document.getElementById("resetZoom");
 var $currentQuery = document.getElementById("currentQuery");
+var currentAln = 0;
+
 document.addEventListener('click', function (event) {
     if (event.target.matches('.show-alignment')) {
         alert("test");
@@ -566,6 +569,7 @@ function alnHTML(queryData, alignment) {
 // Return a function to create innerHTML of an alignment panel for a given query
 function getToggleFn(data, index) {
     return function () {
+        if (index === currentAln) return
         var aln = $tbody.querySelector('tr.alignment');
         var newChildren = alnHTML(data.query, data.alignments[index]);
         aln.replaceChildren(...newChildren)
@@ -573,6 +577,11 @@ function getToggleFn(data, index) {
         var next = parent.nextElementSibling;
         if (next) parent.parentNode.insertBefore(aln, next);
         else parent.parentNode.appendChild(aln);
+        // Toggle class for the expand button
+        let old = $tbody.querySelector(`#toggle-${currentAln}`)
+        old.classList.toggle('active-aln');
+        $tbody.querySelector(`#toggle-${index}`).classList.toggle('active-aln')
+        currentAln = index;
     }
 }
 
@@ -658,8 +667,8 @@ function showResults(data){
         const qPos = alignments[i]["qStartPos"] + "-" + alignments[i]["qEndPos"] + " (" + alignments[i]["qLen"] + ")";
         const tPos = alignments[i]["dbStartPos"] + "-" + alignments[i]["dbEndPos"] + " (" + alignments[i]["dbLen"] + ")";
 
-        const toggle = document.createElement('button');
-        toggle.innerHTML = 'Toggle';
+        const toggle = e('button', { 'id': `toggle-${cnt}`, 'class': 'toggle-btn' }, '')
+        toggle.innerHTML = MDIExpand;
         toggle.onclick = getToggleFn(data, i);
         $tbody.appendChild(
             e("tr", {},
@@ -682,6 +691,7 @@ function showResults(data){
         if (i > 0) continue  // Only show the first alignment at startup
         var  alnPanel = e("tr", { "class": `alignment ${__APP__}`, }, alnHTML(data.query, alignments[i]));
         $tbody.appendChild(alnPanel)
+        toggle.classList.toggle('active-aln');
     }
 
     m.addFeature({
