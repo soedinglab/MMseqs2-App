@@ -69,7 +69,7 @@ module.exports = (env, argv) => {
             new webpack.DefinePlugin({
                 __TITLE__: frontendApp === 'foldseek'
                     ? JSON.stringify('Foldseek')
-                    : JSON.stringify('MMSeqs'),
+                    : JSON.stringify('MMseqs'),
                 __APP__: JSON.stringify(frontendApp)
             }),
             new webpack.optimize.LimitChunkCountPlugin({
