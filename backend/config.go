@@ -43,9 +43,14 @@ var defaultFileContent = []byte(`{
         /*
         // paths to colabfold templates
         "colabfold"    : {
-            "pdbdivided"  : "~pdbdivided",
-            "pdbobsolete" : "~pdbobsolete",
-            "pdb70"       : "~pdb70"
+            // paths for search databases
+            "uniref"        : "~databases/uniref30_2103",
+            "pdb",          : "~databases/pdb70",
+            "environmental" : "~databases/colabfold_envdb_202108",
+            // paths for templates
+            "pdb70"         : "~databases/pdb70"
+            "pdbdivided"    : "~databases/pdbdivided",
+            "pdbobsolete"   : "~databases/pdbobsolete",
         },
         */
         // path to foldseek binary
@@ -124,9 +129,12 @@ var defaultFileContent = []byte(`{
 `)
 
 type ConfigColabFoldPaths struct {
-	Pdb70       string `json:"pdb70"`
-	PdbDivided  string `json:"pdbdivided"`
-	PdbObsolete string `json:"pdbobsolete"`
+	Uniref        string `json:"uniref"`
+	Pdb           string `json:"pdb"`
+	Environmental string `json:"environmental"`
+	Pdb70         string `json:"pdb70"`
+	PdbDivided    string `json:"pdbdivided"`
+	PdbObsolete   string `json:"pdbobsolete"`
 }
 
 type ConfigPaths struct {
