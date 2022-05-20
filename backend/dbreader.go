@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"io"
 	"math"
 	"os"
 	"sort"
@@ -103,10 +102,9 @@ func (d *Reader[V]) Data(id int64) string {
 	if id < 0 || id >= d.Size() {
 		return ""
 	}
-	d.file.Seek(int64(d.Index[id].Offset), io.SeekStart)
 	length := d.Index[id].Length - 1
 	buffer := make([]byte, length)
-	d.file.Read(buffer)
+	d.file.ReadAt(buffer, int64(d.Index[id].Offset))
 	return string(buffer[:length])
 }
 
