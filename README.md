@@ -40,7 +40,7 @@ Head over to the [Docker recipe readme](https://github.com/soedinglab/MMseqs2-Ap
 
 ## Building the desktop app
 
-You need to have `git`, `go`, `node`, `npm` and `make` installed on your system.
+You need to have `git`, `go` (>=1.18), `node`, `npm` and `make` installed on your system.
 
 Afterwards run the following commands, and the apps will appear in the `build` folder.
 
