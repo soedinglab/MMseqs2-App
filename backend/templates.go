@@ -41,7 +41,7 @@ func AddTarEntry(tw *tar.Writer, name string, s string, now time.Time) error {
 	return nil
 }
 
-func GatherTemplates(w io.Writer, templates []string, a3m Reader[string], hhm Reader[string], pdbdivided string, pdbobsolete string) (err error) {
+func GatherTemplates(w io.Writer, templates []string, a3m Reader[string], pdbdivided string, pdbobsolete string) (err error) {
 	gw := gzip.NewWriter(w)
 	tw := tar.NewWriter(gw)
 
@@ -66,31 +66,18 @@ func GatherTemplates(w io.Writer, templates []string, a3m Reader[string], hhm Re
 	a3mData := strings.Builder{}
 	a3mIndex := strings.Builder{}
 
-	hhmOffset := 0
-	hhmData := strings.Builder{}
-	hhmIndex := strings.Builder{}
 	for i := 0; i < len(uniques); i++ {
 		a3mid, ok := a3m.Id(uniques[i])
 		if ok == false {
 			continue
 		}
-		hhmid, ok := hhm.Id(uniques[i])
-		if ok == false {
-			continue
-		}
+
 		entry := a3m.Data(a3mid)
 		entryLen := len(entry) + 1
 		a3mData.WriteString(entry)
 		a3mData.WriteRune(rune(0))
 		a3mIndex.WriteString(fmt.Sprintf("%s\t%d\t%d\n", uniques[i], a3mOffset, entryLen))
 		a3mOffset += entryLen
-
-		entry = hhm.Data(hhmid)
-		entryLen = len(entry) + 1
-		hhmData.WriteString(entry)
-		hhmData.WriteRune(rune(0))
-		hhmIndex.WriteString(fmt.Sprintf("%s\t%d\t%d\n", uniques[i], hhmOffset, entryLen))
-		hhmOffset += entryLen
 	}
 
 	now := time.Now()
@@ -98,12 +85,6 @@ func GatherTemplates(w io.Writer, templates []string, a3m Reader[string], hhm Re
 		return err
 	}
 	if err := AddTarEntry(tw, "pdb70_a3m.ffindex", a3mIndex.String(), now); err != nil {
-		return err
-	}
-	if err := AddTarEntry(tw, "pdb70_hhm.ffdata", hhmData.String(), now); err != nil {
-		return err
-	}
-	if err := AddTarEntry(tw, "pdb70_hhm.ffindex", hhmIndex.String(), now); err != nil {
 		return err
 	}
 

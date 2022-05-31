@@ -667,14 +667,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		a3mreader := Reader[string]{}
 		a3mreader.Make(dbpaths(config.Paths.ColabFold.Pdb70 + "_a3m"))
 
-		hhmreader := Reader[string]{}
-		hhmreader.Make(dbpaths(config.Paths.ColabFold.Pdb70 + "_hhm"))
-
 		r.HandleFunc("/template/{list}", func(w http.ResponseWriter, req *http.Request) {
 			templates := strings.Split(mux.Vars(req)["list"], ",")
 			w.Header().Set("Content-Disposition", "attachment; filename=\"templates.tar.gz\"")
 			w.Header().Set("Content-Type", "application/octet-stream")
-			if err := GatherTemplates(w, templates, a3mreader, hhmreader, config.Paths.ColabFold.PdbDivided, config.Paths.ColabFold.PdbObsolete); err != nil {
+			if err := GatherTemplates(w, templates, a3mreader, config.Paths.ColabFold.PdbDivided, config.Paths.ColabFold.PdbObsolete); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
