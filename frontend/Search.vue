@@ -141,6 +141,13 @@ import LoadAcessionButton from './LoadAcessionButton.vue';
 import { gzip } from 'pako';
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 
+let localStorageEnabled = false;
+try {
+    if (typeof window.localStorage !== 'undefined') {
+        localStorageEnabled = true
+    }
+} catch(e) {}
+
 export default {
     name: "search",
     components: { Panel, FileButton, LoadAcessionButton },
@@ -159,19 +166,19 @@ export default {
         };
     },
     mounted() {
-        if (localStorage.mode) {
+        if (localStorageEnabled && localStorage.mode) {
             this.mode = localStorage.mode;
         }
-        if (localStorage.email) {
+        if (localStorageEnabled && localStorage.email) {
             this.email = localStorage.email;
         }
-        if (localStorage.query) {
+        if (localStorageEnabled && localStorage.query) {
             this.query = localStorage.query;
         }
-        if (localStorage.database) {
+        if (localStorageEnabled && localStorage.database) {
             this.database = JSON.parse(localStorage.database);
         }
-        if (localStorage.databases) {
+        if (localStorageEnabled && localStorage.databases) {
             this.databases = JSON.parse(localStorage.databases);
         }
     },
@@ -191,19 +198,29 @@ export default {
     watch: {
         $route: "fetchData",
         mode(value) {
-            localStorage.mode = value;
+            if (localStorageEnabled) {
+                localStorage.mode = value;
+            }
         },
         email(value) {
-            localStorage.email = value;
+            if (localStorageEnabled) {
+                localStorage.email = value;
+            }
         },
         query(value) {
-            localStorage.query = value;
+            if (localStorageEnabled) {
+                localStorage.query = value;
+            }
         },
         database(value) {
-            localStorage.database = JSON.stringify(value);
+            if (localStorageEnabled) {
+                localStorage.database = JSON.stringify(value);
+            }
         },
         databases(value) {
-            localStorage.databases = JSON.stringify(value);
+            if (localStorageEnabled) {
+                localStorage.databases = JSON.stringify(value);
+            }
         },
     },
     methods: {
@@ -319,7 +336,7 @@ export default {
             }
 
             let history;
-            if (localStorage.history) {
+            if (localStorageEnabled && localStorage.history) {
                 history = JSON.parse(localStorage.history);
             } else {
                 history = [];
@@ -342,7 +359,9 @@ export default {
                 history.unshift(tmp);
             }
 
-            localStorage.history = JSON.stringify(history);
+            if (localStorageEnabled) {
+                localStorage.history = JSON.stringify(history);
+            }
         }
     }
 };
