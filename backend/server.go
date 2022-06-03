@@ -665,7 +665,8 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 	if config.App == AppColabFold {
 		a3mreader := Reader[string]{}
-		err := a3mreader.Make(dbpaths(config.Paths.ColabFold.Pdb70 + "_a3m"))
+		base := config.Paths.ColabFold.Pdb70 + "_a3m"
+		err := a3mreader.Make(base+".ffdata", base+".ffindex")
 		if err != nil {
 			log.Fatal(err)
 		}
