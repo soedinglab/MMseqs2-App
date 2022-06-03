@@ -665,7 +665,10 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 	if config.App == AppColabFold {
 		a3mreader := Reader[string]{}
-		a3mreader.Make(dbpaths(config.Paths.ColabFold.Pdb70 + "_a3m"))
+		err := a3mreader.Make(dbpaths(config.Paths.ColabFold.Pdb70 + "_a3m"))
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		r.HandleFunc("/template/{list}", func(w http.ResponseWriter, req *http.Request) {
 			templates := strings.Split(mux.Vars(req)["list"], ",")

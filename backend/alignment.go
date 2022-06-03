@@ -86,7 +86,10 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 	var res []SearchResult
 	for _, item := range matches {
 		name := strings.TrimSuffix(item, ".index")
-		reader.Make(dbpaths(name))
+		err := reader.Make(dbpaths(name))
+		if err != nil {
+			return AlignmentResponse{}, err
+		}
 		data := strings.NewReader(reader.Data(entry))
 		reader.Delete()
 		var results []AlignmentEntry
@@ -108,11 +111,17 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 	}
 
 	query := filepath.Join(base, "tmp", "latest", "query")
-	reader.Make(dbpaths(query))
+	err = reader.Make(dbpaths(query))
+	if err != nil {
+		return AlignmentResponse{}, err
+	}
 	sequence := strings.TrimSpace(reader.Data(entry))
 	reader.Delete()
 
-	reader.Make(dbpaths(query + "_h"))
+	err = reader.Make(dbpaths(query + "_h"))
+	if err != nil {
+		return AlignmentResponse{}, err
+	}
 	header := strings.TrimSpace(reader.Data(entry))
 	reader.Delete()
 
@@ -130,7 +139,10 @@ func FSAlignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error
 	var res []SearchResult
 	for _, item := range matches {
 		name := strings.TrimSuffix(item, ".index")
-		reader.Make(dbpaths(name))
+		err = reader.Make(dbpaths(name))
+		if err != nil {
+			return AlignmentResponse{}, err
+		}
 		data := strings.NewReader(reader.Data(entry))
 		reader.Delete()
 		var results []FoldseekAlignmentEntry
@@ -152,11 +164,17 @@ func FSAlignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error
 	}
 
 	query := filepath.Join(base, "tmp", "latest", "query")
-	reader.Make(dbpaths(query))
+	err = reader.Make(dbpaths(query))
+	if err != nil {
+		return AlignmentResponse{}, err
+	}
 	sequence := strings.TrimSpace(reader.Data(entry))
 	reader.Delete()
 
-	reader.Make(dbpaths(query + "_h"))
+	err = reader.Make(dbpaths(query + "_h"))
+	if err != nil {
+		return AlignmentResponse{}, err
+	}
 	header := strings.TrimSpace(reader.Data(entry))
 	reader.Delete()
 
@@ -222,7 +240,10 @@ func ResultArchive(w io.Writer, id Id, base string) (err error) {
 		if err != nil {
 			return err
 		}
-		reader.Make(dbpaths(name))
+		err = reader.Make(dbpaths(name))
+		if err != nil {
+			return err
+		}
 		for i := int64(0); i < reader.Size(); i++ {
 			data := strings.NewReader(reader.Data(i))
 			scanner := bufio.NewScanner(data)

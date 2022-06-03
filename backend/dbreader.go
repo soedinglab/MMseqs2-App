@@ -30,16 +30,16 @@ type Reader[V ~uint32 | string] struct {
 	file  *os.File
 }
 
-func (d *Reader[V]) Make(data string, index string) {
+func (d *Reader[V]) Make(data string, index string) error {
 	file, err := os.Open(data)
 	if err != nil {
-		return
+		return err
 	}
 	d.file = file
 
 	f, err := os.Open(index)
 	if err != nil {
-		return
+		return err
 	}
 	defer f.Close()
 
@@ -54,7 +54,7 @@ func (d *Reader[V]) Make(data string, index string) {
 			break
 		}
 		if err != nil {
-			return
+			return err
 		}
 		sorted = sorted && (prevKey < entry.Key)
 		d.Index = append(d.Index, entry)
@@ -63,6 +63,8 @@ func (d *Reader[V]) Make(data string, index string) {
 	if sorted == false {
 		sort.Sort(EntryByKey[V](d.Index))
 	}
+
+	return nil
 }
 
 func (d *Reader[V]) Delete() {
