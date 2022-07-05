@@ -1,9 +1,12 @@
 FROM node:latest as mmseqs-web-frontend-builder
 
+ARG FRONTEND_APP
+ENV FRONTEND_APP=$FRONTEND_APP
+
 RUN apt-get update && apt-get install -y build-essential bzip2 fontconfig tar
 
 WORKDIR /opt/mmseqs-frontend
-ADD package.json .
+ADD package.json package-lock.json ./
 
 ENV PYTHONIOENCODING=utf8
 RUN npm install

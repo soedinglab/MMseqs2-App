@@ -1,4 +1,4 @@
-version: '2'
+version: '2.4'
 
 services:
   mmseqs-web-redis:
@@ -7,8 +7,9 @@ services:
       - redis-volume:/var/lib/redis
 
   mmseqs-web-api:
-    image: "soedinglab/mmseqs2-app-backend:${TAG}"
-    command: -server -config /etc/mmseqs-web/config.json
+    image: "ghcr.io/${REPO_OWNER}/${APP}-app-backend:${TAG}"
+    init: true
+    command: -server -config /etc/mmseqs-web/config.json -app ${APP}
     depends_on:
       - mmseqs-web-redis
     expose:
@@ -19,8 +20,9 @@ services:
       - ./jobs:/opt/mmseqs-web/jobs
 
   mmseqs-web-worker:
-    image: "soedinglab/mmseqs2-app-backend:${TAG}"
-    command: -worker -config /etc/mmseqs-web/config.json
+    image: "ghcr.io/${REPO_OWNER}/${APP}-app-backend:${TAG}"
+    init: true
+    command: -worker -config /etc/mmseqs-web/config.json -app ${APP}
     depends_on:
       - mmseqs-web-api
       - mmseqs-web-redis
@@ -32,7 +34,7 @@ services:
       - /tmp:exec
 
   mmseqs-web-webserver:
-    image: "soedinglab/mmseqs2-app-frontend:${TAG}"
+    image: "ghcr.io/${REPO_OWNER}/${APP}-app-frontend:${TAG}"
     depends_on:
       - mmseqs-web-api
     volumes:

@@ -10,7 +10,8 @@
         "databases"    : "/opt/mmseqs-web/databases",
         "results"      : "/opt/mmseqs-web/jobs",
         "temporary"    : "/tmp",
-        "mmseqs"       : "/usr/local/bin/mmseqs"
+        "mmseqs"       : "/usr/local/bin/mmseqs",
+        "foldseek"     : "/usr/local/bin/foldseek"
     },
     "redis" : {
         "network"  : "tcp",
