@@ -656,6 +656,10 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		result, err := Lookup(ticket.Id, page, limit, config.Paths.Results)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		err = json.NewEncoder(w).Encode(result)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

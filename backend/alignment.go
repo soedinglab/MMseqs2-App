@@ -83,7 +83,7 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 	}
 
 	reader := Reader[uint32]{}
-	var res []SearchResult
+	res := make([]SearchResult, 0)
 	for _, item := range matches {
 		name := strings.TrimSuffix(item, ".index")
 		err := reader.Make(dbpaths(name))
@@ -136,7 +136,7 @@ func FSAlignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error
 	}
 
 	reader := Reader[uint32]{}
-	var res []SearchResult
+	res := make([]SearchResult, 0)
 	for _, item := range matches {
 		name := strings.TrimSuffix(item, ".index")
 		err = reader.Make(dbpaths(name))

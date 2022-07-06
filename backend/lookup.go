@@ -25,12 +25,11 @@ func Lookup(ticketId Id, page uint64, limit uint64, basepath string) (LookupResp
 	}
 	defer file.Close()
 
-	var results []LookupResult
+	results := make([]LookupResult, 0)
 	res := LookupResult{}
 	parser := NewTsvParser(file, &res)
 
-	var cnt uint64
-	cnt = 0
+	var cnt uint64 = 0
 	start := page * limit
 	hasNextPage := false
 	for {

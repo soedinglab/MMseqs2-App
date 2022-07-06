@@ -225,7 +225,7 @@ func Databases(basepath string, complete bool) ([]Params, error) {
 		return nil, err
 	}
 
-	var res []Params
+	res := make([]Params, 0)
 	for _, value := range matches {
 		params, err := ReadParams(value)
 		if err != nil {
