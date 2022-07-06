@@ -246,13 +246,14 @@ export default {
             } else {
                 this.alignment = item;
                 this.activeTarget = event.target.closest('.hit');
-                // FIXME: dont hardcode navigation bar height (48px)
-                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight - 48;
+                const topBar = parseInt(document.querySelector('main.v-main').style.paddingTop || 48, 10);
+                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight - topBar;
             }
         },
         handleAlignmentBoxResize: debounce(function() {
             if (this.activeTarget != null) {
-                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight - 48;
+                const topBar = parseInt(document.querySelector('main.v-main').style.paddingTop || 48, 10);
+                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight - topBar;
             }
         }, 32, false),
         tryLinkTargetToDB(target, db) {
