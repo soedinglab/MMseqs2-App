@@ -53,6 +53,7 @@
 
 <script>
 import Panel from './Panel.vue';
+import { convertToQueryUrl } from './lib/convertToQueryUrl';
 
 export default {
     props: { show: { default: false, type: Boolean} },
@@ -96,7 +97,7 @@ export default {
 
             this.apiError = false;
             // TODO: test
-            this.$axios.post("api/database", this.form).then(
+            this.$axios.post("api/database", convertToQueryUrl(this.form)).then(
             response => {
                 const data = response.data;
                 this.$router.push({

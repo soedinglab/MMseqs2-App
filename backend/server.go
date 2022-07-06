@@ -208,16 +208,29 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}).Methods("POST")
 
 		r.HandleFunc("/database", func(w http.ResponseWriter, req *http.Request) {
-			err := req.ParseForm()
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
+			var path string
+			if strings.HasPrefix(req.Header.Get("Content-Type"), "application/json") {
+				type DatabaseRequest struct {
+					Path string `json:"path"`
+				}
+				var body DatabaseRequest
+				if err := DecodeJsonAndValidate(req.Body, &body); err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				path = body.Path
+			} else {
+				err := req.ParseForm()
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
 
-			path := req.FormValue("path")
+				path = req.FormValue("path")
+			}
 			ok := DeleteDatabase(filepath.Join(config.Paths.Databases, filepath.Base(path)))
 			if ok == false {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, "Delete request failed", http.StatusBadRequest)
 				return
 			}
 		}).Methods("DELETE")

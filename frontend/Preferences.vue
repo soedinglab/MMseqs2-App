@@ -95,6 +95,8 @@ import Panel from './Panel.vue';
 import NewDatabase from './NewDatabase.vue'
 import Draggable from 'vuedraggable';
 
+import { convertToQueryUrl } from './lib/convertToQueryUrl';
+
 export default {
     components: { Panel, Draggable, NewDatabase },
     data() {
@@ -124,7 +126,7 @@ export default {
         saveOrder() {
             this.inReorder = false;
             const database = this.databases.map(x => { return x.path; });
-            this.$axios.post("api/databases/order", { database }).then(
+            this.$axios.post("api/databases/order", convertToQueryUrl({ database })).then(
                 response => {
                     const data = response.data;
                     this.databases = data.databases;
@@ -133,7 +135,7 @@ export default {
         },
         deleteDatabase(path) {
             if (confirm("Are you sure?") == true) {
-                this.$axios.delete("api/database", { params: { path: path }})
+                this.$axios.delete("api/database", { data: { path } })
                     .then(() => {this.fetchData(); })
                     .catch(this.apiError);
             }
