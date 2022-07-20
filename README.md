@@ -1,6 +1,6 @@
 # MMseqs2 App and Server
 
-[MMseqs2](https://github.com/soedinglab/MMseqs2) is a software suite to search and annotate huge sequence sets. We built a graphical interface to make it more useful for interactive data exploration. Check out an live instance [here](https://search.mmseqs.com).
+[MMseqs2](https://github.com/soedinglab/MMseqs2) is a software suite to search and annotate huge sequence sets. We built a graphical interface to make it more useful for interactive data exploration. Check out a live instance [here](https://search.mmseqs.com).
 
 The application runs either:
 * on your workstation as a cross-platform desktop application with the help of the [electron framework](https://github.com/electron/electron)
@@ -17,7 +17,7 @@ Once the app is installed, open the Settings panel. There you can add either seq
 
 ## Web app quickstart with docker-compose
 
-Make sure you have `docker` (>=17.05), `docker-compose` (>=1.20.0) and `git` installed on your server.
+Make sure you have `docker`, `docker-compose` and `git` installed on your server.
 To start the MMseqs2 web server execute the following commands. Afterwards you can navigate to http://localhost:8877 on a webserver to access the interface.
 
 ``` bash

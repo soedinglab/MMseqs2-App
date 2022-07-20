@@ -6,7 +6,7 @@ Setup
 
 ### Setting up the MMseqs2 Search Server
 
-Install docker (>=17.05) and docker-compose (>=1.10.0) and git on your server.
+Install docker, docker-compose and git on your server.
 
 If you want to run multiple worker instances, make sure to either use the AUFS or overlay/overlay2 storage drivers.
 Without these, the database indices will be held multiple times in main memory and performance will degrade.
@@ -36,7 +36,7 @@ To make sure you are running the latest version of the MMseqs2 Web Server execut
 
 ```
 docker-compose pull
-docker-compose up --build
+docker-compose up
 ```
 
 ## Setting up the Example Databases
@@ -102,7 +102,7 @@ The following command will create an empty `.params` file that you can customize
 
 ```
 BASEFASTA="sequence_db"
-echo -e "{\n  \"name\": \"\",\n  \"version\": \"\",\n  \"default\": true,\n  \"order\": 0,\n  \"index\": \"\",\n  \"search\": \"\"\n}" > "${BASEFASTA}.params"
+echo -e "{\n  \"name\": \"\",\n  \"version\": \"\",\n  \"path\": \"${BASEFASTA}\",\n  \"default\": true,\n  \"order\": 0,\n  \"index\": \"\",\n  \"search\": \"\"\n}" > "${BASEFASTA}.params"
 ```
 
 Take a look at the "Params File" to customize this file.
@@ -121,7 +121,8 @@ The params file contains a JSON object file describing each search database with
   "path"    : "",           // string (optional) Database base name in the config databases folder
                             //        will be automatically resolved and thus does not need to be specified
   "default" : true,         // bool   Should the database be selected by default
-  "order"   : 0             // int    Order in which the databases appear in the frontend 
+  "order"   : 0,            // int    Order in which the databases appear in the frontend
+  "taxonomy": false,        // bool   Does the database contain taxonomic annotations
   "index"   : "-s 6",       // string (optional)
                             //   Additional parameters for MMseqs2's createindex module
                             //     -s FLOAT Decides how many k-mers to store per target in the search database
