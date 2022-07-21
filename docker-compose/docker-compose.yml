@@ -42,6 +42,19 @@ services:
     ports:
       - "${PORT}:80"
 
+  db-setup:
+    image: "ghcr.io/${REPO_OWNER}/${APP}-app-backend:${TAG}"
+    entrypoint: /usr/local/bin/setup_db.sh
+    volumes:
+      - ./setup_db.sh:/usr/local/bin/setup_db.sh:ro
+      - ./databases:/opt/mmseqs-web/databases
+    tmpfs:
+      - /tmp:exec
+    profiles:
+        - setup
+    environment:
+        - APP
+
 volumes:
   redis-volume:
 
