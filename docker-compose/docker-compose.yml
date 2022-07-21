@@ -32,6 +32,8 @@ services:
       - ./jobs:/opt/mmseqs-web/jobs
     tmpfs:
       - /tmp:exec
+    environment:
+      - MMSEQS_NUM_THREADS=${THREADS_PER_WORKER}
 
   mmseqs-web-webserver:
     image: "ghcr.io/${REPO_OWNER}/${APP}-app-frontend:${TAG}"
