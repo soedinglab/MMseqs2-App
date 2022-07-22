@@ -1,14 +1,14 @@
-#!/bin/sh -ex
-DB=${1}
-
-if [ "${DB}" = "" ]; then
+#!/bin/sh -e
+if [ "$#" = "0" ]; then
     "${APP}" databases;
     exit 0;
 fi
 
+for DB in "${@}"; do
+
 SAFE=$(echo "${DB}" | tr -cd '[a-zA-Z0-9]._-')
 if [ ! -e "/opt/mmseqs-web/databases/${SAFE}.dbtype" ]; then
-    "${APP}" databases "${DB}" "/opt/mmseqs-web/databases/${SAFE}" /tmp
+    "${APP}" databases "${DB}" "/opt/mmseqs-web/databases/${SAFE}" /tmp || continue
 fi
 
 if [ ! -e "/opt/mmseqs-web/databases/${SAFE}.idx.dbtype" ]; then
@@ -31,3 +31,4 @@ fi
 
 echo "{\n  \"status\": \"COMPLETE\",\n  \"name\": \"${DB}\",\n  \"version\": \"${VERSION}\",\n  \"path\": \"${SAFE}\",\n  \"taxonomy\": ${TAXONOMY},\n  \"default\": true,\n  \"order\": 0,\n  \"index\": \"\",\n  \"search\": \"\"\n}" > "/opt/mmseqs-web/databases/${SAFE}.params"
 
+done
