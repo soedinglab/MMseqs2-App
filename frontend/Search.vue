@@ -66,7 +66,7 @@
                                 <template v-slot:activator="{ on }">
                                     <label v-on="on">Databases&nbsp;<v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon></label>
                                 </template>
-                                <span v-if="$ELECTRON">Choose the databases to search against and the result mode.</span>
+                                <span v-if="$ELECTRON || hideEmail">Choose the databases to search against and the result mode.</span>
                                 <span v-else>Choose the databases to search against, the result mode, and optionally an email to notify you when the job is done.</span>
                             </v-tooltip>
                         </div>
@@ -103,7 +103,7 @@
                                      ></v-radio>
                         </v-radio-group>
 
-                        <v-tooltip v-if="!$ELECTRON" open-delay="300" top>
+                        <v-tooltip v-if="!$ELECTRON && !hideEmail" open-delay="300" top>
                             <template v-slot:activator="{ on }">
                                 <v-text-field v-on="on" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
                             </template>
@@ -161,6 +161,7 @@ export default {
             showCurl: false,
             mode: this.$STRINGS.MODE_DEFAULT_KEY,
             email: "",
+            hideEmail: true,
             query: this.$STRINGS.QUERY_DEFAULT,
             database: []
         };
