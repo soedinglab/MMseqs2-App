@@ -1,4 +1,4 @@
-FROM node:latest as mmseqs-web-frontend-builder
+FROM --platform=$BUILDPLATFORM node:latest as mmseqs-web-frontend-builder
 
 ARG FRONTEND_APP
 ENV FRONTEND_APP=$FRONTEND_APP
