@@ -28,7 +28,7 @@ RUN chmod -R +x binaries
 FROM debian:stable-slim
 LABEL maintainer="Milot Mirdita <milot@mirdita.de>"
 
-RUN apt-get update && apt-get install -y ca-certificates wget && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ca-certificates wget aria2 && rm -rf /var/lib/apt/lists/*
 COPY --from=builder  /opt/build/mmseqs-web /opt/build/binaries/* /usr/local/bin/
 
 ENTRYPOINT ["/usr/local/bin/mmseqs-web"]
