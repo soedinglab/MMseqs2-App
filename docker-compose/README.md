@@ -1,15 +1,14 @@
-MMseqs2 Search Server
+Search Server for MMseqs2 and Foldseek
 =====================
 
 Setup
 -----
 
-### Setting up the MMseqs2 Search Server
+### Setting up the Search Server for MMseqs2 and Foldseek
 
-Install docker, docker-compose and git on your server.
+Install `docker`, `docker-compose` and `git` on your server.
 
-If you want to run multiple worker instances, make sure to either use the AUFS or overlay/overlay2 storage drivers.
-Without these, the database indices will be held multiple times in main memory and performance will degrade.
+If you want to run multiple worker instances, make sure to either use the AUFS or overlay/overlay2 storage drivers. Without these, the database indices will be held multiple times in main memory and performance will degrade.
 
 To check out the repository, run:
 ```
