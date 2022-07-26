@@ -10,9 +10,12 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -611,7 +614,22 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 		log.Println("Using " + config.Mail.Mailer.Type + " mail transport")
 		mailer = config.Mail.Mailer.GetTransport()
 	}
+
+	var shouldExit int32 = 0
+	if config.Worker.GracefulExit {
+		go func() {
+			sig := make(chan os.Signal, 1)
+			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+			defer signal.Stop(sig)
+			<-sig
+			atomic.StoreInt32(&shouldExit, 1)
+		}()
+	}
+
 	for {
+		if config.Worker.GracefulExit && atomic.LoadInt32(&shouldExit) == 1 {
+			return
+		}
 		ticket, err := jobsystem.Dequeue()
 		if err != nil {
 			if ticket != nil {

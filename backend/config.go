@@ -34,6 +34,10 @@ var defaultFileContent = []byte(`{
         // should CORS headers be set to allow requests from anywhere
         "cors"       : true
     },
+	"worker": {
+		// should workers exit immediately after SIGINT/SIGTERM signal or gracefully wait for job completion
+		"gracefulexit": false
+	},
     // paths to workfolders and mmseqs, special character ~ is resolved relative to the binary location
     "paths" : {
         // path to mmseqs databases, has to be shared between server/workers
@@ -186,6 +190,10 @@ type ConfigRateLimit struct {
 	Reason string  `json:"reason"`
 }
 
+type ConfigWorker struct {
+	GracefulExit bool `json:"gracefulexit"`
+}
+
 type ConfigServer struct {
 	Address     string           `json:"address" validate:"required"`
 	PathPrefix  string           `json:"pathprefix"`
@@ -207,6 +215,7 @@ const (
 type ConfigRoot struct {
 	App     ConfigApp    `json:"app" validate:"oneof=mmseqs foldseek colabfold predictprotein"`
 	Server  ConfigServer `json:"server" validate:"required"`
+	Worker  ConfigWorker `json:"worker"`
 	Paths   ConfigPaths  `json:"paths" validate:"required"`
 	Redis   ConfigRedis  `json:"redis"`
 	Local   ConfigLocal  `json:"local"`

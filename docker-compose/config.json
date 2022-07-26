@@ -6,6 +6,9 @@
         "dbmanagment": false,
         "cors"       : true
     },
+    "worker": {
+        "gracefulexit" : true
+    },
     "paths" : {
         "databases"    : "/opt/mmseqs-web/databases",
         "results"      : "/opt/mmseqs-web/jobs",
