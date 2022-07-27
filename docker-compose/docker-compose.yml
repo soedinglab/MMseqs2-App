@@ -1,4 +1,4 @@
-version: '2.4'
+version: '3.7'
 
 services:
   mmseqs-web-redis:
@@ -16,8 +16,8 @@ services:
       - "3000"
     volumes:
       - ./config.json:/etc/mmseqs-web/config.json:ro
-      - ./databases:/opt/mmseqs-web/databases
-      - ./jobs:/opt/mmseqs-web/jobs
+      - ${DB_PATH}:/opt/mmseqs-web/databases
+      - ${JOBS_PATH}:/opt/mmseqs-web/jobs
 
   mmseqs-web-worker:
     image: "ghcr.io/${REPO_OWNER}/${APP}-app-backend:${TAG}"
@@ -28,8 +28,8 @@ services:
       - mmseqs-web-redis
     volumes:
       - ./config.json:/etc/mmseqs-web/config.json:ro
-      - ./databases:/opt/mmseqs-web/databases
-      - ./jobs:/opt/mmseqs-web/jobs
+      - ${DB_PATH}:/opt/mmseqs-web/databases
+      - ${JOBS_PATH}:/opt/mmseqs-web/jobs
     tmpfs:
       - /tmp:exec
     environment:
@@ -49,13 +49,13 @@ services:
     entrypoint: /usr/local/bin/setup_db.sh
     volumes:
       - ./setup_db.sh:/usr/local/bin/setup_db.sh:ro
-      - ./databases:/opt/mmseqs-web/databases
+      - ${DB_PATH}:/opt/mmseqs-web/databases
     tmpfs:
       - /tmp:exec
     profiles:
-        - setup
+      - setup
     environment:
-        - APP
+      - APP
 
 volumes:
   redis-volume:
