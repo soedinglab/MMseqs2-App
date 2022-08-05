@@ -106,6 +106,11 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				parameters = append(parameters, "--greedy-best-hits")
 			}
 
+			if params.Taxonomy && job.TaxFilter != "" {
+				parameters = append(parameters, "--taxon-list")
+				parameters = append(parameters, job.TaxFilter)
+			}
+
 			cmd, done, err := execCommand(config.Verbose, parameters...)
 			if err != nil {
 				return &JobExecutionError{err}
@@ -182,6 +187,11 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 
 			if job.Mode == "summary" {
 				parameters = append(parameters, "--greedy-best-hits")
+			}
+
+			if params.Taxonomy && job.TaxFilter != "" {
+				parameters = append(parameters, "--taxon-list")
+				parameters = append(parameters, job.TaxFilter)
 			}
 
 			cmd, done, err := execCommand(config.Verbose, parameters...)

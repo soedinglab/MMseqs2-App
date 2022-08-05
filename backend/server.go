@@ -241,6 +241,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		var dbs []string
 		var mode string
 		var email string
+		var taxfilter string
 
 		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
 			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
@@ -261,6 +262,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
+			taxfilter = req.FormValue("taxfilter")
 		} else {
 			err := req.ParseForm()
 			if err != nil {
@@ -271,6 +273,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
+			taxfilter = req.FormValue("taxfilter")
 		}
 
 		databases, err := Databases(config.Paths.Databases, true)
@@ -281,9 +284,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		var request JobRequest
 		if config.App == AppMMseqs2 {
-			request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email)
+			request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
 		} else if config.App == AppFoldSeek {
-			request, err = NewStructureSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email)
+			request, err = NewStructureSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
 		} else {
 			http.Error(w, "Job type not supported by this server", http.StatusBadRequest)
 			return

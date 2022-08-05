@@ -103,6 +103,8 @@
                                      ></v-radio>
                         </v-radio-group>
 
+                        <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete>
+
                         <v-tooltip v-if="!$ELECTRON && !hideEmail" open-delay="300" top>
                             <template v-slot:activator="{ on }">
                                 <v-text-field v-on="on" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
@@ -140,6 +142,7 @@ import FileButton from "./FileButton.vue";
 import LoadAcessionButton from './LoadAcessionButton.vue';
 import { gzip } from 'pako';
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
+import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
 
 let localStorageEnabled = false;
 try {
@@ -150,7 +153,7 @@ try {
 
 export default {
     name: "search",
-    components: { Panel, FileButton, LoadAcessionButton },
+    components: { Panel, FileButton, LoadAcessionButton, TaxonomyAutocomplete },
     data() {
         return {
             dberror: false,
@@ -163,7 +166,8 @@ export default {
             email: "",
             hideEmail: true,
             query: this.$STRINGS.QUERY_DEFAULT,
-            database: []
+            database: [],
+            taxFilter: null
         };
     },
     mounted() {
@@ -181,6 +185,9 @@ export default {
         }
         if (localStorageEnabled && localStorage.databases) {
             this.databases = JSON.parse(localStorage.databases);
+        }
+        if (localStorageEnabled && localStorage.taxFilter) {
+            this.taxFilter = JSON.parse(localStorage.taxFilter);
         }
     },
     computed: {
@@ -221,6 +228,11 @@ export default {
         databases(value) {
             if (localStorageEnabled) {
                 localStorage.databases = JSON.stringify(value);
+            }
+        },
+        taxFilter(value) {
+            if (localStorageEnabled) {
+                localStorage.taxFilter = JSON.stringify(value);
             }
         },
     },
@@ -276,6 +288,9 @@ export default {
             }
             if (__ELECTRON__) {
                 data.email = "";
+            }
+            if (this.taxFilter) {
+                data.taxfilter = this.taxFilter.value;
             }
             this.inSearch = true;
             this.$axios.post("api/ticket", convertToQueryUrl(data), {
