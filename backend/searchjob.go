@@ -65,7 +65,7 @@ func isIn(num string, params []string) int {
 	return -1
 }
 
-var validTaxonFilter = regexp.MustCompile(`^[0-9]+(,!?[0-9]+)*$`).MatchString
+var validTaxonFilter = regexp.MustCompile(`^[0-9]+(,!?[0-9]+)*$|^$`).MatchString
 
 func NewSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, taxfilter string) (JobRequest, error) {
 	job := SearchJob{
