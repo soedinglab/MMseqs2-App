@@ -246,8 +246,9 @@ export default {
             else this.setSelectionData(this.alignment.dbStartPos, this.alignment.dbEndPos)
         },
         setQuerySelection() {
-            this.queryRepr.setSelection(this.queryChainSele)
-            this.queryRepr.parent.autoView(this.queryChainSele)
+            this.queryRepr.setSelection(this.querySele)
+            this.queryRepr.parent.autoView(this.querySele)
+            console.log("querySele", this.querySele);
         },
         // Update arrow shape on shape update
         renderArrows() {
@@ -299,13 +300,15 @@ export default {
     },
     computed: {
         queryChainId: function() { return this.queryChain.charCodeAt(0) - 'A'.charCodeAt(0) },
-        queryChainSele: function() { return (this.showFullQuery) ? '' :
-            `(:${this.queryChain.toUpperCase()} OR :${this.queryChain.toLowerCase()})` },
+        queryChainSele: function() { return `(:${this.queryChain.toUpperCase()} OR :${this.queryChain.toLowerCase()})` },
         querySubSele: function() {
             if (!this.queryChainSele || !this.qChainResMap) return ''
             let start = `${this.qChainResMap.get(this.alignment.qStartPos).resno}`
             let end = `${this.qChainResMap.get(this.alignment.qEndPos).resno}`
             return `${start}-${end} AND ${this.queryChainSele}`
+        },
+        querySele: function() {
+            return (this.showFullQuery) ? '' : this.querySubSele;
         },
         tmPanelBindings: function() {
             return (this.isFullscreen) ? { 'style': 'margin-top: 10px; font-size: 2em;' } : {  }
@@ -337,7 +340,11 @@ export default {
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
         ]).then(([qResponse, tPdb]) => {
             // Can grab the query chain from the raw response data (22nd character in row)
-            this.qChain = qResponse.data[21];
+            const regex = /^ATOM\s.{16}(?<chain>[a-zA-Z])/m;
+            const match = qResponse.data.match(regex);
+            this.queryChain = match.groups.chain;
+
+            console.log("queryChain", this.queryChain);
             Promise.all([
                 this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
@@ -360,7 +367,7 @@ export default {
             })
             .then(([query, target]) => {
                 // Map 1-based indices to residue index/resno; only need for query structure
-                this.qChainResMap = makeChainMap(query.structure, this.queryChainSele)
+                this.qChainResMap = makeChainMap(query.structure, this.querySele)
                 this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
 
                 // Generate subsetted PDBs for TM-align
