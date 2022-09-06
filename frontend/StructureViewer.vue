@@ -175,7 +175,7 @@ export default {
         'showFullQuery': false,
         'showArrows': false,
         'selection': null,
-        'queryChain': 'A',
+        'queryChain': '',
         'qChainResMap': null,
         'isFullscreen': false,
         'tmAlignResults': null,
@@ -325,10 +325,6 @@ export default {
             }
         }
     },
-    beforeMount() {
-        let qChain = this.alignment.query.match(/_([A-Z]+?)/gm)
-        if (qChain) this.queryChain = qChain[0].replace('_', '')
-    },
     mounted() {
         const bgColor = this.$vuetify.theme.dark ? this.bgColourDark : this.bgColourLight;
         const ambientIntensity = this.$vuetify.theme.dark ? 0.4 : 0.2;
@@ -340,6 +336,8 @@ export default {
             this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
         ]).then(([qResponse, tPdb]) => {
+            // Can grab the query chain from the raw response data (22nd character in row)
+            this.qChain = qResponse.data[21];
             Promise.all([
                 this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
