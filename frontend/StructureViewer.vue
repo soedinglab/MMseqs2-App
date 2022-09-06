@@ -248,7 +248,6 @@ export default {
         setQuerySelection() {
             this.queryRepr.setSelection(this.querySele)
             this.queryRepr.parent.autoView(this.querySele)
-            console.log("querySele", this.querySele);
         },
         // Update arrow shape on shape update
         renderArrows() {
@@ -344,7 +343,6 @@ export default {
             const match = qResponse.data.match(regex);
             this.queryChain = match.groups.chain;
 
-            console.log("queryChain", this.queryChain);
             Promise.all([
                 this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
