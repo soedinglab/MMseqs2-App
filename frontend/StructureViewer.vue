@@ -341,7 +341,7 @@ export default {
             // Can grab the query chain from the raw response data (22nd character in row)
             const regex = /^ATOM\s.{16}(?<chain>[a-zA-Z])/m;
             const match = qResponse.data.match(regex);
-            this.queryChain = match.groups.chain;
+            if (match) this.queryChain = match.groups.chain;
 
             Promise.all([
                 this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
