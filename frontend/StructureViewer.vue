@@ -247,7 +247,7 @@ export default {
         },
         setQuerySelection() {
             this.queryRepr.setSelection(this.querySele)
-            this.queryRepr.parent.autoView(this.querySele)
+            this.queryRepr.parent.autoView()
         },
         // Update arrow shape on shape update
         renderArrows() {
