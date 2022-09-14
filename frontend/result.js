@@ -319,10 +319,10 @@ function alnHTML(queryData, alignment) {
         showFullQuery: false,
         showFullTarget: false,
         tSele: [ alignment["dbStartPos"], alignment["dbEndPos"] ],
-        queryAlignedColour: "#999999",
-        queryUnalignedColour: "white",
-        targetAlignedColour: "red",
-        targetUnalignedColour: "#ff9999",
+        queryAlignedColour: "#1E88E5",
+        queryUnalignedColour: "#A5CFF5",
+        targetAlignedColour: "#FFC107",
+        targetUnalignedColour: "#FFE699",
     }
     var lines = formatAln(alignment, config.lineLen, qAlnToSeq, tAlnToSeq)
 
