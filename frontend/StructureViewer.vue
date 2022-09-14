@@ -66,10 +66,11 @@
 </template>
 
 <script>
-import { Shape, Stage, Selection, download } from 'ngl';
+import { Shape, Stage, Selection, download, ColormakerRegistry } from 'ngl';
 import Panel from './Panel.vue';
 import { pulchra } from 'pulchra-wasm';
 import { tmalign, parse, parseMatrix } from 'tmalign-wasm';
+
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
 function createArrows(matches) {
@@ -185,8 +186,12 @@ export default {
         'queryFile': String,
         'qColour': { type: String, default: "white" },
         'tColour': { type: String, default: "red" },
-        'qRepr': { type: String, default: "ribbon" },
-        'tRepr': { type: String, default: "ribbon" },
+        'queryAlignedColour': { type: String, default: "#999999" },
+        'queryUnalignedColour': { type: String, default: "white" },
+        'targetAlignedColour': { type: String, default: "red" },
+        'targetUnalignedColour': { type: String, default: "#ff9999" },
+        'qRepr': { type: String, default: "cartoon" },
+        'tRepr': { type: String, default: "cartoon" },
         'bgColourLight': { type: String, default: "white" },
         'bgColourDark': { type: String, default: "#eee" },
         'queryMap': { type: Map, default: null },
@@ -309,6 +314,10 @@ export default {
         querySele: function() {
             return (this.showFullQuery) ? '' : this.querySubSele;
         },
+        targetSele: function() {
+            if (!this.selection) return ''
+            return `${this.selection[0]}-${this.selection[1]}`;
+        },
         tmPanelBindings: function() {
             return (this.isFullscreen) ? { 'style': 'margin-top: 10px; font-size: 2em;' } : {  }
         },
@@ -368,6 +377,16 @@ export default {
                 this.qChainResMap = makeChainMap(query.structure, this.querySele)
                 this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
 
+                // Generate colourschemes for query/target based on alignment
+                this.querySchemeId = ColormakerRegistry.addSelectionScheme([
+                    [this.queryAlignedColour, this.querySubSele],
+                    [this.queryUnalignedColour, "*"],
+                ], "_queryScheme")
+                this.targetSchemeId = ColormakerRegistry.addSelectionScheme([
+                    [this.targetAlignedColour, `${this.alignment.dbStartPos}-${this.alignment.dbEndPos}`],
+                    [this.targetUnalignedColour, "*"]
+                ], "_targetScheme")
+
                 // Generate subsetted PDBs for TM-align
                 let qSubPdb = makeSubPDB(query.structure, this.querySubSele)
                 let tSubPdb = makeSubPDB(target.structure, `${this.alignment.dbStartPos}-${this.alignment.dbEndPos}`)
@@ -379,11 +398,8 @@ export default {
                     this.tmAlignResults = parse(out.output)
                     let { t, u } = parseMatrix(out.matrix)
                     transformStructure(target.structure, t, u)
-                    this.queryRepr = query.addRepresentation(this.qRepr, {color: this.qColour})
-                    this.targetRepr = target.addRepresentation(
-                        this.tRepr,
-                        {color: this.tColour, colorScheme: 'uniform'}
-                    )
+                    this.queryRepr = query.addRepresentation(this.qRepr, {color: this.querySchemeId})
+                    this.targetRepr = target.addRepresentation(this.tRepr, {color: this.targetSchemeId})
                 }).then(() => {
                     query.autoView()
                     this.setSelection(this.showTarget)
