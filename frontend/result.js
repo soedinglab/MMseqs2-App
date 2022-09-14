@@ -452,15 +452,15 @@ function alnHTML(queryData, alignment) {
                 tAlnToSeq
             )
 
-						// Generate colourschemes for query/target based on alignment
-						let querySchemeId = ColormakerRegistry.addSelectionScheme([
-								[config.queryAlignedColour, qSele],
-								[config.queryUnalignedColour, "*"],
-						], "_queryScheme")
-						let targetSchemeId = ColormakerRegistry.addSelectionScheme([
-								[config.targetAlignedColour, `${alignment['dbStartPos']}-${alignment['dbEndPos']}`],
-								[config.targetUnalignedColour, "*"]
-						], "_targetScheme")
+            // Generate colourschemes for query/target based on alignment
+            let querySchemeId = ColormakerRegistry.addSelectionScheme([
+                [config.queryAlignedColour, qSele],
+                [config.queryUnalignedColour, "*"],
+            ], "_queryScheme")
+            let targetSchemeId = ColormakerRegistry.addSelectionScheme([
+                [config.targetAlignedColour, `${alignment['dbStartPos']}-${alignment['dbEndPos']}`],
+                [config.targetUnalignedColour, "*"]
+            ], "_targetScheme")
 
             // Subset PDBs to only include residues in alignment
             let qSubPdb = makeSubPDB(query.structure, qSele)
