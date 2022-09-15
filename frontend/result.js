@@ -1,7 +1,7 @@
 require('./lib/d3/d3');
 import feature from './lib/feature-viewer/feature-viewer.js';
 
-import { Shape, Stage, Selection, download } from 'ngl';
+import { Shape, Stage, Selection, download, ColormakerRegistry } from 'ngl';
 
 const MDIDownload = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="24" height="24" viewBox="0 0 24 24"><path d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M12,19L8,15H10.5V12H13.5V15H16L12,19Z" /></svg>'
 const MDICircle = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="24" height="24" viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" /></svg>'
@@ -308,11 +308,6 @@ async function loadWASM() {
 
 // Draw alignment panel and structure viewer
 function alnHTML(queryData, alignment) {
-    // Prep data...
-    // Grab chain of query from its accession (_A, _B, etc)
-    let qChain = queryData.accession.match(/_([A-Z]+?)/gm)
-    if (qChain) qChain = qChain[0].replace('_', '')
-
     // Map alignment indices to sequence indices
     let qAlnToSeq = makePositionMap(alignment["qStartPos"], alignment["qAln"]);
     let tAlnToSeq = makePositionMap(alignment["dbStartPos"], alignment["dbAln"]);
@@ -323,7 +318,11 @@ function alnHTML(queryData, alignment) {
         showArrows: false,
         showFullQuery: false,
         showFullTarget: false,
-        tSele: [ alignment["dbStartPos"], alignment["dbEndPos"] ]
+        tSele: [ alignment["dbStartPos"], alignment["dbEndPos"] ],
+        queryAlignedColor: "#1E88E5",
+        queryUnalignedColor: "#A5CFF5",
+        targetAlignedColor: "#FFC107",
+        targetUnalignedColor: "#FFE699",
     }
     var lines = formatAln(alignment, config.lineLen, qAlnToSeq, tAlnToSeq)
 
@@ -453,6 +452,16 @@ function alnHTML(queryData, alignment) {
                 tAlnToSeq
             )
 
+            // Generate colorschemes for query/target based on alignment
+            let querySchemeId = ColormakerRegistry.addSelectionScheme([
+                [config.queryAlignedColor, qSele],
+                [config.queryUnalignedColor, "*"],
+            ], "_queryScheme")
+            let targetSchemeId = ColormakerRegistry.addSelectionScheme([
+                [config.targetAlignedColor, `${alignment['dbStartPos']}-${alignment['dbEndPos']}`],
+                [config.targetUnalignedColor, "*"]
+            ], "_targetScheme")
+
             // Subset PDBs to only include residues in alignment
             let qSubPdb = makeSubPDB(query.structure, qSele)
             let tSubPdb = makeSubPDB(target.structure, `${alignment["dbStartPos"]}-${alignment["dbEndPos"]}`)
@@ -535,8 +544,8 @@ function alnHTML(queryData, alignment) {
                 // viz will look bugged out
                 if (tmAlignResults.tmScore === 1)
                     offsetStructure(target.structure, 0.1)
-                qRepr = query.addRepresentation('cartoon', {color: 'lightgrey'})
-                tRepr = target.addRepresentation('cartoon', {color: 'red'})
+                qRepr = query.addRepresentation('cartoon', {color: querySchemeId})
+                tRepr = target.addRepresentation('cartoon', {color: targetSchemeId})
                 qRepr.setSelection(proxy.showFullQuery ? '' : qSele)
                 tRepr.setSelection(proxy.showFullTarget ? '' : `${proxy.tSele[0]}-${proxy.tSele[1]}`)
                 structureTMScore.replaceChildren([`TM-Score: ${tmAlignResults.tmScore}`])

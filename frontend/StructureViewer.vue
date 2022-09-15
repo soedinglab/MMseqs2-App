@@ -66,10 +66,11 @@
 </template>
 
 <script>
-import { Shape, Stage, Selection, download } from 'ngl';
+import { Shape, Stage, Selection, download, ColormakerRegistry } from 'ngl';
 import Panel from './Panel.vue';
 import { pulchra } from 'pulchra-wasm';
 import { tmalign, parse, parseMatrix } from 'tmalign-wasm';
+
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
 function createArrows(matches) {
@@ -175,7 +176,7 @@ export default {
         'showFullQuery': false,
         'showArrows': false,
         'selection': null,
-        'queryChain': 'A',
+        'queryChain': '',
         'qChainResMap': null,
         'isFullscreen': false,
         'tmAlignResults': null,
@@ -183,12 +184,16 @@ export default {
     props: {
         'alignment': Object,
         'queryFile': String,
-        'qColour': { type: String, default: "white" },
-        'tColour': { type: String, default: "red" },
-        'qRepr': { type: String, default: "ribbon" },
-        'tRepr': { type: String, default: "ribbon" },
-        'bgColourLight': { type: String, default: "white" },
-        'bgColourDark': { type: String, default: "#eee" },
+        'qColor': { type: String, default: "white" },
+        'tColor': { type: String, default: "red" },
+        'queryAlignedColor': { type: String, default: "#1E88E5" },
+        'queryUnalignedColor': { type: String, default: "#A5CFF5" },
+        'targetAlignedColor': { type: String, default: "#FFC107" },
+        'targetUnalignedColor': { type: String, default: "#FFE699" },
+        'qRepr': { type: String, default: "cartoon" },
+        'tRepr': { type: String, default: "cartoon" },
+        'bgColorLight': { type: String, default: "white" },
+        'bgColorDark': { type: String, default: "#eee" },
         'queryMap': { type: Map, default: null },
         'targetMap': { type: Map, default: null },
     },
@@ -246,8 +251,8 @@ export default {
             else this.setSelectionData(this.alignment.dbStartPos, this.alignment.dbEndPos)
         },
         setQuerySelection() {
-            this.queryRepr.setSelection(this.queryChainSele)
-            this.queryRepr.parent.autoView(this.queryChainSele)
+            this.queryRepr.setSelection(this.querySele)
+            this.queryRepr.parent.autoView()
         },
         // Update arrow shape on shape update
         renderArrows() {
@@ -299,13 +304,19 @@ export default {
     },
     computed: {
         queryChainId: function() { return this.queryChain.charCodeAt(0) - 'A'.charCodeAt(0) },
-        queryChainSele: function() { return (this.showFullQuery) ? '' :
-            `(:${this.queryChain.toUpperCase()} OR :${this.queryChain.toLowerCase()})` },
+        queryChainSele: function() { return `(:${this.queryChain.toUpperCase()} OR :${this.queryChain.toLowerCase()})` },
         querySubSele: function() {
             if (!this.queryChainSele || !this.qChainResMap) return ''
             let start = `${this.qChainResMap.get(this.alignment.qStartPos).resno}`
             let end = `${this.qChainResMap.get(this.alignment.qEndPos).resno}`
             return `${start}-${end} AND ${this.queryChainSele}`
+        },
+        querySele: function() {
+            return (this.showFullQuery) ? '' : this.querySubSele;
+        },
+        targetSele: function() {
+            if (!this.selection) return ''
+            return `${this.selection[0]}-${this.selection[1]}`;
         },
         tmPanelBindings: function() {
             return (this.isFullscreen) ? { 'style': 'margin-top: 10px; font-size: 2em;' } : {  }
@@ -325,12 +336,8 @@ export default {
             }
         }
     },
-    beforeMount() {
-        let qChain = this.alignment.query.match(/_([A-Z]+?)/gm)
-        if (qChain) this.queryChain = qChain[0].replace('_', '')
-    },
     mounted() {
-        const bgColor = this.$vuetify.theme.dark ? this.bgColourDark : this.bgColourLight;
+        const bgColor = this.$vuetify.theme.dark ? this.bgColorDark : this.bgColorLight;
         const ambientIntensity = this.$vuetify.theme.dark ? 0.4 : 0.2;
         if (typeof(this.alignment.tCa) == "undefined")
             return;
@@ -340,6 +347,11 @@ export default {
             this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
         ]).then(([qResponse, tPdb]) => {
+            // Can grab the query chain from the raw response data (22nd character in row)
+            const regex = /^ATOM\s.{16}(?<chain>[a-zA-Z])/m;
+            const match = qResponse.data.match(regex);
+            if (match) this.queryChain = match.groups.chain;
+
             Promise.all([
                 this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
@@ -362,8 +374,18 @@ export default {
             })
             .then(([query, target]) => {
                 // Map 1-based indices to residue index/resno; only need for query structure
-                this.qChainResMap = makeChainMap(query.structure, this.queryChainSele)
+                this.qChainResMap = makeChainMap(query.structure, this.querySele)
                 this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
+
+                // Generate colorschemes for query/target based on alignment
+                this.querySchemeId = ColormakerRegistry.addSelectionScheme([
+                    [this.queryAlignedColor, this.querySubSele],
+                    [this.queryUnalignedColor, "*"],
+                ], "_queryScheme")
+                this.targetSchemeId = ColormakerRegistry.addSelectionScheme([
+                    [this.targetAlignedColor, `${this.alignment.dbStartPos}-${this.alignment.dbEndPos}`],
+                    [this.targetUnalignedColor, "*"]
+                ], "_targetScheme")
 
                 // Generate subsetted PDBs for TM-align
                 let qSubPdb = makeSubPDB(query.structure, this.querySubSele)
@@ -376,11 +398,8 @@ export default {
                     this.tmAlignResults = parse(out.output)
                     let { t, u } = parseMatrix(out.matrix)
                     transformStructure(target.structure, t, u)
-                    this.queryRepr = query.addRepresentation(this.qRepr, {color: this.qColour})
-                    this.targetRepr = target.addRepresentation(
-                        this.tRepr,
-                        {color: this.tColour, colorScheme: 'uniform'}
-                    )
+                    this.queryRepr = query.addRepresentation(this.qRepr, {color: this.querySchemeId})
+                    this.targetRepr = target.addRepresentation(this.tRepr, {color: this.targetSchemeId})
                 }).then(() => {
                     query.autoView()
                     this.setSelection(this.showTarget)
