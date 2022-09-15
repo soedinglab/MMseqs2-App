@@ -304,12 +304,16 @@ export default {
     },
     computed: {
         queryChainId: function() { return this.queryChain.charCodeAt(0) - 'A'.charCodeAt(0) },
-        queryChainSele: function() { return `(:${this.queryChain.toUpperCase()} OR :${this.queryChain.toLowerCase()})` },
+        queryChainSele: function() {
+            return (this.queryChain) ? `(:${this.queryChain.toUpperCase()} OR :${this.queryChain.toLowerCase()})` : '';
+        },
         querySubSele: function() {
-            if (!this.queryChainSele || !this.qChainResMap) return ''
+            if (!this.qChainResMap) return ''
             let start = `${this.qChainResMap.get(this.alignment.qStartPos).resno}`
             let end = `${this.qChainResMap.get(this.alignment.qEndPos).resno}`
-            return `${start}-${end} AND ${this.queryChainSele}`
+            let sele = `${start}-${end}`
+            if (this.queryChain) sele = `${sele} AND ${this.queryChainSele}`
+            return sele
         },
         querySele: function() {
             return (this.showFullQuery) ? '' : this.querySubSele;
@@ -336,6 +340,10 @@ export default {
             }
         }
     },
+    beforeMount() {
+        let qChain = this.alignment.query.match(/_([A-Z]+?)/m)
+        if (qChain) this.queryChain = qChain[0].replace('_', '')
+    },
     mounted() {
         const bgColor = this.$vuetify.theme.dark ? this.bgColorDark : this.bgColorLight;
         const ambientIntensity = this.$vuetify.theme.dark ? 0.4 : 0.2;
@@ -347,11 +355,6 @@ export default {
             this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
         ]).then(([qResponse, tPdb]) => {
-            // Can grab the query chain from the raw response data (22nd character in row)
-            const regex = /^ATOM\s.{16}(?<chain>[a-zA-Z])/m;
-            const match = qResponse.data.match(regex);
-            if (match) this.queryChain = match.groups.chain;
-
             Promise.all([
                 this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
@@ -374,7 +377,7 @@ export default {
             })
             .then(([query, target]) => {
                 // Map 1-based indices to residue index/resno; only need for query structure
-                this.qChainResMap = makeChainMap(query.structure, this.querySele)
+                this.qChainResMap = makeChainMap(query.structure, this.queryChainSele)
                 this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
 
                 // Generate colorschemes for query/target based on alignment
