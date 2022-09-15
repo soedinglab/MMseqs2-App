@@ -319,10 +319,10 @@ function alnHTML(queryData, alignment) {
         showFullQuery: false,
         showFullTarget: false,
         tSele: [ alignment["dbStartPos"], alignment["dbEndPos"] ],
-        queryAlignedColour: "#1E88E5",
-        queryUnalignedColour: "#A5CFF5",
-        targetAlignedColour: "#FFC107",
-        targetUnalignedColour: "#FFE699",
+        queryAlignedColor: "#1E88E5",
+        queryUnalignedColor: "#A5CFF5",
+        targetAlignedColor: "#FFC107",
+        targetUnalignedColor: "#FFE699",
     }
     var lines = formatAln(alignment, config.lineLen, qAlnToSeq, tAlnToSeq)
 
@@ -452,14 +452,14 @@ function alnHTML(queryData, alignment) {
                 tAlnToSeq
             )
 
-            // Generate colourschemes for query/target based on alignment
+            // Generate colorschemes for query/target based on alignment
             let querySchemeId = ColormakerRegistry.addSelectionScheme([
-                [config.queryAlignedColour, qSele],
-                [config.queryUnalignedColour, "*"],
+                [config.queryAlignedColor, qSele],
+                [config.queryUnalignedColor, "*"],
             ], "_queryScheme")
             let targetSchemeId = ColormakerRegistry.addSelectionScheme([
-                [config.targetAlignedColour, `${alignment['dbStartPos']}-${alignment['dbEndPos']}`],
-                [config.targetUnalignedColour, "*"]
+                [config.targetAlignedColor, `${alignment['dbStartPos']}-${alignment['dbEndPos']}`],
+                [config.targetUnalignedColor, "*"]
             ], "_targetScheme")
 
             // Subset PDBs to only include residues in alignment

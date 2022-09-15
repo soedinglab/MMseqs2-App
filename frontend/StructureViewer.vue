@@ -184,16 +184,16 @@ export default {
     props: {
         'alignment': Object,
         'queryFile': String,
-        'qColour': { type: String, default: "white" },
-        'tColour': { type: String, default: "red" },
-        'queryAlignedColour': { type: String, default: "#1E88E5" },
-        'queryUnalignedColour': { type: String, default: "#A5CFF5" },
-        'targetAlignedColour': { type: String, default: "#FFC107" },
-        'targetUnalignedColour': { type: String, default: "#FFE699" },
+        'qColor': { type: String, default: "white" },
+        'tColor': { type: String, default: "red" },
+        'queryAlignedColor': { type: String, default: "#1E88E5" },
+        'queryUnalignedColor': { type: String, default: "#A5CFF5" },
+        'targetAlignedColor': { type: String, default: "#FFC107" },
+        'targetUnalignedColor': { type: String, default: "#FFE699" },
         'qRepr': { type: String, default: "cartoon" },
         'tRepr': { type: String, default: "cartoon" },
-        'bgColourLight': { type: String, default: "white" },
-        'bgColourDark': { type: String, default: "#eee" },
+        'bgColorLight': { type: String, default: "white" },
+        'bgColorDark': { type: String, default: "#eee" },
         'queryMap': { type: Map, default: null },
         'targetMap': { type: Map, default: null },
     },
@@ -337,7 +337,7 @@ export default {
         }
     },
     mounted() {
-        const bgColor = this.$vuetify.theme.dark ? this.bgColourDark : this.bgColourLight;
+        const bgColor = this.$vuetify.theme.dark ? this.bgColorDark : this.bgColorLight;
         const ambientIntensity = this.$vuetify.theme.dark ? 0.4 : 0.2;
         if (typeof(this.alignment.tCa) == "undefined")
             return;
@@ -377,14 +377,14 @@ export default {
                 this.qChainResMap = makeChainMap(query.structure, this.querySele)
                 this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
 
-                // Generate colourschemes for query/target based on alignment
+                // Generate colorschemes for query/target based on alignment
                 this.querySchemeId = ColormakerRegistry.addSelectionScheme([
-                    [this.queryAlignedColour, this.querySubSele],
-                    [this.queryUnalignedColour, "*"],
+                    [this.queryAlignedColor, this.querySubSele],
+                    [this.queryUnalignedColor, "*"],
                 ], "_queryScheme")
                 this.targetSchemeId = ColormakerRegistry.addSelectionScheme([
-                    [this.targetAlignedColour, `${this.alignment.dbStartPos}-${this.alignment.dbEndPos}`],
-                    [this.targetUnalignedColour, "*"]
+                    [this.targetAlignedColor, `${this.alignment.dbStartPos}-${this.alignment.dbEndPos}`],
+                    [this.targetUnalignedColor, "*"]
                 ], "_targetScheme")
 
                 // Generate subsetted PDBs for TM-align
