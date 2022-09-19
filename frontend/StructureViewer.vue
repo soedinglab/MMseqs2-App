@@ -355,6 +355,16 @@ export default {
             this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
         ]).then(([qResponse, tPdb]) => {
+            // Sanitize PDB in case of lines with too few characters
+            let data = '';
+            for (let line of qResponse.data.split('\n')) {
+                let numCols = Math.max(0, 80 - line.length);
+                let newLine = line + ' '.repeat(numCols) + '\n';
+                data += newLine
+            }
+            qResponse.data = data;
+            return [qResponse, tPdb];
+        }).then(([qResponse, tPdb]) => {
             Promise.all([
                 this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
@@ -404,9 +414,9 @@ export default {
                     this.queryRepr = query.addRepresentation(this.qRepr, {color: this.querySchemeId})
                     this.targetRepr = target.addRepresentation(this.tRepr, {color: this.targetSchemeId})
                 }).then(() => {
-                    query.autoView()
                     this.setSelection(this.showTarget)
                     this.setQuerySelection()
+                    query.autoView()
                 })
             })
         })
