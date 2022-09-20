@@ -26,6 +26,17 @@ type DatabaseResponse struct {
 	Databases []Params `json:"databases"`
 }
 
+func CorsCache(h http.Handler, maxAge int) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+			strAge := strconv.Itoa(maxAge)
+			w.Header().Set("Cache-Control", "public, max-age="+strAge)
+			w.Header().Set("Access-Control-Max-Age", strAge)
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
 func server(jobsystem JobSystem, config ConfigRoot) {
 	go func() {
 		databases, err := Databases(config.Paths.Databases, false)
@@ -730,6 +741,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	if config.Server.CORS {
 		c := cors.AllowAll()
 		h = c.Handler(h)
+		h = CorsCache(h, 86400)
 	}
 
 	srv := &http.Server{
