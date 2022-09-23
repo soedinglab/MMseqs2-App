@@ -83,7 +83,7 @@ function getRange(map, start, end) {
 function formatAln(alignment, lineLen, queryMap, targetMap) {
     const { qAln, dbAln, qStartPos, dbStartPos, alnLen } = alignment
     const lines = []
-    for (let i = 1; i < Math.max(2, Math.ceil(alnLen / lineLen)); i++) {
+    for (let i = 1; i <= Math.max(2, Math.ceil(alnLen / lineLen)); i++) {
         const qStart = getFirstResidueNumber(queryMap, i, lineLen)
         const tStart = getFirstResidueNumber(targetMap, i, lineLen)
         const maxLen = (Math.max(qStartPos, dbStartPos) + alnLen+"").length
