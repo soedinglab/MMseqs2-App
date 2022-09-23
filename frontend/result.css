@@ -146,7 +146,6 @@ th {
 }
 .alignment-wrapper1 {
   display: flex;
-  justify-content: center;
   align-items: center;
 }
 .alignment-wrapper2 {
