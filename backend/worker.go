@@ -280,6 +280,7 @@ USE_ENV="$8"
 USE_TEMPLATES="$9"
 FILTER="${10}"
 TAXONOMY="${11}"
+M8OUT="${12}"
 EXPAND_EVAL=inf
 ALIGN_EVAL=10
 DIFF=3000
@@ -304,7 +305,13 @@ mkdir -p "${BASE}"
 "${MMSEQS}" lndb "${BASE}/qdb_h" "${BASE}/prof_res_h"
 "${MMSEQS}" align "${BASE}/prof_res" "${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e ${ALIGN_EVAL} --max-accept ${MAX_ACCEPT} --alt-ali 10 -a
 "${MMSEQS}" filterresult "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_filter" --db-load-mode 2 --qid 0 --qsc $QSC --diff 0 --max-seq-id 1.0 --filter-min-enable 100
-"${MMSEQS}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_filter" "${BASE}/uniref.a3m" --msa-format-mode 6 --db-load-mode 2 ${FILTER_PARAM}
+if [ "${M8OUT}" = "1" ]; then
+  "${MMSEQS}" filterresult "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_filter" "${BASE}/res_exp_realign_filter_filter" --db-load-mode 2 ${FILTER_PARAM}
+  "${MMSEQS}" convertalis "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_filter_filter" "${BASE}/uniref.m8" --db-load-mode 2 --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,tseq
+  "${MMSEQS}" rmdb "${BASE}/res_exp_realign_filter_filter"
+else
+  "${MMSEQS}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_filter" "${BASE}/uniref.a3m" --msa-format-mode 6 --db-load-mode 2 ${FILTER_PARAM}
+fi
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign"
 "${MMSEQS}" rmdb "${BASE}/res_exp"
 "${MMSEQS}" rmdb "${BASE}/res"
@@ -325,7 +332,13 @@ if [ "${USE_ENV}" = "1" ]; then
   "${MMSEQS}" expandaln "${BASE}/prof_res" "${DB3}.idx" "${BASE}/res_env" "${DB3}.idx" "${BASE}/res_env_exp" -e ${EXPAND_EVAL} --expansion-mode 0 --db-load-mode 2
   "${MMSEQS}" align "${BASE}/tmp/latest/profile_1" "${DB3}.idx" "${BASE}/res_env_exp" "${BASE}/res_env_exp_realign" --db-load-mode 2 -e ${ALIGN_EVAL} --max-accept ${MAX_ACCEPT} --alt-ali 10 -a
   "${MMSEQS}" filterresult "${BASE}/qdb" "${DB3}.idx" "${BASE}/res_env_exp_realign" "${BASE}/res_env_exp_realign_filter" --db-load-mode 2 --qid 0 --qsc $QSC --diff 0 --max-seq-id 1.0 --filter-min-enable 100
-  "${MMSEQS}" result2msa "${BASE}/qdb" "${DB3}.idx" "${BASE}/res_env_exp_realign_filter" "${BASE}/bfd.mgnify30.metaeuk30.smag30.a3m" --msa-format-mode 6 --db-load-mode 2 ${FILTER_PARAM}
+  if [ "${M8OUT}" = "1" ]; then
+    "${MMSEQS}" filterresult "${BASE}/qdb" "${DB3}.idx" "${BASE}/res_env_exp_realign_filter" "${BASE}/res_env_exp_realign_filter_filter" --db-load-mode 2 ${FILTER_PARAM}
+    "${MMSEQS}" convertalis "${BASE}/qdb" "${DB3}.idx" "${BASE}/res_env_exp_realign_filter_filter" "${BASE}/bfd.mgnify30.metaeuk30.smag30.m8" --db-load-mode 2 --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,tseq
+    "${MMSEQS}" rmdb "${BASE}/res_env_exp_realign_filter_filter"
+  else
+	"${MMSEQS}" result2msa "${BASE}/qdb" "${DB3}.idx" "${BASE}/res_env_exp_realign_filter" "${BASE}/bfd.mgnify30.metaeuk30.smag30.a3m" --msa-format-mode 6 --db-load-mode 2 ${FILTER_PARAM}
+  fi
   "${MMSEQS}" rmdb "${BASE}/res_env_exp_realign_filter"
   "${MMSEQS}" rmdb "${BASE}/res_env_exp_realign"
   "${MMSEQS}" rmdb "${BASE}/res_env_exp"
@@ -348,6 +361,7 @@ rm -rf -- "${BASE}/tmp"
 		useTemplates := isIn("notemplates", modes) == -1
 		useFilter := isIn("nofilter", modes) == -1
 		taxonomy := isIn("taxonomy", modes) == 1
+		m8out := isIn("m8output", modes) == 1
 		var b2i = map[bool]int{false: 0, true: 1}
 
 		parameters := []string{
@@ -364,6 +378,7 @@ rm -rf -- "${BASE}/tmp"
 			strconv.Itoa(b2i[useTemplates]),
 			strconv.Itoa(b2i[useFilter]),
 			strconv.Itoa(b2i[taxonomy]),
+			strconv.Itoa(b2i[m8out]),
 		}
 
 		cmd, done, err := execCommand(config.Verbose, parameters...)
@@ -421,7 +436,11 @@ rm -rf -- "${BASE}/tmp"
 						return err
 					}
 				} else {
-					if err := addFile(tw, filepath.Join(resultBase, "uniref.a3m")); err != nil {
+					suffix := ".a3m"
+					if m8out {
+						suffix = ".m8"
+					}
+					if err := addFile(tw, filepath.Join(resultBase, "uniref"+suffix)); err != nil {
 						return err
 					}
 
@@ -438,7 +457,7 @@ rm -rf -- "${BASE}/tmp"
 					}
 
 					if useEnv {
-						if err := addFile(tw, filepath.Join(resultBase, "bfd.mgnify30.metaeuk30.smag30.a3m")); err != nil {
+						if err := addFile(tw, filepath.Join(resultBase, "bfd.mgnify30.metaeuk30.smag30"+suffix)); err != nil {
 							return err
 						}
 					}
