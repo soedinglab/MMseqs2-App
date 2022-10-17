@@ -43,6 +43,9 @@ func ParseConfigName(args []string) (string, []string) {
 	file := ""
 	for i := 0; i < len(args); i++ {
 		if args[i] == "-config" {
+			if i+1 == len(args) {
+				log.Fatal(errors.New("config file name is not specified"))
+			}
 			file = args[i+1]
 			i++
 			continue
