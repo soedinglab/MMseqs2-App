@@ -207,9 +207,9 @@ type ConfigApp string
 
 const (
 	AppMMseqs2        ConfigApp = "mmseqs"
-	AppFoldSeek                 = "foldseek"
-	AppColabFold                = "colabfold"
-	AppPredictProtein           = "predictprotein"
+	AppFoldSeek       ConfigApp = "foldseek"
+	AppColabFold      ConfigApp = "colabfold"
+	AppPredictProtein ConfigApp = "predictprotein"
 )
 
 type ConfigRoot struct {
