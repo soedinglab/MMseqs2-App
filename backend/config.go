@@ -49,12 +49,12 @@ var defaultFileContent = []byte(`{
         "colabfold"    : {
             // paths for search databases
             "uniref"        : "~databases/uniref30_2103",
-            "pdb",          : "~databases/pdb70",
+            "pdb"           : "~databases/pdb70",
             "environmental" : "~databases/colabfold_envdb_202108",
             // paths for templates
-            "pdb70"         : "~databases/pdb70"
+            "pdb70"         : "~databases/pdb70",
             "pdbdivided"    : "~databases/pdbdivided",
-            "pdbobsolete"   : "~databases/pdbobsolete",
+            "pdbobsolete"   : "~databases/pdbobsolete"
         },
         */
         // path to foldseek binary
