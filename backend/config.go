@@ -47,6 +47,8 @@ var defaultFileContent = []byte(`{
         /*
         // paths to colabfold templates
         "colabfold"    : {
+			// should stages be run in parallel
+			"parallelstages": false,
             // paths for search databases
             "uniref"        : "~databases/uniref30_2103",
             "pdb"           : "~databases/pdb70",
@@ -133,12 +135,13 @@ var defaultFileContent = []byte(`{
 `)
 
 type ConfigColabFoldPaths struct {
-	Uniref        string `json:"uniref"`
-	Pdb           string `json:"pdb"`
-	Environmental string `json:"environmental"`
-	Pdb70         string `json:"pdb70"`
-	PdbDivided    string `json:"pdbdivided"`
-	PdbObsolete   string `json:"pdbobsolete"`
+	ParallelStages bool   `json:"parallelstages"`
+	Uniref         string `json:"uniref"`
+	Pdb            string `json:"pdb"`
+	Environmental  string `json:"environmental"`
+	Pdb70          string `json:"pdb70"`
+	PdbDivided     string `json:"pdbdivided"`
+	PdbObsolete    string `json:"pdbobsolete"`
 }
 
 type ConfigPaths struct {
