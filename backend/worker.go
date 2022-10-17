@@ -296,7 +296,7 @@ if [ "${FILTER}" = "1" ]; then
 fi
 export MMSEQS_CALL_DEPTH=1
 SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a --k-score 'seq:96,prof:80' -e 0.1 --max-seqs 10000"
-FILTER_PARAM="--filter-msa ${FILTER} --filter-min-enable 1000 --diff ${DIFF} --qid 0.0,0.2,0.4,0.6,0.8,1.0 --qsc 0 --max-seq-id 0.95"
+FILTER_PARAM="--filter-min-enable 1000 --diff ${DIFF} --qid 0.0,0.2,0.4,0.6,0.8,1.0 --qsc 0 --max-seq-id 0.95"
 EXPAND_PARAM="--expansion-mode 0 -e ${EXPAND_EVAL} --expand-filter-clusters ${FILTER} --max-seq-id 0.95"
 mkdir -p "${BASE}"
 "${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb"
@@ -316,7 +316,7 @@ if [ "${M8OUT}" = "1" ]; then
   "${MMSEQS}" convertalis "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_filter_filter" "${BASE}/uniref.m8" --db-load-mode 2 --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,tseq
   "${MMSEQS}" rmdb "${BASE}/res_exp_realign_filter_filter"
 else
-  "${MMSEQS}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_filter" "${BASE}/uniref.a3m" --msa-format-mode 6 --db-load-mode 2 ${FILTER_PARAM}
+  "${MMSEQS}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_filter" "${BASE}/uniref.a3m" --msa-format-mode 6 --db-load-mode 2 --filter-msa ${FILTER} ${FILTER_PARAM}
 fi
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign"
 "${MMSEQS}" rmdb "${BASE}/res_exp"
@@ -340,7 +340,7 @@ if [ "${USE_TEMPLATES}" = "1" ]; then
 fi
 `)
 			if parallel {
-				script.WriteString("n)&\n(\n")
+				script.WriteString("\n)&\n(\n")
 			}
 			script.WriteString(`
 if [ "${USE_ENV}" = "1" ]; then
@@ -353,7 +353,7 @@ if [ "${USE_ENV}" = "1" ]; then
     "${MMSEQS}" convertalis "${BASE}/qdb" "${DB3}.idx" "${BASE}/res_env_exp_realign_filter_filter" "${BASE}/bfd.mgnify30.metaeuk30.smag30.m8" --db-load-mode 2 --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,tseq
     "${MMSEQS}" rmdb "${BASE}/res_env_exp_realign_filter_filter"
   else
-	"${MMSEQS}" result2msa "${BASE}/qdb" "${DB3}.idx" "${BASE}/res_env_exp_realign_filter" "${BASE}/bfd.mgnify30.metaeuk30.smag30.a3m" --msa-format-mode 6 --db-load-mode 2 ${FILTER_PARAM}
+	"${MMSEQS}" result2msa "${BASE}/qdb" "${DB3}.idx" "${BASE}/res_env_exp_realign_filter" "${BASE}/bfd.mgnify30.metaeuk30.smag30.a3m" --msa-format-mode 6 --db-load-mode 2 --filter-msa ${FILTER} ${FILTER_PARAM}
   fi
   "${MMSEQS}" rmdb "${BASE}/res_env_exp_realign_filter"
   "${MMSEQS}" rmdb "${BASE}/res_env_exp_realign"
