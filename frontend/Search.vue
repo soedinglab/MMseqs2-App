@@ -30,7 +30,7 @@
                         <v-dialog v-if="!$ELECTRON" v-model="showCurl" absolute :disabled="searchDisabled">
                             <template v-slot:activator="{ on }">
                                 <v-btn v-on="on" :disabled="searchDisabled">
-                                    Get cURL Command
+                                    cURL Command
                                 </v-btn>
                             </template>
                             <v-card>
@@ -54,6 +54,8 @@
                         <load-acession-button v-if="$APP == 'foldseek'" v-on:select="query = $event"></load-acession-button>
 
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
+
+                        <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" :disabled="!isPredictableSequence" v-on:predict="query = $event"></PredictStructureButton>
                         </div>
                     </template>
                 </panel>
@@ -153,7 +155,13 @@ try {
 
 export default {
     name: "search",
-    components: { Panel, FileButton, LoadAcessionButton, TaxonomyAutocomplete },
+    components: { 
+        Panel,
+        FileButton,
+        LoadAcessionButton,
+        TaxonomyAutocomplete,
+        PredictStructureButton: () => __APP__ == "foldseek" ? import('./PredictStructureButton.vue') : null,
+    },
     data() {
         return {
             dberror: false,
@@ -196,8 +204,33 @@ export default {
         },
         searchDisabled() {
             return (
-                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0
+                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0 || this.isPredictableSequence
             );
+        },
+        isPredictableSequence() {
+            if (__APP__ != "foldseek") {
+                return false;
+            }
+            if (this.query.length > 0) {
+                let start = 0;
+                let seq;
+                if (this.query[0] == ">") {
+                    start = this.query.indexOf("\n");
+                    if (start == -1) {
+                        return false;
+                    }
+                    start = start + 1;
+                    seq = this.query.substring(start);
+                } else {
+                    seq = this.query;
+                }
+                if (seq.length < 1000 && /^[A-Za-z\n]+$/.test(seq)) {
+                    let seqLen = seq.replace(/\n/g, "").length;
+                    if (seqLen <= 400)
+                        return true;
+                }
+            }
+            return false;
         }
     },
     created() {
@@ -395,12 +428,6 @@ export default {
 .query-panel .actions {
     flex: 0;
     padding-top: 7px;
-}
-
-@media screen and (min-width: 961px) {
-.query-panel .actions {
-    max-height: 48px;
-}
 }
 
 .marv-bg .input-group__input {

@@ -54,7 +54,7 @@ msgid "QUERIES_HELP"
 msgstr "Enter a protein structure in PDB format or upload a PDB file."
 
 msgid "UPLOAD_LABEL"
-msgstr "Upload PDB File"
+msgstr "Upload PDB"
 
 msgid "CURL_INTRO"
 msgstr ""
