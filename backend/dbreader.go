@@ -60,7 +60,7 @@ func (d *Reader[V]) Make(data string, index string) error {
 		d.Index = append(d.Index, entry)
 	}
 
-	if sorted == false {
+	if !sorted {
 		sort.Sort(EntryByKey[V](d.Index))
 	}
 

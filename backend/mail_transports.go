@@ -11,8 +11,8 @@ type TransportType string
 
 const (
 	TransportSmtp    TransportType = "smtp"
-	TransportMailgun               = "mailgun"
-	TransportNull                  = "null"
+	TransportMailgun TransportType = "mailgun"
+	TransportNull    TransportType = "null"
 )
 
 type ConfigMailtransport struct {

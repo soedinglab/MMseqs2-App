@@ -67,7 +67,7 @@ func NewMsaJobRequest(query string, dbs []string, validDbs []Params, mode string
 	for _, item := range job.Database {
 		idx := isIn(item, ids)
 		if idx == -1 {
-			return request, errors.New("Selected databases are not valid!")
+			return request, errors.New("selected databases are not valid")
 		}
 	}
 

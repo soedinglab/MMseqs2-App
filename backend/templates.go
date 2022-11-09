@@ -68,7 +68,7 @@ func GatherTemplates(w io.Writer, templates []string, a3m Reader[string], pdbdiv
 
 	for i := 0; i < len(uniques); i++ {
 		a3mid, ok := a3m.Id(uniques[i])
-		if ok == false {
+		if !ok {
 			continue
 		}
 
@@ -91,7 +91,7 @@ func GatherTemplates(w io.Writer, templates []string, a3m Reader[string], pdbdiv
 	for i := 0; i < len(uniquesWithoutChains); i++ {
 		pdbacc := strings.ToLower(uniquesWithoutChains[i])
 		if len(pdbacc) < 4 {
-			return fmt.Errorf("Invalid PDB accession %s", pdbacc)
+			return fmt.Errorf("invalid PDB accession %s", pdbacc)
 		}
 
 		pdbmid := pdbacc[1:3]

@@ -17,12 +17,11 @@ import (
 
 // Parser has information for parser
 type Parser struct {
-	Headers    []string
-	Reader     *csv.Reader
-	Data       interface{}
-	ref        reflect.Value
-	indices    []int // indices is field index list of header array
-	structMode bool
+	Headers []string
+	Reader  *csv.Reader
+	Data    interface{}
+	ref     reflect.Value
+	indices []int // indices is field index list of header array
 }
 
 // NewTsvParser creates new TSV parser with given io.Reader
@@ -121,7 +120,7 @@ func (p *Parser) Next() (eof bool, err error) {
 				field.SetUint(col)
 			}
 		default:
-			return false, errors.New("Unsupported field type")
+			return false, errors.New("unsupported field type")
 		}
 	}
 

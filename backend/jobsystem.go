@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,10 +19,10 @@ type JobType string
 
 const (
 	JobSearch          JobType = "search"
-	JobIndex                   = "index"
-	JobMsa                     = "msa"
-	JobPair                    = "pair"
-	JobStructureSearch         = "structuresearch"
+	JobIndex           JobType = "index"
+	JobMsa             JobType = "msa"
+	JobPair            JobType = "pair"
+	JobStructureSearch JobType = "structuresearch"
 )
 
 type JobRequest struct {
@@ -81,7 +82,7 @@ func (m *JobRequest) UnmarshalJSON(b []byte) error {
 		return nil
 	}
 
-	return errors.New("Invalid Job Type")
+	return errors.New("invalid job type")
 }
 
 func (m *JobRequest) WriteSupportFiles(base string) error {
@@ -90,22 +91,22 @@ func (m *JobRequest) WriteSupportFiles(base string) error {
 		if j, ok := m.Job.(SearchJob); ok {
 			return j.WriteFasta(filepath.Join(base, "job.fasta"))
 		}
-		return errors.New("Invalid Job Type")
+		return errors.New("invalid job type")
 	case JobStructureSearch:
 		if j, ok := m.Job.(StructureSearchJob); ok {
 			return j.WritePDB(filepath.Join(base, "job.pdb"))
 		}
-		return errors.New("Invalid Job Type")
+		return errors.New("invalid job type")
 	case JobMsa:
 		if j, ok := m.Job.(MsaJob); ok {
 			return j.WriteFasta(filepath.Join(base, "job.fasta"))
 		}
-		return errors.New("Invalid Job Type")
+		return errors.New("invalid job type")
 	case JobPair:
 		if j, ok := m.Job.(PairJob); ok {
 			return j.WriteFasta(filepath.Join(base, "job.fasta"))
 		}
-		return errors.New("Invalid Job Type")
+		return errors.New("invalid job type")
 	case JobIndex:
 		return nil
 	}
@@ -122,10 +123,10 @@ type Status string
 
 const (
 	StatusPending  Status = "PENDING"
-	StatusRunning         = "RUNNING"
-	StatusComplete        = "COMPLETE"
-	StatusError           = "ERROR"
-	StatusUnknown         = "UNKNOWN"
+	StatusRunning  Status = "RUNNING"
+	StatusComplete Status = "COMPLETE"
+	StatusError    Status = "ERROR"
+	StatusUnknown  Status = "UNKNOWN"
 )
 
 func (e *Status) UnmarshalJSON(b []byte) error {
@@ -198,8 +199,8 @@ func (j *RedisJobSystem) Status(id Id) (Status, error) {
 
 func (j *RedisJobSystem) GetTicket(id Id) (Ticket, error) {
 	t := Ticket{id, StatusUnknown}
-	if t.Valid() == false {
-		return t, errors.New("Invalid ID")
+	if !t.Valid() {
+		return t, errors.New("invalid ID")
 	}
 	s, err := j.Status(t.Id)
 	t.RawStatus = s
@@ -227,7 +228,6 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 		return Ticket{id, res}, nil
 	case StatusError:
 		os.RemoveAll(workdir)
-		break
 	}
 
 	if _, err := os.Stat(workdir); os.IsNotExist(err) {
@@ -238,8 +238,8 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	}
 
 	job, ok := request.Job.(Job)
-	if ok == false {
-		return Ticket{id, StatusError}, errors.New("Invalid Job")
+	if !ok {
+		return Ticket{id, StatusError}, errors.New("invalid job")
 	}
 
 	t := Ticket{id, StatusUnknown}
@@ -311,7 +311,7 @@ func (j *RedisJobSystem) MultiStatus(ids []string) ([]Ticket, error) {
 		var value string
 		switch vv := item.(type) {
 		case nil:
-			value = StatusUnknown
+			value = string(StatusUnknown)
 		case []byte:
 			value = string(vv)
 		default:
@@ -344,7 +344,7 @@ func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
 	var id Id
 	switch vv := pop.(type) {
 	case nil:
-		return nil, errors.New("Invalid ticket id!")
+		return nil, errors.New("invalid ticket id")
 	case []byte:
 		id = Id(string(vv))
 	default:
@@ -360,7 +360,7 @@ func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
 }
 
 func (j *RedisJobSystem) QueueLength() (int, error) {
-	return 0, errors.New("Not implemented")
+	return 0, errors.New("not implemented")
 }
 
 type LocalJobSystem struct {
@@ -385,7 +385,7 @@ func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
 	}
 
 	for _, dir := range dirs {
-		if dir.IsDir() == false {
+		if !dir.IsDir() {
 			continue
 		}
 		file := filepath.Join(filepath.Clean(results), dir.Name(), "job.json")
@@ -440,7 +440,8 @@ func setStatusInJobFile(file string, status Status) error {
 	job.Status = status
 
 	f.Truncate(0)
-	f.Seek(0, os.SEEK_SET)
+	f.Seek(0, io.SeekStart)
+
 	err = json.NewEncoder(f).Encode(job)
 	if err != nil {
 		f.Close()
@@ -519,8 +520,8 @@ func (j *LocalJobSystem) Status(id Id) (Status, error) {
 
 func (j *LocalJobSystem) GetTicket(id Id) (Ticket, error) {
 	t := Ticket{id, StatusUnknown}
-	if t.Valid() == false {
-		return t, errors.New("Invalid ID")
+	if !t.Valid() {
+		return t, errors.New("invalid ID")
 	}
 	res, err := j.Status(t.Id)
 	t.RawStatus = res
@@ -553,7 +554,6 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 		return Ticket{id, res}, nil
 	case StatusError:
 		os.RemoveAll(workdir)
-		break
 	}
 
 	t := Ticket{id, StatusUnknown}

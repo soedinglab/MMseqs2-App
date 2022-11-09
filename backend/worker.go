@@ -158,7 +158,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			var mode2num = map[string]string{"3di": "0", "tmalign": "1", "3diaa": "2"}
 			mode, found := mode2num[job.Mode]
 			if !found {
-				return &JobExecutionError{errors.New("Invalid mode selected")}
+				return &JobExecutionError{errors.New("invalid mode selected")}
 			}
 			columns := "query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
 			if params.Taxonomy {

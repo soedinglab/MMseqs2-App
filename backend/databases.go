@@ -262,7 +262,7 @@ func ReorderDatabases(basepath string, paths []string) ([]Params, error) {
 	}
 
 	if len(paths) != len(res) {
-		return nil, errors.New("Invalid argument length")
+		return nil, errors.New("invalid argument length")
 	}
 
 	for i, path := range paths {
@@ -282,7 +282,7 @@ func ReorderDatabases(basepath string, paths []string) ([]Params, error) {
 			}
 		}
 
-		if found == false {
+		if !found {
 			return nil, errors.New(path + " not found")
 		}
 	}
@@ -302,7 +302,7 @@ func SafePath(base, name, version string) string {
 	result := ""
 	for {
 		result = name + "_" + version + "_" + strconv.Itoa(cnt)
-		if fileExists(filepath.Join(base, result)) == false {
+		if !fileExists(filepath.Join(base, result)) {
 			break
 		}
 		cnt++

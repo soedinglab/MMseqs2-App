@@ -89,8 +89,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	r.HandleFunc("/databases", databasesHandler(true)).Methods("GET")
 	r.HandleFunc("/databases/all", databasesHandler(false)).Methods("GET")
 
-	if config.Server.DbManagment == true {
-
+	if config.Server.DbManagment {
 		r.HandleFunc("/databases/order", func(w http.ResponseWriter, req *http.Request) {
 			err := req.ParseForm()
 			if err != nil {
@@ -145,10 +144,8 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			switch req.FormValue("format") {
 			case "fasta":
 				suffix = ".fasta"
-				break
 			case "stockholm":
 				suffix = ".sto"
-				break
 			default:
 				http.Error(w, "Invalid database input file", http.StatusBadRequest)
 				return
@@ -157,7 +154,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			var path string
 			if len(req.FormValue("path")) > 0 {
 				path = filepath.Base(req.FormValue("path"))
-				if fileExists(filepath.Join(config.Paths.Databases, path+suffix)) == false {
+				if !fileExists(filepath.Join(config.Paths.Databases, path+suffix)) {
 					http.Error(w, "Indicated file does not exist already", http.StatusBadRequest)
 					return
 				}
@@ -240,7 +237,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				path = req.FormValue("path")
 			}
 			ok := DeleteDatabase(filepath.Join(config.Paths.Databases, filepath.Base(path)))
-			if ok == false {
+			if !ok {
 				http.Error(w, "Delete request failed", http.StatusBadRequest)
 				return
 			}
@@ -584,9 +581,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
-		}
-		type QueryResponse struct {
-			Query string `json:"query"`
 		}
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Cache-Control", "public, max-age=3600")

@@ -92,10 +92,8 @@ func main() {
 	switch t {
 	case WORKER:
 		worker(MakeRedisJobSystem(config.Redis), config)
-		break
 	case SERVER:
 		server(MakeRedisJobSystem(config.Redis), config)
-		break
 	case LOCAL:
 		jobsystem, err := MakeLocalJobSystem(config.Paths.Results)
 		if err != nil {
@@ -115,6 +113,5 @@ func main() {
 		}
 		go server(&jobsystem, config)
 		<-loop
-		break
 	}
 }
