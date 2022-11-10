@@ -55,7 +55,7 @@
 
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
 
-                        <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" :disabled="!isPredictableSequence" v-on:predict="query = $event"></PredictStructureButton>
+                        <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton>
                         </div>
                     </template>
                 </panel>
@@ -175,7 +175,8 @@ export default {
             hideEmail: true,
             query: this.$STRINGS.QUERY_DEFAULT,
             database: [],
-            taxFilter: null
+            taxFilter: null,
+            predictable: true
         };
     },
     mounted() {
@@ -204,33 +205,8 @@ export default {
         },
         searchDisabled() {
             return (
-                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0 || this.isPredictableSequence
+                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0 || this.predictable
             );
-        },
-        isPredictableSequence() {
-            if (__APP__ != "foldseek") {
-                return false;
-            }
-            if (this.query.length > 0) {
-                let start = 0;
-                let seq;
-                if (this.query[0] == ">") {
-                    start = this.query.indexOf("\n");
-                    if (start == -1) {
-                        return false;
-                    }
-                    start = start + 1;
-                    seq = this.query.substring(start);
-                } else {
-                    seq = this.query;
-                }
-                if (seq.length < 1000 && /^[A-Za-z\n]+$/.test(seq)) {
-                    let seqLen = seq.replace(/\n/g, "").length;
-                    if (seqLen <= 400)
-                        return true;
-                }
-            }
-            return false;
         }
     },
     created() {
