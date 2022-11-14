@@ -42,7 +42,7 @@ app.os = {
 	platform: platform
 }
 
-const mmseqsBinary = join(binPath, "mmseqs" + (platform == "win32" ? ".bat" : ""));
+const mmseqsBinary = join(binPath, __APP__ + (platform == "win32" ? ".bat" : ""));
 const backendBinary = join(binPath, "mmseqs-web-backend" + (platform == "win32" ? ".exe" : ""));
 
 app.mmseqsVersion = String(execFileSync(mmseqsBinary, ["version"])).trim()
@@ -51,6 +51,8 @@ fp(8000, "127.0.0.1", function(err, freePort) {
 console.log(err);
 	var server = execFile(backendBinary, 
 		[
+			"-app",
+			__APP__,
 			"-local",
 			"-server.address",
 			`127.0.0.1:${freePort}`,
@@ -58,7 +60,7 @@ console.log(err);
 			username,
 			"-server.auth.password",
 			password,
-			"-paths.mmseqs",
+			"-paths." + __APP__,
 			mmseqsBinary,
 			"-paths.databases",
 			`${userData}/databases`,
