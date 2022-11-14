@@ -178,7 +178,7 @@ export default {
             query: this.$STRINGS.QUERY_DEFAULT,
             database: [],
             taxFilter: null,
-            predictable: true
+            predictable: false
         };
     },
     mounted() {
@@ -206,9 +206,15 @@ export default {
             return this.databases.some((db) => db.status == "PENDING" || db.status == "RUNNING");
         },
         searchDisabled() {
-            return (
-                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0 || this.predictable
-            );
+            if (__APP__ == "foldseek" ) {
+                return (
+                    this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0 || this.predictable
+                );
+            } else {
+                return (
+                    this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0
+                );
+            }
         }
     },
     created() {
