@@ -61,7 +61,11 @@ export default {
         this.fetchData();
     },
     watch: {
-        '$route': 'fetchData',
+        '$route': function(to, from) {
+            if (from.path != to.path) {
+                this.fetchData();
+            }
+        },
         items(value) {
             if (localStorageEnabled) {
                 localStorage.history = JSON.stringify(value);

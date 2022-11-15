@@ -78,7 +78,11 @@ export default {
         this.fetchData();
     },
     watch: {
-        '$route': 'fetchData',
+        '$route': function(to, from) {
+            if (from.path != to.path) {
+                this.fetchData();
+            }
+        },
         drawer: function (val, oldVal) {
             if (val == true) {
                 this.$root.$emit('multi', true);
