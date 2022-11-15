@@ -11,6 +11,13 @@ hash := ${foldseekhash}
 all: build/icon.icns build/icon.ico mac linux
 endif
 
+ifneq ($(shell uname -s),Darwin)
+# llvm-lipo is part of llvm since release 14
+LIPO ?= llvm-lipo
+else
+LIPO ?= lipo
+endif
+
 win: resources/win/x64/${FRONTEND_APP}.bat resources/win/x64/mmseqs-web-backend.exe
 mac: resources/mac/x64/${FRONTEND_APP} resources/mac/arm64/${FRONTEND_APP} resources/mac/arm64/mmseqs-web-backend resources/mac/x64/mmseqs-web-backend
 linux: resources/linux/arm64/${FRONTEND_APP} resources/linux/x64/${FRONTEND_APP} resources/linux/arm64/mmseqs-web-backend resources/linux/x64/mmseqs-web-backend
@@ -48,11 +55,11 @@ resources/mac/${FRONTEND_APP}:
 
 resources/mac/x64/${FRONTEND_APP}: resources/mac/${FRONTEND_APP}
 	mkdir -p resources/mac/x64
-	lipo resources/mac/${FRONTEND_APP} -remove arm64 -output resources/mac/x64/${FRONTEND_APP} || cp -f -- resources/mac/${FRONTEND_APP} resources/mac/x64/${FRONTEND_APP}
+	$(LIPO) resources/mac/${FRONTEND_APP} -remove arm64 -output resources/mac/x64/${FRONTEND_APP} || cp -f -- resources/mac/${FRONTEND_APP} resources/mac/x64/${FRONTEND_APP}
 
 resources/mac/arm64/${FRONTEND_APP}: resources/mac/${FRONTEND_APP}
 	mkdir -p resources/mac/arm64
-	lipo resources/mac/${FRONTEND_APP} -thin arm64 -output resources/mac/arm64/${FRONTEND_APP} || cp -f -- resources/mac/${FRONTEND_APP} resources/mac/arm64/${FRONTEND_APP}
+	$(LIPO) resources/mac/${FRONTEND_APP} -thin arm64 -output resources/mac/arm64/${FRONTEND_APP} || cp -f -- resources/mac/${FRONTEND_APP} resources/mac/arm64/${FRONTEND_APP}
 
 resources/linux/x64/${FRONTEND_APP}-sse41:
 	mkdir -p resources/linux/x64
