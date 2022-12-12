@@ -128,7 +128,7 @@
     "sass-loader": "^13.0.2",
     "style-loader": "^3.3.1",
     "svg2png": "^4.1.1",
-    "tmalign-wasm": "^0.0.4",
+    "tmalign-wasm": "^0.0.5",
     "url-loader": "^4.1.1",
     "vue": "<2.7.0",
     "vue-loader": "<16.0.0",
