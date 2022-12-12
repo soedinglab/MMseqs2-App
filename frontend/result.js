@@ -83,7 +83,7 @@ function getRange(map, start, end) {
 function formatAln(alignment, lineLen, queryMap, targetMap) {
     const { qAln, dbAln, qStartPos, dbStartPos, alnLen } = alignment
     const lines = []
-    for (let i = 1; i < Math.max(2, Math.ceil(alnLen / lineLen)); i++) {
+    for (let i = 1; i <= Math.max(2, Math.ceil(alnLen / lineLen)); i++) {
         const qStart = getFirstResidueNumber(queryMap, i, lineLen)
         const tStart = getFirstResidueNumber(targetMap, i, lineLen)
         const maxLen = (Math.max(qStartPos, dbStartPos) + alnLen+"").length
@@ -548,7 +548,7 @@ function alnHTML(queryData, alignment) {
                 tRepr = target.addRepresentation('cartoon', {color: targetSchemeId})
                 qRepr.setSelection(proxy.showFullQuery ? '' : qSele)
                 tRepr.setSelection(proxy.showFullTarget ? '' : `${proxy.tSele[0]}-${proxy.tSele[1]}`)
-                structureTMScore.replaceChildren([`TM-Score: ${tmAlignResults.tmScore}`])
+                structureTMScore.replaceChildren([`TM-Score: ${tmAlignResults.tmScore}<br>RMSD: ${tmAlignResults.rmsd}`])
                 stage.autoView()
                 renderArrows()
             })
