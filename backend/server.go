@@ -185,6 +185,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				req.FormValue("default") == "true",
 				0,
 				false,
+				false,
 				req.FormValue("index"),
 				req.FormValue("search"),
 				StatusPending,

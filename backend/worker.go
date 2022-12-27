@@ -79,7 +79,13 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			if err != nil {
 				return &JobExecutionError{err}
 			}
-			columns := "query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln"
+			columns := "query,"
+			if params.FullHeader {
+				columns += "theader"
+			} else {
+				columns += "target"
+			}
+			columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln"
 			if params.Taxonomy {
 				columns += ",taxid,taxname"
 			}
