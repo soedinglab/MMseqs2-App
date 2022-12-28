@@ -89,7 +89,11 @@
                                 <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</td>
                                 <td class="long" data-label="Target">
                                     <a :id="item.id" class="anchor"></a>
-                                    <a :href="item.href" target="_blank" rel="noopener">{{item.target}}</a>
+                                    <a v-if="item.description.length == 0" :href="item.href" target="_blank" rel="noopener">{{item.target}}</a>
+                                    <template v-else>
+                                        {{ item.description }}<br>
+                                        <small><a :href="item.href" target="_blank" rel="noopener">{{item.target}}</a></small>
+                                    </template>
                                 </td>
                                 <td v-if="taxonomy" data-label="Taxonomy" class="long"><a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" target="_blank" rel="noopener" :title="item.taxName">{{ item.taxName }}</a></td>
                                 <td data-label="Sequence Identity">{{ item.seqId }}</td>
@@ -319,6 +323,9 @@ export default {
                             total++;
                             for (var j in data.results[i].alignments) {
                                 var item = data.results[i].alignments[j];
+                                let split = item.target.split(' ');
+                                item.target = split[0];
+                                item.description = split.slice(1).join(' ');
                                 item.href = this.tryLinkTargetToDB(item.target, db);
                                 item.target = this.tryFixTargetName(item.target, db);
                                 item.id = 'result-' + i + '-' + j;
