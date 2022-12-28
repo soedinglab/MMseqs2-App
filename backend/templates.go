@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -111,7 +110,7 @@ func GatherTemplates(w io.Writer, templates []string, a3m Reader[string], pdbdiv
 			return err
 		}
 
-		cif, err := ioutil.ReadAll(reader)
+		cif, err := io.ReadAll(reader)
 		if err != nil {
 			return err
 		}

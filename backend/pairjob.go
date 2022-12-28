@@ -3,7 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"io/ioutil"
+	"os"
 	"strings"
 )
 
@@ -27,7 +27,7 @@ func (r PairJob) Rank() float64 {
 }
 
 func (r PairJob) WriteFasta(path string) error {
-	err := ioutil.WriteFile(path, []byte(r.query), 0644)
+	err := os.WriteFile(path, []byte(r.query), 0644)
 	if err != nil {
 		return err
 	}

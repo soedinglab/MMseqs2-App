@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -256,7 +255,7 @@ func DefaultConfig() (ConfigRoot, error) {
 }
 
 func WriteDefaultConfig(path string) error {
-	return ioutil.WriteFile(path, []byte(defaultFileContent), 0644)
+	return os.WriteFile(path, []byte(defaultFileContent), 0644)
 }
 
 func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {

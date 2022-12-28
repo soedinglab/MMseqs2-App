@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"io/ioutil"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -48,7 +48,7 @@ func (r SearchJob) Rank() float64 {
 }
 
 func (r SearchJob) WriteFasta(path string) error {
-	err := ioutil.WriteFile(path, []byte(r.query), 0644)
+	err := os.WriteFile(path, []byte(r.query), 0644)
 	if err != nil {
 		return err
 	}

@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"io/ioutil"
+	"os"
 	"sort"
 	"strings"
 )
@@ -40,7 +40,7 @@ func (r StructureSearchJob) Rank() float64 {
 }
 
 func (r StructureSearchJob) WritePDB(path string) error {
-	err := ioutil.WriteFile(path, []byte(r.query), 0644)
+	err := os.WriteFile(path, []byte(r.query), 0644)
 	if err != nil {
 		return err
 	}
