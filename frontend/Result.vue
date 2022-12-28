@@ -272,7 +272,7 @@ export default {
 
             if (__APP__ == "foldseek") {
                 if (target.startsWith("AF-")) {
-                    return 'https://www.alphafold.ebi.ac.uk/entry/' + target.replaceAll(/-F[0-9]+-model_v[0-9]+\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
+                    return 'https://www.alphafold.ebi.ac.uk/entry/' + target.replaceAll(/-F[0-9]+-model_v[0-9]+(\.(cif|pdb))?(\.gz)?(_[A-Z0-9]+)?$/g, '');
                 } else if (target.startsWith("GMGC")) {
                     return 'https://gmgc.embl.de/search.cgi?search_id=' + target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '')
                 } else if (target.startsWith("MGYP")) {
@@ -287,7 +287,7 @@ export default {
             if (__APP__ == "foldseek") {
                 if (target.startsWith("AF-")) {
                     return target.replaceAll(/\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
-                } else if (res.startsWith("pdb") || res.startsWith("GMGC") || res.startsWith("MGYP")) {
+                } else if (res.startsWith("pdb") || res.startsWith("GMGC") || res.startsWith("MGYP") || res.startsWith("mgnify")) {
                     return target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '');
                 }
             }
