@@ -91,7 +91,7 @@
                                     <a :id="item.id" class="anchor"></a>
                                     <a v-if="item.description.length == 0" :href="item.href" target="_blank" rel="noopener">{{item.target}}</a>
                                     <template v-else>
-                                        {{ item.description }}<br>
+                                        <span :title="item.description">{{ item.description }}</span><br>
                                         <small><a :href="item.href" target="_blank" rel="noopener">{{item.target}}</a></small>
                                     </template>
                                 </td>
