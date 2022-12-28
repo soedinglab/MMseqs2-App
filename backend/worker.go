@@ -166,7 +166,13 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			if !found {
 				return &JobExecutionError{errors.New("invalid mode selected")}
 			}
-			columns := "query,target,pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
+			columns := "query,"
+			if params.FullHeader {
+				columns += "theader"
+			} else {
+				columns += "target"
+			}
+			columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
 			if params.Taxonomy {
 				columns += ",taxid,taxname"
 			}
