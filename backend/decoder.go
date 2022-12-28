@@ -28,6 +28,7 @@ type Parser struct {
 func NewTsvParser(reader io.Reader, data interface{}) *Parser {
 	r := csv.NewReader(reader)
 	r.Comma = '\t'
+	r.LazyQuotes = true
 
 	p := &Parser{
 		Reader: r,
