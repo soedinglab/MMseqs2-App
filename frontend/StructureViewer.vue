@@ -3,6 +3,8 @@
         <div class="structure-wrapper" ref="structurepanel">
             <div v-if="tmAlignResults" class="tmscore-panel" v-bind="tmPanelBindings">
                 TM-Score: {{ tmAlignResults.tmScore }}
+                <br>
+                RMSD: {{ tmAlignResults.rmsd }}
             </div>
             <div class="toolbar-panel">
                 <v-btn

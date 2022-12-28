@@ -548,7 +548,7 @@ function alnHTML(queryData, alignment) {
                 tRepr = target.addRepresentation('cartoon', {color: targetSchemeId})
                 qRepr.setSelection(proxy.showFullQuery ? '' : qSele)
                 tRepr.setSelection(proxy.showFullTarget ? '' : `${proxy.tSele[0]}-${proxy.tSele[1]}`)
-                structureTMScore.replaceChildren([`TM-Score: ${tmAlignResults.tmScore}`])
+                structureTMScore.replaceChildren([`TM-Score: ${tmAlignResults.tmScore}<br>RMSD: ${tmAlignResults.rmsd}`])
                 stage.autoView()
                 renderArrows()
             })
