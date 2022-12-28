@@ -90,10 +90,10 @@
                                 <td class="long" data-label="Target">
                                     <a :id="item.id" class="anchor"></a>
                                     <a v-if="item.description.length == 0" :href="item.href" target="_blank" rel="noopener">{{item.target}}</a>
-                                    <template v-else>
+                                    <span v-else>
                                         <span :title="item.description">{{ item.description }}</span><br>
                                         <small><a :href="item.href" target="_blank" rel="noopener">{{item.target}}</a></small>
-                                    </template>
+                                    </span>
                                 </td>
                                 <td v-if="taxonomy" data-label="Taxonomy" class="long"><a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" target="_blank" rel="noopener" :title="item.taxName">{{ item.taxName }}</a></td>
                                 <td data-label="Sequence Identity">{{ item.seqId }}</td>
@@ -291,7 +291,7 @@ export default {
             if (__APP__ == "foldseek") {
                 if (target.startsWith("AF-")) {
                     return target.replaceAll(/\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
-                } else if (res.startsWith("pdb") || res.startsWith("GMGC") || res.startsWith("MGYP") || res.startsWith("mgnify")) {
+                } else if (res.startsWith("pdb") || res.startsWith("gmgc") || res.startsWith("mgyp") || res.startsWith("mgnify")) {
                     return target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '');
                 }
             }
@@ -331,7 +331,7 @@ export default {
                                 item.id = 'result-' + i + '-' + j;
                                 item.active = false;
                                 if (__APP__ != "foldseek" || this.mode != "tmalign") {
-                                    item.eval = item.eval.toExponential(3);
+                                    item.eval = item.eval.toExponential(2);
                                 }
                                 if ("taxId" in item) {
                                     this.taxonomy = true;
@@ -448,10 +448,16 @@ export default {
                     }
 
                     var prefix = __APP__ == "foldseek" && this.mode == "tmalign" ? "TM" : "E";
+                    var description;
+                    if (alignments[i]["description"].length > 0) {
+                        description = alignments[i]["target"] + " " + alignments[i]["description"] + " (" + prefix + ": " + alignments[i]["eval"] + ")";
+                    } else {
+                        description = alignments[i]["target"] + " (" + prefix + ": " + alignments[i]["eval"] + ")";
+                    }
                     var f = {
                         "x": mapPosToSeq(data.query.sequence, start),
                         "y": mapPosToSeq(data.query.sequence, end),
-                        "description": alignments[i]["target"] + " (" + prefix + ": " + alignments[i]["eval"] + ")",
+                        "description": description,
                         "id": cnt,
                         "color": colorHsl.rgb(),
                         "href": '#' + alignments[i]["id"],
