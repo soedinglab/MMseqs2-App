@@ -76,6 +76,7 @@
                                     </v-tooltip>
                                 </th>
                                 <th v-if="taxonomy"  class="wide-1">Scientific Name</th>
+                                <th class="thin">Prob.</th>
                                 <th class="thin">Seq. Id.</th>
                                 <th class="thin">Score</th>
                                 <th>{{ $APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value' }}</th>
@@ -96,6 +97,7 @@
                                     </span>
                                 </td>
                                 <td v-if="taxonomy" data-label="Taxonomy" class="long"><a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" target="_blank" rel="noopener" :title="item.taxName">{{ item.taxName }}</a></td>
+                                <td data-label="Probability">{{ item.prob }}</td>
                                 <td data-label="Sequence Identity">{{ item.seqId }}</td>
                                 <td data-label="Score">{{ item.score }}</td>
                                 <td :data-label="$APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value'">{{ item.eval }}</td>
@@ -416,9 +418,14 @@ export default {
 
                 var maxScore = 0;
                 var minScore = Number.MAX_VALUE;
+                var rankColumn = "eval";
+                if (__APP__ == "foldseek" && this.mode != "tmalign") {
+                    rankColumn = "prob";
+                }
                 for (var i in alignments) {
-                    var score = Number.parseFloat(alignments[i]["eval"]);
-                    if (__APP__ == "foldseek" && this.mode == "tmalign") {
+                    var score = Number.parseFloat(alignments[i][rankColumn]);
+                    if (__APP__ == "foldseek") {
+                        // prob and tm (in eval column) are in [0, 1], transform them to evalue range
                         score = Math.pow(10, -(10 * score));
                     }
                     if (score >= maxScore) {
@@ -431,8 +438,8 @@ export default {
                 }
 
                 for (var i in alignments) {
-                    var score = Number.parseFloat(alignments[i]["eval"]);
-                    if (__APP__ == "foldseek" && this.mode == "tmalign") {
+                    var score = Number.parseFloat(alignments[i][rankColumn]);
+                    if (__APP__ == "foldseek") {
                         score = Math.pow(10, -(10 * score));
                     }
                     var colorHsl = d3.rgb(color).hsl();
@@ -447,12 +454,21 @@ export default {
                         reverse = true;
                     }
 
-                    var prefix = __APP__ == "foldseek" && this.mode == "tmalign" ? "TM" : "E";
+                    var rankFormatted;
+                    if (__APP__ == "foldseek") {
+                        if (this.mode == "tmalign") {
+                            rankFormatted = "TM: " + alignments[i][rankColumn];
+                        } else {
+                            rankFormatted = "P: " + alignments[i][rankColumn];
+                        }
+                    } else {
+                        rankFormatted = "E: " + alignments[i][rankColumn];
+                    }
                     var description;
                     if (alignments[i]["description"].length > 0) {
-                        description = alignments[i]["target"] + " " + alignments[i]["description"] + " (" + prefix + ": " + alignments[i]["eval"] + ")";
+                        description = alignments[i]["target"] + " " + alignments[i]["description"] + " (" + rankFormatted + ")";
                     } else {
-                        description = alignments[i]["target"] + " (" + prefix + ": " + alignments[i]["eval"] + ")";
+                        description = alignments[i]["target"] + " (" + rankFormatted + ")";
                     }
                     var f = {
                         "x": mapPosToSeq(data.query.sequence, start),
@@ -566,13 +582,13 @@ small.ticket {
         border-collapse: collapse;
         width: 100%;
         th.wide-1 {
-            width: 15%;
+            width: 13%;
         }
         th.wide-2 {
             width: 22% !important;
         }
         th.thin {
-            width: 7% !important;
+            width: 6.5% !important;
         }
         .long {
             overflow: hidden;

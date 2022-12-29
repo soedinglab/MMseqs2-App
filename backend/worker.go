@@ -172,7 +172,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			} else {
 				columns += "target"
 			}
-			columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
+			columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,prob,evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
 			if params.Taxonomy {
 				columns += ",taxid,taxname"
 			}

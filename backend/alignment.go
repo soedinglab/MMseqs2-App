@@ -44,6 +44,7 @@ type FoldseekAlignmentEntry struct {
 	QueryEndPos   int         `json:"qEndPos"`
 	DbStartPos    int         `json:"dbStartPos"`
 	DbEndPos      int         `json:"dbEndPos"`
+	Prob          float32     `json:"prob"`
 	Eval          float64     `json:"eval"`
 	Score         int         `json:"score"`
 	QueryLength   int         `json:"qLen"`
