@@ -335,6 +335,12 @@ export default {
                                 if (__APP__ != "foldseek" || this.mode != "tmalign") {
                                     item.eval = item.eval.toExponential(2);
                                 }
+                                if (__APP__ == "foldseek") {
+                                    item.prob = item.prob.toFixed(2);
+                                    if (this.mode == "tmalign") {
+                                        item.eval = item.eval.toFixed(3);
+                                    }
+                                }
                                 if ("taxId" in item) {
                                     this.taxonomy = true;
                                 }
