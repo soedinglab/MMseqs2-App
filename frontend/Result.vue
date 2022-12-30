@@ -186,6 +186,7 @@ export default {
             taxonomy: false,
             alnBoxOffset: 0,
             lineLen: 80,
+            hitsUpToDate: true,
         };
     },
     created() {
@@ -201,8 +202,9 @@ export default {
         this.fetchData();
     },
     updated() {
-        if (this.$refs.hits) {
+        if (this.$refs.hits && this.hitsUpToDate == false) {
             this.setData(this.hits);
+            this.hitsUpToDate = true;
         }
     },
     computed: {
@@ -351,13 +353,16 @@ export default {
                         } else {
                             this.hits = data;
                         }
+                        this.hitsUpToDate = false;
                     } else {
                         this.error = "Failed";
                         this.hits = [];
+                        this.hitsUpToDate = false;
                     }
                 }, () => {
                     this.error = "Failed";
                     this.hits = [];
+                    this.hitsUpToDate = false;
                 });
         },
         remove() {
