@@ -535,11 +535,21 @@ MMSEQS="$1"
 QUERY="$2"
 BASE="$4"
 DB1="$5"
+USE_PAIRWISE="$6"
 SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a --k-score 'seq:96,prof:80' -e 0.1 --max-seqs 10000"
 EXPAND_PARAM="--expansion-mode 0 -e inf --expand-filter-clusters 0 --max-seq-id 0.95"
 export MMSEQS_CALL_DEPTH=1
 "${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb" --shuffle 0
 "${MMSEQS}" search "${BASE}/qdb" "${DB1}" "${BASE}/res" "${BASE}/tmp" $SEARCH_PARAM
+if [ "${USE_PAIRWISE}" = "1" ]; then
+    for i in qdb res qdb_h; do
+		awk 'BEGIN { OFS="\t"; cnt = 0; } NR == 1 { off = $2; len = $3; next; } { print (2*cnt),off,len; print (2*cnt)+1,$2,$3; cnt+=1; }' "${BASE}/${i}.index" > "${BASE}/${i}.index_tmp"
+		mv -f -- "${BASE}/${i}.index_tmp" "${BASE}/${i}.index"
+	done
+	# write a new qdb.lookup to enable pairwise pairing
+	awk 'BEGIN { OFS="\t"; cnt = 0; } NR == 1 { off = $2; len = $3; next; } { print (2*cnt),off,cnt; print (2*cnt)+1,$2,cnt; cnt+=1; }' "${BASE}/qdb.lookup" > "${BASE}/qdb.lookup_tmp"
+	mv -f -- "${BASE}/qdb.lookup_tmp" "${BASE}/qdb.lookup"
+fi
 "${MMSEQS}" expandaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res" "${DB1}.idx" "${BASE}/res_exp" --db-load-mode 2 ${EXPAND_PARAM}
 "${MMSEQS}" align   "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 -c 0.5 --cov-mode 1
 "${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2
@@ -560,6 +570,9 @@ rm -rf -- "${BASE}/tmp"
 		if err != nil {
 			return &JobExecutionError{err}
 		}
+		modes := strings.Split(job.Mode, "-")
+		usePairwise := isIn("pairwise", modes) != -1
+		var b2i = map[bool]int{false: 0, true: 1}
 
 		parameters := []string{
 			"/bin/sh",
@@ -569,6 +582,7 @@ rm -rf -- "${BASE}/tmp"
 			config.Paths.Databases,
 			resultBase,
 			config.Paths.ColabFold.Uniref,
+			strconv.Itoa(b2i[usePairwise]),
 		}
 
 		cmd, done, err := execCommand(config.Verbose, parameters...)
