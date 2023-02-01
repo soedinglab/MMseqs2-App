@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NYTimes/gziphandler"
+	"github.com/CAFxX/httpcompression"
 	"github.com/didip/tollbooth/v6"
 	"github.com/didip/tollbooth/v6/limiter"
 	"github.com/goji/httpauth"
@@ -70,6 +70,17 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	}
 
 	r.Use(Decompress)
+
+	// skip zstd for now since its not supported everywhere (e.g. firefox)
+	compressHandler, err := httpcompression.Adapter(
+		httpcompression.DeflateCompressionLevel(6),
+		httpcompression.GzipCompressionLevel(6),
+		httpcompression.BrotliCompressionLevel(6),
+		httpcompression.MinSize(1024),
+	)
+	if err != nil {
+		panic(err)
+	}
 
 	databasesHandler := func(complete bool) func(http.ResponseWriter, *http.Request) {
 		return func(w http.ResponseWriter, req *http.Request) {
@@ -587,7 +598,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		w.Write(query)
 	})
-	r.Handle("/result/{ticket}/query", gziphandler.GzipHandler(queryHandler)).Methods("GET")
+	r.Handle("/result/{ticket}/query", compressHandler(queryHandler)).Methods("GET")
 
 	resultHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
@@ -654,7 +665,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 	})
-	r.Handle("/result/{ticket}/{entry}", gziphandler.GzipHandler(resultHandler)).Methods("GET")
+	r.Handle("/result/{ticket}/{entry}", compressHandler(resultHandler)).Methods("GET")
 
 	r.HandleFunc("/result/queries/{ticket}/{limit}/{page}", func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
