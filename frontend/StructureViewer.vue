@@ -53,43 +53,43 @@
                     v-on:click="makePdb()"
                     title="Save PDB"
                 >
-                    <span v-if="isFullscreen">Save PDB</span>
                     <v-icon v-bind="tbIconBindings">M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h14Zm0 8v-.8c0-.7-.6-1.2-1.3-1.2h-2.4v6h2.4c.7 0 1.2-.5 1.2-1.2v-1c0-.4-.4-.8-.9-.8.5 0 1-.4 1-1Zm-9.7.5v-1c0-.8-.7-1.5-1.5-1.5H5.3v6h1.5v-2h1c.8 0 1.5-.7 1.5-1.5Zm5 2v-3c0-.8-.7-1.5-1.5-1.5h-2.5v6h2.5c.8 0 1.5-.7 1.5-1.5Zm3.4.3h-1.2v-1.2h1.2v1.2Zm-5.9-3.3v3h1v-3h-1Zm-5 0v1h1v-1h-1Zm11 .9h-1.3v-1.2h1.2v1.2Z</v-icon>
+                    <span v-if="isFullscreen">&nbsp;Save PDB</span>
                 </v-btn>
                 <v-btn
                     v-bind="tbButtonBindings"
                     v-on:click="makeImage()"
                     title="Save image"
                 >
-                    <span v-if="isFullscreen">Save image</span>
                     <v-icon v-bind="tbIconBindings">M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3M9 11.5C9 12.3 8.3 13 7.5 13H6.5V15H5V9H7.5C8.3 9 9 9.7 9 10.5V11.5M14 15H12.5L11.5 12.5V15H10V9H11.5L12.5 11.5V9H14V15M19 10.5H16.5V13.5H17.5V12H19V13.7C19 14.4 18.5 15 17.7 15H16.4C15.6 15 15.1 14.3 15.1 13.7V10.4C15 9.7 15.5 9 16.3 9H17.6C18.4 9 18.9 9.7 18.9 10.3V10.5H19M6.5 10.5H7.5V11.5H6.5V10.5Z</v-icon>
+                    <span v-if="isFullscreen">&nbsp;Save image</span>
                 </v-btn>
                 <v-btn
                     v-bind="tbButtonBindings"
                     v-on:click="toggleFullQuery()"
                     title="Toggle between the entire query structure and aligned region"
                 >
-                    <span v-if="isFullscreen">Toggle full query</span>
-                    <v-icon v-bind="tbIconBindings" style='color: grey;' v-if="showFullQuery">{{ $MDI.Circle }}</v-icon>
-                    <v-icon v-bind="tbIconBindings" style='color: grey;' v-else>{{ $MDI.CircleHalf }}</v-icon>
-                </v-btn>
+                    <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-if="showFullQuery">{{ $MDI.Circle }}</v-icon>
+                    <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-else>{{ $MDI.CircleHalf }}</v-icon>
+                    <span v-if="isFullscreen">&nbsp;Toggle full query</span>
+              </v-btn>
                 <v-btn
                     v-bind="tbButtonBindings"
                     v-on:click="toggleFullTarget()"
                     title="Toggle between the entire target structure and aligned region"
                 >
-                    <span v-if="isFullscreen">Toggle full target</span>
-                    <v-icon v-bind="tbIconBindings" style='color: red;' v-if="showTarget == 'aligned'">{{ $MDI.CircleHalf }}</v-icon>
-                    <v-icon v-bind="tbIconBindings" style='color: red;' v-else>{{ $MDI.Circle }}</v-icon>
+                    <v-icon v-bind="tbIconBindings" style='color: #FFC107;' v-if="showTarget == 'aligned'">{{ $MDI.CircleHalf }}</v-icon>
+                    <v-icon v-bind="tbIconBindings" style='color: #FFC107;' v-else>{{ $MDI.Circle }}</v-icon>
+                    <span v-if="isFullscreen">&nbsp;Toggle full target</span>
                 </v-btn>
                 <v-btn
                     v-bind="tbButtonBindings"
                     v-on:click="toggleArrows()"
                     title="Draw arrows between aligned residues"
                 >
-                    <span v-if="isFullscreen">Toggle arrows</span>
                     <v-icon v-bind="tbIconBindings" v-if="showArrows">{{ $MDI.ArrowRightCircle }}</v-icon>
                     <v-icon v-bind="tbIconBindings" v-else>{{ $MDI.ArrowRightCircleOutline }}</v-icon>
+                    <span v-if="isFullscreen">&nbsp;Toggle arrows</span>
                 </v-btn>
                 <v-btn
                     v-bind="tbButtonBindings"
@@ -100,15 +100,15 @@
                             && (selection[0] != 1 || selection[1] != alignment.dbLen))"
                     title="Reset the view to the original position and zoom level"
                 >
-                    <span v-if="isFullscreen">Reset view</span>
                     <v-icon v-bind="tbIconBindings">{{ $MDI.Restore }}</v-icon>
+                    <span v-if="isFullscreen">&nbsp;Reset view</span>
                 </v-btn>
                 <v-btn v-bind="tbButtonBindings"
                     v-on:click="toggleFullscreen()"
                     title="Enter fullscreen mode - press ESC to exit"
                 >
-                    <span v-if="isFullscreen">Fullscreen</span>
                     <v-icon v-bind="tbIconBindings">{{ $MDI.Fullscreen }}</v-icon>
+                    <span v-if="isFullscreen">&nbsp;Fullscreen</span>
                 </v-btn>
             </div>
             <div class="structure-viewer" ref="viewport" />
@@ -400,7 +400,7 @@ END
             return `${this.selection[0]}-${this.selection[1]}`;
         },
         tmPanelBindings: function() {
-            return (this.isFullscreen) ? { 'style': 'margin-top: 10px; font-size: 2em;' } : {  }
+            return (this.isFullscreen) ? { 'style': 'margin-top: 10px; font-size: 2em; line-height: 2em' } : {  }
         },
         tbIconBindings: function() {
             return (this.isFullscreen) ? { 'right': true } : {}
