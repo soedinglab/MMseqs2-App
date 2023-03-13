@@ -196,6 +196,7 @@ export default {
         }
         if (localStorageEnabled && localStorage.databases) {
             this.databases = JSON.parse(localStorage.databases);
+
         }
         if (localStorageEnabled && localStorage.taxFilter) {
             this.taxFilter = JSON.parse(localStorage.taxFilter);
@@ -270,15 +271,16 @@ export default {
                     this.dberror = false;
                     this.databases = data.databases;
 
+                    const complete = this.databases.filter((db) => { return db.status == "COMPLETE"; });
                     if (this.database === null || this.database.length == 0) {
-                        this.database = this.databases.filter((element) => { return element.default == true });
+                        this.database = complete.filter((element) => { return element.default == true });
                     } else {
-                        const paths = this.databases.map((db) => { return db.path; });
+                        const paths = complete.map((db) => { return db.path; });
                         this.database = this.database.filter((elem) => {
                             return paths.includes(elem);
                         });
                     }
-                    this.database = this.databases.filter((db) => { return db.status == "COMPLETE"; }).map(db => db.path);
+
                     if (this.databases.some((db) => { return db.status == "PENDING" || db.status == "RUNNING"; })) {
                         setTimeout(this.fetchData.bind(this), 1000);
                     }
