@@ -1,5 +1,5 @@
 <template>
-    <img :src="'data:image/svg+xml;base64,' + makeData(hash, size)" />
+    <img :src="'data:image/svg+xml;base64,' + makeData(hash, size)" :width="size" :height="size" />
 </template>
 
 <script>
