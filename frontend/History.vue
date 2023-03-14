@@ -53,9 +53,7 @@ export default {
         limit: 7
     }),
     mounted() {
-        if (localStorageEnabled && localStorage.history) {
-            this.items = JSON.parse(localStorage.history);
-        }
+
     },
     created() {
         this.fetchData();
@@ -94,7 +92,12 @@ export default {
             this.current = this.$route.params.ticket;
 
             this.error = false;
-            var itemsTmp = this.items;
+            var itemsTmp;
+            if (localStorageEnabled && localStorage.history) {
+                itemsTmp = JSON.parse(localStorage.history);
+            } else {
+                itemsTmp = [];
+            }
 
             let tickets = [];
             var hasCurrent = false;
