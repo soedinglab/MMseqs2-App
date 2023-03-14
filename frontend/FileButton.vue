@@ -1,5 +1,5 @@
 <template>
-    <v-btn v-bind:id="id" type="button" class="btn btn--raised btn--file" style="position: relative;">
+    <v-btn v-bind:id="id" type="button" class="btn btn--raised btn--file" style="position: relative;"  :block="$vuetify.breakpoint.xsOnly">
         <div v-bind:id="id + 'label'" class="btn__content" aria-hidden>
             {{ label }}
         </div>

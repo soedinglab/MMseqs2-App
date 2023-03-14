@@ -1,7 +1,7 @@
 <template>
     <v-dialog v-model="show" absolute width="unset">
         <template v-slot:activator="{ on }">
-            <v-btn v-on="on">
+            <v-btn v-on="on" :disabled="loading" :block="$vuetify.breakpoint.xsOnly">
                 Load accession
             </v-btn>
         </template>

@@ -1,7 +1,7 @@
 <template>
     <v-tooltip open-delay="300" top v-model="show">
         <template v-slot:activator="{ attrs }">
-            <v-btn :color="color" v-on:click="predict" :disabled="disabled" v-bind="attrs">
+            <v-btn :color="color" v-on:click="predict" :disabled="disabled" v-bind="attrs" :block="$vuetify.breakpoint.xsOnly">
                 <template v-if="loading">
                     <v-icon>{{ $MDI.ProgressWrench }}</v-icon>&nbsp;
                 </template>
