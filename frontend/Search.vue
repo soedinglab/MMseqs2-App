@@ -7,30 +7,10 @@
                         Queries
                     </template>
                     <template slot="toolbar-extra">
-                        <v-tooltip open-delay="300" top>
-                            <template v-slot:activator="{ on }">
-                                <v-icon v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
-                            </template>
-                            <span>{{ $STRINGS.QUERIES_HELP }}</span>
-                        </v-tooltip>
-                    </template>
-                    <template slot="content">
-                        <v-textarea
-                            :aria-label="$STRINGS.QUERIES_HELP"
-                            class="marv-bg mono"
-                            hide-details 
-                            v-model="query" 
-                            @dragover.prevent 
-                            @drop="fileDrop($event)" 
-                            :placeholder="$STRINGS.QUERIES_HELP"
-                            spellcheck="false">
-                        </v-textarea>
-
-                        <div class="actions">
                         <v-dialog v-if="!$ELECTRON" v-model="showCurl" absolute :disabled="searchDisabled">
                             <template v-slot:activator="{ on }">
-                                <v-btn v-on="on" :disabled="searchDisabled">
-                                    cURL Command
+                                <v-btn v-on="on" icon plain :disabled="searchDisabled">
+                                    <v-icon>M 22.23 1.96 c -0.98 0 -1.77 0.8 -1.77 1.77 c 0 0.21 0.05 0.4 0.12 0.6 l -8.31 14.23 c -0.8 0.17 -1.42 0.85 -1.42 1.7 a 1.77 1.77 0 0 0 3.54 0 c 0 -0.2 -0.05 -0.37 -0.1 -0.55 l 8.34 -14.29 a 1.75 1.75 0 0 0 1.37 -1.69 c 0 -0.97 -0.8 -1.77 -1.77 -1.77 M 14.98 1.96 c -0.98 0 -1.77 0.8 -1.77 1.77 c 0 0.21 0.05 0.4 0.12 0.6 l -8.3 14.24 c -0.81 0.16 -1.43 0.84 -1.43 1.7 a 1.77 1.77 0 0 0 3.55 0 c 0 -0.2 -0.06 -0.38 -0.12 -0.56 L 15.4 5.42 a 1.75 1.75 0 0 0 1.37 -1.69 c 0 -0.97 -0.8 -1.77 -1.78 -1.77 M 1.75 6 a 1.75 1.75 0 1 0 0 3.5 a 1.75 1.75 0 0 0 0 -3.5 z m 0 6 a 1.75 1.75 0 1 0 0 3.5 a 1.75 1.75 0 0 0 0 -3.5 z</v-icon>
                                 </v-btn>
                             </template>
                             <v-card>
@@ -50,7 +30,26 @@
                                 </v-card-actions>
                             </v-card>
                         </v-dialog>
+                        <v-tooltip open-delay="300" top>
+                            <template v-slot:activator="{ on }">
+                                <v-icon v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
+                            </template>
+                            <span>{{ $STRINGS.QUERIES_HELP }}</span>
+                        </v-tooltip>
+                    </template>
+                    <template slot="content">
+                        <v-textarea
+                            :aria-label="$STRINGS.QUERIES_HELP"
+                            class="marv-bg mono"
+                            hide-details
+                            v-model="query"
+                            @dragover.prevent
+                            @drop="fileDrop($event)"
+                            :placeholder="$STRINGS.QUERIES_HELP"
+                            spellcheck="false">
+                        </v-textarea>
 
+                        <div class="actions">
                         <load-acession-button v-if="$APP == 'foldseek'" v-on:select="query = $event"></load-acession-button>
 
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
