@@ -1,7 +1,10 @@
 <template>
     <v-dialog v-model="show" absolute width="unset">
         <template v-slot:activator="{ on }">
-            <v-btn v-on="on" :disabled="loading" :block="$vuetify.breakpoint.xsOnly">
+            <v-btn v-on="on" :disabled="loading" :block="$vuetify.breakpoint.xsOnly" :color="error ? 'error' : null">
+                <template v-if="loading">
+                    <v-icon>{{ $MDI.ProgressWrench }}</v-icon>&nbsp;
+                </template>
                 Load accession
             </v-btn>
         </template>
@@ -17,7 +20,7 @@
             <v-card-actions>
                 <v-spacer></v-spacer>
                 <v-btn text @click.native="show = false">Cancel</v-btn>
-                <v-btn color="primary" text @click.native="load" :disabled="this.accession.length == 0 || loading">Load</v-btn>
+                <v-btn color="primary" text @click.native="loadSelected" :disabled="this.accession.length == 0 || loading">Load</v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>
@@ -28,6 +31,7 @@ import { create } from 'axios';
 
 export default {
     name: 'load-accession-button',
+    props: ['preload-accession', 'preload-source'],
     data() {
         return {
             loading: false,
@@ -41,8 +45,20 @@ export default {
             ]
         };
     },
+    mounted() {
+        if (this.preloadAccession && this.preloadAccession.length > 0 && this.preloadSource && this.preloadSource.length > 0) {
+            if (this.sources.map((e) => e.value).includes(this.preloadSource)) {
+                this.accession = this.preloadAccession.replaceAll(/[^A-Za-z0-9_]/g, '');
+                this.source = this.preloadSource;
+                this.load(this.accession, this.preloadSource);
+            }
+        }
+    },
     methods: {
-        load() {
+        loadSelected() {
+            this.load(this.accession, this.source);
+        },
+        load(accession, source) {
             let url;
             let fun;
             // make a new axios instance to not leak the electron access token
@@ -52,11 +68,11 @@ export default {
                     this.show = false;
                     this.loading = false;
                 };
-            if (this.source == "PDB") {
-                url = "https://files.rcsb.org/download/" + this.accession.toUpperCase() + ".pdb";
+            if (source == "PDB") {
+                url = "https://files.rcsb.org/download/" + accession.toUpperCase() + ".pdb";
                 fun = simpleFetch;
-            } else if (this.source == "AlphaFoldDB") {
-                url = "https://alphafold.ebi.ac.uk/api/search?q=(text:*" + this.accession + " OR text:" + this.accession + "*)&type=main&start=0&rows=1"
+            } else if (source == "AlphaFoldDB") {
+                url = "https://alphafold.ebi.ac.uk/api/search?q=(text:*" + accession + " OR text:" + accession + "*)&type=main&start=0&rows=1"
                 fun = response => {
                     const data = response.data;
                     const docs = data.docs;

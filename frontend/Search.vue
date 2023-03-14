@@ -50,7 +50,7 @@
                         </v-textarea>
 
                         <div class="actions">
-                        <load-acession-button v-if="$APP == 'foldseek'" v-on:select="query = $event"></load-acession-button>
+                        <load-acession-button v-if="$APP == 'foldseek'" v-on:select="query = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
 
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
 
@@ -60,7 +60,7 @@
                 </panel>
             </v-flex>
             <v-flex xs12 md4>
-                <panel header="Search Settings">
+                <panel header="Search settings">
                     <div slot="content">
                         <div class="input-group">
                             <v-tooltip open-delay="300" top>
@@ -174,7 +174,7 @@ export default {
             mode: this.$STRINGS.MODE_DEFAULT_KEY,
             email: "",
             hideEmail: true,
-            query: this.$STRINGS.QUERY_DEFAULT,
+            query: "",
             database: [],
             taxFilter: null,
             predictable: false
@@ -187,15 +187,18 @@ export default {
         if (localStorageEnabled && localStorage.email) {
             this.email = localStorage.email;
         }
-        if (localStorageEnabled && localStorage.query) {
+        if (this.preloadAccession.length > 0) {
+            this.query = "";
+        } else if (localStorageEnabled && localStorage.query && localStorage.query.length > 0) {
             this.query = localStorage.query;
+        } else {
+            this.query = this.$STRINGS.QUERY_DEFAULT;
         }
         if (localStorageEnabled && localStorage.database) {
             this.database = JSON.parse(localStorage.database);
         }
         if (localStorageEnabled && localStorage.databases) {
             this.databases = JSON.parse(localStorage.databases);
-
         }
         if (localStorageEnabled && localStorage.taxFilter) {
             this.taxFilter = JSON.parse(localStorage.taxFilter);
@@ -215,6 +218,12 @@ export default {
                     this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0
                 );
             }
+        },
+        preloadSource() {
+            return this.$route.query.source || "";
+        },
+        preloadAccession() {
+            return this.$route.query.accession || "";
         }
     },
     created() {
