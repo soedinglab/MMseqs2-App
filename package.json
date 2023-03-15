@@ -139,7 +139,7 @@
     "vuedraggable": "^2.24.3",
     "vuetify": "^2.6.12",
     "vuetify-loader": "<1.9.0",
-    "webpack": "^5.75.0",
+    "webpack": "^5.76.0",
     "webpack-cli": "^4.10.0",
     "webpack-dev-server": "^4.11.1",
     "webpack-hot-middleware": "^2.25.3",
