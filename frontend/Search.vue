@@ -1,16 +1,25 @@
 <template>
     <v-container grid-list-md fluid px-2 py-1 class="search-component">
         <v-layout wrap>
-            <v-flex xs12 md8>
+            <v-flex xs12>
                 <panel class="query-panel d-flex fill-height" fill-height>
                     <template slot="header">
-                        Queries
+                        <template v-if="$APP == 'foldseek'">
+                            Input protein
+                            <template v-if="!$vuetify.breakpoint.smAndDown">
+                                structure (PDB) or sequence (FASTA)
+                            </template>
+                        </template>
+                        <template v-else>
+                            Queries
+                        </template>
                     </template>
                     <template slot="toolbar-extra">
                         <v-dialog v-if="!$ELECTRON" v-model="showCurl" absolute :disabled="searchDisabled">
                             <template v-slot:activator="{ on }">
-                                <v-btn v-on="on" icon plain :disabled="searchDisabled">
+                                <v-btn v-on="on" plain :disabled="searchDisabled">
                                     <v-icon>M 22.23 1.96 c -0.98 0 -1.77 0.8 -1.77 1.77 c 0 0.21 0.05 0.4 0.12 0.6 l -8.31 14.23 c -0.8 0.17 -1.42 0.85 -1.42 1.7 a 1.77 1.77 0 0 0 3.54 0 c 0 -0.2 -0.05 -0.37 -0.1 -0.55 l 8.34 -14.29 a 1.75 1.75 0 0 0 1.37 -1.69 c 0 -0.97 -0.8 -1.77 -1.77 -1.77 M 14.98 1.96 c -0.98 0 -1.77 0.8 -1.77 1.77 c 0 0.21 0.05 0.4 0.12 0.6 l -8.3 14.24 c -0.81 0.16 -1.43 0.84 -1.43 1.7 a 1.77 1.77 0 0 0 3.55 0 c 0 -0.2 -0.06 -0.38 -0.12 -0.56 L 15.4 5.42 a 1.75 1.75 0 0 0 1.37 -1.69 c 0 -0.97 -0.8 -1.77 -1.78 -1.77 M 1.75 6 a 1.75 1.75 0 1 0 0 3.5 a 1.75 1.75 0 0 0 0 -3.5 z m 0 6 a 1.75 1.75 0 1 0 0 3.5 a 1.75 1.75 0 0 0 0 -3.5 z</v-icon>
+                                    API
                                 </v-btn>
                             </template>
                             <v-card>
@@ -50,17 +59,24 @@
                         </v-textarea>
 
                         <div class="actions">
-                        <load-acession-button v-if="$APP == 'foldseek'" v-on:select="query = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
-
-                        <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
-
-                        <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton>
+                            <load-acession-button v-if="$APP == 'foldseek'" v-on:select="query = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
+                            <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
+                            <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton>
                         </div>
                     </template>
                 </panel>
             </v-flex>
-            <v-flex xs12 md4>
-                <panel header="Search settings">
+            <v-flex xs12>
+                <panel collapsible collapsed>
+                    <template slot="header">
+                        <template v-if="!$vuetify.breakpoint.smAndDown">
+                            Databases
+                        </template>
+                        <template v-else>
+                            DBs
+                        </template>
+                        &amp; search settings
+                    </template>
                     <div slot="content">
                         <div class="input-group">
                             <v-tooltip open-delay="300" top>
@@ -115,12 +131,41 @@
                             <span>Send an email when the job is done.</span>
                         </v-tooltip>
 
-                        <v-btn color="primary" block large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>Search</v-btn>
 
                         <div v-if="errorMessage != ''" class="v-alert red mt-2">
                             <span>{{ errorMessage }}</span>
                         </div>
                     </div>
+                </panel>
+            </v-flex>
+            <v-flex>
+                <panel>
+                <template slot="content">
+                    <div class="actions" :style="!$vuetify.breakpoint.xsOnly ?'display:flex; align-items: center;' : null">
+                    <v-btn color="primary" :block="$vuetify.breakpoint.xsOnly" x-large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Search</v-btn>
+                    <div :style="!$vuetify.breakpoint.xsOnly ? 'margin-left: 1em;' : 'margin-top: 1em;'">
+                        <span><strong>Summary</strong></span><br>
+                        Search <template v-if="taxFilter">
+                            <strong>{{ taxFilter.text }}</strong> in
+                        </template>
+                        <template v-if="database.length == databases.length">
+                            <strong>all available</strong> databases
+                        </template>
+                        <template v-else>
+                            <strong>{{ database.length }}</strong>
+                            <template v-if="database.length == 1">
+                                database
+                            </template>
+                            <template v-else>
+                                databases
+                            </template>
+                            ({{
+                                databases.filter(db => database.includes(db.path)).map(db => db.name).sort().join(", ")
+                            }})
+                        </template> with {{ $STRINGS.APP_NAME }} in <strong>{{ modes[mode] }}</strong> mode.
+                    </div>
+                    </div>
+                </template>
                 </panel>
             </v-flex>
         </v-layout>
@@ -172,6 +217,8 @@ export default {
             errorMessage: "",
             showCurl: false,
             mode: this.$STRINGS.MODE_DEFAULT_KEY,
+            modes: Array.from({length: this.$STRINGS.MODE_COUNT - 0}, (_, i) => i + 1)
+                        .reduce((dict, i, _)  => { dict[this.$STRINGS['MODE_KEY_' + i]] = this.$STRINGS['MODE_TITLE_' + i]; return dict; }, {}),
             email: "",
             hideEmail: true,
             query: "",

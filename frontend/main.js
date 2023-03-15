@@ -28,6 +28,8 @@ import {
     mdiArrowRightCircleOutline,
     mdiCircle,
     mdiCircleHalf,
+    mdiPlusBox,
+    mdiMinusBox,
 } from '@mdi/js'
 
 Vue.use(VueRouter);
@@ -105,6 +107,8 @@ Vue.use({
             ArrowRightCircleOutline: mdiArrowRightCircleOutline,
             Circle: mdiCircle,
             CircleHalf: mdiCircleHalf,
+            PlusBox: mdiPlusBox,
+            MinusBox: mdiMinusBox,
         };
         if (__ELECTRON__) {
             const remote = require('@electron/remote');
