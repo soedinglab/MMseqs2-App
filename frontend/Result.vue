@@ -286,6 +286,15 @@ export default {
                 } else if (target.startsWith("MGYP")) {
                     return 'https://esmatlas.com/explore/detail/' + target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '')
                 }
+
+                if (res.startsWith("cath")) {
+                    if (target.startsWith('af_')) {
+                        const cath = target.substring(target.lastIndexOf('_') + 1);
+                        return "https://www.cathdb.info/version/latest/superfamily/" + cath;
+                    } else {
+                        return "https://www.cathdb.info/version/latest/domain/"+ target;
+                    }
+                }
             }
 
             return null;
@@ -297,6 +306,15 @@ export default {
                     return target.replaceAll(/\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
                 } else if (res.startsWith("pdb") || res.startsWith("gmgc") || res.startsWith("mgyp") || res.startsWith("mgnify")) {
                     return target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '');
+                }
+
+                if (res.startsWith("cath")) {
+                    if (target.startsWith('af_')) {
+                        const match = target.match(/^af_([A-Z0-9]+)_(\d+)_(\d+)_(\d+\.\d+\.\d+\.\d+)$/);
+                        if (match && match.length == 5) {
+                            return match[1] + ' ' + match[2] + '-' + match[3] + ' '  + match[4];
+                        }
+                    }
                 }
             }
             return target;
