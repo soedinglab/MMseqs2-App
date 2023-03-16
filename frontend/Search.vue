@@ -328,7 +328,7 @@ export default {
 
                     const complete = this.databases.filter((db) => { return db.status == "COMPLETE"; });
                     if (this.database === null || this.database.length == 0) {
-                        this.database = complete.filter((element) => { return element.default == true });
+                        this.database = complete.filter((element) => { return element.default == true }).map((db) => { return db.path; });
                     } else {
                         const paths = complete.map((db) => { return db.path; });
                         this.database = this.database.filter((elem) => {
