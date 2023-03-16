@@ -58,7 +58,7 @@ msgstr "Upload PDB"
 
 msgid "CURL_INTRO"
 msgstr ""
-" Use this command to get a submit a file in PDB format to the FoldSeek "
+" Use this command to get a submit a file in PDB format to the Foldseek "
 "search server. Replace the ‘PATH_TO_FILE’ string with the path to the file."
 
 msgid "MODE_HELP"
