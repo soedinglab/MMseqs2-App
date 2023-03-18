@@ -77,7 +77,8 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
 		var wg sync.WaitGroup
 		errChan := make(chan error, len(job.Database))
-		semaphore := make(chan struct{}, max(1, config.Worker.ParallelDatabases))
+		maxParallel := 1 // config.Worker.ParallelDatabases
+		semaphore := make(chan struct{}, max(1, maxParallel))
 
 		for _, database := range job.Database {
 			wg.Add(1)
@@ -106,7 +107,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 					filepath.Join(resultBase, "job.fasta"),
 					filepath.Join(config.Paths.Databases, database),
 					filepath.Join(resultBase, "alis_"+database),
-					filepath.Join(resultBase, "tmp"+database),
+					filepath.Join(resultBase, "tmp"),
 					"--shuffle",
 					"0",
 					"--db-output",
@@ -182,7 +183,8 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
 		var wg sync.WaitGroup
 		errChan := make(chan error, len(job.Database))
-		semaphore := make(chan struct{}, max(1, config.Worker.ParallelDatabases))
+		maxParallel := 1 // config.Worker.ParallelDatabases
+		semaphore := make(chan struct{}, max(1, maxParallel))
 
 		for _, database := range job.Database {
 			wg.Add(1)
@@ -218,7 +220,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 					filepath.Join(resultBase, "job.pdb"),
 					filepath.Join(config.Paths.Databases, database),
 					filepath.Join(resultBase, "alis_"+database),
-					filepath.Join(resultBase, "tmp"+database),
+					filepath.Join(resultBase, "tmp"),
 					// "--shuffle",
 					// "0",
 					"--alignment-type",
