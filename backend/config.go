@@ -35,7 +35,9 @@ var defaultFileContent = []byte(`{
     },
 	"worker": {
 		// should workers exit immediately after SIGINT/SIGTERM signal or gracefully wait for job completion
-		"gracefulexit": false
+		"gracefulexit": false,
+		// How many databases can be searched in parallel (used additional CPUs)
+		"paralleldatabases": 1
 	},
     // paths to workfolders and mmseqs, special character ~ is resolved relative to the binary location
     "paths" : {
@@ -193,7 +195,8 @@ type ConfigRateLimit struct {
 }
 
 type ConfigWorker struct {
-	GracefulExit bool `json:"gracefulexit"`
+	GracefulExit      bool `json:"gracefulexit"`
+	ParallelDatabases int  `json:"paralleldatabases"`
 }
 
 type ConfigServer struct {

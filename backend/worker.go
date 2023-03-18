@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -74,64 +75,87 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 	switch job := request.Job.(type) {
 	case SearchJob:
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		var wg sync.WaitGroup
+		errChan := make(chan error, len(job.Database))
+		semaphore := make(chan struct{}, max(1, config.Worker.ParallelDatabases))
+
 		for _, database := range job.Database {
-			params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
-			if err != nil {
-				return &JobExecutionError{err}
-			}
-			columns := "query,"
-			if params.FullHeader {
-				columns += "theader"
-			} else {
-				columns += "target"
-			}
-			columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln"
-			if params.Taxonomy {
-				columns += ",taxid,taxname"
-			}
-			parameters := []string{
-				config.Paths.Mmseqs,
-				"easy-search",
-				filepath.Join(resultBase, "job.fasta"),
-				filepath.Join(config.Paths.Databases, database),
-				filepath.Join(resultBase, "alis_"+database),
-				filepath.Join(resultBase, "tmp"),
-				"--shuffle",
-				"0",
-				"--db-output",
-				"--db-load-mode",
-				"2",
-				"--write-lookup",
-				"1",
-				"--format-output",
-				columns,
-			}
-			parameters = append(parameters, strings.Fields(params.Search)...)
-
-			if job.Mode == "summary" {
-				parameters = append(parameters, "--greedy-best-hits")
-			}
-
-			if params.Taxonomy && job.TaxFilter != "" {
-				parameters = append(parameters, "--taxon-list")
-				parameters = append(parameters, job.TaxFilter)
-			}
-
-			cmd, done, err := execCommand(config.Verbose, parameters...)
-			if err != nil {
-				return &JobExecutionError{err}
-			}
-
-			select {
-			case <-time.After(1 * time.Hour):
-				if err := KillCommand(cmd); err != nil {
-					log.Printf("Failed to kill: %s\n", err)
-				}
-				return &JobTimeoutError{}
-			case err := <-done:
+			wg.Add(1)
+			semaphore <- struct{}{}
+			go func(database string) {
+				defer wg.Done()
+				defer func() { <-semaphore }()
+				params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
 				if err != nil {
-					return &JobExecutionError{err}
+					errChan <- &JobExecutionError{err}
+					return
 				}
+				columns := "query,"
+				if params.FullHeader {
+					columns += "theader"
+				} else {
+					columns += "target"
+				}
+				columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln"
+				if params.Taxonomy {
+					columns += ",taxid,taxname"
+				}
+				parameters := []string{
+					config.Paths.Mmseqs,
+					"easy-search",
+					filepath.Join(resultBase, "job.fasta"),
+					filepath.Join(config.Paths.Databases, database),
+					filepath.Join(resultBase, "alis_"+database),
+					filepath.Join(resultBase, "tmp"+database),
+					"--shuffle",
+					"0",
+					"--db-output",
+					"--db-load-mode",
+					"2",
+					"--write-lookup",
+					"1",
+					"--format-output",
+					columns,
+				}
+				parameters = append(parameters, strings.Fields(params.Search)...)
+
+				if job.Mode == "summary" {
+					parameters = append(parameters, "--greedy-best-hits")
+				}
+
+				if params.Taxonomy && job.TaxFilter != "" {
+					parameters = append(parameters, "--taxon-list")
+					parameters = append(parameters, job.TaxFilter)
+				}
+
+				cmd, done, err := execCommand(config.Verbose, parameters...)
+				if err != nil {
+					errChan <- &JobExecutionError{err}
+					return
+				}
+
+				select {
+				case <-time.After(1 * time.Hour):
+					if err := KillCommand(cmd); err != nil {
+						log.Printf("Failed to kill: %s\n", err)
+					}
+					errChan <- &JobTimeoutError{}
+				case err := <-done:
+					if err != nil {
+						errChan <- &JobExecutionError{err}
+					} else {
+						errChan <- nil
+					}
+				}
+			}(database)
+		}
+
+		wg.Wait()
+		close(errChan)
+
+		for err := range errChan {
+			if err != nil {
+				return err
 			}
 		}
 
@@ -156,71 +180,96 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		return nil
 	case StructureSearchJob:
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		var wg sync.WaitGroup
+		errChan := make(chan error, len(job.Database))
+		semaphore := make(chan struct{}, max(1, config.Worker.ParallelDatabases))
+
 		for _, database := range job.Database {
-			params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
-			if err != nil {
-				return &JobExecutionError{err}
-			}
-			var mode2num = map[string]string{"3di": "0", "tmalign": "1", "3diaa": "2"}
-			mode, found := mode2num[job.Mode]
-			if !found {
-				return &JobExecutionError{errors.New("invalid mode selected")}
-			}
-			columns := "query,"
-			if params.FullHeader {
-				columns += "theader"
-			} else {
-				columns += "target"
-			}
-			columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,prob,evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
-			if params.Taxonomy {
-				columns += ",taxid,taxname"
-			}
-			parameters := []string{
-				config.Paths.FoldSeek,
-				"easy-search",
-				filepath.Join(resultBase, "job.pdb"),
-				filepath.Join(config.Paths.Databases, database),
-				filepath.Join(resultBase, "alis_"+database),
-				filepath.Join(resultBase, "tmp"),
-				// "--shuffle",
-				// "0",
-				"--alignment-type",
-				mode,
-				"--db-output",
-				"--db-load-mode",
-				"2",
-				"--write-lookup",
-				"1",
-				"--format-output",
-				columns,
-			}
-			parameters = append(parameters, strings.Fields(params.Search)...)
+			wg.Add(1)
+			semaphore <- struct{}{}
+			go func(database string) {
+				defer wg.Done()
+				defer func() { <-semaphore }()
 
-			if job.Mode == "summary" {
-				parameters = append(parameters, "--greedy-best-hits")
-			}
-
-			if params.Taxonomy && job.TaxFilter != "" {
-				parameters = append(parameters, "--taxon-list")
-				parameters = append(parameters, job.TaxFilter)
-			}
-
-			cmd, done, err := execCommand(config.Verbose, parameters...)
-			if err != nil {
-				return &JobExecutionError{err}
-			}
-
-			select {
-			case <-time.After(1 * time.Hour):
-				if err := KillCommand(cmd); err != nil {
-					log.Printf("Failed to kill: %s\n", err)
-				}
-				return &JobTimeoutError{}
-			case err := <-done:
+				params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
 				if err != nil {
-					return &JobExecutionError{err}
+					errChan <- &JobExecutionError{err}
+					return
 				}
+				var mode2num = map[string]string{"3di": "0", "tmalign": "1", "3diaa": "2"}
+				mode, found := mode2num[job.Mode]
+				if !found {
+					errChan <- &JobExecutionError{errors.New("invalid mode selected")}
+					return
+				}
+				columns := "query,"
+				if params.FullHeader {
+					columns += "theader"
+				} else {
+					columns += "target"
+				}
+				columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,prob,evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
+				if params.Taxonomy {
+					columns += ",taxid,taxname"
+				}
+				parameters := []string{
+					config.Paths.FoldSeek,
+					"easy-search",
+					filepath.Join(resultBase, "job.pdb"),
+					filepath.Join(config.Paths.Databases, database),
+					filepath.Join(resultBase, "alis_"+database),
+					filepath.Join(resultBase, "tmp"+database),
+					// "--shuffle",
+					// "0",
+					"--alignment-type",
+					mode,
+					"--db-output",
+					"--db-load-mode",
+					"2",
+					"--write-lookup",
+					"1",
+					"--format-output",
+					columns,
+				}
+				parameters = append(parameters, strings.Fields(params.Search)...)
+
+				if job.Mode == "summary" {
+					parameters = append(parameters, "--greedy-best-hits")
+				}
+
+				if params.Taxonomy && job.TaxFilter != "" {
+					parameters = append(parameters, "--taxon-list")
+					parameters = append(parameters, job.TaxFilter)
+				}
+
+				cmd, done, err := execCommand(config.Verbose, parameters...)
+				if err != nil {
+					errChan <- &JobExecutionError{err}
+					return
+				}
+
+				select {
+				case <-time.After(1 * time.Hour):
+					if err := KillCommand(cmd); err != nil {
+						log.Printf("Failed to kill: %s\n", err)
+					}
+					errChan <- &JobTimeoutError{}
+				case err := <-done:
+					if err != nil {
+						errChan <- &JobExecutionError{err}
+					} else {
+						errChan <- nil
+					}
+				}
+			}(database)
+		}
+
+		wg.Wait()
+		close(errChan)
+
+		for err := range errChan {
+			if err != nil {
+				return err
 			}
 		}
 
