@@ -111,7 +111,7 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 		res = append(res, SearchResult{strings.TrimPrefix(base, "alis_"), results})
 	}
 
-	query := filepath.Join(base, "tmp", "latest", "query")
+	query := filepath.Join(base, "query")
 	err = reader.Make(dbpaths(query))
 	if err != nil {
 		return AlignmentResponse{}, err
@@ -164,7 +164,7 @@ func FSAlignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error
 		res = append(res, SearchResult{strings.TrimPrefix(base, "alis_"), results})
 	}
 
-	query := filepath.Join(base, "tmp", "latest", "query")
+	query := filepath.Join(base, "query")
 	err = reader.Make(dbpaths(query))
 	if err != nil {
 		return AlignmentResponse{}, err

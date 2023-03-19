@@ -71,19 +71,36 @@ func execCommand(verbose bool, parameters ...string) (*exec.Cmd, chan error, err
 	return cmd, done, err
 }
 
+func execCommandSync(verbose bool, parameters ...string) error {
+	cmd, done, err := execCommand(verbose, parameters...)
+	if err != nil {
+		return err
+	}
+	select {
+	case <-time.After(1 * time.Minute):
+		return &JobTimeoutError{}
+	case err := <-done:
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	return nil
+}
+
 func RunJob(request JobRequest, config ConfigRoot) (err error) {
 	switch job := request.Job.(type) {
 	case SearchJob:
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
 		var wg sync.WaitGroup
 		errChan := make(chan error, len(job.Database))
-		maxParallel := 1 // config.Worker.ParallelDatabases
+		maxParallel := config.Worker.ParallelDatabases
 		semaphore := make(chan struct{}, max(1, maxParallel))
 
-		for _, database := range job.Database {
+		for index, database := range job.Database {
 			wg.Add(1)
 			semaphore <- struct{}{}
-			go func(database string) {
+			go func(index int, database string) {
 				defer wg.Done()
 				defer func() { <-semaphore }()
 				params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
@@ -107,7 +124,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 					filepath.Join(resultBase, "job.fasta"),
 					filepath.Join(config.Paths.Databases, database),
 					filepath.Join(resultBase, "alis_"+database),
-					filepath.Join(resultBase, "tmp"),
+					filepath.Join(resultBase, "tmp"+strconv.Itoa(index)),
 					"--shuffle",
 					"0",
 					"--db-output",
@@ -148,7 +165,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 						errChan <- nil
 					}
 				}
-			}(database)
+			}(index, database)
 		}
 
 		wg.Wait()
@@ -156,7 +173,24 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 
 		for err := range errChan {
 			if err != nil {
-				return err
+				return &JobExecutionError{err}
+			}
+		}
+
+		parameters := []string{
+			config.Paths.Mmseqs,
+			"mvdb",
+			filepath.Join(resultBase, "tmp0", "latest", "query"),
+			filepath.Join(resultBase, "query"),
+		}
+		err = execCommandSync(config.Verbose, parameters...)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		for index, _ := range job.Database {
+			err := os.RemoveAll(filepath.Join(resultBase, "tmp"+strconv.Itoa(index)))
+			if err != nil {
+				return &JobExecutionError{err}
 			}
 		}
 
@@ -183,13 +217,13 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
 		var wg sync.WaitGroup
 		errChan := make(chan error, len(job.Database))
-		maxParallel := 1 // config.Worker.ParallelDatabases
+		maxParallel := config.Worker.ParallelDatabases
 		semaphore := make(chan struct{}, max(1, maxParallel))
 
-		for _, database := range job.Database {
+		for index, database := range job.Database {
 			wg.Add(1)
 			semaphore <- struct{}{}
-			go func(database string) {
+			go func(index int, database string) {
 				defer wg.Done()
 				defer func() { <-semaphore }()
 
@@ -220,7 +254,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 					filepath.Join(resultBase, "job.pdb"),
 					filepath.Join(config.Paths.Databases, database),
 					filepath.Join(resultBase, "alis_"+database),
-					filepath.Join(resultBase, "tmp"),
+					filepath.Join(resultBase, "tmp"+strconv.Itoa(index)),
 					// "--shuffle",
 					// "0",
 					"--alignment-type",
@@ -263,7 +297,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 						errChan <- nil
 					}
 				}
-			}(database)
+			}(index, database)
 		}
 
 		wg.Wait()
@@ -271,7 +305,24 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 
 		for err := range errChan {
 			if err != nil {
-				return err
+				return &JobExecutionError{err}
+			}
+		}
+
+		parameters := []string{
+			config.Paths.Mmseqs,
+			"mvdb",
+			filepath.Join(resultBase, "tmp0", "latest", "query"),
+			filepath.Join(resultBase, "query"),
+		}
+		err = execCommandSync(config.Verbose, parameters...)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		for index, _ := range job.Database {
+			err := os.RemoveAll(filepath.Join(resultBase, "tmp"+strconv.Itoa(index)))
+			if err != nil {
+				return &JobExecutionError{err}
 			}
 		}
 
