@@ -78,6 +78,9 @@ func execCommandSync(verbose bool, parameters ...string) error {
 	}
 	select {
 	case <-time.After(1 * time.Minute):
+		if err := KillCommand(cmd); err != nil {
+			log.Printf("Failed to kill: %s\n", err)
+		}
 		return &JobTimeoutError{}
 	case err := <-done:
 		if err != nil {
@@ -85,7 +88,6 @@ func execCommandSync(verbose bool, parameters ...string) error {
 		}
 		return nil
 	}
-	return nil
 }
 
 func RunJob(request JobRequest, config ConfigRoot) (err error) {
