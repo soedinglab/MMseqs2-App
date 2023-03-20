@@ -179,13 +179,23 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			}
 		}
 
-		parameters := []string{
+		err = execCommandSync(
+			config.Verbose,
+			config.Paths.Mmseqs,
+			"mvdb",
+			filepath.Join(resultBase, "tmp0", "latest", "query_h"),
+			filepath.Join(resultBase, "query_h"),
+		)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		err = execCommandSync(
+			config.Verbose,
 			config.Paths.Mmseqs,
 			"mvdb",
 			filepath.Join(resultBase, "tmp0", "latest", "query"),
 			filepath.Join(resultBase, "query"),
-		}
-		err = execCommandSync(config.Verbose, parameters...)
+		)
 		if err != nil {
 			return &JobExecutionError{err}
 		}
