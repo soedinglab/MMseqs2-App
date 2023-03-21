@@ -76,7 +76,7 @@ export default {
     width: 100%;
 }
 .alignment-wrapper-inner {
-    flex: 1;
+    flex: 2;
     margin: auto;
     display: flex;
     flex-direction: column;
