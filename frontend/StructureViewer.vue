@@ -493,7 +493,7 @@ END
                 }).then(() => {
                     this.setSelection(this.showTarget)
                     this.setQuerySelection()
-                    query.autoView()
+                    this.stage.autoView()
                 })
             })
         })
