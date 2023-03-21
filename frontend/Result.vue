@@ -56,20 +56,19 @@
 
                 <template slot="content" v-if="hits && hits.results.length > 1">
                     <v-tabs
-                        background-color="deep-purple accent-4"
                         :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"
                         center-active
-                        dark
                         grow
                         v-model="selectedDatabases"
                         style="margin-bottom: 2em"
+                        show-arrows
                         @change="closeAlignment()"
                     >
                         <v-tab>All databases</v-tab>
                         <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments.length }})</v-tab>
                     </v-tabs>
                     <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
-                    <v-flex class="d-flex" :class="$vuetify.breakpoint.xsOnly ? 'flex-column' : null">
+                    <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null }">
                         <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;"><span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments.length }} hits</small></h2>
                         <v-btn-toggle mandatory v-model="tableMode" class="ml-auto">
                             <v-btn>
@@ -141,8 +140,11 @@
                                     <button 
                                         @click="showAlignment(item, $event)"
                                         type="button"
-                                        class="v-btn v-btn--icon v-btn--round v-btn--text theme--dark v-size--default"
-                                        :class="alignment && item.target == alignment.target ? 'v-btn--outlined' : null"
+                                        class="v-btn v-btn--icon v-btn--round v-btn--text v-size--default"
+                                        :class="{ 
+                                                    'v-btn--outlined' : alignment && item.target == alignment.target,
+                                                    'theme--dark' : $vuetify.theme.dark
+                                                }"
                                         >
                                         <span class="v-btn__content"><span aria-hidden="true" class="v-icon notranslate theme--dark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg"><path d="M5,13H19V11H5M3,17H17V15H3M7,7V9H21V7"></path></svg></span></span>
                                     </button>
