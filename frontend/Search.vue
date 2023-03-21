@@ -55,7 +55,11 @@
                             @dragover.prevent
                             @drop="fileDrop($event)"
                             :placeholder="$STRINGS.QUERIES_HELP"
-                            spellcheck="false">
+                            spellcheck="false"
+                            data-gramm="false"
+                            data-gramm_editor="false"
+                            data-enable-grammarly="false"
+                            >
                         </v-textarea>
 
                         <div class="actions">
