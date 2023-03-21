@@ -48,6 +48,7 @@
                 RMSD: {{ tmAlignResults.rmsd }}
             </div>
             <div class="toolbar-panel">
+                <v-item-group class="v-btn-toggle">
                 <v-btn
                     v-bind="tbButtonBindings"
                     v-on:click="makePdb()"
@@ -110,6 +111,7 @@
                     <v-icon v-bind="tbIconBindings">{{ $MDI.Fullscreen }}</v-icon>
                     <span v-if="isFullscreen">&nbsp;Fullscreen</span>
                 </v-btn>
+                </v-item-group>
             </div>
             <div class="structure-viewer" ref="viewport" />
         </div>
@@ -407,11 +409,9 @@ END
         },
         tbButtonBindings: function() {
             return (this.isFullscreen) ? {
-                'large': true,
                 'small': false,
-                'style': 'margin-left: 5px; margin-bottom: 10px;',
+                'style': 'margin-bottom: 15px;',
             } : {
-                'large': false,
                 'small': true,
                 'style': ''
             }
@@ -426,7 +426,16 @@ END
         const ambientIntensity = this.$vuetify.theme.dark ? 0.4 : 0.2;
         if (typeof(this.alignment.tCa) == "undefined")
             return;
-        this.stage = new Stage(this.$refs.viewport, { backgroundColor: bgColor, ambientIntensity: ambientIntensity })
+        this.stage = new Stage(this.$refs.viewport,
+            {
+                backgroundColor: bgColor,
+                ambientIntensity: ambientIntensity,
+                clipNear: -1000,
+                clipFar: 1000,
+                fogFar: 1000,
+                fogNear: -1000,
+                quality: 'high'
+            })
 
         Promise.all([
             this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
@@ -521,7 +530,7 @@ END
 
 <style>
 .structure-wrapper {
-    width: 400px;
+    display: block;
     height: 300px;
 }
 
