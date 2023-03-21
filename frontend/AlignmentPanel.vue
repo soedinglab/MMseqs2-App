@@ -78,6 +78,8 @@ export default {
 .alignment-structure-wrapper {
     min-width:450px;
     min-height:300px;
+    margin: 0;
+    margin-bottom: auto;
 }
 
 @media screen and (max-width: 960px) {
