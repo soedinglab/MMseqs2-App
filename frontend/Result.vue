@@ -116,7 +116,7 @@
                         <tbody>
                             <tr v-for="(item, index) in entry.alignments" :key="item.target + index" :class="['hit', { 'active' : item.active }]">
                                 <td class="long db" data-label="Target" :style="'border-color: ' + entry.color">
-                                    <a :id="item.id" class="anchor"></a>
+                                    <a :id="item.id" class="anchor" style="position: absolute; top: 0"></a>
                                     <a :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.target}}</a>
                                 </td>
                                 <td class="long" data-label="Description" v-if="entry.hasDescription">
@@ -129,7 +129,7 @@
                                 <td class="thin" v-if="tableMode == 1" data-label="Score">{{ item.score }}</td>
                                 <td class="thin" v-if="tableMode == 1" data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
                                 <td class="thin" v-if="tableMode == 1" data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
-                                <td class="graphical" data-label="Position in query" v-if="tableMode == 0">
+                                <td class="graphical" data-label="Position" v-if="tableMode == 0">
                                     <Ruler :length="item.qLen" :start="item.qStartPos" :end="item.qEndPos" :color="item.color" :label="index == 0"></Ruler>
                                 </td>
                                 <td class="alignment-action thin">
@@ -155,16 +155,17 @@
                     </div>
                 </template>
                 </panel>
-
+            </v-flex>
+        </v-layout>
+        <portal>
                 <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
                     <AlignmentPanel
                         slot="content"
                         :alignment="alignment"
-                        :lineLen="$vuetify.breakpoint.smAndDown ? 40 : 80"
+                        :lineLen="fluidLineLen"
                     />
                 </panel>
-            </v-flex>
-        </v-layout>
+            </portal>
     </v-container>
 </template>
 
@@ -221,6 +222,15 @@ export default {
         this.fetchData();
     },
     computed: {
+        fluidLineLen() {
+            if (this.$vuetify.breakpoint.xsOnly) {
+                return 30;
+            } else if (this.$vuetify.breakpoint.smAndDown) {
+                return 40;
+            } else {
+                return 80;
+            }
+        },
         filteredResults() {
             if (!this.hits) {
                 return [];
@@ -266,8 +276,7 @@ export default {
             } else {
                 this.alignment = item;
                 this.activeTarget = event.target.closest('.hit');
-                const topBar = parseInt(document.querySelector('main.v-main').style.paddingTop || 48, 10);
-                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight - topBar;
+                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight;
             }
         },
         closeAlignment() {
@@ -276,8 +285,7 @@ export default {
         },
         handleAlignmentBoxResize: debounce(function() {
             if (this.activeTarget != null) {
-                const topBar = parseInt(document.querySelector('main.v-main').style.paddingTop || 48, 10);
-                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight - topBar;
+                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight;
             }
         }, 32, false),
         tryLinkTargetToDB(target, db) {
@@ -553,6 +561,7 @@ small.ticket {
 
 @media screen and (max-width: 960px) {
     .result-table {
+        width: 100%;
         .long {
             height: 100% !important;
             white-space: normal !important;
@@ -585,7 +594,7 @@ small.ticket {
             max-width: 100%;
             position: relative;
             display: block;
-            margin: 0.25em;
+            padding: 0.5em;
         }
 
         tr td {
@@ -611,21 +620,28 @@ small.ticket {
 
         tr:not(.detail):not(.is-empty):not(.table-footer) td {
             display: flex;
-            width: auto;
-            justify-content: flex-end;
-            text-align: right;
             border-bottom: 1px solid #eee;
-            // align-items: center;
-            white-space: nowrap;
+            flex-direction: row;
+
+            &:last-child {
+                border-bottom: 0;
+            }
         }
         tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
             content: attr(data-label);
             font-weight: 600;
             margin-right: auto;
             padding-right: 0.5em;
-            text-align: left;
-            width: 100%;
             word-break: keep-all;
+            flex: 1;
+            white-space: nowrap;
+        }
+
+        tbody td a, tbody td span {
+            flex: 2;
+            margin-left: auto;
+            text-align: right;
+            word-wrap: anywhere;
         }
     }
 }
@@ -633,7 +649,8 @@ small.ticket {
 .alignment {
     position:absolute;
     left:4px;
-    right:0;
+    right:4px;
+    z-index: 999;
 
     .residues {
         font-family: InconsolataClustal, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
