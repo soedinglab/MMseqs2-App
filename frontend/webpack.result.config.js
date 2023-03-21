@@ -35,9 +35,6 @@ module.exports = (env, argv) => {
                     loader: 'babel-loader',
                     include: [
                         path.resolve(__dirname),
-                    ],
-                    exclude: [
-                        path.resolve(__dirname, 'lib/d3'),
                     ]
                 },
                 {

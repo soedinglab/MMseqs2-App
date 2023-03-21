@@ -4,13 +4,14 @@
             <v-flex xs12>
             <panel>
                 <template slot="header">
-                    <span class="hidden-sm-and-down">Results for Job:&nbsp;</span><small class="ticket">{{ ticket }}</small>
-                </template>
-
-                <template slot="toolbar-extra">
-                    <v-toolbar-items>
-                        <v-btn class="hide" ref="reset" dark @click="resetZoom" aria-hidden="true">Reset Zoom</v-btn>
-                    </v-toolbar-items>
+                    <template v-if="!hits">
+                        <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
+                        <small class="ticket">{{ ticket }}</small>
+                    </template>
+                    <template v-else>
+                        <span  class="hidden-sm-and-down">Results:&nbsp;</span>
+                        <small class="ticket">{{ hits.query.header }}</small>
+                    </template>
                 </template>
 
                 <div slot="desc" v-if="resultState == 'PENDING'">
@@ -53,21 +54,40 @@
                     </v-container>
                 </div>
 
-                <div slot="content" v-if="resultState == 'RESULT'" ref="hitsParent" style="position:relative;">
-                    <div style="position:absolute;top:0;left:0;right:0;bottom:0;">
-                        <div class="hits" ref="hits"></div>
-                    </div>
-                </div>
-            </panel>
-            </v-flex>
-            <v-flex xs12 v-if="hits">
-                <panel>
-                    <table class="v-table result-table" slot="content" style="position:relative">
+                <template slot="content" v-if="hits && hits.results.length > 1">
+                    <v-tabs
+                        background-color="deep-purple accent-4"
+                        :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"
+                        center-active
+                        dark
+                        grow
+                        v-model="selectedDatabases"
+                        style="margin-bottom: 2em"
+                        @change="closeAlignment()"
+                    >
+                        <v-tab>All databases</v-tab>
+                        <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments.length }})</v-tab>
+                    </v-tabs>
+                    <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
+                    <v-flex class="d-flex" :class="$vuetify.breakpoint.xsOnly ? 'flex-column' : null">
+                        <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;"><span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments.length }} hits</small></h2>
+                        <v-btn-toggle mandatory v-model="tableMode" class="ml-auto">
+                            <v-btn>
+                                Graphical
+                            </v-btn>
+                    
+                            <v-btn>
+                                Numeric
+                            </v-btn>
+                        </v-btn-toggle>
+                    </v-flex>
+
+                    <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <thead>
                             <tr>
-                                <th class="wide-1">Database</th>
-                                <th class="wide-2">
-                                    Target
+                                <th :class="'wide-' + (3 - entry.hasDescription - entry.hasTaxonomy)">Target</th>
+                                <th class="wide-1" v-if="entry.hasDescription">
+                                    Description
                                     <v-tooltip open-delay="300" top>
                                         <template v-slot:activator="{ on }">
                                             <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
@@ -75,49 +95,70 @@
                                         <span>Triple click to select whole cell (for very long identifiers)</span>
                                     </v-tooltip>
                                 </th>
-                                <th v-if="taxonomy"  class="wide-1">Scientific Name</th>
+                                <th v-if="entry.hasTaxonomy"  class="wide-1">Scientific Name</th>
                                 <th class="thin">Prob.</th>
                                 <th class="thin">Seq. Id.</th>
-                                <th class="thin">Score</th>
-                                <th>{{ $APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value' }}</th>
-                                <th>Query Pos.</th>
-                                <th>Target Pos.</th>
-                                <th class="alignment-action">Alignment</th>
+                                <th class="thin">{{ $APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value' }}</th>
+                                <th v-if="tableMode == 1" class="thin">Score</th>
+                                <th v-if="tableMode == 1">Query Pos.</th>
+                                <th v-if="tableMode == 1">Target Pos.</th>
+                                <th v-if="tableMode == 0">
+                                    Position in query
+                                    <v-tooltip open-delay="300" top>
+                                        <template v-slot:activator="{ on }">
+                                            <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
+                                        </template>
+                                        <span>The position of the aligned region of the target sequence in the query</span>
+                                    </v-tooltip>
+                                </th>
+                                <th class="alignment-action thin">Alignment</th>
                             </tr>
                         </thead>
-                        <tbody v-for="entry in hits.results" :key="entry.db">
+                        <tbody>
                             <tr v-for="(item, index) in entry.alignments" :key="item.target + index" :class="['hit', { 'active' : item.active }]">
-                                <td data-label="Database" class="db" v-if="index == 0" :rowspan="entry.alignments.length" :style="'border-color: ' + entry.color">{{ entry.db }}</td>
-                                <td class="long" data-label="Target">
+                                <td class="long db" data-label="Target" :style="'border-color: ' + entry.color">
                                     <a :id="item.id" class="anchor"></a>
-                                    <a v-if="item.description.length == 0" :href="item.href" target="_blank" rel="noopener">{{item.target}}</a>
-                                    <span v-else>
-                                        <span :title="item.description">{{ item.description }}</span><br>
-                                        <small><a :href="item.href" target="_blank" rel="noopener">{{item.target}}</a></small>
-                                    </span>
+                                    <a :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.target}}</a>
                                 </td>
-                                <td v-if="taxonomy" data-label="Taxonomy" class="long"><a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" target="_blank" rel="noopener" :title="item.taxName">{{ item.taxName }}</a></td>
-                                <td data-label="Probability">{{ item.prob }}</td>
-                                <td data-label="Sequence Identity">{{ item.seqId }}</td>
-                                <td data-label="Score">{{ item.score }}</td>
-                                <td :data-label="$APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value'">{{ item.eval }}</td>
-                                <td data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
-                                <td data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
-                                <td class="alignment-action">
-                                    <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
-                                        <v-icon>{{ $MDI.NotificationClearAll }}</v-icon>
-                                    </v-btn>
+                                <td class="long" data-label="Description" v-if="entry.hasDescription">
+                                    <span :title="item.description">{{ item.description }}</span>
+                                </td>
+                                <td v-if="entry.hasTaxonomy" data-label="Taxonomy" class="long"><a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" target="_blank" rel="noopener" :title="item.taxName">{{ item.taxName }}</a></td>
+                                <td class="thin" data-label="Probability">{{ item.prob }}</td>
+                                <td class="thin" data-label="Sequence Identity">{{ item.seqId }}</td>
+                                <td class="thin" :data-label="$APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value'">{{ item.eval }}</td>
+                                <td class="thin" v-if="tableMode == 1" data-label="Score">{{ item.score }}</td>
+                                <td class="thin" v-if="tableMode == 1" data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
+                                <td class="thin" v-if="tableMode == 1" data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
+                                <td class="graphical" data-label="Position in query" v-if="tableMode == 0">
+                                    <Ruler :length="item.qLen" :start="item.qStartPos" :end="item.qEndPos" :color="item.color" :label="index == 0"></Ruler>
+                                </td>
+                                <td class="alignment-action thin">
+                                    <!-- performance issue with thousands of v-btns, hardcode the minimal button instead -->
+                                    <!-- <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
+                                        <v-icon v-once>{{ $MDI.NotificationClearAll }}</v-icon>
+                                    </v-btn> -->
+                                    <button 
+                                        @click="showAlignment(item, $event)"
+                                        type="button"
+                                        class="v-btn v-btn--icon v-btn--round v-btn--text theme--dark v-size--default"
+                                        :class="alignment && item.target == alignment.target ? 'v-btn--outlined' : null"
+                                        >
+                                        <span class="v-btn__content"><span aria-hidden="true" class="v-icon notranslate theme--dark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg"><path d="M5,13H19V11H5M3,17H17V15H3M7,7V9H21V7"></path></svg></span></span>
+                                    </button>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
+                    </div>
+                </template>
                 </panel>
 
                 <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
                     <AlignmentPanel
                         slot="content"
                         :alignment="alignment"
-                        :lineLen="lineLen"
+                        :lineLen="$vuetify.breakpoint.smAndDown ? 40 : 80"
                     />
                 </panel>
             </v-flex>
@@ -126,14 +167,12 @@
 </template>
 
 <script>
-
 import Panel from './Panel.vue';
 import AlignmentPanel from './AlignmentPanel.vue';
+import Ruler from './Ruler.vue';
 
-require('./lib/d3/d3');
-
-import feature from './lib/feature-viewer/feature-viewer.js';
 import colorScale from './lib/ColorScale';
+import { rgb2hsl } from './lib/ColorSpace';
 import { debounce } from './lib/debounce';
 
 function lerp(v0, v1, t) {
@@ -143,24 +182,6 @@ function lerp(v0, v1, t) {
 function clamp(a,b,c) {
     return Math.max(b,Math.min(c,a));
 }
-
-function mapPosToSeq(seq, targetPos) {
-    var counter = 0;
-    var sequencePos = -1;
-    for (var i = 0; i < seq.length; i++) {
-        if (seq[i] != '-') {
-            sequencePos++;
-        }
-        if (sequencePos == targetPos) {
-            break;
-        }
-        counter++;
-    }
-
-    return counter;
-}
-
-var m = null;
 
 function getAbsOffsetTop($el) {
     var sum = 0;
@@ -173,7 +194,7 @@ function getAbsOffsetTop($el) {
 
 export default {
     name: 'result',
-    components: { Panel, AlignmentPanel },
+    components: { Panel, AlignmentPanel, Ruler },
     data() {
         return {
             ticket: "",
@@ -183,31 +204,30 @@ export default {
             hits: null,
             alignment: null,
             activeTarget: null,
-            taxonomy: false,
             alnBoxOffset: 0,
-            lineLen: 80,
-            hitsUpToDate: true,
+            selectedDatabases: 0,
+            tableMode: 0,
         };
     },
     created() {
         window.addEventListener("resize", this.handleAlignmentBoxResize, { passive: true });
-        this.$root.$on('navigation-resize', this.updateWindow);
     },
     beforeDestroy() {
         window.removeEventListener("resize", this.handleAlignmentBoxResize);
-        this.$root.$off('navigation-resize', this.updateWindow);
-        this.remove();
     },
     mounted() {
         this.fetchData();
     },
-    updated() {
-        if (this.$refs.hits && this.hitsUpToDate == false) {
-            this.setData(this.hits);
-            this.hitsUpToDate = true;
-        }
-    },
     computed: {
+        filteredResults() {
+            if (!this.hits) {
+                return [];
+            }
+            if (this.selectedDatabases === 0) {
+                return this.hits.results;
+            }
+            return [this.hits.results[this.selectedDatabases - 1]];
+        },
         resultState() {
             if (this.hits == null && this.error == "") {
                 return "PENDING";
@@ -235,28 +255,22 @@ export default {
             if (from.path != to.path) {
                 this.fetchData();
             }
-            
-            if (from.hash != to.hash) {
-                this.updateActive(to.hash);
-            }
         }
     },
     methods: {
-        updateWindow() {
-            if (m != null) {
-                m.updateWindowDebounced();
-            }
-        },
         showAlignment(item, event) {
             if (this.alignment == item) {
-                this.alignment = null;
-                this.activeTarget = null;
+                this.closeAlignment();
             } else {
                 this.alignment = item;
                 this.activeTarget = event.target.closest('.hit');
                 const topBar = parseInt(document.querySelector('main.v-main').style.paddingTop || 48, 10);
                 this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight - topBar;
             }
+        },
+        closeAlignment() {
+            this.alignment = null;
+            this.activeTarget = null;
         },
         handleAlignmentBoxResize: debounce(function() {
             if (this.activeTarget != null) {
@@ -320,11 +334,9 @@ export default {
             return target;
         },
         fetchData(entry) {
-            this.remove();
             this.ticket = this.$route.params.ticket;
             this.entry = this.$route.params.entry;
             this.alignment = null;
-            this.taxonomy = false;
             this.$axios.get("api/result/" + this.ticket + '/' + this.entry)
                 .then((response) => {
                     this.error = "";
@@ -337,17 +349,57 @@ export default {
                         var empty = 0;
                         var total = 0;
                         for (var i in data.results) {
-                            var db = data.results[i].db;
-                            data.results[i].color = color(db); 
-                            if (data.results[i].alignments == null) {
+                            var result = data.results[i];
+                            result.hasDescription = false;
+                            result.hasTaxonomy = false;
+                            var db = result.db;
+                            result.color = color(db);
+                            var colorHsl = rgb2hsl(result.color);
+                            if (result.alignments == null) {
                                 empty++;
                             }
                             total++;
-                            for (var j in data.results[i].alignments) {
-                                var item = data.results[i].alignments[j];
+                            let max = {
+                                score: Number.MIN_VALUE,
+                                // eval: Number.MIN_VALUE,
+                                // prob: Number.MIN_VALUE,
+                                // seqId: Number.MIN_VALUE,
+                                // qStartPos: Number.MIN_VALUE,
+                                // qEndPos: Number.MIN_VALUE,
+                                // qLen: Number.MIN_VALUE,
+                                // dbStartPos: Number.MIN_VALUE,
+                                // dbEndPos: Number.MIN_VALUE,
+                                // dbLen: Number.MIN_VALUE,
+                            }
+                            let min = {
+                                score: Number.MAX_VALUE,
+                                // eval: Number.MAX_VALUE,
+                                // prob: Number.MAX_VALUE,
+                                // seqId: Number.MAX_VALUE,
+                                // qStartPos: Number.MAX_VALUE,
+                                // qEndPos: Number.MAX_VALUE,
+                                // qLen: Number.MAX_VALUE,
+                                // dbStartPos: Number.MAX_VALUE,
+                                // dbEndPos: Number.MAX_VALUE,
+                                // dbLen: Number.MAX_VALUE,
+                            }
+                            for (var j in result.alignments) {
+                                let item = result.alignments[j];
+                                for (const key in min) {
+                                    min[key] = item[key] < min[key] ? item[key] : min[key];
+                                    max[key] = item[key] > max[key] ? item[key] : max[key];
+                                }
+                            }
+                            // result.min = min;
+                            // result.max = max;
+                            for (var j in result.alignments) {
+                                var item = result.alignments[j];
                                 let split = item.target.split(' ');
                                 item.target = split[0];
                                 item.description = split.slice(1).join(' ');
+                                if (item.description.length > 1) {
+                                    result.hasDescription = true;
+                                }
                                 item.href = this.tryLinkTargetToDB(item.target, db);
                                 item.target = this.tryFixTargetName(item.target, db);
                                 item.id = 'result-' + i + '-' + j;
@@ -362,8 +414,11 @@ export default {
                                     }
                                 }
                                 if ("taxId" in item) {
-                                    this.taxonomy = true;
+                                    result.hasTaxonomy = true;
                                 }
+                                let r = lerp(min.score/max.score, 1, item.score/max.score);
+                                const luminosity = clamp(colorHsl[2] * Math.pow(0.55, -(1 - r)), 0.1, 0.9);
+                                item.color = `hsl(${colorHsl[0]}, ${colorHsl[1]*100}%, ${luminosity*100}%)`
                             }
                         }
                         if (total != 0 && empty/total == 1) {
@@ -371,159 +426,14 @@ export default {
                         } else {
                             this.hits = data;
                         }
-                        this.hitsUpToDate = false;
                     } else {
                         this.error = "Failed";
                         this.hits = [];
-                        this.hitsUpToDate = false;
                     }
                 }, () => {
                     this.error = "Failed";
                     this.hits = [];
-                    this.hitsUpToDate = false;
                 });
-        },
-        remove() {
-            if (m != null) {
-                m.clearInstance();
-                m = null;
-            }
-        },
-        resetZoom() {
-            if (m) {
-                m.resetAll();
-            }
-        },
-        updateActive(hash) {
-            if (typeof (hash) === "undefined" || hash[0] !== '#') {
-                return;
-            }
-
-            if (hash.startsWith('#result') == false) {
-                return;
-            }
-
-            var splits = hash.split('-', 3);
-            var db = splits[1] | 0;
-            var alignment = splits[2] | 0;
-            for (var i = 0; i < this.hits.results[db].alignments.length; ++i) {
-                if (i == splits[2]) {
-                    this.hits.results[db].alignments[i].active = true;
-                } else {
-                    this.hits.results[db].alignments[i].active = false;
-                }
-            }
-        },
-        setData(data) {
-            // cannot change reactive elements in here, or setData gets called repeatedly 
-            this.remove();
-            m = new feature(data.query.header, data.query.sequence, this.$refs.hits, {
-                showAxis: true,
-                showSequence: true,
-                brushActive: true,
-                zoomMax: 10,
-                onZoom: (ev) => {
-                    var $classes = this.$refs.reset.$el.classList;
-                    if (ev.zoom > 1) { $classes.remove('hide'); } else { $classes.add('hide'); } 
-                },
-                onHeightChanged: (newHeight) => {
-                    this.$refs.hitsParent.style.minHeight = newHeight + "px";
-                }
-            });
-
-            var fixSafariSvgLink = function(d, event) {
-                if (typeof (d.href) !== "undefined" && d.href.startsWith('#result')) {
-                    window.location.hash = d.href;
-                }
-            }
-
-            var results = data.results;
-            for (var res in results) {
-                var color = results[res].color;
-                var alignments = results[res].alignments;
-
-                var features = [];
-                var cnt = 0;
-
-                var maxScore = 0;
-                var minScore = Number.MAX_VALUE;
-                var rankColumn = "eval";
-                if (__APP__ == "foldseek" && this.mode != "tmalign") {
-                    rankColumn = "prob";
-                }
-                for (var i in alignments) {
-                    var score = Number.parseFloat(alignments[i][rankColumn]);
-                    if (__APP__ == "foldseek") {
-                        // prob and tm (in eval column) are in [0, 1], transform them to evalue range
-                        score = Math.pow(10, -(10 * score));
-                    }
-                    if (score >= maxScore) {
-                        maxScore = score;
-                    }
-
-                    if (score <= minScore) {
-                        minScore = score;
-                    }
-                }
-
-                for (var i in alignments) {
-                    var score = Number.parseFloat(alignments[i][rankColumn]);
-                    if (__APP__ == "foldseek") {
-                        score = Math.pow(10, -(10 * score));
-                    }
-                    var colorHsl = d3.rgb(color).hsl();
-                    var r = lerp(minScore/maxScore, 1, score/maxScore);
-                    colorHsl.l = clamp(colorHsl.l * Math.pow(0.65, -r), 0.1, 0.9);
-
-                    var reverse = false;
-                    var start = alignments[i]["qStartPos"];
-                    var end = alignments[i]["qEndPos"]
-                    if (start > end) {
-                        start = [end, end = start][0];
-                        reverse = true;
-                    }
-
-                    var rankFormatted;
-                    if (__APP__ == "foldseek") {
-                        if (this.mode == "tmalign") {
-                            rankFormatted = "TM: " + alignments[i][rankColumn];
-                        } else {
-                            rankFormatted = "P: " + alignments[i][rankColumn];
-                        }
-                    } else {
-                        rankFormatted = "E: " + alignments[i][rankColumn];
-                    }
-                    var description;
-                    if (alignments[i]["description"].length > 0) {
-                        description = alignments[i]["target"] + " " + alignments[i]["description"] + " (" + rankFormatted + ")";
-                    } else {
-                        description = alignments[i]["target"] + " (" + rankFormatted + ")";
-                    }
-                    var f = {
-                        "x": mapPosToSeq(data.query.sequence, start),
-                        "y": mapPosToSeq(data.query.sequence, end),
-                        "description": description,
-                        "id": cnt,
-                        "color": colorHsl.rgb(),
-                        "href": '#' + alignments[i]["id"],
-                        "reverse": reverse,
-                        "callback" : fixSafariSvgLink
-                    }
-                    features.push(f);
-                    cnt++;
-                }
-
-                m.addFeature({
-                    data: features,
-                    name: results[res].db,
-                    className: "test6",
-                    color: results[res].color,
-                    type: "rect",
-                    filter: "type2",
-                    shouldSort: false
-                });
-            }
-            m.finishRender();
         }
     }
 };
@@ -542,10 +452,6 @@ src: url(assets/InconsolataClustal2.woff2),
 
 .db {
     border-left: 5px solid black;
-    vertical-align: top;
-    line-height: 3.5;
-    position: relative;
-    background-clip: padding-box;
 }
 
 @media print, screen and (max-width: 599px) {
@@ -585,6 +491,7 @@ small.ticket {
 
     .alignment-action {
         text-align: center;
+        word-wrap: normal;
     }
 }
 
@@ -611,13 +518,21 @@ small.ticket {
         border-collapse: collapse;
         width: 100%;
         th.wide-1 {
-            width: 13%;
+            width: 15%;
         }
         th.wide-2 {
-            width: 22% !important;
+            width: 30%;
+        }
+
+        th.wide-3 {
+            width: 45%;
         }
         th.thin {
             width: 6.5% !important;
+            white-space: nowrap;
+        }
+        td.thin {
+            white-space: nowrap;
         }
         .long {
             overflow: hidden;
@@ -637,7 +552,6 @@ small.ticket {
 @media screen and (max-width: 960px) {
     .result-table {
         .long {
-            word-break: break-word;
             height: 100% !important;
             white-space: normal !important;
             min-height: 48px;
@@ -649,6 +563,10 @@ small.ticket {
 
         tbody td a {
             min-width: 100px;
+        }
+
+        tbody td.graphical div.ruler {
+            margin: 10px 0;
         }
 
         thead {
@@ -720,19 +638,6 @@ small.ticket {
         white-space: pre;
     }
 
-    /* .alignment-wrapper-outer { */
-    /*     display: inline-flex; */
-    /*     flex-direction: row; */
-    /*     flex-wrap: wrap; */
-    /*     justify-content: center; */
-    /*     align-items: center; */
-    /* } */
-
-    /* .structure-wrapper1 { */
-    /*     position: relative; */
-    /*     flex: 1 1 auto; */
-    /* } */
-
     .theme--dark & {
         .residues {
             color: #fff;
@@ -740,75 +645,9 @@ small.ticket {
     }
 }
 
-// a:focus {
-//     outline:0 !important;
-// }
-
-.point {
-    fill: #2f225d;
-    stroke: #afa2dc;
-}
-
-.selected {
-    fill: #afa2dc;
-    stroke: #2f225d;
-}
-
 .clear-button {
     font: 14px sans-serif;
     cursor: pointer;
-}
-
-.hits svg {
-    font-size: 10px;
-
-    .axis path,
-    .axis line {
-        fill: none;
-        stroke: #000;
-        shape-rendering: crispEdges;
-    }
-
-    .axis {
-        font: 10px sans-serif;
-    }
-
-    .yaxis {
-        background-color:green;
-    }
-
-    path {
-        stroke:black;
-        fill: transparent;
-    }
-
-    .brush .extent{
-        stroke: #fff;
-        fill-opacity: .125;
-        shape-rendering: crispEdges;
-    }
-}
-
-.theme--dark .hits {
-    .axis path, .axis line {
-        stroke: #fff;
-    }
-
-    path {
-        stroke:#fff;
-    }
-
-    text {
-        fill:#fff;
-    }
-
-    text.yaxis {
-        fill:#000;
-    }
-
-    .brush .extent {
-        fill-opacity: .5;
-    }
 }
 
 </style>

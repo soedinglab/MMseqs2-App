@@ -68,11 +68,9 @@ export default {
     methods: {
         shouldExpand(expand) {
             this.mini = !expand;
-            this.$root.$emit('navigation-resize', this.mini);
         },
         toggleMini() {
             this.mini = !this.mini;
-            this.$root.$emit('navigation-resize', this.mini);
         },
         electronHandleTitleBarDoubleClick() {
             this.handleTitleBarDoubleClick();

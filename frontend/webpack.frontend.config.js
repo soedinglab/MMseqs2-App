@@ -73,9 +73,6 @@ module.exports = (env, argv) => {
                     include: [
                         path.resolve(__dirname),
                         path.resolve(__dirname, '../node_modules/vuetify/src')
-                    ],
-                    exclude: [
-                        path.resolve(__dirname, './lib/d3'),
                     ]
                 },
                 {
