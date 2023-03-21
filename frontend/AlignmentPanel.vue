@@ -85,6 +85,7 @@ export default {
 
 .alignment-structure-wrapper {
     flex: 1;
+    min-width:450px;
     margin: 0;
     margin-bottom: auto;
 }

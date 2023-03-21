@@ -48,7 +48,7 @@
                 RMSD: {{ tmAlignResults.rmsd }}
             </div>
             <div class="toolbar-panel">
-                <v-item-group class="v-btn-toggle">
+                <v-item-group class="v-btn-toggle" :light="isFullscreen">
                 <v-btn
                     v-bind="tbButtonBindings"
                     v-on:click="makePdb()"
@@ -530,8 +530,9 @@ END
 
 <style>
 .structure-wrapper {
-    display: block;
+    width: 400px;
     height: 300px;
+    margin: 0 auto;
 }
 
 .theme--dark .structure-wrapper .v-tooltip__content {
@@ -560,6 +561,7 @@ END
     width: 100%;
     bottom: 0;
     z-index: 1;
+    left: 0;
 }
 .tmscore-panel {
     position: absolute;
