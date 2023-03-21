@@ -312,7 +312,7 @@ export default {
                     if (target.startsWith('af_')) {
                         const match = target.match(/^af_([A-Z0-9]+)_(\d+)_(\d+)_(\d+\.\d+\.\d+\.\d+)$/);
                         if (match && match.length == 5) {
-                            return match[1] + ' ' + match[2] + '-' + match[3] + ' '  + match[4];
+                            return match[4] + ' '  + match[1] + ' ' + match[2] + '-' + match[3];
                         }
                     }
                 }
