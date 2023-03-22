@@ -54,7 +54,7 @@
                     </v-container>
                 </div>
 
-                <template slot="content" v-if="hits && hits.results.length > 1">
+                <template slot="content" v-if="hits">
                     <v-tabs
                         :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"
                         center-active
@@ -63,6 +63,7 @@
                         style="margin-bottom: 2em"
                         show-arrows
                         @change="closeAlignment()"
+                        v-if="hits.results.length > 1"
                     >
                         <v-tab>All databases</v-tab>
                         <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments.length }})</v-tab>
