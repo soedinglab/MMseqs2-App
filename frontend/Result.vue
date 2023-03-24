@@ -66,11 +66,11 @@
                         v-if="hits.results.length > 1"
                     >
                         <v-tab>All databases</v-tab>
-                        <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments.length }})</v-tab>
+                        <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments ? entry.alignments.length : 0 }})</v-tab>
                     </v-tabs>
                     <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
                     <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null }">
-                        <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;"><span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments.length }} hits</small></h2>
+                        <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;"><span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments ? entry.alignments.length : 0 }} hits</small></h2>
                         <v-btn-toggle mandatory v-model="tableMode" class="ml-auto">
                             <v-btn>
                                 Graphical
