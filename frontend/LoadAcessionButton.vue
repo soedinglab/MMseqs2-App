@@ -54,6 +54,13 @@ export default {
             }
         }
     },
+    watch: {
+        loading: function (val, old) {
+            if (val != old) {
+                this.$emit('loading', val);
+            }
+        },
+    },
     methods: {
         loadSelected() {
             this.load(this.accession, this.source);

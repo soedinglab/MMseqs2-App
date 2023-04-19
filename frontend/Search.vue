@@ -50,6 +50,7 @@
                         <v-textarea
                             :aria-label="$STRINGS.QUERIES_HELP"
                             class="marv-bg mono"
+                            :loading="accessionLoading"
                             hide-details
                             v-model="query"
                             @dragover.prevent
@@ -63,7 +64,7 @@
                         </v-textarea>
 
                         <div class="actions">
-                            <load-acession-button v-if="$APP == 'foldseek'" v-on:select="query = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
+                            <load-acession-button v-if="$APP == 'foldseek'" @select="query = $event" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
                             <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
                             <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton>
                         </div>
@@ -228,7 +229,8 @@ export default {
             query: "",
             database: [],
             taxFilter: null,
-            predictable: false
+            predictable: false,
+            accessionLoading: false,
         };
     },
     mounted() {
