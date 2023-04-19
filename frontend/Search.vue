@@ -39,6 +39,7 @@
                                 </v-card-actions>
                             </v-card>
                         </v-dialog>
+                        <v-icon v-if="query.length > 0" title="Clear" @click="query = ''" style="margin-right: 16px">{{ $MDI.Delete }}</v-icon>
                         <v-tooltip open-delay="300" top>
                             <template v-slot:activator="{ on }">
                                 <v-icon v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
