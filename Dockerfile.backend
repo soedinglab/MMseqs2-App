@@ -11,26 +11,30 @@ ADD https://mmseqs.com/latest/mmseqs-linux-sse2.tar.gz  .
 ADD https://mmseqs.com/latest/mmseqs-linux-arm64.tar.gz  .
 
 ADD https://mmseqs.com/foldseek/foldseek-linux-avx2.tar.gz  .
-ADD https://mmseqs.com/foldseek/foldseek-linux-sse41.tar.gz .
+#ADD https://mmseqs.com/foldseek/foldseek-linux-sse41.tar.gz .
 ADD https://mmseqs.com/foldseek/foldseek-linux-sse2.tar.gz  .
 ADD https://mmseqs.com/foldseek/foldseek-linux-arm64.tar.gz  .
 
 ADD https://raw.githubusercontent.com/soedinglab/MMseqs2/678c82ac44f1178bf9a3d49bfab9d7eed3f17fbc/util/mmseqs_wrapper.sh binaries/mmseqs
+ADD https://raw.githubusercontent.com/steineggerlab/foldseek/0a68e16214a6db745cee783128ccba8546ea5dc9/util/foldseek_wrapper.sh binaries/foldseek
 
 RUN mkdir binaries; \
     if [ "$TARGETARCH" = "arm64" ]; then \
       for i in mmseqs foldseek; do \
-        cat ${i}-linux-arm64.tar.gz | tar -xzvf- ${i}/bin/${i}; \
-        mv ${i}/bin/${i} binaries/${i}; \
+        if [ -e "${i}-linux-arm64.tar.gz" ]; then \
+          cat ${i}-linux-arm64.tar.gz | tar -xzvf- ${i}/bin/${i}; \
+          mv ${i}/bin/${i} binaries/${i}; \
+        fi; \
       done; \
     else \
       for i in mmseqs foldseek; do \
         for j in sse2 sse41 avx2; do \
-          cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}/bin/${i}; \
-          mv ${i}/bin/${i} binaries/${i}_${j}; \
+          if [ -e "${i}-linux-${j}.tar.gz" ]; then \
+            cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}/bin/${i}; \
+            mv ${i}/bin/${i} binaries/${i}_${j}; \
+          fi; \
         done; \
       done; \
-      sed 's|mmseqs|foldseek|g' binaries/mmseqs > binaries/foldseek; \
     fi;
 
 RUN chmod -R +x binaries
