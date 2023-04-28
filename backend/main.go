@@ -91,9 +91,17 @@ func main() {
 
 	switch t {
 	case WORKER:
-		worker(MakeRedisJobSystem(config.Redis), config)
+		jobsystem, err := MakeRedisJobSystem(config.Redis, config.Paths.Results)
+		if err != nil {
+			panic(err)
+		}
+		worker(jobsystem, config)
 	case SERVER:
-		server(MakeRedisJobSystem(config.Redis), config)
+		jobsystem, err := MakeRedisJobSystem(config.Redis, config.Paths.Results)
+		if err != nil {
+			panic(err)
+		}
+		server(jobsystem, config)
 	case LOCAL:
 		jobsystem, err := MakeLocalJobSystem(config.Paths.Results)
 		if err != nil {

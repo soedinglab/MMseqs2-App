@@ -167,13 +167,37 @@ type RedisJobSystem struct {
 	Client *redis.Client
 }
 
-func MakeRedisJobSystem(config ConfigRedis) *RedisJobSystem {
-	return &RedisJobSystem{redis.NewClient(&redis.Options{
+func MakeRedisJobSystem(config ConfigRedis, results string) (*RedisJobSystem, error) {
+	jobsystem := &RedisJobSystem{redis.NewClient(&redis.Options{
 		Network:  config.Network,
 		Addr:     config.Address,
 		Password: config.Password,
 		DB:       config.DbIndex,
 	})}
+
+	dirs, err := os.ReadDir(filepath.Clean(results))
+	if err != nil {
+		return jobsystem, err
+	}
+
+	for _, dir := range dirs {
+		if !dir.IsDir() {
+			continue
+		}
+		file := filepath.Join(filepath.Clean(results), dir.Name(), "job.json")
+		if _, err := os.Stat(file); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+		}
+		job, err := getJobRequestFromFile(file)
+		if err != nil || job.Status != StatusComplete {
+			job.Status = StatusError
+			jobsystem.SetStatus(job.Id, StatusError)
+		}
+	}
+
+	return jobsystem, nil
 }
 
 func (j *RedisJobSystem) SetStatus(id Id, status Status) error {
