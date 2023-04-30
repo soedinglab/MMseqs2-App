@@ -4,7 +4,7 @@
             <v-flex xs12>
             <panel>
                 <template slot="header">
-                    <template v-if="!hits">
+                    <template v-if="!hits || !hits.query">
                         <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
                         <small class="ticket">{{ ticket }}</small>
                     </template>
@@ -54,7 +54,7 @@
                     </v-container>
                 </div>
 
-                <template slot="content" v-if="hits">
+                <template slot="content" v-if="hits && hits.results">
                     <v-tabs
                         :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"
                         center-active
