@@ -204,7 +204,6 @@ export default {
             ticket: "",
             error: "",
             mode: "",
-            entry: 0,
             hits: null,
             alignment: null,
             activeTarget: null,
@@ -344,11 +343,17 @@ export default {
             }
             return target;
         },
-        fetchData(entry) {
+        fetchData() {
             this.ticket = this.$route.params.ticket;
-            this.entry = this.$route.params.entry;
+            this.error = "";
+            this.mode = "";
+            this.hits = null;
             this.alignment = null;
-            this.$axios.get("api/result/" + this.ticket + '/' + this.entry)
+            this.activeTarget = null;
+            this.alnBoxOffset = 0;
+            this.selectedDatabases = 0;
+            this.tableMode = 0;
+            this.$axios.get("api/result/" + this.ticket + '/' + this.$route.params.entry)
                 .then((response) => {
                     this.error = "";
                     const data = response.data;
