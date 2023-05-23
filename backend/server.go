@@ -707,17 +707,27 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 	if config.App == AppColabFold {
 		a3mreader := Reader[string]{}
-		base := config.Paths.ColabFold.Pdb70 + "_a3m"
-		err := a3mreader.Make(base+".ffdata", base+".ffindex")
+		a3mbase := config.Paths.ColabFold.Pdb70 + "_a3m"
+		err := a3mreader.Make(a3mbase+".ffdata", a3mbase+".ffindex")
 		if err != nil {
 			log.Fatal(err)
+		}
+
+		var hhmreader *Reader[string] = nil
+		hhmbase := config.Paths.ColabFold.Pdb70 + "_hhm"
+		if fileExists(hhmbase+".ffdata") && fileExists(hhmbase+".ffindex") {
+			hhmreader = &Reader[string]{}
+			err = hhmreader.Make(hhmbase+".ffdata", hhmbase+".ffindex")
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		r.HandleFunc("/template/{list}", func(w http.ResponseWriter, req *http.Request) {
 			templates := strings.Split(mux.Vars(req)["list"], ",")
 			w.Header().Set("Content-Disposition", "attachment; filename=\"templates.tar.gz\"")
 			w.Header().Set("Content-Type", "application/octet-stream")
-			if err := GatherTemplates(w, templates, a3mreader, config.Paths.ColabFold.PdbDivided, config.Paths.ColabFold.PdbObsolete); err != nil {
+			if err := GatherTemplates(w, templates, a3mreader, hhmreader, config.Paths.ColabFold.PdbDivided, config.Paths.ColabFold.PdbObsolete); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
