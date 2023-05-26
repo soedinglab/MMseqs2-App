@@ -296,6 +296,7 @@ export default {
         setSelectionByRange(start, end) {
             if (!this.targetRepr) return
             this.targetRepr.setSelection(`${start}-${end}`)
+            this.stage.autoView(100)
         },
         setSelectionData(start, end) {
             this.selection = [start, end]
@@ -306,7 +307,7 @@ export default {
         },
         setQuerySelection() {
             this.queryRepr.setSelection(this.querySele)
-            this.queryRepr.parent.autoView()
+            this.stage.autoView(100)
         },
         // Update arrow shape on shape update
         renderArrows() {
