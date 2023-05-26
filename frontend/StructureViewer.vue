@@ -67,11 +67,12 @@
                 </v-btn>
                 <v-btn
                     v-bind="tbButtonBindings"
-                    v-on:click="toggleFullQuery()"
+                    v-on:click="cycleQueryView()"
                     title="Toggle between the entire query structure and aligned region"
                 >
-                    <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-if="showFullQuery">{{ $MDI.Circle }}</v-icon>
-                    <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-else>{{ $MDI.CircleHalf }}</v-icon>
+                    <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-if="showQuery === 0">M12 12 V2 A10 10 0 0 0 3.858 17.806 Z</v-icon>
+                    <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-else-if="showQuery === 1">M12 12 V2 A10 10 0 1 0 20.142 17.806 Z</v-icon>
+                    <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-else>{{ $MDI.Circle }}</v-icon>
                     <span v-if="isFullscreen">&nbsp;Toggle full query</span>
               </v-btn>
                 <v-btn
@@ -226,7 +227,7 @@ export default {
     components: { Panel },
     data: () => ({
         'showTarget': 'aligned',
-        'showFullQuery': false,
+        'showQuery': 0,
         'showArrows': false,
         'selection': null,
         'queryChain': '',
@@ -284,9 +285,9 @@ export default {
             if (!this.stage || !this.arrowShape) return
             this.showArrows = !this.showArrows
         },
-        toggleFullQuery() {
+        cycleQueryView() {
             if (!this.stage) return
-            this.showFullQuery = !this.showFullQuery
+            this.showQuery = (this.showQuery === 2) ? 0 : this.showQuery + 1;
         },
         toggleFullTarget() {
             if (!this.stage) return
@@ -375,14 +376,16 @@ END
             this.setSelectionByRange(start, end)
             this.renderArrows()
         },
-        'showFullQuery': function() {
+        'showQuery': function() {
             if (!this.stage) return
             this.setQuerySelection()
         },
         '$route': function() {}
     },
     computed: {
-        queryChainId: function() { return this.queryChain.charCodeAt(0) - 'A'.charCodeAt(0) },
+        queryChainId: function() {
+            return this.queryChain.charCodeAt(0) - 'A'.charCodeAt(0)
+        },
         queryChainSele: function() {
             return (this.queryChain) ? `(:${this.queryChain.toUpperCase()} OR :${this.queryChain.toLowerCase()})` : '';
         },
@@ -395,7 +398,11 @@ END
             return sele
         },
         querySele: function() {
-            return (this.showFullQuery) ? '' : this.querySubSele;
+            if (this.showQuery == 0)
+                return this.querySubSele;
+            if (this.showQuery == 1)
+                return this.queryChainSele;
+            return ''
         },
         targetSele: function() {
             if (!this.selection) return ''
