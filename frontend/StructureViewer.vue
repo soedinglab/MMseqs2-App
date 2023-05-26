@@ -42,11 +42,16 @@
                     </dl>
                 </span>
             </v-tooltip>
-            <div v-if="tmAlignResults" class="tmscore-panel" v-bind="tmPanelBindings">
-                TM-Score: {{ tmAlignResults.tmScore }}
-                <br>
-                RMSD: {{ tmAlignResults.rmsd }}
-            </div>
+            <table v-if="tmAlignResults" class="tmscore-panel" v-bind="tmPanelBindings">
+                <tr>
+                    <td class="left-cell">TM-Score:</td>
+                    <td class="right-cell">{{ tmAlignResults.tmScore }}</td>
+                </tr>
+                <tr>
+                    <td class="left-cell">RMSD:</td>
+                    <td class="right-cell">{{ tmAlignResults.rmsd  }}</td>
+                </tr>
+            </table>
             <div class="toolbar-panel">
                 <v-item-group class="v-btn-toggle" :light="isFullscreen">
                 <v-btn
@@ -573,12 +578,20 @@ END
 }
 .tmscore-panel {
     position: absolute;
-    text-align: center;
     width: 100%;
     top: 0;
     left: 0;
     z-index: 1;
     font-family: monospace;
     color: rgb(31, 119, 180);
+}
+.left-cell {
+    text-align: right;
+    width: 50%;
+}
+.right-cell {
+    text-align: left;
+    width: 50%;
+    padding-left: 0.3em;
 }
 </style>
