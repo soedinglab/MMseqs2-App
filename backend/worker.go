@@ -660,7 +660,7 @@ QUERY="$2"
 BASE="$4"
 DB1="$5"
 USE_PAIRWISE="$6"
-PAIRING_MODE="$7"
+PAIRING_STRATEGY="$7"
 SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a --k-score 'seq:96,prof:80' -e 0.1 --max-seqs 10000"
 EXPAND_PARAM="--expansion-mode 0 -e inf --expand-filter-clusters 0 --max-seq-id 0.95"
 export MMSEQS_CALL_DEPTH=1
@@ -677,9 +677,9 @@ if [ "${USE_PAIRWISE}" = "1" ]; then
 fi
 "${MMSEQS}" expandaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res" "${DB1}.idx" "${BASE}/res_exp" --db-load-mode 2 ${EXPAND_PARAM}
 "${MMSEQS}" align   "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 -c 0.5 --cov-mode 1
-"${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2 --pairing-mode "${PAIRING_MODE}" --pairing-dummy-mode 0
+"${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-dummy-mode 0
 "${MMSEQS}" align   "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_pair" "${BASE}/res_exp_realign_pair_bt" --db-load-mode 2 -e inf -a
-"${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2 --pairing-mode "${PAIRING_MODE}" --pairing-dummy-mode 1
+"${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-dummy-mode 1
 "${MMSEQS}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_final" "${BASE}/pair.a3m" --db-load-mode 2 --msa-format-mode 5
 "${MMSEQS}" rmdb "${BASE}/qdb"
 "${MMSEQS}" rmdb "${BASE}/qdb_h"
@@ -705,11 +705,11 @@ rm -rf -- "${BASE}/tmp"
 		if pairGreedy && pairComplete {
 			return &JobInvalidError{}
 		}
-		pairingMode := "1"
+		pairingStrategy := "1"
 		if pairGreedy {
-			pairingMode = "0"
+			pairingStrategy = "0"
 		} else if pairComplete {
-			pairingMode = "1"
+			pairingStrategy = "1"
 		}
 
 		parameters := []string{
@@ -721,7 +721,7 @@ rm -rf -- "${BASE}/tmp"
 			resultBase,
 			config.Paths.ColabFold.Uniref,
 			strconv.Itoa(b2i[usePairwise]),
-			pairingMode,
+			pairingStrategy,
 		}
 
 		cmd, done, err := execCommand(config.Verbose, parameters...)
