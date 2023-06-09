@@ -705,7 +705,7 @@ rm -rf -- "${BASE}/tmp"
 		if pairGreedy && pairComplete {
 			return &JobInvalidError{}
 		}
-		pairingStrategy := "1"
+		pairingStrategy := "0"
 		if pairGreedy {
 			pairingStrategy = "0"
 		} else if pairComplete {
