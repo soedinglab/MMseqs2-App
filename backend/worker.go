@@ -597,31 +597,41 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 					if m8out {
 						suffix = ".m8"
 					}
-					if err := addFile(tw, filepath.Join(resultBase, "uniref"+suffix)); err != nil {
+
+					path := filepath.Join(resultBase, "uniref"+suffix)
+					if err := addFile(tw, path); err != nil {
 						return err
 					}
+					os.Remove(path)
 
 					if taxonomy {
-						if err := addFile(tw, filepath.Join(resultBase, "uniref_tax.tsv")); err != nil {
+						path = filepath.Join(resultBase, "uniref_tax.tsv")
+						if err := addFile(tw, path); err != nil {
 							return err
 						}
+						os.Remove(path)
 					}
 
 					if useTemplates {
-						if err := addFile(tw, filepath.Join(resultBase, "pdb70.m8")); err != nil {
+						path = filepath.Join(resultBase, "pdb70.m8")
+						if err := addFile(tw, path); err != nil {
 							return err
 						}
+						os.Remove(path)
 					}
 
 					if useEnv {
-						if err := addFile(tw, filepath.Join(resultBase, "bfd.mgnify30.metaeuk30.smag30"+suffix)); err != nil {
+						path = filepath.Join(resultBase, "bfd.mgnify30.metaeuk30.smag30"+suffix)
+						if err := addFile(tw, path); err != nil {
 							return err
 						}
+						os.Remove(path)
 					}
 
 					if err := addFile(tw, scriptPath); err != nil {
 						return err
 					}
+					os.Remove(scriptPath)
 				}
 
 				return nil
@@ -762,13 +772,17 @@ rm -rf -- "${BASE}/tmp"
 					}
 				}()
 
-				if err := addFile(tw, filepath.Join(resultBase, "pair.a3m")); err != nil {
+				path := filepath.Join(resultBase, "pair.a3m")
+				if err := addFile(tw, path); err != nil {
 					return err
 				}
+				os.Remove(path)
 
-				if err := addFile(tw, filepath.Join(resultBase, "pair.sh")); err != nil {
+				path = filepath.Join(resultBase, "pair.sh")
+				if err := addFile(tw, path); err != nil {
 					return err
 				}
+				os.Remove(path)
 
 				return nil
 			}()
