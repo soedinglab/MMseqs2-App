@@ -461,7 +461,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			SetBurst(config.Server.RateLimit.Burst).
 			SetMessageContentType("application/json; charset=utf-8").
 			SetMessage(string(b))
-		if config.Server.RateLimit.IpLookupHeader == "" {
+		if config.Server.RateLimit.IpLookupHeader != "" {
 			lmt.SetIPLookups([]string{config.Server.RateLimit.IpLookupHeader})
 		}
 		if config.App == AppMMseqs2 || config.App == AppFoldSeek {
