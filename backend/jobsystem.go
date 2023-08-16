@@ -384,7 +384,11 @@ func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
 }
 
 func (j *RedisJobSystem) QueueLength() (int, error) {
-	return 0, errors.New("not implemented")
+	length, err := j.Client.ZCount("mmseqs:pending", "-inf", "+inf").Result()
+	if err != nil {
+		return 0, err
+	}
+	return int(length), nil
 }
 
 type LocalJobSystem struct {
