@@ -54,10 +54,13 @@ export default {
             this.loading = true;
             // make a new axios instance to not leak the electron access token
             const axios = create();
-            axios.get("https://api.ncbi.nlm.nih.gov/datasets/v1/genome/taxon_suggest/" + encodeURIComponent(name) + "?tax_rank_filter=higher_taxon")
+            axios.get("https://api.ncbi.nlm.nih.gov/datasets/v2alpha/taxonomy/taxon_suggest/" + encodeURIComponent(name) + "?tax_rank_filter=higher_taxon")
                 .then(response => {
                     if (response.status == 200 && response.data.hasOwnProperty("sci_name_and_ids")) {
                         this.items = response.data.sci_name_and_ids.map((el) => {
+                            if (el.common_name) {
+                                el.sci_name += " (" + el.common_name + ")";
+                            }
                             return { text: el.sci_name, value: el.tax_id }
                         });
                     }
