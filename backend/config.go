@@ -33,12 +33,12 @@ var defaultFileContent = []byte(`{
         // should CORS headers be set to allow requests from anywhere
         "cors"       : true
     },
-	"worker": {
-		// should workers exit immediately after SIGINT/SIGTERM signal or gracefully wait for job completion
-		"gracefulexit": false,
-		// How many databases can be searched in parallel (used additional CPUs)
-		"paralleldatabases": 1
-	},
+    "worker": {
+        // should workers exit immediately after SIGINT/SIGTERM signal or gracefully wait for job completion
+        "gracefulexit": false,
+        // How many databases can be searched in parallel (used additional CPUs)
+        "paralleldatabases": 1
+    },
     // paths to workfolders and mmseqs, special character ~ is resolved relative to the binary location
     "paths" : {
         // path to mmseqs databases, has to be shared between server/workers
@@ -48,8 +48,8 @@ var defaultFileContent = []byte(`{
         /*
         // paths to colabfold templates
         "colabfold"    : {
-			// should stages be run in parallel
-			"parallelstages": false,
+            // should stages be run in parallel
+            "parallelstages": false,
             // paths for search databases
             "uniref"        : "~databases/uniref30_2103",
             "pdb"           : "~databases/pdb70",
