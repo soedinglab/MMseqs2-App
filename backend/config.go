@@ -29,6 +29,19 @@ var defaultFileContent = []byte(`{
             "username" : "",
             "password" : ""
         },
+        // enable rate-limiting (optional)
+        "ratelimit"  : {
+            // this uses the token-bucket algorithm
+            // i.e. we start with a full bucket (with burst tokens) and refill it at a given rate
+            // each request consumes one token, if the bucket is empty the request is rejected
+            // the example below starts with 20 tokens and refills 0.0333 token per second (2 tokens per minute)
+            "rate"   : 0.03333333333333,
+            "burst"  : 20,
+            "ttl"    : 1,
+            "reason" : "The foldseek server is a shared resource. Please be mindful about submitting many jobs.",
+			// CIDRs to allow without rate-limiting
+			"allowlist": []
+        },
         */
         // should CORS headers be set to allow requests from anywhere
         "cors"       : true
