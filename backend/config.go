@@ -188,11 +188,12 @@ type ConfigAuth struct {
 }
 
 type ConfigRateLimit struct {
-	Rate           float64 `json:"rate" validate:"required"`
-	Burst          int     `json:"burst" validate:"required"`
-	TTL            int     `json:"ttl" validate:"required"`
-	IpLookupHeader string  `json:"ipheader"`
-	Reason         string  `json:"reason"`
+	Rate           float64  `json:"rate" validate:"required"`
+	Burst          int      `json:"burst" validate:"required"`
+	TTL            int      `json:"ttl" validate:"required"`
+	IpLookupHeader string   `json:"ipheader"`
+	Reason         string   `json:"reason"`
+	AllowList      []string `json:"allowlist"`
 }
 
 type ConfigWorker struct {

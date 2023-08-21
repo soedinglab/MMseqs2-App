@@ -457,6 +457,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if err != nil {
 			panic(err)
 		}
+
 		lmt := tollbooth.NewLimiter(config.Server.RateLimit.Rate, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Duration(config.Server.RateLimit.TTL) * time.Hour}).
 			SetBurst(config.Server.RateLimit.Burst).
 			SetMessageContentType("application/json; charset=utf-8").
@@ -464,14 +465,16 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if config.Server.RateLimit.IpLookupHeader != "" {
 			lmt.SetIPLookups([]string{config.Server.RateLimit.IpLookupHeader})
 		}
+
+		allowlistedCIDRs := parseCIDRs(config.Server.RateLimit.AllowList)
 		if config.App == AppMMseqs2 || config.App == AppFoldSeek {
-			r.Handle("/ticket", tollbooth.LimitFuncHandler(lmt, ticketHandlerFunc)).Methods("POST")
+			r.Handle("/ticket", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketHandlerFunc)).Methods("POST")
 		}
 		if config.App == AppColabFold || config.App == AppPredictProtein {
-			r.Handle("/ticket/msa", tollbooth.LimitFuncHandler(lmt, ticketMsaHandlerFunc)).Methods("POST")
+			r.Handle("/ticket/msa", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketMsaHandlerFunc)).Methods("POST")
 		}
 		if config.App == AppColabFold {
-			r.Handle("/ticket/pair", tollbooth.LimitFuncHandler(lmt, ticketPairHandlerFunc)).Methods("POST")
+			r.Handle("/ticket/pair", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketPairHandlerFunc)).Methods("POST")
 		}
 	} else {
 		if config.App == AppMMseqs2 || config.App == AppFoldSeek {
