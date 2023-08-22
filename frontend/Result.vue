@@ -107,6 +107,9 @@ export default {
             if (from.path != to.path) {
                 this.fetchData();
             }
+        },
+        hits: function() {
+            this.setColorScheme();
         }
     },
     methods: {
@@ -165,6 +168,48 @@ export default {
             }
             return target;
         },
+        setColorScheme() {
+            var color = colorScale();
+            for (let result of this.hits.results) {
+                result.color = color(result.db);
+                let colorHsl = rgb2hsl(result.color);
+                let max = {
+                    score: Number.MIN_VALUE,
+                    // eval: Number.MIN_VALUE,
+                    // prob: Number.MIN_VALUE,
+                    // seqId: Number.MIN_VALUE,
+                    // qStartPos: Number.MIN_VALUE,
+                    // qEndPos: Number.MIN_VALUE,
+                    // qLen: Number.MIN_VALUE,
+                    // dbStartPos: Number.MIN_VALUE,
+                    // dbEndPos: Number.MIN_VALUE,
+                    // dbLen: Number.MIN_VALUE,
+                }
+                let min = {
+                    score: Number.MAX_VALUE,
+                    // eval: Number.MAX_VALUE,
+                    // prob: Number.MAX_VALUE,
+                    // seqId: Number.MAX_VALUE,
+                    // qStartPos: Number.MAX_VALUE,
+                    // qEndPos: Number.MAX_VALUE,
+                    // qLen: Number.MAX_VALUE,
+                    // dbStartPos: Number.MAX_VALUE,
+                    // dbEndPos: Number.MAX_VALUE,
+                    // dbLen: Number.MAX_VALUE,
+                }
+                for (let alignment of result.alignments) {
+                    for (const key in min) {
+                        min[key] = alignment[key] < min[key] ? alignment[key] : min[key];
+                        max[key] = alignment[key] > max[key] ? alignment[key] : max[key];
+                    }
+                }
+                for (let alignment of result.alignments) {
+                    let r = lerp(min.score / max.score, 1, alignment.score / max.score);
+                    const luminosity = clamp(colorHsl[2] * Math.pow(0.55, -(1 - r)), 0.1, 0.9);
+                    alignment.color = `hsl(${colorHsl[0]}, ${colorHsl[1]*100}%, ${luminosity*100}%)`
+                }
+            }
+        },
         fetchData() {
             this.ticket = this.$route.params.ticket;
             this.error = "";
@@ -180,53 +225,17 @@ export default {
                         this.mode = data.mode;
                     }
                     if (data.alignments == null || data.alignments.length > 0) {
-                        var color = colorScale();
                         var empty = 0;
                         var total = 0;
                         for (var i in data.results) {
                             var result = data.results[i];
+                            var db = result.db;
                             result.hasDescription = false;
                             result.hasTaxonomy = false;
-                            var db = result.db;
-                            result.color = color(db);
-                            var colorHsl = rgb2hsl(result.color);
                             if (result.alignments == null) {
                                 empty++;
                             }
                             total++;
-                            let max = {
-                                score: Number.MIN_VALUE,
-                                // eval: Number.MIN_VALUE,
-                                // prob: Number.MIN_VALUE,
-                                // seqId: Number.MIN_VALUE,
-                                // qStartPos: Number.MIN_VALUE,
-                                // qEndPos: Number.MIN_VALUE,
-                                // qLen: Number.MIN_VALUE,
-                                // dbStartPos: Number.MIN_VALUE,
-                                // dbEndPos: Number.MIN_VALUE,
-                                // dbLen: Number.MIN_VALUE,
-                            }
-                            let min = {
-                                score: Number.MAX_VALUE,
-                                // eval: Number.MAX_VALUE,
-                                // prob: Number.MAX_VALUE,
-                                // seqId: Number.MAX_VALUE,
-                                // qStartPos: Number.MAX_VALUE,
-                                // qEndPos: Number.MAX_VALUE,
-                                // qLen: Number.MAX_VALUE,
-                                // dbStartPos: Number.MAX_VALUE,
-                                // dbEndPos: Number.MAX_VALUE,
-                                // dbLen: Number.MAX_VALUE,
-                            }
-                            for (var j in result.alignments) {
-                                let item = result.alignments[j];
-                                for (const key in min) {
-                                    min[key] = item[key] < min[key] ? item[key] : min[key];
-                                    max[key] = item[key] > max[key] ? item[key] : max[key];
-                                }
-                            }
-                            // result.min = min;
-                            // result.max = max;
                             for (var j in result.alignments) {
                                 var item = result.alignments[j];
                                 let split = item.target.split(' ');
@@ -251,9 +260,6 @@ export default {
                                 if ("taxId" in item) {
                                     result.hasTaxonomy = true;
                                 }
-                                let r = lerp(min.score/max.score, 1, item.score/max.score);
-                                const luminosity = clamp(colorHsl[2] * Math.pow(0.55, -(1 - r)), 0.1, 0.9);
-                                item.color = `hsl(${colorHsl[0]}, ${colorHsl[1]*100}%, ${luminosity*100}%)`
                             }
                         }
                         if (total != 0 && empty/total == 1) {
