@@ -189,14 +189,12 @@ function getAbsOffsetTop($el) {
 export default {
     name: 'result',
     components: { Panel, AlignmentPanel, Ruler },
-    mounted() {
-        console.log(this.ticket, this.error, this.mode, this.hits, this.alignment, this.activeTarget, this.alnBoxOffset, this.selectedDatabases, this.tableMode)
-    },
     data() {
         return {
             alignment: null,
             activeTarget: null,
             alnBoxOffset: 0,
+            selectedDatabases: 0
         }
     },
     props: {
@@ -204,7 +202,6 @@ export default {
         error: "",
         mode: "",
         hits: null,
-        selectedDatabases: 0,
         tableMode: 0
     },
     created() {
