@@ -33,7 +33,6 @@ import {
     mdiMinusBox,
 } from '@mdi/js'
 
-Vue.use(VueRouter);
 Vue.use(Vuetify);
 Vue.use(Portal);
 
@@ -48,14 +47,18 @@ const appStrings = {
 };
 window.document.title = appStrings[__APP__].APP_NAME + " Search Server";
 
-const router = new VueRouter({
+if (!__LOCAL__) {
+    Vue.use(VueRouter);
+}
+const router = __LOCAL__ ? null : new VueRouter({
     mode: __ELECTRON__ ? 'hash' : 'history',
     routes: [
         { path: '/', redirect: { name: 'search' } },
         { name: 'search', path: '/search', component: Search },
         { name: 'queue', path: '/queue/:ticket', component: Queue },
         { 
-            name: 'result', path: '/result/:ticket/:entry', 
+            name: 'result',
+            path: '/result/:ticket/:entry', 
             components: {
                 default: () => import('./Result.vue'),
                 sidebar: Queries
@@ -84,6 +87,7 @@ Vue.use({
         Vue.prototype.$APP = __APP__;
         Vue.prototype.$STRINGS = appStrings[__APP__];
         Vue.prototype.$ELECTRON = __ELECTRON__;
+        Vue.prototype.$LOCAL = __LOCAL__;
         Vue.prototype.$MDI = {
             History: mdiHistory,
             ChevronLeft: mdiChevronLeft,
@@ -153,7 +157,6 @@ const app = new Vue({
     vuetify,
     render: h => h(App)
 });
-
 
 // make sure our CSS is load last
 import './assets/style.css';
