@@ -255,6 +255,7 @@ export default {
         'bgColorDark': { type: String, default: "#eee" },
         'queryMap': { type: Map, default: null },
         'targetMap': { type: Map, default: null },
+        'hits': { type: Object }
     },
     methods: {
         // Parses two alignment strings, and saves matching residues
@@ -449,23 +450,26 @@ END
                 fogNear: -1000,
                 quality: 'high'
             })
-
+        
         Promise.all([
-            this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
+            (__LOCAL__)
+                ? pulchra(mockPDB(this.hits.query.qCa, this.hits.query.sequence))
+                : this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
         ]).then(([qResponse, tPdb]) => {
             // Sanitize PDB in case of lines with too few characters
+            qResponse = (__LOCAL__) ? qResponse : qResponse.data;
             let data = '';
-            for (let line of qResponse.data.split('\n')) {
+            for (let line of qResponse.split('\n')) {
                 let numCols = Math.max(0, 80 - line.length);
                 let newLine = line + ' '.repeat(numCols) + '\n';
                 data += newLine
             }
-            qResponse.data = data;
+            qResponse = data;
             return [qResponse, tPdb];
         }).then(([qResponse, tPdb]) => {
             Promise.all([
-                this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
+                this.stage.loadFile(new Blob([qResponse], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
             ])
             .then(([query, target]) => {
@@ -473,7 +477,7 @@ END
                 // foldseek doesn't care about the oxygen, but NGL does
                 if (query.structure.getAtomProxy().isCg()) {
                     return new Promise((resolve, reject) => {
-                        pulchra(qResponse.data)
+                        pulchra(qResponse)
                         .then((queryPdb) => {
                             this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true})
                             .then((query) => { resolve([query, target]) })

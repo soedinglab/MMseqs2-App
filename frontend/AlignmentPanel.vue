@@ -14,6 +14,7 @@
                 :alignment="alignment"
                 :queryMap="queryMap"
                 :targetMap="targetMap"
+                :hits="hits"
                 bgColorLight="white"
                 bgColorDark="#1E1E1E"
                 qColor="lightgrey"
@@ -47,7 +48,8 @@ export default {
     }),
     props: {
         alignment: { type: Object, required: true, },
-        lineLen: { type: Number, required: true, }
+        lineLen: { type: Number, required: true, },
+        hits: { type: Object }
     },
     methods: {
         setUserSelection([start, end]) {
