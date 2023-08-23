@@ -164,6 +164,7 @@
                         slot="content"
                         :alignment="alignment"
                         :lineLen="fluidLineLen"
+                        :hits="hits"
                     />
                 </panel>
             </portal>
@@ -194,7 +195,8 @@ export default {
             alignment: null,
             activeTarget: null,
             alnBoxOffset: 0,
-            selectedDatabases: 0
+            selectedDatabases: 0,
+            tableMode: 0
         }
     },
     props: {
@@ -202,7 +204,6 @@ export default {
         error: "",
         mode: "",
         hits: null,
-        tableMode: 0
     },
     created() {
         window.addEventListener("resize", this.handleAlignmentBoxResize, { passive: true });

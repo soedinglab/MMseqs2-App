@@ -59,7 +59,13 @@ export default {
         window.removeEventListener("resize", this.handleAlignmentBoxResize);
     },
     mounted() {
-        this.fetchData();
+        if (__LOCAL__) {
+            let data = JSON.parse(document.getElementById("data").textContent);
+            this.fetchDataLocal(data);
+        } else {
+            this.fetchData();
+        }
+        // this.fetchData();
     },
     computed: {
         fluidLineLen() {
@@ -156,7 +162,6 @@ export default {
                 } else if (res.startsWith("pdb") || res.startsWith("gmgc") || res.startsWith("mgyp") || res.startsWith("mgnify")) {
                     return target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '');
                 }
-
                 if (res.startsWith("cath")) {
                     if (target.startsWith('af_')) {
                         const match = target.match(/^af_([A-Z0-9]+)_(\d+)_(\d+)_(\d+\.\d+\.\d+\.\d+)$/);
@@ -210,13 +215,60 @@ export default {
                 }
             }
         },
-        fetchData() {
-            this.ticket = this.$route.params.ticket;
+        resetProperties() {
+            this.ticket = (__LOCAL__) ? "" : this.$route.params.ticket;
             this.error = "";
             this.mode = "";
             this.hits = null;
             this.selectedDatabases = 0;
-            this.tableMode = 0;
+            this.tableMode = 0;           
+        },
+        parseResults(data) {
+            let empty = 0;
+            let total = 0;
+            for (let i in data.results) {
+                let result = data.results[i];
+                let db = result.db;
+                result.hasDescription = false;
+                result.hasTaxonomy = false;
+                if (result.alignments == null) {
+                    empty++;
+                }
+                total++;
+                for (let j in result.alignments) {
+                    let item = result.alignments[j];
+                    let split = item.target.split(' ');
+                    item.target = split[0];
+                    item.description = split.slice(1).join(' ');
+                    if (item.description.length > 1) {
+                        result.hasDescription = true;
+                    }
+                    item.href = this.tryLinkTargetToDB(item.target, db);
+                    item.target = this.tryFixTargetName(item.target, db);
+                    item.id = 'result-' + i + '-' + j;
+                    item.active = false;
+                    if (__APP__ != "foldseek" || this.mode != "tmalign") {
+                        item.eval = item.eval.toExponential(2);
+                    }
+                    if (__APP__ == "foldseek") {
+                        item.prob = item.prob.toFixed(2);
+                        if (this.mode == "tmalign") {
+                            item.eval = item.eval.toFixed(3);
+                        }
+                    }
+                    if ("taxId" in item) {
+                        result.hasTaxonomy = true;
+                    }
+                }
+            }
+            return (total != 0 && empty / total == 1) ? ({ results: [] }) : data;
+        },
+        fetchDataLocal(data) {
+            this.resetProperties();
+            this.hits = this.parseResults(data);
+        },
+        fetchData() {
+            this.resetProperties();
             this.$axios.get("api/result/" + this.ticket + '/' + this.$route.params.entry)
                 .then((response) => {
                     this.error = "";
@@ -225,48 +277,7 @@ export default {
                         this.mode = data.mode;
                     }
                     if (data.alignments == null || data.alignments.length > 0) {
-                        var empty = 0;
-                        var total = 0;
-                        for (var i in data.results) {
-                            var result = data.results[i];
-                            var db = result.db;
-                            result.hasDescription = false;
-                            result.hasTaxonomy = false;
-                            if (result.alignments == null) {
-                                empty++;
-                            }
-                            total++;
-                            for (var j in result.alignments) {
-                                var item = result.alignments[j];
-                                let split = item.target.split(' ');
-                                item.target = split[0];
-                                item.description = split.slice(1).join(' ');
-                                if (item.description.length > 1) {
-                                    result.hasDescription = true;
-                                }
-                                item.href = this.tryLinkTargetToDB(item.target, db);
-                                item.target = this.tryFixTargetName(item.target, db);
-                                item.id = 'result-' + i + '-' + j;
-                                item.active = false;
-                                if (__APP__ != "foldseek" || this.mode != "tmalign") {
-                                    item.eval = item.eval.toExponential(2);
-                                }
-                                if (__APP__ == "foldseek") {
-                                    item.prob = item.prob.toFixed(2);
-                                    if (this.mode == "tmalign") {
-                                        item.eval = item.eval.toFixed(3);
-                                    }
-                                }
-                                if ("taxId" in item) {
-                                    result.hasTaxonomy = true;
-                                }
-                            }
-                        }
-                        if (total != 0 && empty/total == 1) {
-                            this.hits = { results: [] };
-                        } else {
-                            this.hits = data;
-                        }
+                        this.hits = this.parseResults(data); 
                     } else {
                         this.error = "Failed";
                         this.hits = [];
