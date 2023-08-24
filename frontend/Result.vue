@@ -1,12 +1,25 @@
 <template>
-    <ResultView
-        :ticket="ticket"
-        :error="error"
-        :mode="mode"
-        :hits="hits"
-        :selectedDatabases="selectedDatabases"
-        :tableMode="tableMode"
-    />
+    <div>
+        <v-tabs v-if="$LOCAL"
+            center-active
+            grow
+            style="margin-bottom: 1em"
+            show-arrows
+        >
+            <v-tab v-for="(entry, index) in hits" :key="entry.query.header" @click="changeResult(index)">
+                {{ entry.query.header }} ({{ entry.results[0].alignments ? entry.results[0].alignments.length : 0 }})
+            </v-tab>
+        </v-tabs>
+        <ResultView
+            :key="currentIndex"
+            :ticket="ticket"
+            :error="error"
+            :mode="mode"
+            :hits="($LOCAL) ? currentResult : hits"
+            :selectedDatabases="selectedDatabases"
+            :tableMode="tableMode"
+        />       
+    </div>
 </template>
 
 <script>
@@ -44,6 +57,7 @@ export default {
             ticket: "",
             error: "",
             mode: "",
+            currentIndex: 0,
             hits: null,
             alignment: null,
             activeTarget: null,
@@ -60,14 +74,27 @@ export default {
     },
     mounted() {
         if (__LOCAL__) {
-            let data = JSON.parse(document.getElementById("data").textContent);
-            this.fetchDataLocal(data);
+            document.onreadystatechange = () => { 
+                if (document.readyState == "complete") {
+                    let data = JSON.parse(document.getElementById("data").textContent);
+                    this.fetchDataLocal(data);
+                }
+            }
         } else {
             this.fetchData();
         }
-        // this.fetchData();
     },
     computed: {
+        currentResult() {
+            if (this.hits === null)
+                return null;
+            return this.hits[this.currentIndex];
+        },
+        currentQuery() {
+            if (this.hits === null)
+                return "";
+            return this.hits[this.currentIndex].query.header;
+        },
         fluidLineLen() {
             if (this.$vuetify.breakpoint.xsOnly) {
                 return 30;
@@ -119,6 +146,10 @@ export default {
         }
     },
     methods: {
+        changeResult(newRes, oldRes) {
+            this.currentIndex = newRes;
+            this.setColorScheme();
+        },
         tryLinkTargetToDB(target, db) {
             var res = db.toLowerCase();
             if (res.startsWith("pfam")) {
@@ -175,7 +206,7 @@ export default {
         },
         setColorScheme() {
             var color = colorScale();
-            for (let result of this.hits.results) {
+            for (let result of this.currentResult.results) {
                 result.color = color(result.db);
                 let colorHsl = rgb2hsl(result.color);
                 let max = {
@@ -265,7 +296,11 @@ export default {
         },
         fetchDataLocal(data) {
             this.resetProperties();
-            this.hits = this.parseResults(data);
+            this.hits = [];
+            for (let result of data) {
+                this.hits.push(this.parseResults(result));
+            }
+            // this.hits = this.parseResults(data);
         },
         fetchData() {
             this.resetProperties();

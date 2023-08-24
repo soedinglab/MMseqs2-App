@@ -14,7 +14,7 @@
                     </template>
                 </template>
 
-                <div slot="desc" v-if="resultState == 'PENDING'">
+                <div slot="desc" v-if="!$LOCAL && resultState == 'PENDING'">
                     <v-container fill-height grid-list-md>
                         <v-layout justify-center>
                             <v-flex xs4>
@@ -27,7 +27,7 @@
                         </v-layout>
                     </v-container>
                 </div>
-                <div slot="desc" v-else-if="resultState == 'EMPTY'">
+                <div slot="desc" v-else-if="!$LOCAL && resultState == 'EMPTY'">
                     <v-container fill-height grid-list-md>
                         <v-layout justify-center>
                             <v-flex xs4>
@@ -40,7 +40,7 @@
                         </v-layout>
                     </v-container>
                 </div>
-                <div slot="desc" v-else-if="resultState != 'RESULT'">
+                <div slot="desc" v-else-if="!$LOCAL && resultState != 'RESULT'">
                     <v-container fill-height grid-list-md>
                         <v-layout justify-center>
                             <v-flex xs4>
