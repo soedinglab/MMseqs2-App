@@ -125,8 +125,8 @@
 </template>
 
 <script>
-import { Shape, Stage, Selection, download, ColormakerRegistry, PdbWriter } from 'ngl';
 import Panel from './Panel.vue';
+import { Shape, Stage, Selection, download, ColormakerRegistry, PdbWriter } from 'ngl';
 import { pulchra } from 'pulchra-wasm';
 import { tmalign, parse, parseMatrix } from 'tmalign-wasm';
 
@@ -217,7 +217,10 @@ const atomToPDBRow = (ap) => {
 const makeChainMap = (structure, sele) => {
     let idx = 1
     let map = new Map()
-    structure.eachResidue(rp => { map.set(idx++, { index: rp.index, resno: rp.resno }) }, new Selection(sele))
+    structure.eachResidue(rp => {
+        map.set(idx, { index: rp.index, resno: rp.resno });
+        idx++;
+    }, new Selection(sele))
     return map
 }
 
@@ -432,7 +435,7 @@ END
         }
     },
     beforeMount() {
-        let qChain = this.alignment.query.match(/_([A-Z]+?)/m)
+        let qChain = this.hits.query.header.match(/_([A-Z]+?)/m)
         if (qChain) this.queryChain = qChain[0].replace('_', '')
     },
     mounted() {
