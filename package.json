@@ -18,6 +18,7 @@
     "frontend:watch": "webpack --mode development --watch --progress --color --config frontend/webpack.frontend.config.js",
     "frontend:dev": "webpack serve --mode development --open --hot --static dist/ --config frontend/webpack.frontend.config.js",
     "result": "cross-env LOCAL=1 webpack --mode production --progress --color --config frontend/webpack.frontend.config.js",
+    "result:debug": "cross-env LOCAL=1 webpack --mode development --progress --color --config frontend/webpack.frontend.config.js",
     "result:watch": "cross-env LOCAL=1 webpack --mode development --watch --progress --color --config frontend/webpack.frontend.config.js",
     "result:dev": "cross-env LOCAL=1 webpack serve --mode development --open --hot --static dist/ --config frontend/webpack.frontend.config.js"
   },
