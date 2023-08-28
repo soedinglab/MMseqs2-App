@@ -63,7 +63,10 @@ export default {
                 "load",
                 (e) => {
                     let str = e.target.result;
-                    this.hits = JSON.parse(str);
+                    this.hits = [];
+                    for (const hit of JSON.parse(str)) {
+                        this.hits.push(this.parseResults(hit));
+                    }
                 }
             );
             fr.readAsText(file)

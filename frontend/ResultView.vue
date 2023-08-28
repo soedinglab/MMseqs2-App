@@ -162,6 +162,7 @@
                 <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
                     <AlignmentPanel
                         slot="content"
+                        :key="`ap-${alignment.id}`"
                         :alignment="alignment"
                         :lineLen="fluidLineLen"
                         :hits="hits"
@@ -250,7 +251,7 @@ export default {
     },
     methods: {
         showAlignment(item, event) {
-            if (this.alignment == item) {
+            if (this.alignment === item) {
                 this.closeAlignment();
             } else {
                 this.alignment = item;
