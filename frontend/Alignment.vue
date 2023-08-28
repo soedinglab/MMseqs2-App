@@ -36,7 +36,7 @@ const blosum62Sim = [
 function getRange(map, start, end) {
     let first = null, last = null
     for (let i = start; i <= end; i++) {
-	let val = map.get(i)
+	let val = map[i]
 	if (val !== null) {
 	    if (first === null) first = val
 	    last = val
@@ -49,12 +49,12 @@ export default {
     props: ['alignment', 'lineLen', 'queryMap', 'targetMap'],
     methods: {
         // Get the index of a given residue in the alignment
-        getQueryIndex(index) { return this.queryMap.get(index) },
-        getTargetIndex(index) { return this.targetMap.get(index) },
+        getQueryIndex(index) { return this.queryMap[index] },
+        getTargetIndex(index) { return this.targetMap[index] },
         getFirstResidueNumber(map, i) {
             let start = this.lineLen * (i - 1)
-            while (map.get(start) === null) start--
-            return map.get(start)
+            while (map[start] === null) start--
+            return map[start]
         },
         getQueryRowStartPos(i) { return this.getFirstResidueNumber(this.queryMap, i) },
         getTargetRowStartPos(i) { return this.getFirstResidueNumber(this.targetMap, i) },

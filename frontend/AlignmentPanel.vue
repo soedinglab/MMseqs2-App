@@ -31,11 +31,17 @@
 import Alignment from './Alignment.vue'
 
 // Map indices in the alignment to the corresponding indices in the structure
+// realStart will be 1-based
 function makePositionMap(realStart, alnString) {
-    let map = new Map()
-    for (let i = 0, gaps = 0; i <= alnString.length; i++) {
-        if (alnString[i] === '-') map.set(i, null) && gaps++
-        else map.set(i, realStart + i - gaps)
+    let map = Array(alnString.length);
+    // let map = new Map()
+    for (let i = 0, gaps = 0; i < alnString.length; i++) {
+        if (alnString[i] === '-') {
+            map[i] = null;
+            gaps++;
+        } else {
+            map[i] = realStart + i - gaps;
+        }
     }
     return map
 }
