@@ -173,14 +173,16 @@ module.exports = (env, argv) => {
                         }
                     }
                 }) : new NullPlugin(),
-            !isLocal ? new HtmlWebpackPlugin({
+            new HtmlWebpackPlugin({
                 filename: 'index.html',
-                template: path.resolve(__dirname, './index.html'),
+                template: path.resolve(__dirname, !isLocal ? './index.html' : './index.ejs'),
                 templateParameters: {
                     STRINGS: appStrings[frontendApp],
                     ENABLE_CSP: isElectron && isProduction
-                }
-            }) : new NullPlugin(),
+                },
+                inject: !isLocal,
+                cache: !isLocal,
+            }),
             isProduction && !isLocal?
                 new MiniCssExtractPlugin({
                     filename: isElectron ? 'style.css' : '[contenthash:20].css',
@@ -225,7 +227,7 @@ module.exports = (env, argv) => {
             minimizer: [new TerserPlugin({
                 terserOptions: {
                     format: {
-                        beautify: false
+                        beautify: true
                     }
                 }
             })],
