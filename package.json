@@ -17,9 +17,10 @@
     "frontend": "webpack --mode production --progress --color --config frontend/webpack.frontend.config.js",
     "frontend:watch": "webpack --mode development --watch --progress --color --config frontend/webpack.frontend.config.js",
     "frontend:dev": "webpack serve --mode development --open --hot --static dist/ --config frontend/webpack.frontend.config.js",
-    "result": "webpack --mode production --progress --color --config frontend/webpack.result.config.js",
-    "result:watch": "webpack --mode development --watch --progress --color --config frontend/webpack.result.config.js",
-    "result:dev": "webpack serve --mode development --open --hot --static dist/ --config frontend/webpack.result.config.js"
+    "result": "cross-env LOCAL=1 webpack --mode production --progress --color --config frontend/webpack.frontend.config.js",
+    "result:debug": "cross-env LOCAL=1 webpack --mode development --progress --color --config frontend/webpack.frontend.config.js",
+    "result:watch": "cross-env LOCAL=1 webpack --mode development --watch --progress --color --config frontend/webpack.frontend.config.js",
+    "result:dev": "cross-env LOCAL=1 webpack serve --mode development --open --hot --static dist/ --config frontend/webpack.frontend.config.js"
   },
   "configuration": {
     "apiEndpoint": "/"
@@ -98,6 +99,7 @@
     "@babel/plugin-transform-runtime": "^7.19.6",
     "@babel/preset-env": "^7.20.2",
     "@babel/runtime": "^7.20.1",
+    "@bokuweb/zstd-wasm": "^0.0.20",
     "@electron/remote": "^2.0.8",
     "@mdi/js": "^5.9.55",
     "@vue/compiler-dom": "^3.2.45",

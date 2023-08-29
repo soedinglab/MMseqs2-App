@@ -8,8 +8,11 @@ const VueLoaderPlugin = require('vue-loader/lib/plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const VuetifyLoaderPlugin = require('vuetify-loader/lib/plugin');
 const ImageMinimizerPlugin = require("image-minimizer-webpack-plugin");
+const TerserPlugin = require("terser-webpack-plugin");
+const { init, compress } = require('@bokuweb/zstd-wasm');
 
 const isElectron = typeof(process.env.ELECTRON) != "undefined";
+const isLocal = typeof(process.env.LOCAL) != "undefined";
 
 const frontendApp = process.env.FRONTEND_APP;
 if (typeof(frontendApp) == "undefined") {
@@ -36,13 +39,13 @@ module.exports = (env, argv) => {
     const isProduction = argv.mode === 'production';
 
     var exports = {
-        entry: path.resolve(__dirname, './main.js'),
+        entry: isLocal ? path.resolve(__dirname, './main_local.js') : path.resolve(__dirname, './main.js'),
         target: isElectron ? 'electron-renderer' : 'web',
         mode: argv.mode,
         output: {
             path: path.resolve(__dirname, '../dist'),
             publicPath: isElectron ? '' : '/',
-            filename: isElectron ? 'renderer.js' : '[contenthash:20].js',
+            filename: isElectron ? 'renderer.js' : (isLocal ? '[name].js' : '[contenthash:20].js'),
             crossOriginLoading: 'anonymous',
         },
         cache: {
@@ -76,17 +79,25 @@ module.exports = (env, argv) => {
                     ]
                 },
                 {
-                    test: /\.(png|jpe?g|gif|svg|ttf|woff2?|eot|wasm)(\?.*)?$/,
-                    type: 'asset/resource'
+                    test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
+                    type: 'asset/resource',
+                    generator: {
+                        emit: !isLocal
+                    }
                 },
                 {
+                    test: /\.(ttf|woff2?|eot|wasm)(\?.*)?$/,
+                    type: isLocal ? 'asset/inline' : 'asset/resource'
+                },
+
+                {
                     test: /\.css$/,
-                    use: [isProduction ? MiniCssExtractPlugin.loader : 'vue-style-loader', 'css-loader']
+                    use: [isProduction && !isLocal ? MiniCssExtractPlugin.loader : 'vue-style-loader', 'css-loader']
                 },
                 {
                     test: /\.sass$/i,
                     use: [
-                        isProduction ? MiniCssExtractPlugin.loader : 'vue-style-loader',
+                        isProduction && !isLocal ? MiniCssExtractPlugin.loader : 'vue-style-loader',
                         { loader: 'css-loader', options: { esModule: false } },
                         {
                             loader: 'sass-loader',
@@ -102,7 +113,7 @@ module.exports = (env, argv) => {
                 {
                     test: /\.scss$/i,
                     use: [
-                        isProduction ? MiniCssExtractPlugin.loader : 'vue-style-loader',
+                        isProduction && !isLocal ? MiniCssExtractPlugin.loader : 'vue-style-loader',
                         { loader: 'css-loader', options: { esModule: false } },
                         {
                             loader: 'sass-loader',
@@ -134,8 +145,10 @@ module.exports = (env, argv) => {
         },
         plugins: [
             new webpack.DefinePlugin({
+                __TITLE__: JSON.stringify(appStrings[frontendApp]["APP_NAME"]),
                 __CONFIG__: JSON.stringify(require('../package.json').configuration),
                 __ELECTRON__: isElectron,
+                __LOCAL__: isLocal,
                 __APP__: JSON.stringify(frontendApp),
                 'process.env': {
                     NODE_ENV: JSON.stringify(argv.mode)
@@ -143,7 +156,7 @@ module.exports = (env, argv) => {
             }),
             new VueLoaderPlugin(),
             new VuetifyLoaderPlugin(),
-            !isElectron && isProduction ? 
+            !isElectron && isProduction && !isLocal ?
                 new FaviconsWebpackPlugin({
                     logo: frontendApp == 'mmseqs'
                         ? path.resolve(__dirname, './assets/marv1.svg')
@@ -161,13 +174,16 @@ module.exports = (env, argv) => {
                     }
                 }) : new NullPlugin(),
             new HtmlWebpackPlugin({
-                template: path.resolve(__dirname, './index.html'),
+                filename: 'index.html',
+                template: path.resolve(__dirname, !isLocal ? './index.html' : './index.ejs'),
                 templateParameters: {
                     STRINGS: appStrings[frontendApp],
                     ENABLE_CSP: isElectron && isProduction
-                }
+                },
+                inject: !isLocal,
+                cache: !isLocal,
             }),
-            isProduction ?
+            isProduction && !isLocal?
                 new MiniCssExtractPlugin({
                     filename: isElectron ? 'style.css' : '[contenthash:20].css',
                 }) : new NullPlugin(),
@@ -177,7 +193,14 @@ module.exports = (env, argv) => {
             }),
             new CompressionPlugin({
                 test: isProduction && !isElectron ? /\.(js|html|css|svg|woff2?|map|ico|wasm)(\?.*)?$/i : undefined,
-                minRatio: 1
+                minRatio: 1,
+                filename:  !isLocal ? '[path][base].gz' : '[path][base].zst',
+                algorithm: !isLocal ? 'gzip' : (input, compressionOptions, callback) => {
+                    (async () => {
+                        await init();
+                        callback(false, compress(input, 22));
+                    })();
+                }
             }),
             isProduction ? new ImageMinimizerPlugin({
                 minimizer: {
@@ -189,10 +212,43 @@ module.exports = (env, argv) => {
                     },
                 },
             }) : new NullPlugin(),
+            isLocal ?  new webpack.optimize.LimitChunkCountPlugin({
+                maxChunks: 2,
+              }) : new NullPlugin(),
             !isProduction && isElectron ?
                 new webpack.HotModuleReplacementPlugin() : new NullPlugin(),
         ],
-        devtool: isProduction ? 'source-map' : 'eval-source-map'
+        devtool: isProduction ? 'source-map' : 'eval-source-map',
+    }
+    
+    if (isLocal) {
+        exports.optimization = {
+            minimize: true,
+            minimizer: [new TerserPlugin({
+                terserOptions: {
+                    format: {
+                        beautify: true
+                    }
+                }
+            })],
+            splitChunks: {
+                cacheGroups: {
+                    vendor: {
+                      test: /[\\/]node_modules[\\/]/,
+                      name: 'vendor',
+                      chunks: 'all',
+                      priority: -10,
+                      reuseExistingChunk: true,
+                    },
+                    frontend: {
+                      name: 'frontend',
+                      chunks: 'all',
+                      priority: -20,
+                      reuseExistingChunk: true,
+                    },
+                },
+            }
+        };
     }
 
     if (!isProduction && !isElectron) {

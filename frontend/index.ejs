@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<% if (STRINGS.APP_DESCRIPTION) { %><meta name="description" content="<%= STRINGS.APP_DESCRIPTION %>"><% } %>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<% if (ENABLE_CSP) { %><meta http-equiv="Content-Security-Policy" content="default-src 'self' data: 'unsafe-inline'; connect-src http://127.0.0.1:*"><% } %>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><%= STRINGS.APP_NAME %> Search Results</title>
+</head>
+
+<div id="app"></div>
+
+<% for(let jsFile of htmlWebpackPlugin.files.js) {%>
+<script><%= compilation.assets[jsFile.substr(htmlWebpackPlugin.files.publicPath.length)].source() %></script>
+<% } %>

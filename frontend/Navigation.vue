@@ -1,7 +1,7 @@
 <template>
 <div>
-<v-navigation-drawer stateless app permanent clipped :mini-variant="mini" :expand-on-hover="false" ref="drawer">
-    <v-list>
+<v-navigation-drawer v-if="!$LOCAL" stateless app permanent clipped :mini-variant="mini" :expand-on-hover="false" ref="drawer">
+    <v-list v-if="!$LOCAL">
         <v-list-item to="/search">
             <v-list-item-action>
                 <v-icon>{{ $MDI.Magnify }}</v-icon>
@@ -12,8 +12,7 @@
         </v-list-item>
 
         <router-view name="sidebar"></router-view>
-
-        <history />
+        <history v-if="!$LOCAL" />
 
         <v-list-item v-if="$ELECTRON" to="/preferences">
             <v-list-item-action>
@@ -26,8 +25,11 @@
     </v-list>
 </v-navigation-drawer>
 <v-app-bar v-on:dblclick.native="electronHandleTitleBarDoubleClick()" app :height="$ELECTRON ? '72px' : '48px'" fixed clipped-left :class="['ml-0', 'pl-3', $ELECTRON ? 'pt-2' : null]" :style="{'-webkit-app-region': $ELECTRON ? 'drag' : null, '-webkit-user-select': $ELECTRON ? 'none' : null}">
-    <v-app-bar-nav-icon :input-value="!mini ? 'activated' : undefined" @click.stop="toggleMini"></v-app-bar-nav-icon>
-    <v-app-bar-title><router-link to="/" style="color: inherit; text-decoration: none">{{ $STRINGS.APP_NAME }} Search</router-link></v-app-bar-title>
+    <v-app-bar-nav-icon v-if="!$LOCAL" :input-value="!mini ? 'activated' : undefined" @click.stop="toggleMini"></v-app-bar-nav-icon>
+    <v-app-bar-title>
+        <router-link v-if="!$LOCAL" to="/" style="color: inherit; text-decoration: none">{{ $STRINGS.APP_NAME }} Search</router-link>
+        <span v-if="$LOCAL">{{ $STRINGS.APP_NAME }} Search</span>
+    </v-app-bar-title>
     <object style="margin-left:8px; display: inline-block; width: 38px;height: 38px;vertical-align: middle"
             v-if="$APP == 'mmseqs'"
             type="image/svg+xml"
@@ -53,14 +55,14 @@ import History from './History.vue';
 export default {
     components : { History },
     data: () => ({
-        mini: true
+        mini: true,
     }),
     created() {
         this.$root.$on('multi', this.shouldExpand);
     },
     mounted() {
         // defeat https://github.com/vuetifyjs/vuetify/pull/14523
-        Object.defineProperty(this.$refs.drawer._data, 'isMouseover', { get: () => { false } })
+        if (!__LOCAL__) Object.defineProperty(this.$refs.drawer._data, 'isMouseover', { get: () => { false } });
     },
     beforeDestroy() {
         this.$root.$off('multi', this.shouldExpand);

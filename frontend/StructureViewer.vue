@@ -75,8 +75,8 @@
                     v-on:click="cycleQueryView()"
                     title="Toggle between the entire query structure and aligned region"
                 >
-                    <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-if="showQuery === 0">M12 12 V2 A10 10 0 0 0 3.858 17.806 Z</v-icon>
-                    <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-else-if="showQuery === 1">M12 12 V2 A10 10 0 1 0 20.142 17.806 Z</v-icon>
+                    <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-if="showQuery === 0">{{ ($LOCAL) ? $MDI.CircleHalf : "M12 12 V2 A10 10 0 0 0 3.858 17.806 Z" }}</v-icon>
+                    <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-else-if="!$LOCAL && showQuery === 1">M12 12 V2 A10 10 0 1 0 20.142 17.806 Z</v-icon>
                     <v-icon v-bind="tbIconBindings" style='color: #1E88E5;' v-else>{{ $MDI.Circle }}</v-icon>
                     <span v-if="isFullscreen">&nbsp;Toggle full query</span>
               </v-btn>
@@ -125,8 +125,8 @@
 </template>
 
 <script>
-import { Shape, Stage, Selection, download, ColormakerRegistry, PdbWriter } from 'ngl';
 import Panel from './Panel.vue';
+import { Shape, Stage, Selection, download, ColormakerRegistry, PdbWriter } from 'ngl';
 import { pulchra } from 'pulchra-wasm';
 import { tmalign, parse, parseMatrix } from 'tmalign-wasm';
 
@@ -215,9 +215,12 @@ const atomToPDBRow = (ap) => {
 
 // Map 1-based indices in a selection to residue index/resno
 const makeChainMap = (structure, sele) => {
-    let idx = 1
+    // let idx = 1
     let map = new Map()
-    structure.eachResidue(rp => { map.set(idx++, { index: rp.index, resno: rp.resno }) }, new Selection(sele))
+    structure.eachResidue(rp => {
+        map.set(rp.resno, { index: rp.index, resno: rp.resno });
+        // idx++;
+    }, new Selection(sele));
     return map
 }
 
@@ -253,8 +256,9 @@ export default {
         'tRepr': { type: String, default: "cartoon" },
         'bgColorLight': { type: String, default: "white" },
         'bgColorDark': { type: String, default: "#eee" },
-        'queryMap': { type: Map, default: null },
-        'targetMap': { type: Map, default: null },
+        'queryMap': { type: Array, default: null },
+        'targetMap': { type: Array, default: null },
+        'hits': { type: Object }
     },
     methods: {
         // Parses two alignment strings, and saves matching residues
@@ -266,10 +270,18 @@ export default {
             this.qMatches = []
             this.tMatches = []
             for (let i = 0; i < aln1.length; i++) {
-                if (aln1[i] === '-' || aln2[i] === '-') continue
-                let qIdx = this.qChainResMap.get(this.queryMap.get(i)).index
-                let tIdx = this.targetMap.get(i) - 1
-                this.qMatches.push({ index: qIdx, xyz: () => xyz(str1, qIdx) })
+                if (aln1[i] === '-' || aln2[i] === '-') {
+                    continue;
+                }
+                // Make sure this residue actually exists in NGL structure representation
+                // e.g. d1b0ba starts with X, reported in alignment but removed by Pulchra
+                let qIdx = this.qChainResMap.get(this.queryMap[i]);
+                if (qIdx === undefined) {
+                    continue;
+                }
+                // Must be 0-based for xyz()
+                let tIdx = this.targetMap[i] - 1;
+                this.qMatches.push({ index: qIdx.index, xyz: () => xyz(str1, qIdx.index) })
                 this.tMatches.push({ index: tIdx, xyz: () => xyz(str2, tIdx) })
             }
         },
@@ -291,8 +303,13 @@ export default {
             this.showArrows = !this.showArrows
         },
         cycleQueryView() {
-            if (!this.stage) return
-            this.showQuery = (this.showQuery === 2) ? 0 : this.showQuery + 1;
+            if (!this.stage)
+                return;
+            if (__LOCAL__) {
+                this.showQuery = (this.showQuery === 0) ? 1 : 0;
+            } else {
+                this.showQuery = (this.showQuery === 2) ? 0 : this.showQuery + 1;
+            }
         },
         toggleFullTarget() {
             if (!this.stage) return
@@ -396,11 +413,15 @@ END
             return (this.queryChain) ? `(:${this.queryChain.toUpperCase()} OR :${this.queryChain.toLowerCase()})` : '';
         },
         querySubSele: function() {
-            if (!this.qChainResMap) return ''
-            let start = `${this.qChainResMap.get(this.alignment.qStartPos).resno}`
-            let end = `${this.qChainResMap.get(this.alignment.qEndPos).resno}`
-            let sele = `${start}-${end}`
-            if (this.queryChain) sele = `${sele} AND ${this.queryChainSele}`
+            if (!this.qChainResMap) {
+                return '';
+            }
+            let start = this.alignment.qStartPos;
+            let end   = this.alignment.qEndPos;
+            let sele  = `${start}-${end}`;
+            if (this.queryChain) {
+                sele = `${sele} AND ${this.queryChainSele}`;
+            }
             return sele
         },
         querySele: function() {
@@ -431,7 +452,7 @@ END
         }
     },
     beforeMount() {
-        let qChain = this.alignment.query.match(/_([A-Z]+?)/m)
+        let qChain = this.hits.query.header.match(/_([A-Z]+?)/m)
         if (qChain) this.queryChain = qChain[0].replace('_', '')
     },
     mounted() {
@@ -449,23 +470,26 @@ END
                 fogNear: -1000,
                 quality: 'high'
             })
-
+        
         Promise.all([
-            this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
+            (__LOCAL__)
+                ? pulchra(mockPDB(this.hits.query.qCa, this.hits.query.sequence))
+                : this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
         ]).then(([qResponse, tPdb]) => {
             // Sanitize PDB in case of lines with too few characters
+            qResponse = (__LOCAL__) ? qResponse : qResponse.data;
             let data = '';
-            for (let line of qResponse.data.split('\n')) {
+            for (let line of qResponse.split('\n')) {
                 let numCols = Math.max(0, 80 - line.length);
                 let newLine = line + ' '.repeat(numCols) + '\n';
                 data += newLine
             }
-            qResponse.data = data;
+            qResponse = data;
             return [qResponse, tPdb];
         }).then(([qResponse, tPdb]) => {
             Promise.all([
-                this.stage.loadFile(new Blob([qResponse.data], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
+                this.stage.loadFile(new Blob([qResponse], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
                 this.stage.loadFile(new Blob([tPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true}),
             ])
             .then(([query, target]) => {
@@ -473,7 +497,7 @@ END
                 // foldseek doesn't care about the oxygen, but NGL does
                 if (query.structure.getAtomProxy().isCg()) {
                     return new Promise((resolve, reject) => {
-                        pulchra(qResponse.data)
+                        pulchra(qResponse)
                         .then((queryPdb) => {
                             this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true})
                             .then((query) => { resolve([query, target]) })
@@ -486,6 +510,7 @@ END
             })
             .then(([query, target]) => {
                 // Map 1-based indices to residue index/resno; only need for query structure
+                // Use queryChainSele to make all selections based on actual query chain
                 this.qChainResMap = makeChainMap(query.structure, this.queryChainSele)
                 this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
 
