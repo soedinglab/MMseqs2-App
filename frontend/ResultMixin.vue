@@ -148,12 +148,12 @@ export default {
                     item.id = 'result-' + i + '-' + j;
                     item.active = false;
                     if (__APP__ != "foldseek" || this.mode != "tmalign") {
-                        item.eval = item.eval.toExponential(2);
+                        item.eval = (typeof(item.eval) === "string") ? item.eval : item.eval.toExponential(2);
                     }
                     if (__APP__ == "foldseek") {
-                        item.prob = item.prob.toFixed(2);
+                        item.prob = (typeof(item.prob) === "string") ? item.prob : item.prob.toFixed(2);
                         if (this.mode == "tmalign") {
-                            item.eval = item.eval.toFixed(3);
+                            item.eval = (typeof(item.eval) === "string") ? item.eval : item.eval.toFixed(3);
                         }
                     }
                     if ("taxId" in item) {
