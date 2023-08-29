@@ -3,8 +3,8 @@
         <v-layout wrap>
             <v-flex xs12>
             <panel>
-                <template v-if="!$LOCAL" slot="header">
-                    <template v-if="!hits || !hits.query">
+                <template slot="header">
+                    <template v-if="!$LOCAL && (!hits || !hits.query)">
                         <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
                         <small class="ticket">{{ ticket }}</small>
                     </template>
