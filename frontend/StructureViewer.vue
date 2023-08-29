@@ -510,7 +510,8 @@ END
             })
             .then(([query, target]) => {
                 // Map 1-based indices to residue index/resno; only need for query structure
-                this.qChainResMap = makeChainMap(query.structure, this.querySele)
+                // Use queryChainSele to make all selections based on actual query chain
+                this.qChainResMap = makeChainMap(query.structure, this.queryChainSele)
                 this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
 
                 // Generate colorschemes for query/target based on alignment
