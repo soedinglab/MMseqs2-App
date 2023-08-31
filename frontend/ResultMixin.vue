@@ -82,6 +82,9 @@ export default {
             return target;
         },
         setColorScheme() {
+            if (!this.hits) {
+                return;
+            }
             var color = colorScale();
             for (let result of (__LOCAL__) ? this.currentResult.results : this.hits.results) {
                 result.color = color(result.db);
