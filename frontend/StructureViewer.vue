@@ -215,11 +215,9 @@ const atomToPDBRow = (ap) => {
 
 // Map 1-based indices in a selection to residue index/resno
 const makeChainMap = (structure, sele) => {
-    // let idx = 1
     let map = new Map()
     structure.eachResidue(rp => {
-        map.set(rp.resno, { index: rp.index, resno: rp.resno });
-        // idx++;
+        map.set(rp.index + 1, { index: rp.index, resno: rp.resno });
     }, new Selection(sele));
     return map
 }
@@ -416,9 +414,9 @@ END
             if (!this.qChainResMap) {
                 return '';
             }
-            let start = this.alignment.qStartPos;
-            let end   = this.alignment.qEndPos;
-            let sele  = `${start}-${end}`;
+            let start = this.qChainResMap.get(this.alignment.qStartPos);
+            let end   = this.qChainResMap.get(this.alignment.qEndPos);
+            let sele  = `${start.resno}-${end.resno}`;
             if (this.queryChain) {
                 sele = `${sele} AND ${this.queryChainSele}`;
             }
@@ -472,7 +470,7 @@ END
             })
         
         Promise.all([
-            (__LOCAL__)
+            (this.$LOCAL)
                 ? pulchra(mockPDB(this.hits.query.qCa, this.hits.query.sequence))
                 : this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))

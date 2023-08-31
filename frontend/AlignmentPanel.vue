@@ -30,11 +30,9 @@
 <script>
 import Alignment from './Alignment.vue'
 
-// Map indices in the alignment to the corresponding indices in the structure
-// realStart will be 1-based
+// Map 0-based indices in the alignment to corresponding 1-based indices in the structure
 function makePositionMap(realStart, alnString) {
     let map = Array(alnString.length);
-    // let map = new Map()
     for (let i = 0, gaps = 0; i < alnString.length; i++) {
         if (alnString[i] === '-') {
             map[i] = null;
