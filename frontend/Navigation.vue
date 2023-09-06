@@ -10,6 +10,25 @@
                 <v-list-item-title>Search</v-list-item-title>
             </v-list-item-content>
         </v-list-item>
+        
+        <v-list-item @click="() => this.$refs.upload.click()">
+            <v-list-item-action>
+                <v-icon>{{ $MDI.Upload }}</v-icon>
+            </v-list-item-action>
+            <v-list-item-content>
+                <v-list-item-title>Upload Data</v-list-item-title>
+                <input type="file" hidden ref="upload" id="upload" @change="uploadJSON" />
+            </v-list-item-content>
+        </v-list-item>
+
+        <v-list-item @click="downloadJSON">
+            <v-list-item-action>
+                <v-icon>{{ $MDI.FileDownloadOutline }}</v-icon>
+            </v-list-item-action>
+            <v-list-item-content>
+                <v-list-item-title>Download Data</v-list-item-title>
+            </v-list-item-content>
+        </v-list-item>
 
         <router-view name="sidebar"></router-view>
         <history v-if="!$LOCAL" />
@@ -50,10 +69,11 @@
 </template>
 
 <script>
+import { parseResultsList, download, djb2 } from './Utilities';
 import History from './History.vue';
 
 export default {
-    components : { History },
+    components : { History, },
     data: () => ({
         mini: true,
     }),
@@ -76,6 +96,23 @@ export default {
         },
         electronHandleTitleBarDoubleClick() {
             this.handleTitleBarDoubleClick();
+        },
+        uploadJSON() {
+            let file = this.$refs.upload.files[0];
+            let hash = djb2(file.name);
+            let fr = new FileReader();
+            fr.addEventListener(
+                "load",
+                (e) => {
+                    let data = parseResultsList(JSON.parse(e.target.result));
+                    this.$root.userData = data;
+                    this.$router.push({ name: 'result', params: { ticket: `user-${hash}`, entry: 0 }}).catch(error => {});
+                }
+            );
+            fr.readAsText(file)
+        },
+        downloadJSON() {
+            this.$root.$emit("downloadJSON");
         }
     }
 }

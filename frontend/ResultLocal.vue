@@ -73,6 +73,7 @@
 </template>
 
 <script>
+import { parseResultsList, download, dateTime } from './Utilities.js';
 import ResultMixin from './ResultMixin.vue';
 import ResultView from './ResultView.vue';
 import Navigation from './Navigation.vue';
@@ -133,14 +134,7 @@ export default {
             if (!this.hits) {
                 return null;
             }
-            const json = JSON.stringify(this.hits);
-            const blob = new Blob([json], { type: 'application/json' });
-            const link = document.createElement('a');
-            const date = new Date().toLocaleString('sv').replace(' ', '_').replaceAll('-', '_').replaceAll(':', '_');
-            link.href = URL.createObjectURL(blob);
-            link.download = `${this.$STRINGS.APP_NAME}_${date}.json`;
-            link.click();
-            URL.revokeObjectURL(link.href);
+            download(this.hits, `Foldseek-${dateTime()}.json`);
         },
         resetProperties() {
             this.ticket = "";
@@ -152,10 +146,7 @@ export default {
         },
         fetchData(data) {
             this.resetProperties();
-            this.hits = [];
-            for (let result of data) {
-                this.hits.push(this.parseResults(result));
-            }
+            this.hits = parseResultsList(data);
         }
     }
 };

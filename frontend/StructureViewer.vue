@@ -216,8 +216,9 @@ const atomToPDBRow = (ap) => {
 // Map 1-based indices in a selection to residue index/resno
 const makeChainMap = (structure, sele) => {
     let map = new Map()
+    let idx = 1;
     structure.eachResidue(rp => {
-        map.set(rp.index + 1, { index: rp.index, resno: rp.resno });
+        map.set(idx++, { index: rp.index, resno: rp.resno });
     }, new Selection(sele));
     return map
 }
@@ -455,7 +456,7 @@ END
     },
     beforeMount() {
         let qChain = this.hits.query.header.match(/_([A-Z]+?)/m)
-        if (qChain) this.queryChain = qChain[0].replace('_', '')
+        if (qChain) this.queryChain = qChain[1] //.replace('_', '')
     },
     mounted() {
         const bgColor = this.$vuetify.theme.dark ? this.bgColorDark : this.bgColorLight;
@@ -473,14 +474,25 @@ END
                 quality: 'high'
             })
         
+        // Check for special 'user' ticket for when users have uploaded JSON
+        let localDataPromise = () => {
+            let localData = this.$root.userData[this.$route.params.entry];
+            return pulchra(mockPDB(localData.query.qCa, localData.query.sequence));
+        }
+        
+        // Download from server --> full input PDB from /result/query endpoint, saved with JSON.stringify
+        //                local --> qCa string
+        // Tickets prefixed with 'user-' only occur on user uploaded files
         Promise.all([
             (this.$LOCAL)
-                ? pulchra(mockPDB(this.hits.query.qCa, this.hits.query.sequence))
-                : this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
+                ? (this.hits.query.hasOwnProperty('pdb')) ? JSON.parse(this.hits.query.pdb) : pulchra(mockPDB(this.hits.query.qCa, this.hits.query.sequence))
+                : (this.$route.params.ticket.startsWith('user')) 
+                    ? (this.hits.query.hasOwnProperty('pdb')) ? JSON.parse(this.hits.query.pdb) : localDataPromise()
+                    : this.$axios.get("api/result/" + this.$route.params.ticket + '/query'),
             pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq))
         ]).then(([qResponse, tPdb]) => {
             // Sanitize PDB in case of lines with too few characters
-            qResponse = (__LOCAL__) ? qResponse : qResponse.data;
+            qResponse = (__LOCAL__ || this.$route.params.ticket.startsWith('user')) ? qResponse : qResponse.data;
             let data = '';
             for (let line of qResponse.split('\n')) {
                 let numCols = Math.max(0, 80 - line.length);

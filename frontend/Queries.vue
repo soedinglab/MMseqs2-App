@@ -43,7 +43,13 @@
                 </v-list-item-content>
             </template>
             <template v-if="items.length > 0">
-            <v-list-item v-for="(child, i) in items" :key="i" :class="{ 'list__item--active': child.id == entry }" :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}" style="padding-left: 16px;">
+            <v-list-item
+                v-for="(child, i) in items"
+                :key="child.name"
+                :class="{ 'list__item--active': child.id == entry }"
+                :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}"
+                style="padding-left: 16px;"
+            >
                 <v-list-item-icon>
                     <v-icon v-if="child.id == entry">{{ $MDI.Label }}</v-icon>
                     <v-icon v-else>{{ $MDI.LabelOutline }}</v-icon>
@@ -107,27 +113,36 @@ export default {
         fetchData() {
             this.ticket = this.$route.params.ticket;
             this.entry = this.$route.params.entry;
-            
+
             if (this.page == -1) {
                 this.page = Math.floor(this.entry / this.limit);
             }
 
             this.error = "";
-            this.ticket = this.$route.params.ticket;
-            this.$axios.get("api/result/queries/" + this.ticket + "/" + this.limit + "/" + this.page).then((response) => {
-                const data = response.data;
-                if (data.lookup) {
-                    this.items = data.lookup;
-                    this.hasNext = data.hasNext;
-                    this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)
-                    if (this.multi) {
-                        this.drawer = true;
-                        this.$root.$emit('multi', true);
-                    }
+            if (this.ticket.startsWith('user')) {
+                let localData = this.$root.userData;
+                this.items = localData.map((res, i) => ({ id: i, name: res.query.header, set: i }));
+                this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0);
+                if (this.multi) {
+                    this.drawer = true;
+                    this.$root.$emit('multi', true);
                 }
-            }).catch(() => {
-                this.status = "error";
-            });
+            } else {
+                this.$axios.get("api/result/queries/" + this.ticket + "/" + this.limit + "/" + this.page).then((response) => {
+                    const data = response.data;
+                    if (data.lookup) {
+                        this.items = data.lookup;
+                        this.hasNext = data.hasNext;
+                        this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)
+                        if (this.multi) {
+                            this.drawer = true;
+                            this.$root.$emit('multi', true);
+                        }
+                    }
+                }).catch(() => {
+                    this.status = "error";
+                });
+            }
         },
         url(url) {
             // workaround was fixed in axios git, remove when axios is updated

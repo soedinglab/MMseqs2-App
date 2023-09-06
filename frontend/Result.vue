@@ -6,17 +6,42 @@
         :hits="hits"
         :selectedDatabases="selectedDatabases"
         :tableMode="tableMode"
-    />       
+    />
 </template>
 
 <script>
+import { download, parseResults, dateTime } from './Utilities.js';
 import ResultMixin from './ResultMixin.vue';
 import ResultView from './ResultView.vue';
+import { getQuery } from 'ngl';
+
+function pdb2ca(pdb) {
+    let ca = "";
+    for (const line of pdb.split('\n')) {
+        if (line.startsWith("ATOM") && line.slice(12, 16).trim() === "CA") {
+            const xyz = line.slice(30, 54).trim().split(/\s+/).join(',');
+            ca += (ca === "") ? xyz : `,${xyz}`;
+        }
+    }
+    return ca;
+}
 
 export default {
     components: { ResultView },
     mixins: [ResultMixin],
     mounted() {
+        this.$root.$on('downloadJSON', () => {
+            let data;
+            if (this.ticket.startsWith('user')) {
+                data = this.$root.userData;
+                download(data, `${`Foldseek_${dateTime()}.json`}`)
+            } else {
+                this.fetchAllData();
+            }
+        })
+        if (this.hits) {
+            return;
+        }
         this.fetchData();
     },
     watch: {
@@ -36,27 +61,79 @@ export default {
             this.mode = "";
             this.hits = null;
             this.selectedDatabases = 0;
-            this.tableMode = 0;           
+            this.tableMode = 0;
         },
         fetchData() {
             this.resetProperties();
-            this.$axios.get("api/result/" + this.ticket + '/' + this.$route.params.entry)
-                .then((response) => {
-                    this.error = "";
-                    const data = response.data;
-                    if ("mode" in data) {
-                        this.mode = data.mode;
-                    }
-                    if (data.alignments == null || data.alignments.length > 0) {
-                        this.hits = this.parseResults(data); 
-                    } else {
+            if (this.ticket.startsWith('user')) {
+                let localData = this.$root.userData;
+                this.hits = localData[this.$route.params.entry];
+            } else {
+                this.$axios.get("api/result/" + this.ticket + '/' + this.$route.params.entry)
+                    .then((response) => {
+                        this.error = "";
+                        const data = response.data;
+                        if ("mode" in data) {
+                            this.mode = data.mode;
+                        }
+                        if (data.alignments == null || data.alignments.length > 0) {
+                            this.hits = parseResults(data); 
+                        } else {
+                            this.error = "Failed";
+                            this.hits = [];
+                        }
+                    }, () => {
                         this.error = "Failed";
                         this.hits = [];
-                    }
-                }, () => {
-                    this.error = "Failed";
-                    this.hits = [];
+                    });               
+            }
+        },
+        async fetchResult(page) {
+            const url = `api/result/${this.ticket}/${page}`;
+            console.log("fetching result url", url)
+            try {
+                const response = await this.$axios.get(url);
+                return parseResults(response.data);
+            } catch {
+                console.log("result fetch error")
+            }
+        },
+        async fetchAllData() {
+            let page = 0;
+            let limit = 7;
+            let allData = [];
+            
+            // List of queries [{ id, name, set }]
+            // Generate Promises to retrieve query PDB/results, convert PDB -> qCa string, return data
+            let getQueryPromises = async (queries) => {
+                const promises = queries.map(async query => {
+                    const [hitResponse, hitQuery] = await Promise.all([
+                        this.$axios.get(`api/result/${this.ticket}/${query.id}`),
+                        this.$axios.get(`api/result/${this.ticket}/query`)
+                    ]);
+                    const data = parseResults(hitResponse.data);
+                    data.query.pdb = JSON.stringify(hitQuery.data);
+                    data.query.qCa = pdb2ca(hitQuery.data);
+                    return data;
                 });
+                return Promise.all(promises);
+            }
+
+            // Fetch all possible queries, retrieve data for each
+            // Recurses around query limit
+            let getFn = async () => {
+                const queryResponse = await this.$axios.get(`api/result/queries/${this.ticket}/${limit}/${page}`);
+                const result = await getQueryPromises(queryResponse.data.lookup);
+                allData.push(...result);
+                if (queryResponse.data.hasNext) {
+                    console.log('would go next now')
+                    page++;
+                    await getFn();
+                }
+            } 
+            
+            await getFn();
+            download(allData, `Foldseek_${dateTime()}.json`);
         }
     }
 };

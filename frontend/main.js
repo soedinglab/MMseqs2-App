@@ -31,6 +31,7 @@ import {
     mdiCircleHalf,
     mdiPlusBox,
     mdiMinusBox,
+    mdiUpload,
 } from '@mdi/js'
 
 Vue.use(Vuetify);
@@ -115,6 +116,7 @@ Vue.use({
             CircleHalf: mdiCircleHalf,
             PlusBox: mdiPlusBox,
             MinusBox: mdiMinusBox,
+            Upload: mdiUpload
         };
         if (__ELECTRON__) {
             const remote = require('@electron/remote');
@@ -155,6 +157,11 @@ const app = new Vue({
     el: '#app',
     router,
     vuetify,
+    data() {
+        return {
+            userData: null
+        }
+    },
     render: h => h(App)
 });
 
