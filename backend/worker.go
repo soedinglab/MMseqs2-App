@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -89,6 +90,8 @@ func execCommandSync(verbose bool, parameters ...string) error {
 		return nil
 	}
 }
+
+var fasta3DiInput = regexp.MustCompile(`^>.*?\n.*?\n>3DI.*?\n.*?\n`).MatchString
 
 func RunJob(request JobRequest, config ConfigRoot) (err error) {
 	switch job := request.Job.(type) {
@@ -232,6 +235,63 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		maxParallel := config.Worker.ParallelDatabases
 		semaphore := make(chan struct{}, max(1, maxParallel))
 
+		inputFile := filepath.Join(resultBase, "job.pdb")
+		input, err := os.ReadFile(inputFile)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+
+		is3Di := false
+		if fasta3DiInput(string(input)) {
+			os.Rename(inputFile, filepath.Join(resultBase, "job.3di"))
+			inputFile = filepath.Join(resultBase, "qdb")
+			is3Di = true
+			scriptPath := filepath.Join(resultBase, "fasta2db.sh")
+			script, err := os.Create(scriptPath)
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+			script.WriteString(`#!/bin/bash -e
+MMSEQS="$1"
+QUERY="$2"
+BASE="$3"
+$MMSEQS base:createdb "${QUERY}" "${BASE}/qdb" --shuffle 0
+awk -v out="${BASE}/qdb" 'BEGIN { printf("") > (out"_aa.index"); printf("") > (out"_ss.index"); } { print $0 >> (NR % 2 == 1 ? out"_aa.index" : out"_ss.index") }' ${BASE}/qdb.index"
+mv -f -- "${BASE}/qdb_aa.index" "${BASE}/qdb.index"
+ln -s -- "${BASE}/qdb" "${BASE}/qdb_ss"
+ln -s -- "${BASE}/qdb.dbtype" "${BASE}/qdb_ss.dbtype"
+$MMSEQS lndb "${BASE}/qdb_h" "${BASE}/qdb_ss_h"
+`)
+			err = script.Close()
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+
+			parameters := []string{
+				"/bin/sh",
+				scriptPath,
+				config.Paths.FoldSeek,
+				filepath.Join(resultBase, "job.3di"),
+				resultBase,
+			}
+			cmd, done, err := execCommand(config.Verbose, parameters...)
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+
+			select {
+			case <-time.After(1 * time.Hour):
+				if err := KillCommand(cmd); err != nil {
+					log.Printf("Failed to kill: %s\n", err)
+				}
+				return &JobTimeoutError{}
+			case err := <-done:
+				if err != nil {
+					return &JobExecutionError{err}
+				}
+			}
+		}
+
 		for index, database := range job.Database {
 			wg.Add(1)
 			semaphore <- struct{}{}
@@ -250,6 +310,12 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 					errChan <- &JobExecutionError{errors.New("invalid mode selected")}
 					return
 				}
+
+				// overwrite tmalign mode with 3diaa if 3di input
+				if is3Di && mode == "1" {
+					mode = "2"
+				}
+
 				columns := "query,"
 				if params.FullHeader {
 					columns += "theader"
@@ -263,7 +329,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				parameters := []string{
 					config.Paths.FoldSeek,
 					"easy-search",
-					filepath.Join(resultBase, "job.pdb"),
+					inputFile,
 					filepath.Join(config.Paths.Databases, database),
 					filepath.Join(resultBase, "alis_"+database),
 					filepath.Join(resultBase, "tmp"+strconv.Itoa(index)),
@@ -288,6 +354,11 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				if params.Taxonomy && job.TaxFilter != "" {
 					parameters = append(parameters, "--taxon-list")
 					parameters = append(parameters, job.TaxFilter)
+				}
+
+				if is3Di {
+					parameters = append(parameters, "--sort-by-structure-bits")
+					parameters = append(parameters, "0")
 				}
 
 				cmd, done, err := execCommand(config.Verbose, parameters...)
