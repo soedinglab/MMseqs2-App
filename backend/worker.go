@@ -244,7 +244,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		is3Di := false
 		if fasta3DiInput(string(input)) {
 			os.Rename(inputFile, filepath.Join(resultBase, "job.3di"))
-			inputFile = filepath.Join(resultBase, "qdb")
+			inputFile = filepath.Join(resultBase, "query")
 			is3Di = true
 			scriptPath := filepath.Join(resultBase, "fasta2db.sh")
 			script, err := os.Create(scriptPath)
@@ -255,12 +255,12 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 MMSEQS="$1"
 QUERY="$2"
 BASE="$3"
-$MMSEQS base:createdb "${QUERY}" "${BASE}/qdb" --shuffle 0
-awk -v out="${BASE}/qdb" 'BEGIN { printf("") > (out"_aa.index"); printf("") > (out"_ss.index"); } { print $0 >> (NR % 2 == 1 ? out"_aa.index" : out"_ss.index") }' "${BASE}/qdb.index"
-mv -f -- "${BASE}/qdb_aa.index" "${BASE}/qdb.index"
-ln -s -- "${BASE}/qdb" "${BASE}/qdb_ss"
-ln -s -- "${BASE}/qdb.dbtype" "${BASE}/qdb_ss.dbtype"
-$MMSEQS lndb "${BASE}/qdb_h" "${BASE}/qdb_ss_h"
+$MMSEQS base:createdb "${QUERY}" "${BASE}/query" --shuffle 0
+awk -v out="${BASE}/query" 'BEGIN { printf("") > (out"_aa.index"); printf("") > (out"_ss.index"); } { print $0 >> (NR % 2 == 1 ? out"_aa.index" : out"_ss.index") }' "${BASE}/query.index"
+mv -f -- "${BASE}/query_aa.index" "${BASE}/query.index"
+ln -s -- "${BASE}/query" "${BASE}/query_ss"
+ln -s -- "${BASE}/query.dbtype" "${BASE}/query_ss.dbtype"
+$MMSEQS lndb "${BASE}/query_h" "${BASE}/query_ss_h"
 `)
 			err = script.Close()
 			if err != nil {
