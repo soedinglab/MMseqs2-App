@@ -191,8 +191,8 @@ module.exports = (env, argv) => {
                 enabled: isProduction && !isElectron,
                 hashFuncNames: ['sha256', 'sha384']
             }),
-            new CompressionPlugin({
-                test: isProduction && !isElectron ? /\.(js|html|css|svg|woff2?|map|ico|wasm)(\?.*)?$/i : undefined,
+            isProduction && !isElectron ? new CompressionPlugin({
+                test: /\.(js|html|css|svg|woff2?|map|ico|wasm)(\?.*)?$/i,
                 minRatio: 1,
                 filename:  !isLocal ? '[path][base].gz' : '[path][base].zst',
                 algorithm: !isLocal ? 'gzip' : (input, compressionOptions, callback) => {
@@ -201,7 +201,7 @@ module.exports = (env, argv) => {
                         callback(false, compress(input, 22));
                     })();
                 }
-            }),
+            }) : new NullPlugin(),
             isProduction ? new ImageMinimizerPlugin({
                 minimizer: {
                     implementation: ImageMinimizerPlugin.imageminMinify,
