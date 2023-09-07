@@ -9,9 +9,8 @@
 
 <script>
 import Navigation from './Navigation.vue';
-import Result from './Result.vue';
 
 export default {
-    components: { Navigation, Result },
+    components: { Navigation }
 }
 </script>
