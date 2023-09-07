@@ -64,10 +64,13 @@
                             >
                         </v-textarea>
 
-                        <div class="actions">
-                            <load-acession-button v-if="$APP == 'foldseek'" @select="query = $event" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
-                            <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
-                            <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton>
+                        <div class="actions input-buttons-panel">
+                            <div class="input-buttons-left">
+                                <load-acession-button v-if="$APP == 'foldseek'" @select="query = $event" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
+                                <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
+                                <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton>
+                            </div>
+                            <file-button id="localFile" label="Upload previous results" @upload="uploadJSON"></file-button>
                         </div>
                     </template>
                 </panel>
@@ -197,6 +200,7 @@ import LoadAcessionButton from './LoadAcessionButton.vue';
 import { gzip } from 'pako';
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
+import { djb2, parseResultsList } from './Utilities.js';
 
 let localStorageEnabled = false;
 try {
@@ -427,6 +431,20 @@ export default {
             };
             reader.readAsText(files[0]);
         },
+        uploadJSON(files) {
+            let file = files[0];
+            let hash = djb2(file.name);
+            let fr = new FileReader();
+            fr.addEventListener(
+                "load",
+                (e) => {
+                    let data = parseResultsList(JSON.parse(e.target.result));
+                    this.$root.userData = data;
+                    this.$router.push({ name: 'result', params: { ticket: `user-${hash}`, entry: 0 }}).catch(error => {});
+                }
+            );
+            fr.readAsText(file)
+        },
         addToHistory(uuid) {
             if (!uuid) {
                 return;
@@ -465,11 +483,18 @@ export default {
 </script>
 
 <style>
-
+.input-buttons-panel {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+.input-buttons-left {
+    display: flex;
+    flex-wrap: wrap;
+}
 .query-panel .actions button {
     margin: 5px 5px 5px 0;
 }
-
 </style>
 
 <style scoped>

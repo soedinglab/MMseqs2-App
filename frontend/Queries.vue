@@ -1,35 +1,5 @@
 <template>
     <div>
-        <v-divider></v-divider>
-        <v-list-item v-if="$ELECTRON" @click="electronDownload(ticket)">
-            <v-list-item-action>
-                <v-icon>{{ $MDI.FileDownloadOutline }}</v-icon>
-            </v-list-item-action>
-            <v-list-item-content>
-                <v-list-item-title v-if="multi">
-                    Download All
-                </v-list-item-title>
-
-                <v-list-item-title v-else>
-                    Download M8
-                </v-list-item-title>
-            </v-list-item-content>
-        </v-list-item>
-        <v-list-item v-else target="_blank" :href="url('api/result/download/' + ticket)">
-            <v-list-item-action>
-                <v-icon>{{ $MDI.CloudDownloadOutline }}</v-icon>
-            </v-list-item-action>
-            <v-list-item-content>
-                <v-list-item-title v-if="multi">
-                    Download All
-                </v-list-item-title>
-
-                <v-list-item-title v-else>
-                    Download M8
-                </v-list-item-title>
-            </v-list-item-content>
-        </v-list-item>
-
         <v-list-group v-model="drawer" v-if="multi" no-action :ripple="false" :prepend-icon="$MDI.FormatListBulleted">
             <template slot="activator">
                 <v-list-item-content>
@@ -66,8 +36,6 @@
 </template>
 
 <script>
-import buildFullPath from 'axios/lib/core/buildFullPath.js'
-
 export default {
     data: () => ({
         ticket: null,
@@ -96,6 +64,10 @@ export default {
         }
     },
     methods: {
+        expandDrawer() {
+            this.drawer = true;
+            this.$root.$emit('multi', true);
+        },
         previous() {
             if (this.page == 0) {
                 return;
@@ -124,8 +96,7 @@ export default {
                 this.items = localData.map((res, i) => ({ id: i, name: res.query.header, set: i }));
                 this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0);
                 if (this.multi) {
-                    this.drawer = true;
-                    this.$root.$emit('multi', true);
+                    this.expandDrawer();
                 }
             } else {
                 this.$axios.get("api/result/queries/" + this.ticket + "/" + this.limit + "/" + this.page).then((response) => {
@@ -135,8 +106,7 @@ export default {
                         this.hasNext = data.hasNext;
                         this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)
                         if (this.multi) {
-                            this.drawer = true;
-                            this.$root.$emit('multi', true);
+                            this.expandDrawer();
                         }
                     }
                 }).catch(() => {
@@ -144,14 +114,6 @@ export default {
                 });
             }
         },
-        url(url) {
-            // workaround was fixed in axios git, remove when axios is updated
-            const fullUrl = buildFullPath(this.$axios.defaults.baseURL, url);
-            return this.$axios.getUri({ url: fullUrl })
-        },
-        electronDownload(ticket) {
-            this.saveResult(ticket);
-        }
     }
 }
 </script>

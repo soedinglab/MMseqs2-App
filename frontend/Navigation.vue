@@ -10,25 +10,49 @@
                 <v-list-item-title>Search</v-list-item-title>
             </v-list-item-content>
         </v-list-item>
-        
-        <v-list-item @click="() => this.$refs.upload.click()">
-            <v-list-item-action>
-                <v-icon>{{ $MDI.Upload }}</v-icon>
-            </v-list-item-action>
-            <v-list-item-content>
-                <v-list-item-title>Upload Data</v-list-item-title>
-                <input type="file" hidden ref="upload" id="upload" @change="uploadJSON" />
-            </v-list-item-content>
-        </v-list-item>
+      
+        <v-list-group v-if="$route.name === 'result'" v-model="expanded">
+            <template slot="activator">
+                <v-list-item-action>
+                    <v-icon>{{ $MDI.FileDownloadOutline }}</v-icon>
+                </v-list-item-action>
+                <v-list-item-content>
+                    <v-list-item-title>Downloads</v-list-item-title>
+                </v-list-item-content>
+            </template>
+            
+            <template v-if="expanded && !this.mini">
+            <v-list-item
+                @click="$ELECTRON ? electronDownload($route.params.ticket) : null"
+                :href="$ELECTRON ? null : url('api/result/download/' + $route.params.ticket)"
+                :target="$ELECTRON ? null : '_blank'"
+                title="Download hit tables (M8 files)"
+            >
+                <v-list-item-action>
+                    <v-icon>{{ $ELECTRON ? $MDI.FileDownloadOutline : $MDI.TableLarge }}</v-icon>
+                </v-list-item-action>
+                <v-list-item-content>
+                    <v-list-item-title>Hit tables</v-list-item-title>
+                    <v-list-item-subtitle>Archive of M8 files</v-list-item-subtitle>
+                </v-list-item-content>
+            </v-list-item>
+            <v-list-item
+                @click="downloadJSON"
+                style="padding-left: 16px;"
+                title="Download all result data (JSON file)"
+            >
+                <v-list-item-action>
+                    <v-icon>{{ $MDI.ApplicationBracesOutline }}</v-icon>
+                </v-list-item-action>
+                <v-list-item-content>
+                    <v-list-item-title>All data</v-list-item-title>
+                    <v-list-item-subtitle>Reloadable JSON file</v-list-item-subtitle>
+                </v-list-item-content>
+            </v-list-item>
+            </template>
+        </v-list-group>
 
-        <v-list-item @click="downloadJSON">
-            <v-list-item-action>
-                <v-icon>{{ $MDI.FileDownloadOutline }}</v-icon>
-            </v-list-item-action>
-            <v-list-item-content>
-                <v-list-item-title>Download Data</v-list-item-title>
-            </v-list-item-content>
-        </v-list-item>
+        <v-divider></v-divider>
 
         <router-view name="sidebar"></router-view>
         <history v-if="!$LOCAL" />
@@ -69,6 +93,7 @@
 </template>
 
 <script>
+import buildFullPath from 'axios/lib/core/buildFullPath.js'
 import { parseResultsList, download, djb2 } from './Utilities';
 import History from './History.vue';
 
@@ -76,6 +101,7 @@ export default {
     components : { History, },
     data: () => ({
         mini: true,
+        expanded: false
     }),
     created() {
         this.$root.$on('multi', this.shouldExpand);
@@ -87,9 +113,27 @@ export default {
     beforeDestroy() {
         this.$root.$off('multi', this.shouldExpand);
     },
+    watch: {
+        expanded: function(event) {
+            this.$root.$emit('multi', event);
+        }
+    },
     methods: {
+        url(url) {
+            // workaround was fixed in axios git, remove when axios is updated
+            const fullUrl = buildFullPath(this.$axios.defaults.baseURL, url);
+            return this.$axios.getUri({ url: fullUrl })
+        },
+        electronDownload(ticket) {
+            this.saveResult(ticket);
+        },
+        log(message) {
+            console.log(message);
+            return message;
+        },
         shouldExpand(expand) {
-            this.mini = !expand;
+            if (expand)
+                this.mini = !expand;
         },
         toggleMini() {
             this.mini = !this.mini;
