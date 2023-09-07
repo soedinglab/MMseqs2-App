@@ -274,21 +274,9 @@ $MMSEQS lndb "${BASE}/qdb_h" "${BASE}/qdb_ss_h"
 				filepath.Join(resultBase, "job.3di"),
 				resultBase,
 			}
-			cmd, done, err := execCommand(config.Verbose, parameters...)
+			err = execCommandSync(config.Verbose, parameters...)
 			if err != nil {
 				return &JobExecutionError{err}
-			}
-
-			select {
-			case <-time.After(1 * time.Hour):
-				if err := KillCommand(cmd); err != nil {
-					log.Printf("Failed to kill: %s\n", err)
-				}
-				return &JobTimeoutError{}
-			case err := <-done:
-				if err != nil {
-					return &JobExecutionError{err}
-				}
 			}
 		}
 
@@ -392,25 +380,27 @@ $MMSEQS lndb "${BASE}/qdb_h" "${BASE}/qdb_ss_h"
 			}
 		}
 
-		err = execCommandSync(
-			config.Verbose,
-			config.Paths.FoldSeek,
-			"mvdb",
-			filepath.Join(resultBase, "tmp0", "latest", "query_h"),
-			filepath.Join(resultBase, "query_h"),
-		)
-		if err != nil {
-			return &JobExecutionError{err}
-		}
-		err = execCommandSync(
-			config.Verbose,
-			config.Paths.FoldSeek,
-			"mvdb",
-			filepath.Join(resultBase, "tmp0", "latest", "query"),
-			filepath.Join(resultBase, "query"),
-		)
-		if err != nil {
-			return &JobExecutionError{err}
+		if !is3Di {
+			err = execCommandSync(
+				config.Verbose,
+				config.Paths.FoldSeek,
+				"mvdb",
+				filepath.Join(resultBase, "tmp0", "latest", "query_h"),
+				filepath.Join(resultBase, "query_h"),
+			)
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+			err = execCommandSync(
+				config.Verbose,
+				config.Paths.FoldSeek,
+				"mvdb",
+				filepath.Join(resultBase, "tmp0", "latest", "query"),
+				filepath.Join(resultBase, "query"),
+			)
+			if err != nil {
+				return &JobExecutionError{err}
+			}
 		}
 		for index, _ := range job.Database {
 			err := os.RemoveAll(filepath.Join(resultBase, "tmp"+strconv.Itoa(index)))
