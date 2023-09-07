@@ -40,11 +40,15 @@ func (d paramsByOrder) Less(i, j int) bool {
 }
 
 func CheckDatabase(basepath string, params Params, config ConfigRoot) error {
+	app := config.Paths.Mmseqs
+	if config.App == "foldseek" {
+		app = config.Paths.FoldSeek
+	}
 	verbose := config.Verbose
 	if fileExists(basepath + ".fasta") {
 		if !fileExists(basepath) && !fileExists(basepath+".index") {
 			err := quickExec(
-				config.Paths.Mmseqs,
+				app,
 				config.Verbose,
 				"createdb",
 				basepath+".fasta",
@@ -65,12 +69,12 @@ func CheckDatabase(basepath string, params Params, config ConfigRoot) error {
 			"1",
 		}
 		parameters = append(parameters, strings.Fields(params.Index)...)
-		err := quickExec(config.Paths.Mmseqs, config.Verbose, parameters...)
+		err := quickExec(app, config.Verbose, parameters...)
 		if err != nil {
 			return err
 		}
 
-		err = quickExec(config.Paths.Mmseqs, config.Verbose, "touchdb", basepath)
+		err = quickExec(app, config.Verbose, "touchdb", basepath)
 		if err != nil {
 			return err
 		}
@@ -79,7 +83,7 @@ func CheckDatabase(basepath string, params Params, config ConfigRoot) error {
 
 	if fileExists(basepath+".sto") && !fileExists(basepath+"_msa") && !fileExists(basepath+"_msa.index") {
 		err := quickExec(
-			config.Paths.Mmseqs,
+			app,
 			config.Verbose,
 			"convertmsa",
 			basepath+".sto",
@@ -95,7 +99,7 @@ func CheckDatabase(basepath string, params Params, config ConfigRoot) error {
 	if fileExists(basepath+"_msa") && fileExists(basepath+"_msa.index") {
 		if !fileExists(basepath) && !fileExists(basepath+".index") {
 			err := quickExec(
-				config.Paths.Mmseqs,
+				app,
 				config.Verbose,
 				"msa2profile",
 				basepath+"_msa",
@@ -120,12 +124,12 @@ func CheckDatabase(basepath string, params Params, config ConfigRoot) error {
 			"1",
 		}
 		parameters = append(parameters, strings.Fields(params.Index)...)
-		err := quickExec(config.Paths.Mmseqs, verbose, parameters...)
+		err := quickExec(app, verbose, parameters...)
 		if err != nil {
 			return err
 		}
 
-		err = quickExec(config.Paths.Mmseqs, verbose, "touchdb", basepath)
+		err = quickExec(app, verbose, "touchdb", basepath)
 		if err != nil {
 			return err
 		}
