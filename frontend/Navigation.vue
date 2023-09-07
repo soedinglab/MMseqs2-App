@@ -21,7 +21,7 @@
                 </v-list-item-content>
             </template>
             
-            <template v-if="expanded && !this.mini">
+            <template v-if="!this.mini">
             <v-list-item
                 @click="$ELECTRON ? electronDownload($route.params.ticket) : null"
                 :href="$ELECTRON ? null : url('api/result/download/' + $route.params.ticket)"
