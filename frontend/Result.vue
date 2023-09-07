@@ -44,6 +44,9 @@ export default {
         }
         this.fetchData();
     },
+    destroyed () {
+        this.$root.$off('downloadJSON');
+    },
     watch: {
         '$route': function(to, from) {
             if (from.path != to.path) {
@@ -126,7 +129,6 @@ export default {
                 const result = await getQueryPromises(queryResponse.data.lookup);
                 allData.push(...result);
                 if (queryResponse.data.hasNext) {
-                    console.log('would go next now')
                     page++;
                     await getFn();
                 }
