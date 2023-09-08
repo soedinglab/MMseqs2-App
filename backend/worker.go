@@ -263,6 +263,8 @@ ln -s -- "${BASE}/query.dbtype" "${BASE}/query_ss.dbtype"
 awk 'NR % 2 == 1 { print $0; }' "${BASE}/query_h.index" > "${BASE}/query_h.index_tmp"
 mv -f -- "${BASE}/query_h.index_tmp" "${BASE}/query_h.index"
 $MMSEQS lndb "${BASE}/query_h" "${BASE}/query_ss_h"
+awk 'NR % 2 == 1 { print $0; }' "${BASE}/query.lookup" > "${BASE}/query.lookup_tmp"
+mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 `)
 			err = script.Close()
 			if err != nil {
