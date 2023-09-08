@@ -310,7 +310,13 @@ $MMSEQS lndb "${BASE}/query_h" "${BASE}/query_ss_h"
 				} else {
 					columns += "target"
 				}
-				columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,prob,evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
+				columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend"
+				if is3Di {
+					columns += ",empty"
+				} else {
+					columns += ",prob"
+				}
+				columns += ",evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
 				if params.Taxonomy {
 					columns += ",taxid,taxname"
 				}
