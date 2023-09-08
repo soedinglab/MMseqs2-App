@@ -256,7 +256,7 @@ MMSEQS="$1"
 QUERY="$2"
 BASE="$3"
 $MMSEQS base:createdb "${QUERY}" "${BASE}/query" --shuffle 0
-awk -v out="${BASE}/query" 'BEGIN { printf("") > (out"_aa.index"); printf("") > (out"_ss.index"); } { print $0 >> (NR % 2 == 1 ? out"_aa.index" : out"_ss.index") }' "${BASE}/query.index"
+awk -v out="${BASE}/query" 'BEGIN { printf("") > (out"_aa.index"); printf("") > (out"_ss.index"); } NR % 2 == 1 { print $0 >> (out"_aa.index"); next } { $1 = $1 - 1; print $0 >> (out"_ss.index") }' "${BASE}/query.index"
 mv -f -- "${BASE}/query_aa.index" "${BASE}/query.index"
 ln -s -- "${BASE}/query" "${BASE}/query_ss"
 ln -s -- "${BASE}/query.dbtype" "${BASE}/query_ss.dbtype"
