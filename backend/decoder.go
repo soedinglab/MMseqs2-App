@@ -81,7 +81,7 @@ func (p *Parser) Next() (eof bool, err error) {
 		case reflect.String:
 			field.SetString(record)
 		case reflect.Bool:
-			if record == "" {
+			if record == "" || record == "-" {
 				field.SetBool(false)
 			} else {
 				col, err := strconv.ParseBool(record)
@@ -91,7 +91,7 @@ func (p *Parser) Next() (eof bool, err error) {
 				field.SetBool(col)
 			}
 		case reflect.Float64, reflect.Float32:
-			if record == "" {
+			if record == "" || record == "-" {
 				field.SetFloat(0)
 			} else {
 				col, err := strconv.ParseFloat(record, 64)
@@ -101,7 +101,7 @@ func (p *Parser) Next() (eof bool, err error) {
 				field.SetFloat(col)
 			}
 		case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int:
-			if record == "" {
+			if record == "" || record == "-" {
 				field.SetInt(0)
 			} else {
 				col, err := strconv.ParseInt(record, 10, 64)
@@ -111,7 +111,7 @@ func (p *Parser) Next() (eof bool, err error) {
 				field.SetInt(col)
 			}
 		case reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
-			if record == "" {
+			if record == "" || record == "-" {
 				field.SetUint(0)
 			} else {
 				col, err := strconv.ParseUint(record, 10, 64)
