@@ -260,6 +260,8 @@ awk -v out="${BASE}/query" 'BEGIN { printf("") > (out"_aa.index"); printf("") > 
 mv -f -- "${BASE}/query_aa.index" "${BASE}/query.index"
 ln -s -- "${BASE}/query" "${BASE}/query_ss"
 ln -s -- "${BASE}/query.dbtype" "${BASE}/query_ss.dbtype"
+awk 'NR % 2 == 1 { print $0; }' "${BASE}/query_h.index" > "${BASE}/query_h.index_tmp"
+mv -f -- "${BASE}/query_h.index_tmp" "${BASE}/query_h.index"
 $MMSEQS lndb "${BASE}/query_h" "${BASE}/query_ss_h"
 `)
 			err = script.Close()
