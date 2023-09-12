@@ -23,9 +23,9 @@
         <v-list-item v-on:click="predictESM">
           <v-list-item-title>Structure with ESMFold</v-list-item-title>
         </v-list-item>
-        <v-list-item v-on:click="predictT5">
+        <!-- <v-list-item v-on:click="predictT5">
           <v-list-item-title>3Di with ProstT5</v-list-item-title>
-        </v-list-item>
+        </v-list-item> -->
       </v-list>
     </v-menu>
 </template>
@@ -70,7 +70,7 @@ export default {
         query: {
             immediate: true,
             handler() {
-                if (/>3DI/.test(this.query)) {
+                if (false && />3DI/.test(this.query)) {
                     this.disabled = true;
                     this.color = "primary";
                     this.show = false;
