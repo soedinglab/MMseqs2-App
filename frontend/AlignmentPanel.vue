@@ -29,20 +29,7 @@
 
 <script>
 import Alignment from './Alignment.vue'
-
-// Map 0-based indices in the alignment to corresponding 1-based indices in the structure
-function makePositionMap(realStart, alnString) {
-    let map = Array(alnString.length);
-    for (let i = 0, gaps = 0; i < alnString.length; i++) {
-        if (alnString[i] === '-') {
-            map[i] = null;
-            gaps++;
-        } else {
-            map[i] = realStart + i - gaps;
-        }
-    }
-    return map
-}
+import { makePositionMap } from './Utilities.js'
 
 export default {
     components: { StructureViewer: () => __APP__ == "foldseek" ? import('./StructureViewer.vue') : null, Alignment },
