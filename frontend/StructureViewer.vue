@@ -486,7 +486,8 @@ END
         }
     },
     beforeMount() {
-        let qChain = this.hits.query.header.match(/_([A-Z]+?)/m)
+        const accession = this.hits.query.header.split(/(\s+)/)[0];
+        const qChain = accession.match(/_([A-Z]+?)/m)
         if (qChain) this.queryChain = qChain[1] //.replace('_', '')
     },
     async mounted() {
