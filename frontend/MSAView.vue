@@ -1,10 +1,5 @@
 <template>
-<div
-    class="msa-wrapper"
-    @mouseDown="onMouseDown"
-    @mouseMove="onMouseMove"
-    @mouseUp="onMouseUp"
->
+<div class="msa-wrapper">
     <div class="msa-block" v-for="([start, end], i) in blockRanges">
         <div class="msa-row" v-for="({name, aa, ss, css}, j) in getEntryRanges(start, end)">
             <span
