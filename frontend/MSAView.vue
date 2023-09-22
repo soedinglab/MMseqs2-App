@@ -119,13 +119,15 @@ export default {
             }
         },
         headerStyle(index) {
-            const isSelected  = this.selectedStructures && this.selectedStructures.includes(index);
-            const isReference = this.selectedStructures && this.selectedStructures[this.referenceStructure] === index;
+            const isSelected  = this.selectedStructures.length > 0 && this.selectedStructures.includes(index);
+            const isReference = this.selectedStructures.length > 0 && this.selectedStructures[this.referenceStructure] === index;
             return {
                 fontWeight: isSelected ? 'bold' : 'normal',                
-                color: isReference ? 'red' : (isSelected
-                    ? this.$vuetify.theme.dark ? 'lightBlue' : 'blue'
-                    : this.$vuetify.theme.dark ? 'rgba(180, 180, 180, 1)' : 'black'),
+                color: isReference
+                    ? 'red'
+                    : (isSelected
+                        ? this.$vuetify.theme.dark ? 'lightBlue' : 'blue'
+                        : this.$vuetify.theme.dark ? 'rgba(180, 180, 180, 1)' : 'black'),
             }
         },
         handleUpdateEntries() {

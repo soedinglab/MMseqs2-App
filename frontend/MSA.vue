@@ -23,15 +23,6 @@
                                         />
                                     </td>
                                 </tr>
-                                <!-- <tr>
-                                    <td>Score:</td>
-                                    <td>
-                                        <select name="score-type" id="score-type">
-                                            <option value="1">LDDT</option>
-                                            <option value="2">SOP</option>
-                                        </select>
-                                    </td>
-                                </tr> -->
                                 <tr>
                                     <td style="width: 50%;">Match ratio</td>
                                     <td style="width: 200px;" class="settings-td">
@@ -51,12 +42,6 @@
                                         />
                                     </td>
                                 </tr>
-                                <!-- <tr>
-                                    <td>Line length:</td>
-                                    <td>
-                                        <input @change="handleLineLenChange" type="number" id="line-len" name="line-len" min="1" step="1" value="100">
-                                    </td>
-                                </tr> -->
                                 <tr v-if="statistics.db">
                                     <td>Database</td>
                                     <td id="msa-database">{{ statistics.db }}</td>
@@ -92,7 +77,6 @@
             </v-col>
         </v-row>
         <v-card class="minimap fill-height">
-            <!-- <v-card-title style="padding: 0px;">MSA Overview</v-card-title> -->
             <v-row dense v-if="cssGradients">
                 <v-col
                     v-for="(block, i) in cssGradients"
@@ -370,6 +354,9 @@ export default {
             // New reference emitted from MSAView.
             // Add new structure to selection if index not already in selection,
             // otherwise just switch reference index.
+            if (entryIndex === this.structureViewerReference) {
+                return;
+            }
             const selection = this.structureViewerSelection.slice();
             const index = selection.indexOf(entryIndex);
             if (index === -1) {
@@ -381,6 +368,10 @@ export default {
         handleNewStructureViewerSelection(entryIndex) {
             const selection = this.structureViewerSelection.slice();
             const index = selection.indexOf(entryIndex);
+            if (index === this.structureViewerReference) {
+                this.structureViewerSelection = [];
+                return;
+            }
             if (index !== -1) {
                 selection.splice(index, 1);
             } else {
