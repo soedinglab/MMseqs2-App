@@ -1,12 +1,12 @@
 <template>
 <div>
     <v-container fluid pa-2 style="overflow: visible; height: 100%;">
-        <v-row dense>
+        <v-row style="height: 400px;">
             <v-col fill-height>
-                <v-card>
+                <v-card style="height: 100%">
                     <v-card-title>Settings</v-card-title>
                     <v-card-text>
-                        <v-simple-table id="settings" class="settings">
+                        <v-simple-table style="height: 100%;" id="settings" class="settings auto-height-table">
                             <tbody>
                                 <tr>
                                     <td style="width: 50%; vertical-align: middle;">Display alphabet</td>
@@ -74,35 +74,20 @@
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col v-if="false && statistics">
-                <v-card class="fill-height">
-                    <v-card-title>Statistics</v-card-title>
-                    <v-card-text>
-                        <v-simple-table id="stats">
-                            <tbody>
-                                <tr>
-                                    <td>Database</td>
-                                    <td id="msa-database">{{ statistics.db }}</td>
-                                </tr>
-                                <tr>
-                                    <td>MSA file</td>
-                                    <td id="msa-file">{{ statistics.msaFile }}</td>
-                                </tr>
-                                <tr>
-                                    <td>MSA LDDT</td>
-                                    <td id="msa-lddt">{{ statistics.msaLDDT }}</td>
-                                </tr>
-                            </tbody>
-                        </v-simple-table>
-                    </v-card-text>
-                </v-card>
-            </v-col>
             <v-col>
                 <v-card class="fill-height">
                     <v-card-title>Structure</v-card-title>
-                    <StructureViewer
-                        :alignment="null"
-                    />
+                    <div v-if="structureViewerSelection">
+                        <StructureViewerMSA
+                            :entries="structureViewerEntries"
+                            :selected="structureViewerSelection"
+                            :reference="structureViewerReference"
+                            :hits="{}"
+                        />
+                    </div>
+                    <v-card-text v-else>
+                        No structures loaded.
+                    </v-card-text>
                 </v-card>
             </v-col>
         </v-row>
@@ -134,8 +119,12 @@
                 :scores="scores"
                 :alnLen="alnLen"
                 :alphabet="alphabet"
+                :selectedStructures="structureViewerSelection"
+                :referenceStructure="structureViewerReference"
                 @cssGradients="handleCSSGradient"
                 @lineLen="handleLineLen"
+                @newStructureSelection="handleNewStructureViewerSelection"
+                @newStructureReference="handleNewStructureViewerReference"
                 ref="msaView"
             />
         </v-card>
@@ -146,118 +135,52 @@
 <script>
 import MSAView from './MSAView.vue';
 import StructureViewer from './StructureViewer.vue';
+import StructureViewerMSA from './StructureViewerMSA.vue';
+import { makePositionMap } from './Utilities.js'
 
-function e(tag, attributes, children) {
-    const element = document.createElement(tag);
-    for (const a in attributes) {
-        if (attributes.hasOwnProperty(a)) {
-            element.setAttribute(a, attributes[a]);
+function mockAlignment(one, two) {
+    let res = { backtrace: "" };
+    let started = false; // flag for first Match column in backtrace
+    let m = 0;           // index in msa
+    let qr = 0;          // index in seq
+    let tr = 0;
+    while (m < one.length) {
+        const qc = one[m];
+        const tc = two[m];
+        if (qc === '-' && tc === '-') {
+            // Skip gap columns
+        } else if (qc === '-') {
+            if (started) res.backtrace += 'D';
+            ++tr;
+        } else if (tc === '-') {
+            if (started) res.backtrace += 'I';
+            ++qr;
+        } else {
+            if (!started) {
+                started = true;
+                res.qStartPos = qr;
+                res.dbStartPos = tr;
+            }
+            res.backtrace += 'M';
+            res.qEndPos = qr;
+            res.dbEndPos = tr;
+            ++qr;
+            ++tr;
         }
+        ++m;
     }
-    const fragment = document.createDocumentFragment();
-    children = Array.isArray(children) ? children : [children];
-    for (const c in children) {
-        if (children.hasOwnProperty(c)) {
-            fragment.appendChild(children[c] instanceof HTMLElement ? children[c] : document.createTextNode(children[c] + ""));
-        }
-    }
-    element.appendChild(fragment);
-    return element;
-}
-
-function padNumber(nr, n, str) {
-    return Array(n - String(nr).length + 1).join(str || '0') + nr
-}
-
-function parseFasta(fasta) {
-    let entries = [];
-    for (let line of fasta.split(/[\r\n]+/)) {
-        if (line.startsWith('>')) entries.push([line.slice(1), ""]);
-        else entries[entries.length - 1][1] += line;
-    }
-    return entries;
-}
-
-function percentageToColor(percentage, maxHue = 120, minHue = 0) {
-    const hue = percentage * (maxHue - minHue) + minHue;
-    // return `rgba(0, 0, 255, ${percentage})`;
-    return `hsl(${hue}, 100%, 50%)`;
-} 
-
-
-function renderStats(stats) {
-    document.getElementById("msa-database").innerHTML = stats.db;
-    document.getElementById("msa-file").innerHTML = stats.msa;
-    document.getElementById("msa-lddt").innerHTML = stats.lddt;
-}
-
-function renderAlignment(sequences, lineLen=100, seqType=1, matchRatio=0.0) {
-    var aln = formatAlignment(sequences, lineLen=lineLen, seqType=seqType, matchRatio=matchRatio);
-    document.getElementById("msa").replaceChildren(aln);
-}
-
-function updateColorScheme(scores, scoreType=1) {
-    var style = new CSSStyleSheet();
-    for (let [idx, lddt, sop] of scores) {
-        let score = (scoreType == 1) ? lddt : sop;
-        let hsl = percentageToColor(parseFloat(score));
-        style.insertRule(`.char-${idx} { background-color: ${hsl} }`);
-    }
-    document.adoptedStyleSheets = [style];
-}
-
-function download(filename, text) {
-    let data = new Blob([text], { type: "text/plain", oneTimeOnly: true });
-    let link = window.document.createElement("a");
-    link.href = window.URL.createObjectURL(data);
-    link.download = filename;
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-let lineLen = 100;
-let seqType = 1;
-let scoreType = 1;
-let matchRatio = 0.0;
-
-// seqType 1=aa, 2=3di
-function render(sequences, scores, stats) {
-           
-    renderStats(stats);
-    renderAlignment(sequences, lineLen=lineLen, seqType=seqType, matchRatio=matchRatio);
-    updateColorScheme(scores, scoreType=scoreType);
-
-    // Swap AA<->3Di on dropdown
-    document.getElementById("seq-type").onchange = (o) => {
-        seqType = parseInt(o.target.value);
-        renderAlignment(sequences, lineLen=lineLen, seqType=seqType, matchRatio=matchRatio);
-    }
-    document.getElementById("score-type").onchange = (o) => {
-        updateColorScheme(scores, scoreType=parseInt(o.target.value));
-    }
-    document.getElementById("match-ratio").onchange = (o) => {
-        matchRatio = parseFloat(o.target.value);
-        renderAlignment(sequences, lineLen=lineLen, seqType=seqType, matchRatio=matchRatio);
-    }
-    document.getElementById("line-len").onchange = (o) => {
-        lineLen = parseInt(o.target.value);
-        renderAlignment(sequences, lineLen=lineLen, seqType=seqType, matchRatio=matchRatio);
-    }
-    document.getElementById("save-aln").onclick = () => {
-        let msa = document.getElementById("msa").innerText;
-        download("foldseek_msa.fa", msa);
-    }
+    res.qStartPos++;
+    res.dbStartPos++;
+    return res;
 }
 
 export default {
     components: {
-        MSAView, StructureViewer
+        MSAView, StructureViewer, StructureViewerMSA
     },
     data() {
         return {
-            entries: null,
+            entries: [],
             scores: null,
             structures: null,       
             alnLen: null,
@@ -272,10 +195,13 @@ export default {
             ],
             statistics: null,
             matchRatio: null,
+            structureViewerSelection: [],
+            structureViewerReference: 0
         }
     },    
     mounted() {
         window.addEventListener("scroll", this.handleScroll);
+        this.structureViewerSelection = [0, 1];
     },
     beforeDestroy() {
         window.removeEventListener("scroll", this.handleScroll);
@@ -428,14 +354,63 @@ export default {
         this.statistics = {
             db: 'exampleDB',
             msaFile: 'example.fasta',
-            msaLDDT: 0.69,
+            msaLDDT: 0.68,
+        }
+    },
+    computed: {
+        structureViewerProps() {
+            return { structures: this.entries };
+        },
+        structureViewerEntries() {
+            return this.structureViewerSelection.map(index => this.entries[index]);
         }
     },
     methods: {
-        makeMockAlignment(one, two) {
-            return {
-                
+        handleNewStructureViewerReference(entryIndex) {
+            // New reference emitted from MSAView.
+            // Add new structure to selection if index not already in selection,
+            // otherwise just switch reference index.
+            const selection = this.structureViewerSelection.slice();
+            const index = selection.indexOf(entryIndex);
+            if (index === -1) {
+                selection.push(entryIndex);
             }
+            this.structureViewerSelection = selection;
+            this.structureViewerReference = this.structureViewerSelection.indexOf(entryIndex);
+        },
+        handleNewStructureViewerSelection(entryIndex) {
+            const selection = this.structureViewerSelection.slice();
+            const index = selection.indexOf(entryIndex);
+            if (index !== -1) {
+                selection.splice(index, 1);
+            } else {
+                selection.push(entryIndex);
+            }
+            this.structureViewerSelection = selection;
+        },
+        getEntry(name) {
+            return this.entries.find(item => item.name === name);
+        },
+        makeMockAlignment(one, two) {
+            const entryOne = this.entries[one];
+            const entryTwo = this.entries[two];
+            if (!entryOne || !entryTwo) {
+                return;
+            }
+            const alignment  = mockAlignment(entryOne.aa, entryTwo.aa);
+            alignment.query  = entryOne.name;
+            alignment.target = entryTwo.name;
+            alignment.qCa    = entryOne.ca;
+            alignment.tCa    = entryTwo.ca;
+            alignment.qSeq   = entryOne.aa.replace(/-/g, '');
+            alignment.qAln   = entryOne.aa;
+            alignment.tSeq   = entryTwo.aa.replace(/-/g, '');
+            alignment.dbAln  = entryTwo.aa;
+            return {
+                queryMap: makePositionMap(alignment.qStartPos, alignment.qAln), 
+                targetMap: makePositionMap(alignment.dbStartPos, alignment.dbAln), 
+                alignment: alignment
+            };
         },
         handleMapBlockClick(index) {
             const top = document.querySelector('.minimap').offsetHeight + 60;  // app-bar + minimap
@@ -542,5 +517,6 @@ export default {
     vertical-align: middle;
     padding: 0;
     margin: 0;
+    height: 75px !important;
 }
 </style>

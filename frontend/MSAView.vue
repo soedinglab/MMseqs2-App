@@ -1,8 +1,17 @@
 <template>
-<div class="msa-wrapper">
+<div
+    class="msa-wrapper"
+    @mouseDown="onMouseDown"
+    @mouseMove="onMouseMove"
+    @mouseUp="onMouseUp"
+>
     <div class="msa-block" v-for="([start, end], i) in blockRanges">
-        <div class="msa-row" v-for="{name, aa, ss, css} in getEntryRanges(start, end)">
-            <span class="header"  >{{ name.padStart(headerLen, '&nbsp') }}</span>
+        <div class="msa-row" v-for="({name, aa, ss, css}, j) in getEntryRanges(start, end)">
+            <span
+                class="header"
+                :style="headerStyle(j)"
+                @click="handleClickHeader($event, j)"
+            >{{ name.padStart(headerLen, '&nbsp') }}</span>
             <div class="sequence-wrapper">
                 <span class="sequence" :style="css">{{ alphabet === 'aa' ? aa : ss }}</span>
             </div>
@@ -50,11 +59,21 @@ function debounce(func, delay) {
 }
 
 export default {
+    data() {
+        return {
+            lineLen: 80,
+            headerLen: null,
+            matchRatio: 0,
+            countLen: null,
+        }
+    },
     props: {
         entries: Array,
         scores: Array,
         alnLen: Number,
         alphabet: String,
+        selectedStructures: { type: Array, required: false },
+        referenceStructure: { type: Number }
     },
     mounted() {
         window.addEventListener('resize', debounce(this.handleResize, 100));
@@ -68,14 +87,6 @@ export default {
     },
     beforeDestroy() {
         window.removeEventListener('resize', this.handleResize);
-    },
-    data() {
-        return {
-            lineLen: 80,
-            headerLen: null,
-            matchRatio: 0,
-            countLen: null,
-        }
     },
     watch: {
         entries: function() {
@@ -105,6 +116,23 @@ export default {
         },
     },
     methods: {
+        handleClickHeader(event, index) {
+            if (event.altKey) {
+                this.$emit("newStructureReference", index);
+            } else {
+                this.$emit("newStructureSelection", index);
+            }
+        },
+        headerStyle(index) {
+            const isSelected  = this.selectedStructures && this.selectedStructures.includes(index);
+            const isReference = this.selectedStructures && this.selectedStructures[this.referenceStructure] === index;
+            return {
+                fontWeight: isSelected ? 'bold' : 'normal',                
+                color: isReference ? 'red' : (isSelected
+                    ? this.$vuetify.theme.dark ? 'lightBlue' : 'blue'
+                    : this.$vuetify.theme.dark ? 'rgba(180, 180, 180, 1)' : 'black'),
+            }
+        },
         handleUpdateEntries() {
             this.headerLen = 0;
             this.countLen = 0;
@@ -257,5 +285,8 @@ export default {
 }
 .sequence {
     margin-left: auto;
+}
+.header:hover {
+    cursor: pointer;
 }
 </style>

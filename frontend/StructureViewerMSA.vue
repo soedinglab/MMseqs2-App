@@ -22,7 +22,7 @@ import StructureViewerTooltip from './StructureViewerTooltip.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerMixin from './StructureViewerMixin.vue';
 import { mockPDB, makeSubPDB, transformStructure  } from './Utilities.js';
-import { download, PdbWriter } from 'ngl';
+import { download, PdbWriter, StructureRepresentation } from 'ngl';
 import { pulchra } from 'pulchra-wasm';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 
@@ -93,10 +93,10 @@ export default {
     ],
     data: () => ({
         structures: [],  // { name, aa, 3di (ss), ca, NGL structure, alignment, map }
-        reference: 0,    // Index in structures []
     }),
     props: {
         entries: { type: Array },
+        reference: { type: Number },
         bgColorLight: { type: String, default: "white" },
         bgColorDark: { type: String, default: "#1E1E1E" },
         representationStyle: { type: String, default: "cartoon" },
@@ -157,7 +157,7 @@ ENDMDL
             transformStructure(this.structures[index].structure.structure, t, u);
             return Promise.resolve();
         },
-        async addNewStructure(data) {
+        async addStructureToStage(data) {
             const { name, aa, ca } = data;
             const index = this.structures.push(data) - 1;
             const pdb = await pulchra(mockPDB(ca, aa.replace(/-/g, '')));
@@ -167,13 +167,13 @@ ENDMDL
             );
             this.structures[index].index = index;
             this.structures[index].structure = structure;
-            return Promise.resolve();
+            return index;
         },
-        async addRepresentation({ structure }, index) {
+        async addRepresentation({structure}, index) {
             if (structure.reprList.length > 0) {
                 return;
             }
-            if (this.reference !== null) {
+            if (this.reference !== index) {
                 await this.tmAlignToReference(index);
             }
             const isReference = this.reference === index;
@@ -195,11 +195,57 @@ ENDMDL
             if (!this.stage) return;
             this.structures.forEach((structure, index) => this.shiftStructure(structure, index, shiftValue));
             this.stage.autoView();
-        }
+        },
+        async updateEntries(newV, oldV) {
+            if (newV.length === 0 && oldV.length === 0)
+                return;
+            if (!this.stage)
+                return;
+            oldV.filter(item => !newV.includes(item))
+                .forEach(async (item) => {
+                    this.stage
+                        .getComponentsByName(item.name)
+                        .forEach(item => this.stage.removeComponent(item));
+                    const idx = this.structures.indexOf(structure => structure.name === item.name);
+                    this.structures.splice(idx, 1);
+                });
+            newV.filter(item => !oldV.includes(item))
+                .forEach(async (item) => {
+                    let index = await this.addStructureToStage(item);
+                    this.addRepresentation(this.structures[index], index);
+                });
+            this.stage.autoView();
+        },
+        async updateStage() {
+            if (this.entries.length === 0) {
+                return;
+            }
+            this.stage.removeAllComponents();
+            this.structures = [];
+            await Promise.all(this.entries.map(this.addStructureToStage));
+            if (this.reference !== null) {
+                await this.addRepresentation(this.structures[this.reference], this.reference);
+                this.stage.autoView();
+            }
+            await Promise.all(this.structures.map(this.addRepresentation));
+            this.stage.autoView();
+        },
     },
     watch: {
         '$vuetify.theme.dark': function() {
             this.stage.viewer.setBackground(this.bgColor);
+        },
+        entries: async function(newV, oldV) {
+            if (oldV.length === 0) {
+                // first time draw = no entries in old array
+                this.updateStage();
+            } else {
+                this.updateEntries(newV, oldV);
+            }
+        },
+        reference: function() {
+            if (!this.stage) return;
+            this.updateStage();
         }
     },
     computed: {
@@ -211,14 +257,9 @@ ENDMDL
         },
     },
     async mounted() {
-        await Promise.all(this.entries.map(this.addNewStructure));
-        if (this.reference !== null) {
-            await this.addRepresentation(this.structures[this.reference], this.reference);
-            this.stage.autoView();
-        }
-        await Promise.all(this.structures.map(this.addRepresentation));
+        // this.stage.setSpin(true);
+        this.updateStage();
         this.stage.autoView();
-        this.stage.setSpin(true);
     },
 }
 </script>

@@ -59,7 +59,7 @@ export default {
             this.stage.toggleFullscreen(this.$refs.structurepanel);
         },
         handleResetView() {
-            this.setSelection(this.showTarget)
+            // this.setSelection(this.showTarget)
             this.resetView();
         },
         initialiseStage() {
