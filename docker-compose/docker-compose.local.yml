@@ -1,0 +1,15 @@
+version: '3.7'
+
+services:
+  mmseqs-web-redis:
+    image: busybox
+    command: /bin/true
+
+  mmseqs-web-api:
+    command: -local -config /etc/mmseqs-web/config.json -app ${APP}
+    environment:
+      - MMSEQS_NUM_THREADS=${THREADS_PER_WORKER}
+
+  mmseqs-web-worker:
+    image: busybox
+    command: /bin/true
