@@ -139,11 +139,6 @@
                             </template>
                             <span>Send an email when the job is done.</span>
                         </v-tooltip>
-
-
-                        <div v-if="errorMessage != ''" class="v-alert red mt-2">
-                            <span>{{ errorMessage }}</span>
-                        </div>
                     </div>
                 </panel>
             </v-flex>
@@ -172,6 +167,9 @@
                                 databases.filter(db => database.includes(db.path)).map(db => db.name).sort().join(", ")
                             }})
                         </template> with {{ $STRINGS.APP_NAME }} in <strong>{{ modes[mode] }}</strong> mode.
+                        <div v-if="errorMessage != ''" class="v-alert v-alert--outlined warning--text mt-2">
+                            <span>{{ errorMessage }}</span>
+                        </div>
                     </div>
                     </div>
                 </template>
@@ -406,6 +404,10 @@ export default {
                         name: "result",
                         params: { ticket: data.id, entry: 0 }
                     });
+                } else if (data.status == "RATELIMIT") {
+                    this.errorMessage = "You have reached the rate limit. Please try again later.";
+                } else if (data.status == "MAINTENANCE") {
+                    this.errorMessage = "The server is currently under maintenance. Please try again later.";
                 } else {
                     this.errorMessage = "Error loading search result";
                 }
