@@ -87,7 +87,9 @@ var defaultFileContent = []byte(`{
     },
     // options for local/single-binary server
     "local" : {
-        "workers"  : 1
+        "workers"  : 1,
+		// should old jobs be checked on startup
+		"checkold" : true
     },
     "mail" : {
         "mailer" : {
@@ -175,7 +177,8 @@ type ConfigRedis struct {
 }
 
 type ConfigLocal struct {
-	Workers int `json:"workers"`
+	Workers  int  `json:"workers"`
+	CheckOld bool `json:"checkold"`
 }
 
 type ConfigMailTemplate struct {
@@ -278,6 +281,10 @@ func WriteDefaultConfig(path string) error {
 
 func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 	var config ConfigRoot
+
+	// set default values
+	config.Local.CheckOld = true
+
 	if err := DecodeJsonAndValidate(r, &config); err != nil {
 		return config, fmt.Errorf("fatal error for config file: %s", err)
 	}

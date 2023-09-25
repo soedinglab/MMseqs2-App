@@ -399,13 +399,17 @@ type LocalJobSystem struct {
 	queued      int
 }
 
-func MakeLocalJobSystem(results string) (LocalJobSystem, error) {
+func MakeLocalJobSystem(results string, CheckOld bool) (LocalJobSystem, error) {
 	jobsystem := LocalJobSystem{}
 	jobsystem.QueueMutex = &sync.Mutex{}
 	jobsystem.Queue = make([]Id, 0)
 	jobsystem.StatusMutex = &sync.Mutex{}
 	jobsystem.Results = results
 	jobsystem.queued = 0
+
+	if !CheckOld {
+		return jobsystem, nil
+	}
 
 	dirs, err := os.ReadDir(filepath.Clean(results))
 	if err != nil {

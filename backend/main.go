@@ -103,7 +103,7 @@ func main() {
 		}
 		server(jobsystem, config)
 	case LOCAL:
-		jobsystem, err := MakeLocalJobSystem(config.Paths.Results)
+		jobsystem, err := MakeLocalJobSystem(config.Paths.Results, config.Local.CheckOld)
 		if err != nil {
 			panic(err)
 		}
