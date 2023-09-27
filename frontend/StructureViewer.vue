@@ -1,7 +1,7 @@
 <template>
 <div class="structure-panel" v-if="'tCa' in alignment">
+    <StructureViewerTooltip attach=".structure-panel" />
     <div class="structure-wrapper" ref="structurepanel">
-        <StructureViewerTooltip attach=".structure-wrapper" />
         <table v-if="tmAlignResults" class="tmscore-panel" v-bind="tmPanelBindings">
             <tr>
                 <td class="left-cell">TM-Score:</td>
@@ -24,6 +24,7 @@
             @toggleTarget="handleToggleTarget"
             @toggleQuery="handleToggleQuery"
             @toggleArrows="handleToggleArrows"
+            @toggleSpin="handleToggleSpin"
         />
         <div class="structure-viewer" ref="viewport" />
     </div>
@@ -398,13 +399,15 @@ END
 }
 </script>
 
-<style>
+<style scoped>
 .structure-wrapper {
     width: 400px;
     height: 300px;
     margin: 0 auto;
 }
+</style>
 
+<style>
 .theme--dark .structure-wrapper .v-tooltip__content {
     background: rgba(97, 97, 97, 0.3);
 }
