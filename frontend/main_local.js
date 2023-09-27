@@ -10,6 +10,7 @@ import AppLocal from './AppLocal.vue';
 const appStrings = {
     mmseqs: require('./assets/mmseqs.en_US.po').default,
     foldseek: require('./assets/foldseek.en_US.po').default,
+    foldmason: require('./assets/foldmason.en_US.po').default,
 };
 window.document.title = appStrings[__APP__].APP_NAME + " Search Server";
 

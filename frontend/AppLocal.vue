@@ -1,7 +1,8 @@
 <template>
     <v-app id="app" :class="{'electron' : $ELECTRON}">
         <v-main>
-            <ResultLocal />  
+            <MSALocal v-if="$APP === 'foldmason'" />
+            <ResultLocal v-else />  
         </v-main>
         <!-- <div id="data" style="display:none;">
         [{
@@ -95,8 +96,9 @@
 
 <script>
 import ResultLocal from './ResultLocal.vue';
+import MSALocal from './MSALocal.vue';
 
 export default {
-    components: { ResultLocal },
+    components: { ResultLocal, MSALocal },
 }
 </script>
