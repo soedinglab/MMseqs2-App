@@ -1,6 +1,11 @@
 <template>
 <div class="msa-wrapper">
     <div class="msa-block" v-for="([start, end], i) in blockRanges">
+        <SequenceLogo
+            :sequences="getEntryRanges(start, end, makeGradients=false)"
+            :alphabet="alphabet"
+            :lineLen="lineLen"
+        />
         <div class="msa-row" v-for="({name, aa, ss, css}, j) in getEntryRanges(start, end)">
             <span
                 class="header"
@@ -17,6 +22,8 @@
 </template>
 
 <script>
+import SequenceLogo from './SequenceLogo.vue';
+
 function filterMatchRatio(data, threshold, alnLen) {
     if (threshold > 0.0) {
         let entries = data.map(x => { return [x[0], []] });
@@ -54,6 +61,7 @@ function debounce(func, delay) {
 }
 
 export default {
+    components: { SequenceLogo, SequenceLogo },
     data() {
         return {
             lineLen: 80,
@@ -92,6 +100,13 @@ export default {
         }
     },
     computed: {
+        firstSequenceWidth() {
+            const container = document.querySelector(".msa-row");
+            if (!container)
+                return 0
+            const sequence = container.querySelector(".sequence");
+            return sequence.scrollWidth;
+        },
         blockRanges() {
             const maxVal = Math.max(1, Math.ceil(this.alnLen / this.lineLen));
             return Array.from({ length: maxVal }, (_, i) => {
@@ -117,6 +132,11 @@ export default {
             } else {
                 this.$emit("newStructureSelection", index);
             }
+        },
+        getSequenceWidth() {
+            const container = document.querySelector(".msa-row");
+            const sequence  = container.querySelector(".sequence");
+            return sequence.scrollWidth;
         },
         headerStyle(index) {
             const isSelected  = this.selectedStructures.length > 0 && this.selectedStructures.includes(index);
@@ -176,17 +196,18 @@ export default {
             // const lightness = this.$vuetify.theme.dark ? 50 : 30;
             return `hsl(${hue}, 100%, 50%)`;
         },
-        getEntryRange(entry, start, end) {
+        getEntryRange(entry, start, end, makeGradients=true) {
             let result = {
                 name: entry.name,
                 aa: entry.aa.slice(start, end),
                 ss: entry.ss.slice(start, end)
             };
-            result.css = this.generateCSSGradient(start, end, result.aa);
+            if (makeGradients)
+                result.css = this.generateCSSGradient(start, end, result.aa);
             return result;
         },
-        getEntryRanges(start, end) {
-            return Array.from(this.entries, entry => this.getEntryRange(entry, start, end));
+        getEntryRanges(start, end, makeGradients=true) {
+            return Array.from(this.entries, entry => this.getEntryRange(entry, start, end, makeGradients));
         },
         countSequence(blockIndex, sequence) {
             let gaps = sequence.split('-').length - 1;
