@@ -124,9 +124,9 @@ export default {
             return {
                 fontWeight: isSelected ? 'bold' : 'normal',                
                 color: isReference
-                    ? 'red'
+                    ? '#1E88E5'
                     : (isSelected
-                        ? this.$vuetify.theme.dark ? 'lightBlue' : 'blue'
+                        ? this.$vuetify.theme.dark ? 'lightBlue' : '#e6ac00'
                         : this.$vuetify.theme.dark ? 'rgba(180, 180, 180, 1)' : 'black'),
             }
         },

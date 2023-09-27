@@ -5,6 +5,7 @@ export default {
     data: () => ({
         stage: null,
         isFullscreen: false,
+        isSpinning: true,
     }),
     props: {
         bgColorLight: { type: String, default: "white" },
@@ -30,6 +31,12 @@ export default {
                 fogNear: -1000,
                 quality: 'high'
             }
+        }
+    },
+    watch: {
+        isSpinning: function() {
+            if (!this.stage) return;
+            this.stage.setSpin(this.isSpinning);
         }
     },
     mounted() {
@@ -58,8 +65,14 @@ export default {
             if (!this.stage) return;
             this.stage.toggleFullscreen(this.$refs.structurepanel);
         },
+        handleToggleSpin() {
+            if (!this.stage) return;
+            this.isSpinning = !this.isSpinning;
+        },
         handleResetView() {
-            // this.setSelection(this.showTarget)
+            if (this.showTarget) {
+                this.setSelection(this.showTarget)
+            }
             this.resetView();
         },
         initialiseStage() {
@@ -75,7 +88,8 @@ export default {
                     this.stage.viewer.setLight(undefined, undefined, undefined, this.ambientIntensity);
                     this.isFullscreen = false;
                 }
-            })   
+            });
+            this.stage.setSpin(this.isSpinning);
         },
         teardownStage() {
             window.removeEventListener('resize', this.handleResize)
