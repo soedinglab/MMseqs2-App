@@ -1,11 +1,11 @@
 <template>
 <div class="msa-wrapper">
     <div class="msa-block" v-for="([start, end], i) in blockRanges">
-        <SequenceLogo
+        <!-- <SequenceLogo
             :sequences="getEntryRanges(start, end, makeGradients=false)"
             :alphabet="alphabet"
             :lineLen="lineLen"
-        />
+        /> -->
         <div class="msa-row" v-for="({name, aa, ss, css}, j) in getEntryRanges(start, end)">
             <span
                 class="header"
@@ -23,54 +23,20 @@
 
 <script>
 import SequenceLogo from './SequenceLogo.vue';
-
-function filterMatchRatio(data, threshold, alnLen) {
-    if (threshold > 0.0) {
-        let entries = data.map(x => { return [x[0], []] });
-        for (let i = 0; i < alnLen; i++) {
-            let matches = 0;
-            for (let j = 0; j < entries.length; j++)
-                if (data[j][1][i] !== '-')
-                    matches++;
-            let ratio = matches / entries.length;
-            if (ratio >= threshold) {
-                for (let j = 0; j < entries.length; j++)
-                    entries[j][1].push({ id: i, aa: data[j][1][i], ss: data[j][2][i] });
-            }
-        }
-        return entries
-    }
-    return data.map(([name, aa, ss]) => {
-        let chars = [];
-        for (let i = 0; i < alnLen; i++)
-            chars.push({ aa: aa[i], ss: ss[i], id: i });
-        return [name, chars];
-    });       
-}
-
-function debounce(func, delay) {
-  let timeoutId;
-  return function() {
-    const context = this;
-    const args = arguments;      
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(function() {
-        func.apply(context, args);
-    }, delay);
-  };
-}
+import { debounce } from './Utilities.js';
 
 export default {
     components: { SequenceLogo, SequenceLogo },
     data() {
         return {
+            mask: [],
             lineLen: 80,
             headerLen: null,
-            matchRatio: 0,
             countLen: null,
         }
     },
     props: {
+        matchRatio: Number,
         entries: Array,
         scores: Array,
         alnLen: Number,
@@ -97,7 +63,7 @@ export default {
         },
         lineLen: function() {
             this.$emit("lineLen", this.lineLen);
-        }
+        },
     },
     computed: {
         firstSequenceWidth() {

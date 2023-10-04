@@ -24,7 +24,7 @@
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style="width: 50%;">Match ratio</td>
+                                    <td style="width: 50%;">Non-gap ratio</td>
                                     <td style="width: 200px;" class="settings-td">
                                         <v-text-field
                                             v-model="matchRatio"
@@ -98,12 +98,13 @@
         </v-card>
         <v-card pa-2>
             <MSAView
-                :entries="entries"
-                :scores="scores"
+                :entries="msaViewEntries"
+                :scores="msaViewScores"
                 :alnLen="alnLen"
                 :alphabet="alphabet"
                 :selectedStructures="structureViewerSelection"
                 :referenceStructure="structureViewerReference"
+                :matchRatio="parseFloat(matchRatio)"
                 @cssGradients="handleCSSGradient"
                 @lineLen="handleLineLen"
                 @newStructureSelection="handleNewStructureViewerSelection"
@@ -119,7 +120,28 @@
 import MSAView from './MSAView.vue';
 import StructureViewer from './StructureViewer.vue';
 import StructureViewerMSA from './StructureViewerMSA.vue';
-import { makePositionMap } from './Utilities.js'
+import { debounce, makePositionMap } from './Utilities.js'
+
+function makeMatchRatioMask(entries, ratio) {
+    const columnLength = entries[0].aa.length;
+    const mask = new Array(columnLength).fill(0);
+    for (let i = 0; i < columnLength; i++) {
+        let gap = 0;
+        let nonGap = 0;
+        for (let j = 0; j < entries.length; j++) {
+            if (entries[j].aa[i] === '-') {
+                gap++;
+            } else {
+                nonGap++;
+            }
+        }
+        let fraction = nonGap / (gap + nonGap);
+        if (fraction >= ratio) {
+            mask[i] = 1;
+        }
+    }
+    return mask;
+}
 
 function mockAlignment(one, two) {
     let res = { backtrace: "" };
@@ -170,6 +192,7 @@ export default {
     },
     data() {
         return {
+            mask: [],
             structures: [],       
             lineLen: 80,
             cssGradients: null,
@@ -180,7 +203,7 @@ export default {
                 { text: 'Amino Acids', value: 'aa' },
                 { text: '3D Interactions (3Di)', value: 'ss' }
             ],
-            matchRatio: null,
+            matchRatio: 0.0,
             structureViewerSelection: [],
             structureViewerReference: 0,
             isLoadingStructure: false
@@ -194,6 +217,12 @@ export default {
         //         this.scores[idx] = score;
         //     }
         // }
+        matchRatio: debounce(function() {
+            this.handleUpdateMatchRatio();
+        }, 200)
+    },
+    beforeMount() {
+        this.handleUpdateMatchRatio();
     },
     mounted() {
         window.addEventListener("scroll", this.handleScroll);
@@ -205,7 +234,8 @@ export default {
     computed: {
         alnLen() {
             if (this.entries.length > 0) {
-                return this.entries[0].aa.length;
+                return this.mask.reduce((count, value) => count + value, 0);
+                // return this.entries[0].aa.length;
             }
             return 0;
         },
@@ -214,9 +244,36 @@ export default {
         },
         structureViewerEntries() {
             return this.structureViewerSelection.map(index => this.entries[index]);
+        },
+        msaViewEntries() {
+            const entries = this.entries.map(entry => {
+                const copy = {
+                    name: entry.name,
+                    aa: "",
+                    ss: ""
+                }
+                for (let i = 0; i < this.mask.length; i++) {
+                    if (this.mask[i] === 1) {
+                        copy.aa += entry.aa[i];
+                        copy.ss += entry.ss[i];
+                    }
+                }
+                return copy;
+            })
+            return entries
+        },
+        msaViewScores() {
+            return this.scores.filter((_, index) => this.mask[index] === 1);
         }
     },
     methods: {
+        handleUpdateMatchRatio: function() {
+            if (this.matchRatio === 0.0) {
+                this.mask = new Array(this.entries[0].aa.length).fill(1);
+            } else {
+                this.mask = makeMatchRatioMask(this.entries, this.matchRatio);
+            }
+        },
         handleStructureLoadingChange(isLoading) {
             console.log('loading state change', isLoading)
             this.isLoadingStructure = isLoading;
