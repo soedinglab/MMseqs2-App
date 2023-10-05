@@ -23,15 +23,22 @@
         <v-list-item v-on:click="predictESM">
           <v-list-item-title>Structure with ESMFold</v-list-item-title>
         </v-list-item>
-        <!-- <v-list-item v-on:click="predictT5">
+        <v-list-item v-on:click="predictT5">
           <v-list-item-title>3Di with ProstT5</v-list-item-title>
-        </v-list-item> -->
+        </v-list-item>
       </v-list>
     </v-menu>
 </template>
 
 <script>
 import { create } from 'axios';
+
+function cleanFasta(fasta) {
+    const i = fasta.indexOf('\n');
+    const header = fasta.substring(0, i + 1);
+    const seq = fasta.substring(i + 1).replace(/\s+/g, '');
+    return header + seq;
+}
 
 export default {
     name: 'predict-structure-button',
@@ -70,7 +77,7 @@ export default {
         query: {
             immediate: true,
             handler() {
-                if (false && />3DI/.test(this.query)) {
+                if (/>3DI/.test(this.query)) {
                     this.disabled = true;
                     this.color = "primary";
                     this.show = false;
@@ -129,7 +136,7 @@ export default {
             const axios = create();
             axios.get("https://3di.foldseek.com/predict/" + this.sequence)
                 .then((response) => {
-                    this.$emit('predict', this.query + (this.query.slice(-1) == '\n' ? '' : '\n') + '>3DI\n' + response.data);
+                    this.$emit('predict', cleanFasta(this.query) + '\n>3DI\n' + response.data);
                 }).catch((error) => {
                     if (typeof error.response.data !== 'undefined') {
                         this.error = "Error: " + error.response.data;
