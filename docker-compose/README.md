@@ -1,6 +1,8 @@
 Search Server for MMseqs2 and Foldseek
 =====================
 
+**Warning:** This guide is not for setting up ColabFold. Please refer to the [instructions](https://github.com/sokrypton/ColabFold/tree/main/MsaServer) in the ColabFold repository for setting up a MSA server.
+
 Setup
 -----
 
@@ -38,10 +40,25 @@ docker-compose pull
 docker-compose up
 ```
 
-## Setting up the Example Databases
+## Example Database Setup Instructions
 
-### Uniclust
+### Via `docker-compose`
 
+Execute the provided `docker-compose` script to initiate database setup for the web server. This script leverages the `mmseqs` or `foldseek` database workflows:
+
+```bash
+# To list all available databases:
+docker-compose run db-setup
+
+# To set up specific databases, e.g., UniRef50 and PDB70:
+docker-compose run db-setup UniRef50 PDB70
+```
+
+### Legacy Setup Scripts
+
+For reference purposes, previous setup scripts are located in the `example` folder.
+
+#### Uniclust
 We provide a script in `examples/uniclust/setup.sh` that will download and setup the Uniclust sequence database for you.
 Please take a look at this script and choose version, sequence identity level and kind of the database you want.
 
@@ -56,7 +73,7 @@ cd databases
 
 When the script finishes, you can optionally edit the generated params file. Take a look at the "Params File" section.
 
-### PDB70
+#### PDB70
 
 We provide a script in examples/pdb70/setup.sh that will download and setup the PDB70 profile database for you.
 
@@ -67,7 +84,7 @@ cd databases
 ../examples/pdb70/setup.sh
 ```
 
-### PFAM
+#### PFAM
 
 We provide a script in examples/pfam/setup.sh that will download and setup the Pfam profile database for you.
 
@@ -78,7 +95,7 @@ cd databases
 ../examples/pfam/setup.sh
 ```
 
-### EggNOG
+#### EggNOG
 
 We provide a script in examples/eggnog/setup.sh that will download and setup the EggNOG profile database for you.
 
