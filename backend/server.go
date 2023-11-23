@@ -197,6 +197,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				0,
 				false,
 				false,
+				false,
 				req.FormValue("index"),
 				req.FormValue("search"),
 				StatusPending,
@@ -306,7 +307,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if config.App == AppMMseqs2 {
 			request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
 		} else if config.App == AppFoldSeek {
-			request, err = NewStructureSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
+			if mode == "complex" {
+				request, err = NewComplexSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
+			} else {
+				request, err = NewStructureSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
+			}
 		} else {
 			http.Error(w, "Job type not supported by this server", http.StatusBadRequest)
 			return
@@ -631,43 +636,45 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		var results AlignmentResponse
-		switch config.App {
-		case "foldseek":
-			results, err = FSAlignments(ticket.Id, int64(id), config.Paths.Results)
-		default:
-			results, err = Alignments(ticket.Id, int64(id), config.Paths.Results)
-		}
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
 		request, err := getJobRequestFromFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.json"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
+		var parseFunc AlignmentParser
 		var mode string
 		switch job := request.Job.(type) {
 		case SearchJob:
 			mode = job.Mode
+			parseFunc = Alignments
 		case StructureSearchJob:
 			mode = job.Mode
+			parseFunc = FSAlignments
+		case ComplexSearchJob:
+			mode = job.Mode
+			parseFunc = ComplexAlignments
 		case MsaJob:
 			mode = job.Mode
+			parseFunc = NullParser
 		case PairJob:
 			mode = job.Mode
+			parseFunc = NullParser
 		default:
 			mode = ""
+			parseFunc = NullParser
 		}
+		results, err := parseFunc(ticket.Id, int64(id), config.Paths.Results)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		type AlignmentModeResponse struct {
 			Query   FastaEntry     `json:"query"`
 			Mode    string         `json:"mode"`
 			Results []SearchResult `json:"results"`
 		}
-
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		err = json.NewEncoder(w).Encode(AlignmentModeResponse{results.Query, mode, results.Results})
 		if err != nil {

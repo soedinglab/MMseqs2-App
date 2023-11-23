@@ -57,6 +57,35 @@ type FoldseekAlignmentEntry struct {
 	TaxonName     string      `json:"taxName,omitempty"`
 }
 
+type ComplexAlignmentEntry struct {
+	Query           string      `json:"query"`
+	Target          string      `json:"target"`
+	SeqId           float32     `json:"seqId"`
+	AlnLength       int         `json:"alnLength"`
+	Missmatches     int         `json:"missmatches"`
+	Gapsopened      int         `json:"gapsopened"`
+	QueryStartPos   int         `json:"qStartPos"`
+	QueryEndPos     int         `json:"qEndPos"`
+	DbStartPos      int         `json:"dbStartPos"`
+	DbEndPos        int         `json:"dbEndPos"`
+	Prob            float32     `json:"prob"`
+	Eval            float64     `json:"eval"`
+	Score           int         `json:"score"`
+	QueryLength     int         `json:"qLen"`
+	DbLength        int         `json:"dbLen"`
+	QueryAln        string      `json:"qAln"`
+	DbAln           string      `json:"dbAln"`
+	TargetCa        string      `json:"tCa"`
+	TargetSeq       string      `json:"tSeq"`
+	ComplexAssignId int         `json:"complexid"`
+	ComplexQtmScore float32     `json:"complexqtm"`
+	ComplexTtmScore float32     `json:"complexttm"`
+	ComplexU        string      `json:"complexu"`
+	ComplexT        string      `json:"complext"`
+	TaxonId         json.Number `json:"taxId,omitempty"`
+	TaxonName       string      `json:"taxName,omitempty"`
+}
+
 type FastaEntry struct {
 	Header   string `json:"header"`
 	Sequence string `json:"sequence"`
@@ -76,7 +105,9 @@ func dbpaths(path string) (string, string) {
 	return path, path + ".index"
 }
 
-func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
+type AlignmentParser func(Id, int64, string) (AlignmentResponse, error)
+
+func ReadAlignments[T any](id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
 	base := filepath.Join(jobsbase, string(id))
 	matches, err := filepath.Glob(filepath.Join(filepath.Clean(base), "alis_*.index"))
 	if err != nil {
@@ -93,9 +124,9 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 		}
 		data := strings.NewReader(reader.Data(entry))
 		reader.Delete()
-		var results []AlignmentEntry
-		r := AlignmentEntry{}
-		parser := NewTsvParser(data, &r)
+		var results []T
+		r := new(T)
+		parser := NewTsvParser(data, r)
 		for {
 			eof, err := parser.Next()
 			if eof {
@@ -104,7 +135,7 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 			if err != nil {
 				return AlignmentResponse{}, err
 			}
-			results = append(results, r)
+			results = append(results, *r)
 		}
 
 		base := filepath.Base(name)
@@ -129,57 +160,20 @@ func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) 
 	return AlignmentResponse{FastaEntry{header, sequence}, res}, nil
 }
 
+func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
+	return ReadAlignments[AlignmentEntry](id, entry, jobsbase)
+}
+
 func FSAlignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
-	base := filepath.Join(jobsbase, string(id))
-	matches, err := filepath.Glob(filepath.Join(filepath.Clean(base), "alis_*.index"))
-	if err != nil {
-		return AlignmentResponse{}, err
-	}
+	return ReadAlignments[FoldseekAlignmentEntry](id, entry, jobsbase)
+}
 
-	reader := Reader[uint32]{}
-	res := make([]SearchResult, 0)
-	for _, item := range matches {
-		name := strings.TrimSuffix(item, ".index")
-		err = reader.Make(dbpaths(name))
-		if err != nil {
-			return AlignmentResponse{}, err
-		}
-		data := strings.NewReader(reader.Data(entry))
-		reader.Delete()
-		var results []FoldseekAlignmentEntry
-		r := FoldseekAlignmentEntry{}
-		parser := NewTsvParser(data, &r)
-		for {
-			eof, err := parser.Next()
-			if eof {
-				break
-			}
-			if err != nil {
-				return AlignmentResponse{}, err
-			}
-			results = append(results, r)
-		}
+func ComplexAlignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
+	return ReadAlignments[ComplexAlignmentEntry](id, entry, jobsbase)
+}
 
-		base := filepath.Base(name)
-		res = append(res, SearchResult{strings.TrimPrefix(base, "alis_"), results})
-	}
-
-	query := filepath.Join(base, "query")
-	err = reader.Make(dbpaths(query))
-	if err != nil {
-		return AlignmentResponse{}, err
-	}
-	sequence := strings.TrimSpace(reader.Data(entry))
-	reader.Delete()
-
-	err = reader.Make(dbpaths(query + "_h"))
-	if err != nil {
-		return AlignmentResponse{}, err
-	}
-	header := strings.TrimSpace(reader.Data(entry))
-	reader.Delete()
-
-	return AlignmentResponse{FastaEntry{header, sequence}, res}, nil
+func NullParser(id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
+	return AlignmentResponse{}, nil
 }
 
 func addFile(tw *tar.Writer, path string) error {
