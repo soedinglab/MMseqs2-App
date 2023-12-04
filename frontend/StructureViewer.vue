@@ -1,5 +1,5 @@
 <template>
-<div class="structure-panel" v-if="'tCa' in alignment">
+<div class="structure-panel" v-if="alignments.length > 0 && 'tCa' in alignments[0]">
     <StructureViewerTooltip attach=".structure-panel" />
     <div class="structure-wrapper" ref="structurepanel">
         <table v-if="tmAlignResults" class="tmscore-panel" v-bind="tmPanelBindings">
@@ -26,7 +26,7 @@
             @toggleArrows="handleToggleArrows"
             @toggleSpin="handleToggleSpin"
         />
-        <div class="structure-viewer" ref="viewport" />
+        <div class="structure-viewer" ref="viewport"></div>
     </div>
 </div>
 </template>
@@ -81,21 +81,25 @@ export default {
     mixins: [
         StructureViewerMixin,
     ],
-    data: () => ({
-        qChainResMap: null,
-        qMatches: [],
-        queryChain: '',
-        queryRepr: null,
-        selection: null,
-        showArrows: false,
-        showQuery: 0,
-        showTarget: 'aligned',
-        tMatches: [],
-        targetRepr: null,
-        tmAlignResults: null,
-    }),
+    data() {
+        return {
+            qChainResMap: null,
+            qMatches: [],
+            queryChain: '',
+            queryReps: [],
+            selection: null,
+            showArrows: false,
+            showQuery: 0,
+            showTarget: 'aligned',
+            tMatches: [],
+            targetReps: [],
+            tmAlignResults: null,
+            queryMap: this.queryMaps[0],
+            targetMap: this.targetMaps[0],
+        }
+    },
     props: {
-        alignment: { type: Object },
+        alignments: { type: Array },
         queryFile: { type: String },
         queryAlignedColor: { type: String, default: "#1E88E5" },
         queryUnalignedColor: { type: String, default: "#A5CFF5" },
@@ -103,8 +107,8 @@ export default {
         targetUnalignedColor: { type: String, default: "#FFE699" },
         qRepr: { type: String, default: "cartoon" },
         tRepr: { type: String, default: "cartoon" },
-        queryMap: { type: Array, default: null },
-        targetMap: { type: Array, default: null },
+        queryMaps: { type: Array, default: null },
+        targetMaps: { type: Array, default: null },
         hits: { type: Object }
     },
     methods: {
@@ -149,26 +153,31 @@ export default {
             this.showTarget = this.showTarget === 'aligned' ? 'full' : 'aligned';
         },
         setSelectionByRange(start, end) {
-            if (!this.targetRepr) return
-            this.targetRepr.setSelection(`${start}-${end}`)
+            if (this.targetReps.length == 0) return
+            this.targetReps[0].setSelection(`${start}-${end}`)
             this.stage.autoView(100)
         },
         setSelectionData(start, end) {
             this.selection = [start, end]
         },
         setSelection(val) {
-            if (val === 'full') this.setSelectionData(1, this.alignment.dbLen)
-            else this.setSelectionData(this.alignment.dbStartPos, this.alignment.dbEndPos)
+            if (val === 'full') {
+                this.setSelectionData(1, this.alignments[0].dbLen)
+            } else {
+                this.setSelectionData(this.alignments[0].dbStartPos, this.alignments[0].dbEndPos)
+            }
         },
         setQuerySelection() {
-            if (!this.queryRepr) return;
-            this.queryRepr.setSelection(this.querySele)
+            if (this.queryReps.length == 0) return;
+            this.queryReps[0].setSelection(this.querySele)
             this.stage.autoView(100)
         },
         renderArrows() {
             // Update arrow shape on shape update
             if (!this.stage) return
-            if (this.arrowShape) this.arrowShape.dispose()
+            if (this.arrowShape) {
+                this.arrowShape.dispose()
+            }
             let matches = new Array()
             for (let i = 0; i < this.tMatches.length; i++) {
                 let qMatch = this.qMatches[i]
@@ -181,43 +190,70 @@ export default {
             this.arrowShape.addRepresentation('buffer')
             this.arrowShape.setVisibility(this.showArrows)
         },
-        makeImage() {
-            if (!this.stage) return
-            let accession = null;
-            if (this.queryRepr) {
-                const qIndex = this.hits.query.header.indexOf(' ');
-                accession = qIndex === -1 ? this.hits.query.header : this.hits.query.header.substring(0, qIndex);
+        async handleMakeImage() {
+            if (!this.stage) {
+                return;
             }
+            let title = [];
+            for (let alignment of this.alignments) {
+                if (this.queryReps.length > 0) {
+                    title.push(alignment.query + "-" + alignment.target);
+                } else {
+                    title.push(alignment.target);
+                }
+            };
             this.stage.viewer.setLight(undefined, undefined, undefined, 0.2)
-            this.stage.makeImage({
+            const blob = await this.stage.makeImage({
                 trim: true,
                 factor: (this.isFullscreen) ? 1 : 8,
                 antialias: true,
                 transparent: true,
-            }).then((blob) => {
-                this.stage.viewer.setLight(undefined, undefined, undefined, this.$vuetify.theme.dark ? 0.4 : 0.2)
-                download(blob, (accession ? (qAccession + '-') : '') + this.alignment.target + ".png")
             })
+            this.stage.viewer.setLight(undefined, undefined, undefined, this.$vuetify.theme.dark ? 0.4 : 0.2)
+            download(blob, (title.join("_") + ".pdb"))
         },
-        makePdb() {
-            if (!this.stage) return
-            let qPDB, tPDB, result;
-            let accession = null;
-            if (this.queryRepr) {
-                qPDB = new PdbWriter(this.queryRepr.repr.structure, { renumberSerial: false }).getData()
-                qPDB = qPDB.split('\n').filter(line => line.startsWith('ATOM')).join('\n')
-                const qIndex = this.hits.query.header.indexOf(' ');
-                accession = qIndex === -1 ? this.hits.query.header : this.hits.query.header.substring(0, qIndex);
+        handleMakePDB() {
+            if (!this.stage) {
+                return;
             }
-            if (this.targetRepr) {
-                tPDB = new PdbWriter(this.targetRepr.repr.structure, { renumberSerial: false }).getData()
-                tPDB = tPDB.split('\n').filter(line => line.startsWith('ATOM')).join('\n')
-            }
-            if (!qPDB && !tPDB) return
 
+            let qPDB = null;
+            if (this.queryReps.length > 0) {
+                qPDB = "";
+                for (let i = 0; i < this.queryReps.length; i++) {
+                    let curr = new PdbWriter(this.queryReps[i].repr.structure, { renumberSerial: false }).getData()
+                    curr = curr.split('\n').filter(line => line.startsWith('ATOM')).join('\n') + '\n';
+                    qPDB += curr;
+                }
+            }
+
+            let tPDB = null;
+            if (this.targetReps.length > 0) {
+                tPDB = "";
+                for (let i = 0; i < this.targetReps.length; i++) {
+                    let curr = new PdbWriter(this.targetReps[i].repr.structure, { renumberSerial: false }).getData()
+                    curr = curr.split('\n').filter(line => line.startsWith('ATOM')).join('\n') + '\n';
+                    tPDB += curr;
+                }
+            }
+
+            if (!qPDB && !tPDB) {
+                return;
+            }
+
+            let title = [];
+            for (let alignment of this.alignments) {
+                if (qPDB) {
+                    title.push(alignment.query + "-" + alignment.target);
+                } else {
+                    title.push(alignment.target);
+                }
+            };
+
+            let result = null;
             if (qPDB && tPDB) {
                 result =
-`TITLE     ${accession} - ${this.alignment.target}
+`TITLE     ${title.join(" ")}
 REMARK     This file was generated by the Foldseek webserver:
 REMARK       https://search.foldseek.com
 REMARK     Please cite:
@@ -225,28 +261,25 @@ REMARK       https://doi.org/10.1101/2022.02.07.479398
 REMARK     Warning: Non C-alpha atoms might have been re-generated by PULCHRA,
 REMARK              if they are not present in the original PDB file.
 MODEL        1
-${qPDB}
-ENDMDL
+${qPDB}ENDMDL
 MODEL        2
-${tPDB}
-ENDMDL
+${tPDB}ENDMDL
 END
 `
             } else {
                 result =
-`TITLE     ${this.alignment.target}
+`TITLE     ${title.join(" ")}
 REMARK     This file was generated by the Foldseek webserver:
 REMARK       https://search.foldseek.com
 REMARK     Please cite:
 REMARK       https://doi.org/10.1101/2022.02.07.479398
 REMARK     Warning: Non C-alpha atoms were re-generated by PULCHRA.
 MODEL        1
-${tPDB}
-ENDMDL
+${tPDB}ENDMDL
 END
 `
             }
-            download(new Blob([result], { type: 'text/plain' }), (accession ? (accession + '-') : '') + this.alignment.target + ".pdb")
+            download(new Blob([result], { type: 'text/plain' }), (title.join("_") + ".pdb"));
         }
     },
     watch: {
@@ -277,8 +310,8 @@ END
             if (!this.qChainResMap) {
                 return '';
             }
-            let start = this.qChainResMap.get(this.alignment.qStartPos);
-            let end   = this.qChainResMap.get(this.alignment.qEndPos);
+            let start = this.qChainResMap.get(this.alignments[0].qStartPos);
+            let end   = this.qChainResMap.get(this.alignments[0].qEndPos);
             let sele  = `${start.resno}-${end.resno}`;
             if (this.queryChain) {
                 sele = `${sele} AND ${this.queryChainSele}`;
@@ -301,20 +334,14 @@ END
         },
     },
     beforeMount() {
-        const accession = this.hits.query.header.split(/(\s+)/)[0];
-        const qChain = accession.match(/_([A-Z]+?)/m)
-        if (qChain) this.queryChain = qChain[1] //.replace('_', '')
+        // console.log(this.hits)
+        // const accession = this.hits.queries[0].header.split(/(\s+)/)[0];
+        // const qChain = accession.match(/_([A-Z]+?)/m)
+        // if (qChain) this.queryChain = qChain[1] //.replace('_', '')
     },
     async mounted() {
-        if (typeof(this.alignment.tCa) == "undefined")
+        if (typeof(this.alignments[0].tCa) == "undefined")
             return;
-
-        const targetPdb = await pulchra(mockPDB(this.alignment.tCa, this.alignment.tSeq));
-        const target = await this.stage.loadFile(new Blob([targetPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
-        this.targetSchemeId = ColormakerRegistry.addSelectionScheme([
-            [this.targetAlignedColor, `${this.alignment.dbStartPos}-${this.alignment.dbEndPos}`],
-            [this.targetUnalignedColor, "*"]
-        ], "_targetScheme")
 
         // Download from server --> full input PDB from /result/query endpoint, saved with JSON.stringify
         //                local --> qCa string
@@ -322,29 +349,52 @@ END
         let queryPdb = "";
         let hasQuery = true;
         if (this.$LOCAL) {
-            if (this.hits.query.hasOwnProperty('pdb')) {
-                queryPdb = JSON.parse(this.hits.query.pdb);
+            if (this.hits.queries[0].hasOwnProperty('pdb')) {
+                queryPdb = JSON.parse(this.hits.queries[0].pdb);
             } else {
-                queryPdb = await pulchra(mockPDB(this.hits.query.qCa, this.hits.query.sequence))
+                queryPdb = mockPDB(this.hits.queries[0].qCa, this.hits.queries[0].sequence, 'A');
             }
         } else if (this.$route.params.ticket.startsWith('user')) {
             // Check for special 'user' ticket for when users have uploaded JSON
-            if (this.hits.query.hasOwnProperty('pdb')) {
-                queryPdb = JSON.parse(this.hits.query.pdb);
+            if (this.hits.queries[0].hasOwnProperty('pdb')) {
+                queryPdb = JSON.parse(this.hits.queries[0].pdb);
             } else {
                 const localData = this.$root.userData[this.$route.params.entry];
-                queryPdb = await pulchra(mockPDB(localData.query.qCa, localData.query.sequence));
+                queryPdb = mockPDB(localData.queries[0].qCa, localData.queries[0].sequence, 'A');
             }
         } else {
             try {
                 const request = await this.$axios.get("api/result/" + this.$route.params.ticket + '/query');
                 queryPdb = request.data;
             } catch (e) {
-                // console.log(e);
                 queryPdb = "";
                 hasQuery = false;
             }
         }
+
+        const targets = [];
+        let renumber = 0;
+        for (let alignment of this.alignments) {
+            const chainPos = alignment.target.lastIndexOf('_');
+            const chain = chainPos != -1 ? alignment.target.substring(chainPos + 1) : 'A';
+            const mock = mockPDB(alignment.tCa, alignment.tSeq, chain);
+            const targetPdb = await pulchra(mock);
+            const target = await this.stage.loadFile(new Blob([targetPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
+            target.structure.eachChain(c => {
+                c.chainname = chain;
+            });
+            target.structure.eachAtom(a => {
+                a.serial = renumber++;
+            });
+            targets.push(target);
+        }
+        if (ColormakerRegistry.hasScheme("_targetScheme")) {
+            ColormakerRegistry.removeScheme("_targetScheme")
+        }
+        this.targetSchemeId = ColormakerRegistry.addSelectionScheme([
+            [this.targetAlignedColor, `${this.alignments[0].dbStartPos}-${this.alignments[0].dbEndPos}`],
+            [this.targetUnalignedColor, "*"]
+        ], "_targetScheme")
 
         if (hasQuery) {
             let data = '';
@@ -355,16 +405,18 @@ END
             }
             queryPdb = data;
 
+
             let query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
             if (query && query.structure.getAtomProxy().isCg()) {
                 queryPdb = await pulchra(queryPdb);
+                this.stage.removeComponent(query);
                 query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
             }
 
             // Map 1-based indices to residue index/resno; only need for query structure
             // Use queryChainSele to make all selections based on actual query chain
             this.qChainResMap = makeChainMap(query.structure, this.queryChainSele)
-            this.saveMatchingResidues(this.alignment.qAln, this.alignment.dbAln, query.structure, target.structure)
+            this.saveMatchingResidues(this.alignments[0].qAln, this.alignments[0].dbAln, query.structure, targets[0].structure)
 
             // Generate colorschemes for query/target based on alignment
             this.querySchemeId = ColormakerRegistry.addSelectionScheme([
@@ -372,26 +424,43 @@ END
                 [this.queryUnalignedColor, "*"],
             ], "_queryScheme")
 
-            // Generate subsetted PDBs for TM-align
-            let qSubPdb = makeSubPDB(query.structure, this.querySubSele)
-            let tSubPdb = makeSubPDB(target.structure, `${this.alignment.dbStartPos}-${this.alignment.dbEndPos}`)
-            let alnFasta = `>target\n${this.alignment.dbAln}\n\n>query\n${this.alignment.qAln}`
-
             // Re-align target to query using TM-align for better superposition
             // Target 1st since TM-align generates superposition matrix for 1st structure
-            tmalign(tSubPdb, qSubPdb, alnFasta).then(out => {
-                this.tmAlignResults = parseTMOutput(out.output)
-                let { t, u } = parseTMMatrix(out.matrix)
-                transformStructure(target.structure, t, u)
-                this.queryRepr = query.addRepresentation(this.qRepr, {color: this.querySchemeId})
-                this.targetRepr = target.addRepresentation(this.tRepr, {color: this.targetSchemeId})
-            }).then(() => {
-                this.setSelection(this.showTarget)
-                this.setQuerySelection()
-                this.stage.autoView()
-            })
+            if (this.alignments[0].hasOwnProperty("complexu") && this.alignments[0].hasOwnProperty("complext")) {
+                this.queryReps = [ query.addRepresentation(this.qRepr, {color: this.querySchemeId}) ]
+                const t = this.alignments[0].complext.split(',').map(x => parseFloat(x));
+                let u = this.alignments[0].complexu.split(',').map(x => parseFloat(x));
+                u = [
+                    [u[0], u[1], u[2]],
+                    [u[3], u[4], u[5]],
+                    [u[6], u[7], u[8]],
+                ];
+
+                let reps = [];
+                for (let i = 0; i < this.alignments.length; i++) {
+                    transformStructure(targets[i].structure, t, u)
+                    reps.push(targets[i].addRepresentation(this.tRepr, {color: this.targetSchemeId}))
+
+                }
+                this.queryReps = [ query.addRepresentation(this.qRepr, {color: this.querySchemeId}) ]
+                this.targetReps = reps;
+            } else {
+                // Generate subsetted PDBs for TM-align
+                let qSubPdb = makeSubPDB(query.structure, this.querySubSele)
+                let tSubPdb = makeSubPDB(targets[0].structure, `${this.alignments[0].dbStartPos}-${this.alignments[0].dbEndPos}`)
+                let alnFasta = `>target\n${this.alignments[0].dbAln}\n\n>query\n${this.alignments[0].qAln}`
+                const tm = await tmalign(tSubPdb, qSubPdb, alnFasta);
+                this.tmAlignResults = parseTMOutput(tm.output)
+                let { t, u } = parseTMMatrix(tm.matrix)
+                transformStructure(targets[0].structure, t, u)
+                this.queryReps = [ query.addRepresentation(this.qRepr, {color: this.querySchemeId}) ]
+                this.targetReps = [ targets[0].addRepresentation(this.tRepr, {color: this.targetSchemeId}) ]
+            }
+            this.setSelection(this.showTarget)
+            this.setQuerySelection()
+            this.stage.autoView()
         } else {
-            this.targetRepr = target.addRepresentation(this.tRepr, {color: this.targetSchemeId})
+            this.targetReps = [ targets[0].addRepresentation(this.tRepr, {color: this.targetSchemeId}) ]
             this.setSelection(this.showTarget)
             this.setQuerySelection()
             this.stage.autoView()

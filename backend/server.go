@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -613,7 +614,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 	resultHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
-		id, err := strconv.ParseUint(vars["entry"], 10, 64)
+		id, err := strconv.ParseInt(vars["entry"], 10, 64)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -644,39 +645,56 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		var parseFunc AlignmentParser
 		var mode string
+		var ids []int64
 		switch job := request.Job.(type) {
 		case SearchJob:
 			mode = job.Mode
 			parseFunc = Alignments
+			ids = []int64{id}
 		case StructureSearchJob:
 			mode = job.Mode
 			parseFunc = FSAlignments
+			ids = []int64{id}
 		case ComplexSearchJob:
 			mode = job.Mode
 			parseFunc = ComplexAlignments
+			result, err := Lookup(ticket.Id, 0, math.MaxInt32, config.Paths.Results, false)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			ids = make([]int64, 0)
+			for _, lookup := range result.Lookup {
+				if lookup.Set == uint32(id) {
+					ids = append(ids, int64(lookup.Id))
+				}
+			}
 		case MsaJob:
 			mode = job.Mode
 			parseFunc = NullParser
+			ids = []int64{}
 		case PairJob:
 			mode = job.Mode
 			parseFunc = NullParser
+			ids = []int64{}
 		default:
 			mode = ""
 			parseFunc = NullParser
+			ids = []int64{}
 		}
-		results, err := parseFunc(ticket.Id, int64(id), config.Paths.Results)
+		results, err := parseFunc(ticket.Id, ids, config.Paths.Results)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		type AlignmentModeResponse struct {
-			Query   FastaEntry     `json:"query"`
+			Queries []FastaEntry   `json:"queries"`
 			Mode    string         `json:"mode"`
 			Results []SearchResult `json:"results"`
 		}
 		w.Header().Set("Cache-Control", "public, max-age=3600")
-		err = json.NewEncoder(w).Encode(AlignmentModeResponse{results.Query, mode, results.Results})
+		err = json.NewEncoder(w).Encode(AlignmentModeResponse{results.Queries, mode, results.Results})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -706,7 +724,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		w.Header().Set("Cache-Control", "public, max-age=3600")
-		result, err := Lookup(ticket.Id, page, limit, config.Paths.Results)
+		result, err := Lookup(ticket.Id, page, limit, config.Paths.Results, true)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

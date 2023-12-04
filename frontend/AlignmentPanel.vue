@@ -1,19 +1,26 @@
 <template>
-    <div class="alignment-wrapper-outer" slot="content">
-        <Alignment
-            :key="`aln2-${alignment.id}`"
-            :alignment="alignment"
-            :lineLen="lineLen"
-            :queryMap="queryMap"
-            :targetMap="targetMap"
-            @selected="setUserSelection"
-        />
-        <div v-if="$APP == 'foldseek'" class="alignment-structure-wrapper">
+    <div class="alignment-panel" slot="content">
+        <div class="alignment-wrapper-outer">
+            <template
+                v-for="(alignment, index) in alignments">
+                {{ alignment.query.lastIndexOf('_') != -1 ? alignment.query.substring(alignment.query.lastIndexOf('_')+1) : '' }} ➔ {{ alignment.target }}
+                <Alignment
+                    :key="`aln2-${alignment.id}`"
+                    :alignment="alignment"
+                    :lineLen="lineLen"
+                    :queryMap="queryMaps[index]"
+                    :targetMap="targetMaps[index]"
+                    @selected="setUserSelection"
+                    :showhelp="index == alignments.length - 1"
+                />
+            </template>
+        </div>
+        <div v-if=" $APP == 'foldseek'" class="alignment-structure-wrapper">
             <StructureViewer
-                :key="`struc2-${alignment.id}`"
-                :alignment="alignment"
-                :queryMap="queryMap"
-                :targetMap="targetMap"
+                :key="`struc2-${alignments[0].id}`"
+                :alignments="alignments"
+                :queryMaps="queryMaps"
+                :targetMaps="targetMaps"
                 :hits="hits"
                 bgColorLight="white"
                 bgColorDark="#1E1E1E"
@@ -38,20 +45,25 @@ export default {
         targetMap: null,
     }),
     props: {
-        alignment: { type: Object, required: true, },
+        alignments: { type: Array, required: true, },
         lineLen: { type: Number, required: true, },
         hits: { type: Object }
     },
     methods: {
         setUserSelection([start, end]) {
-            if (!this.alignment) return
+            if (!this.alignments) return
             if (__APP__ != "foldseek") return
             this.$refs.structureViewer.setSelectionData(start, end)
         },
         updateMaps() {
-            if (!this.alignment) return
-            this.queryMap = makePositionMap(this.alignment.qStartPos, this.alignment.qAln)
-            this.targetMap = makePositionMap(this.alignment.dbStartPos, this.alignment.dbAln)
+            if (!this.alignments) return
+            this.queryMaps = [];
+            this.targetMaps = [];
+            for (let alignment of this.alignments) {
+                this.queryMaps.push(makePositionMap(alignment.qStartPos, alignment.qAln));
+                this.targetMaps.push(makePositionMap(alignment.dbStartPos, alignment.dbAln));
+            }
+
         },
     },
     watch: { 'alignment': function() { this.updateMaps() } },
@@ -59,37 +71,42 @@ export default {
 }
 </script>
 
-<style>
-.alignment-wrapper-outer {
+<style scoped>
+.alignment-panel {
     display: inline-flex;
-    flex-direction: row;
     flex-wrap: nowrap;
     justify-content: center;
-    align-items: stretch;
     width: 100%;
 }
-.alignment-wrapper-inner {
-    flex: 2;
-    margin: auto;
-    display: flex;
+
+.alignment-wrapper-outer {
+    display: inline-flex;
     flex-direction: column;
-    align-items: end;
+}
+
+.alignment-wrapper-inner {
+    padding-bottom: 1em;
 }
 
 .alignment-structure-wrapper {
-    flex: 1;
     min-width:450px;
     margin: 0;
     margin-bottom: auto;
 }
 
 @media screen and (max-width: 960px) {
-    .alignment-wrapper-outer {
+    .alignment-wrapper-outer, .alignment-panel  {
         display: flex;
-        flex-direction: column;
+    }
+    .alignment-panel {
+        flex-direction: column-reverse;
     }
     .alignment-structure-wrapper {
-        padding-top: 1em;
+        padding-bottom: 1em;
+    }
+
+    .alignment-wrapper-outer, .alignment-structure-wrapper {
+        align-self: center;
     }
 }
 

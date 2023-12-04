@@ -11,6 +11,7 @@ type IndexJob struct {
 
 func (r IndexJob) Hash() Id {
 	h := sha256.New224()
+	h.Write(([]byte)(JobIndex))
 	h.Write([]byte(r.Path))
 
 	bs := h.Sum(nil)

@@ -59,16 +59,20 @@ export default {
                     // dbEndPos: Number.MAX_VALUE,
                     // dbLen: Number.MAX_VALUE,
                 }
-                for (let alignment of result.alignments) {
-                    for (const key in min) {
-                        min[key] = alignment[key] < min[key] ? alignment[key] : min[key];
-                        max[key] = alignment[key] > max[key] ? alignment[key] : max[key];
+                for (let entry of Object.values(result.alignments)) {
+                    for (let alignment of entry) {
+                        for (const key in min) {
+                            min[key] = alignment[key] < min[key] ? alignment[key] : min[key];
+                            max[key] = alignment[key] > max[key] ? alignment[key] : max[key];
+                        }
                     }
                 }
-                for (let alignment of result.alignments) {
-                    let r = lerp(min.score / max.score, 1, alignment.score / max.score);
-                    const luminosity = clamp(colorHsl[2] * Math.pow(0.55, -(1 - r)), 0.1, 0.9);
-                    alignment.color = `hsl(${colorHsl[0]}, ${colorHsl[1]*100}%, ${luminosity*100}%)`
+                for (let entry of Object.values(result.alignments)) {
+                    for (let alignment of entry) {
+                        let r = lerp(min.score / max.score, 1, alignment.score / max.score);
+                        const luminosity = clamp(colorHsl[2] * Math.pow(0.55, -(1 - r)), 0.1, 0.9);
+                        alignment.color = `hsl(${colorHsl[0]}, ${colorHsl[1]*100}%, ${luminosity*100}%)`
+                    }
                 }
             }
         },       

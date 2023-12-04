@@ -263,7 +263,7 @@ ENDMDL
         async addStructureToStage(data) {
             const { name, aa, ca } = data;
             const index = this.structures.push({...data}) - 1;
-            const pdb = await pulchra(mockPDB(ca, aa.replace(/-/g, '')));
+            const pdb = await pulchra(mockPDB(ca, aa.replace(/-/g, ''), 'A'));
             const structure = await this.stage.loadFile(
                 new Blob([pdb], { type: 'text/plain' }),
                 {ext: 'pdb', firstModelOnly: true, name: name }

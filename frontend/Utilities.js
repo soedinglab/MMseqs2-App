@@ -1,6 +1,5 @@
 import { Selection } from 'ngl';
 
-
 function tryLinkTargetToDB(target, db) {
     var res = db.toLowerCase();
     if (res.startsWith("pfam")) {
@@ -68,33 +67,44 @@ export function parseResults(data) {
             empty++;
         }
         total++;
+        const grouped = {};
         for (let j in result.alignments) {
-            let item = result.alignments[j];
-            let split = item.target.split(' ');
-            item.target = split[0];
-            item.description = split.slice(1).join(' ');
-            if (item.description.length > 1) {
-                result.hasDescription = true;
-            }
-            item.href = tryLinkTargetToDB(item.target, db);
-            item.target = tryFixTargetName(item.target, db);
-            item.id = 'result-' + i + '-' + j;
-            item.active = false;
-            if (__APP__ != "foldseek" || data.mode != "tmalign") {
-                item.eval = (typeof(item.eval) === "string") ? item.eval : item.eval.toExponential(2);
-            }
-            if (__APP__ == "foldseek") {
-                item.prob = (typeof(item.prob) === "string") ? item.prob : item.prob.toFixed(2);
-                if (data.mode == "tmalign") {
-                    item.eval = (typeof(item.eval) === "string") ? item.eval : item.eval.toFixed(3);
+            for (let k in result.alignments[j]) {
+                let item = result.alignments[j][k];
+                let split = item.target.split(' ');
+                item.target = split[0];
+                item.description = split.slice(1).join(' ');
+                if (item.description.length > 1) {
+                    result.hasDescription = true;
                 }
-            }
-            if ("taxId" in item) {
-                result.hasTaxonomy = true;
+                item.href = tryLinkTargetToDB(item.target, db);
+                item.target = tryFixTargetName(item.target, db);
+                item.id = 'result-' + i + '-' + j;
+                item.active = false;
+                if (__APP__ != "foldseek" || data.mode != "tmalign") {
+                    item.eval = (typeof(item.eval) === "string") ? item.eval : item.eval.toExponential(2);
+                }
+                if (__APP__ == "foldseek") {
+                    item.prob = (typeof(item.prob) === "string") ? item.prob : item.prob.toFixed(2);
+                    if (data.mode == "tmalign") {
+                        item.eval = (typeof(item.eval) === "string") ? item.eval : item.eval.toFixed(3);
+                    }
+                }
+                if ("taxId" in item) {
+                    result.hasTaxonomy = true;
+                }
+                let groupId = item.complexid ?? k;
+                // console.log("Group ID: " + groupId + " complexid: " + item.complexid + " j: " + j)
+                if (!(grouped[groupId])) {
+                    grouped[groupId] = [];
+                }
+                grouped[groupId].push(item);
             }
         }
+        result.alignments = grouped;
     }
-    return (total != 0 && empty / total == 1) ? ({ results: [] }) : data;
+    // console.log(data);
+    return (total != 0 && empty / total == 1) ? ({ results: [], mode : data.mode }) : data;
 }
 
 export function dateTime() {
@@ -187,21 +197,23 @@ export function makeSubPDB(structure, sele) {
  * Follows the spacing spec from https://www.wwpdb.org/documentation/file-format-content/format33/sect9.html#ATOM
  * Will have to change if/when swapping to fuller data
  */
-export function mockPDB(ca, seq) {
+export function mockPDB(ca, seq, chain) {
     const atoms = ca.split(',')
     const pdb = new Array()
     let j = 1
     for (let i = 0; i < atoms.length; i += 3, j++) {
         let [x, y, z] = atoms.slice(i, i + 3).map(element => parseFloat(element))
+        if (x == 0 && y == 0 && z == 0) continue;
         pdb.push(
             'ATOM  '
             + j.toString().padStart(5)
-            + '  CA  ' + oneToThree[seq != "" && (atoms.length/3) == seq.length ? seq[i/3] : 'A'] + ' A'
+            + '  CA  ' + oneToThree[seq != "" && (atoms.length/3) == seq.length ? seq[i/3] : 'A']
+            + chain.toString().padStart(2)
             + j.toString().padStart(4)
             + '    '
-            + x.toString().padStart(8)
-            + y.toString().padStart(8)
-            + z.toString().padStart(8)
+            + x.toFixed(3).padStart(8)
+            + y.toFixed(3).padStart(8)
+            + z.toFixed(3).padStart(8)
             + '  1.00  0.00           C  '
         )
     }

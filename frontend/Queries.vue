@@ -16,12 +16,12 @@
             <v-list-item
                 v-for="(child, i) in items"
                 :key="child.name"
-                :class="{ 'list__item--active': child.id == entry }"
-                :to="{ name: 'result', params: { ticket: ticket, entry: child.id }}"
+                :class="{ 'list__item--active': (groupBySet ? child.set : child.id) == entry }"
+                :to="{ name: 'result', params: { ticket: ticket, entry: groupBySet ? child.set : child.id }}"
                 style="padding-left: 16px;"
             >
                 <v-list-item-icon>
-                    <v-icon v-if="child.id == entry">{{ $MDI.Label }}</v-icon>
+                    <v-icon v-if="(groupBySet ? child.set : child.id) == entry">{{ $MDI.Label }}</v-icon>
                     <v-icon v-else>{{ $MDI.LabelOutline }}</v-icon>
                 </v-list-item-icon>
                 <v-list-item-content>
@@ -91,6 +91,7 @@ export default {
             }
 
             this.error = "";
+            this.groupBySet = false;
             if (this.ticket.startsWith('user')) {
                 let localData = this.$root.userData;
                 this.items = localData.map((res, i) => ({ id: i, name: res.query.header, set: i }));
@@ -104,6 +105,7 @@ export default {
                     if (data.lookup) {
                         this.items = data.lookup;
                         this.hasNext = data.hasNext;
+                        this.groupBySet = data.groupBySet;
                         this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0)
                         if (this.multi) {
                             this.expandDrawer();

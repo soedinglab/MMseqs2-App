@@ -86,6 +86,8 @@ type ComplexAlignmentEntry struct {
 	TaxonName       string      `json:"taxName,omitempty"`
 }
 
+type EmptyEntry struct{}
+
 type FastaEntry struct {
 	Header   string `json:"header"`
 	Sequence string `json:"sequence"`
@@ -97,7 +99,7 @@ type SearchResult struct {
 }
 
 type AlignmentResponse struct {
-	Query   FastaEntry     `json:"query"`
+	Queries []FastaEntry   `json:"queries"`
 	Results []SearchResult `json:"results"`
 }
 
@@ -105,9 +107,9 @@ func dbpaths(path string) (string, string) {
 	return path, path + ".index"
 }
 
-type AlignmentParser func(Id, int64, string) (AlignmentResponse, error)
+type AlignmentParser func(Id, []int64, string) (AlignmentResponse, error)
 
-func ReadAlignments[T any](id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
+func ReadAlignments[T any](id Id, entries []int64, jobsbase string) (AlignmentResponse, error) {
 	base := filepath.Join(jobsbase, string(id))
 	matches, err := filepath.Glob(filepath.Join(filepath.Clean(base), "alis_*.index"))
 	if err != nil {
@@ -122,57 +124,71 @@ func ReadAlignments[T any](id Id, entry int64, jobsbase string) (AlignmentRespon
 		if err != nil {
 			return AlignmentResponse{}, err
 		}
-		data := strings.NewReader(reader.Data(entry))
-		reader.Delete()
-		var results []T
-		r := new(T)
-		parser := NewTsvParser(data, r)
-		for {
-			eof, err := parser.Next()
-			if eof {
-				break
+		all := make([][]T, 0)
+		for _, entry := range entries {
+			var results []T
+			r := new(T)
+			data := strings.NewReader(reader.Data(entry))
+			parser := NewTsvParser(data, r)
+			for {
+				eof, err := parser.Next()
+				if eof {
+					break
+				}
+				if err != nil {
+					reader.Delete()
+					return AlignmentResponse{}, err
+				}
+				results = append(results, *r)
 			}
-			if err != nil {
-				return AlignmentResponse{}, err
-			}
-			results = append(results, *r)
+			all = append(all, results)
 		}
-
+		reader.Delete()
 		base := filepath.Base(name)
-		res = append(res, SearchResult{strings.TrimPrefix(base, "alis_"), results})
+		res = append(res, SearchResult{strings.TrimPrefix(base, "alis_"), all})
 	}
 
 	query := filepath.Join(base, "query")
-	err = reader.Make(dbpaths(query))
+
+	seqReader := Reader[uint32]{}
+	err = seqReader.Make(dbpaths(query))
 	if err != nil {
 		return AlignmentResponse{}, err
 	}
-	sequence := strings.TrimSpace(reader.Data(entry))
-	reader.Delete()
-
-	err = reader.Make(dbpaths(query + "_h"))
+	hdrReader := Reader[uint32]{}
+	err = hdrReader.Make(dbpaths(query + "_h"))
 	if err != nil {
+		seqReader.Delete()
 		return AlignmentResponse{}, err
 	}
-	header := strings.TrimSpace(reader.Data(entry))
-	reader.Delete()
 
-	return AlignmentResponse{FastaEntry{header, sequence}, res}, nil
+	fasta := make([]FastaEntry, 0)
+	for _, entry := range entries {
+		sequence := strings.TrimSpace(seqReader.Data(entry))
+		seqReader.Delete()
+		header := strings.TrimSpace(hdrReader.Data(entry))
+		hdrReader.Delete()
+		fasta = append(fasta, FastaEntry{header, sequence})
+	}
+	seqReader.Delete()
+	hdrReader.Delete()
+
+	return AlignmentResponse{fasta, res}, nil
 }
 
-func Alignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
+func Alignments(id Id, entry []int64, jobsbase string) (AlignmentResponse, error) {
 	return ReadAlignments[AlignmentEntry](id, entry, jobsbase)
 }
 
-func FSAlignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
+func FSAlignments(id Id, entry []int64, jobsbase string) (AlignmentResponse, error) {
 	return ReadAlignments[FoldseekAlignmentEntry](id, entry, jobsbase)
 }
 
-func ComplexAlignments(id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
+func ComplexAlignments(id Id, entry []int64, jobsbase string) (AlignmentResponse, error) {
 	return ReadAlignments[ComplexAlignmentEntry](id, entry, jobsbase)
 }
 
-func NullParser(id Id, entry int64, jobsbase string) (AlignmentResponse, error) {
+func NullParser(id Id, entry []int64, jobsbase string) (AlignmentResponse, error) {
 	return AlignmentResponse{}, nil
 }
 

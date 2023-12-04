@@ -2,7 +2,6 @@
     <ResultView
         :ticket="ticket"
         :error="error"
-        :mode="mode"
         :hits="hits"
         :selectedDatabases="selectedDatabases"
         :tableMode="tableMode"
@@ -13,7 +12,6 @@
 import { download, parseResults, dateTime } from './Utilities.js';
 import ResultMixin from './ResultMixin.vue';
 import ResultView from './ResultView.vue';
-import { getQuery } from 'ngl';
 
 function pdb2ca(pdb) {
     let ca = "";
@@ -61,44 +59,40 @@ export default {
         resetProperties() {
             this.ticket = this.$route.params.ticket;
             this.error = "";
-            this.mode = "";
             this.hits = null;
             this.selectedDatabases = 0;
             this.tableMode = 0;
         },
-        fetchData() {
+        async fetchData() {
             this.resetProperties();
-            if (this.ticket.startsWith('user')) {
-                let localData = this.$root.userData;
-                this.hits = localData[this.$route.params.entry];
-            } else {
-                this.$axios.get("api/result/" + this.ticket + '/' + this.$route.params.entry)
-                    .then((response) => {
-                        this.error = "";
-                        const data = response.data;
-                        if ("mode" in data) {
-                            this.mode = data.mode;
-                        }
-                        if (data.alignments == null || data.alignments.length > 0) {
-                            this.hits = parseResults(data); 
-                        } else {
-                            this.error = "Failed";
-                            this.hits = [];
-                        }
-                    }, () => {
-                        this.error = "Failed";
-                        this.hits = [];
-                    });               
+            try {
+                let hits;
+                if (this.ticket.startsWith('user')) {
+                    let localData = this.$root.userData;
+                    hits = localData[this.$route.params.entry];
+                } else {
+                    const response = await this.$axios.get("api/result/" + this.ticket + '/' + this.$route.params.entry);
+                    const data = response.data;
+                    if (data.alignments == null || data.alignments.length > 0) {
+                        hits = parseResults(data);
+                    } else {
+                        throw new Error("No hits found");
+                    }
+                }
+                this.hits = hits;
+            } catch {
+                this.error = "Failed";
+                this.hits = null;
             }
         },
         async fetchResult(page) {
             const url = `api/result/${this.ticket}/${page}`;
-            console.log("fetching result url", url)
+            // console.log("fetching result url", url)
             try {
                 const response = await this.$axios.get(url);
                 return parseResults(response.data);
             } catch {
-                console.log("result fetch error")
+                // console.log("result fetch error")
             }
         },
         async fetchAllData() {

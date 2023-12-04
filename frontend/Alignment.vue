@@ -9,7 +9,7 @@
                 T&nbsp;{{padNumber(getTargetRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues" @pointerup="onSelectText(i)">{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span>
             </span><br>
         </span>
-        <small v-if="$APP == 'foldseek'" style="float:right">Select target residues to highlight their structure</small>
+        <small v-if="$APP == 'foldseek' && showhelp" style="float:right">Select target residues to highlight their structure</small>
     </div>
 </template>
 
@@ -46,7 +46,7 @@ function getRange(map, start, end) {
 }
 
 export default {
-    props: ['alignment', 'lineLen', 'queryMap', 'targetMap'],
+    props: ['alignment', 'lineLen', 'queryMap', 'targetMap', 'showhelp'],
     methods: {
         // Get the index of a given residue in the alignment
         getQueryIndex(index) { return this.queryMap[index] },

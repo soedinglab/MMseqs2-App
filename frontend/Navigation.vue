@@ -10,6 +10,14 @@
                 <v-list-item-title>Search</v-list-item-title>
             </v-list-item-content>
         </v-list-item>
+        <v-list-item to="/complex">
+            <v-list-item-action>
+                <v-icon>{{ $MDI.LayersSearchOutline }}</v-icon>
+            </v-list-item-action>
+            <v-list-item-content>
+                <v-list-item-title>Complex search</v-list-item-title>
+            </v-list-item-content>
+        </v-list-item>
       
         <v-list-group v-if="$route.name === 'result'" v-model="expanded">
             <template slot="activator">

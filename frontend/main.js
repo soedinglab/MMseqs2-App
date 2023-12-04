@@ -10,6 +10,7 @@ Vue.use(Portal);
 
 import App from './App.vue';
 import Search from './Search.vue';
+import ComplexSearch from './ComplexSearch.vue';
 import Queue from './Queue.vue';
 import Queries from './Queries.vue';
 
@@ -27,6 +28,7 @@ const router = __LOCAL__ ? null : new VueRouter({
     routes: [
         { path: '/', redirect: { name: 'search' } },
         { name: 'search', path: '/search', component: Search },
+        { name: 'complex', path: '/complex', component: ComplexSearch },
         { name: 'queue', path: '/queue/:ticket', component: Queue },
         { 
             name: 'result',

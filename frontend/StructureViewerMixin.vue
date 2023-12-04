@@ -5,7 +5,7 @@ export default {
     data: () => ({
         stage: null,
         isFullscreen: false,
-        isSpinning: true,
+        isSpinning: false,
     }),
     props: {
         bgColorLight: { type: String, default: "white" },

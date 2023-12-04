@@ -19,6 +19,7 @@ type ComplexSearchJob struct {
 
 func (r ComplexSearchJob) Hash() Id {
 	h := sha256.New224()
+	h.Write(([]byte)(JobComplexSearch))
 	h.Write([]byte(r.query))
 	h.Write([]byte(r.Mode))
 	if r.TaxFilter != "" {
