@@ -240,3 +240,15 @@ export function transformStructure(structure, t, u) {
         atom.z = t[2] + u[2][0] * x + u[2][1] * y + u[2][2] * z;
     })
 }
+
+export function debounce(func, delay) {
+  let timeoutId;
+  return function() {
+    const context = this;
+    const args = arguments;      
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(function() {
+        func.apply(context, args);
+    }, delay);
+  };
+}

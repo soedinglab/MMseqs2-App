@@ -32,6 +32,18 @@ export default {
             statistics: {},
         }
     },
+    mounted() {
+        document.onreadystatechange = () => {
+            if (document.readyState == "complete") {
+                let div = document.getElementById("data");
+                if (!div) {
+                    return null;
+                }
+                let data = JSON.parse(div.textContent);
+                this.handleUploadData(data);
+            }
+        }
+    },
     methods: {
         clearData() {
             this.entries = [];
