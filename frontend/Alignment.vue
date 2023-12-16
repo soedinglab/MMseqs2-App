@@ -1,12 +1,12 @@
 <template>
-    <div class="alignment-wrapper-inner">
+    <div :id="alnIndex" class="alignment-wrapper-inner">
         <span class="monospace" v-for="i in Math.max(1, Math.ceil(alignment.alnLength / lineLen))" :key="i">
-            <span class="line">
-                Q&nbsp;{{padNumber(getQueryRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues">{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}</span>
+            <span :id="i" class="line">
+                <span>Q&nbsp;{{padNumber(getQueryRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}</span>&nbsp;<span class="residues query">{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}</span>
                 <br>
-                {{'&nbsp;'.repeat(3+(Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length)}}<span class="residues">{{formatAlnDiff(alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen), alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen))}}</span>
+                <span>{{'&nbsp;'.repeat(3+(Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length)}}</span><span class="residues diff">{{formatAlnDiff(alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen), alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen))}}</span>
                 <br>
-                T&nbsp;{{padNumber(getTargetRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;<span class="residues" @pointerup="onSelectText(i)">{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span>
+                <span>T&nbsp;{{padNumber(getTargetRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}</span>&nbsp;<span class="residues target" @selectstart="onSelectStart" @pointerup="onSelectText(i)">{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span>
             </span><br>
         </span>
         <small v-if="$APP == 'foldseek' && showhelp" style="float:right">Select target residues to highlight their structure</small>
@@ -46,7 +46,7 @@ function getRange(map, start, end) {
 }
 
 export default {
-    props: ['alignment', 'lineLen', 'queryMap', 'targetMap', 'showhelp'],
+    props: ['alignment', 'lineLen', 'queryMap', 'targetMap', 'showhelp', 'alnIndex'],
     methods: {
         // Get the index of a given residue in the alignment
         getQueryIndex(index) { return this.queryMap[index] },
@@ -71,20 +71,38 @@ export default {
         padNumber(nr, n, str){
             return Array(n - String(nr).length + 1).join(str || '0') + nr
         },
+        onSelectStart(event) {
+            event.srcElement.parentElement
+                .closest(".alignment-wrapper-outer")
+                .classList.add("inselection");
+        },
         onSelectText(i) {
             var selection = window.getSelection()
+            let chunks = [];
+            let chunk = "";
+            let currContainer = null;
+            let start = 0;
+            for (let i = 0; i < selection.rangeCount; i++) {
+                let range = selection.getRangeAt(i);
+                let wrapper = range.startContainer.parentElement.closest(".alignment-wrapper-inner");
+                let line = parseInt(range.startContainer.parentElement.closest(".line").id);
+                if (!currContainer) {
+                    currContainer = wrapper;
+                    start = (line - 1) * this.lineLen + range.startOffset + 1;
+                } else if (wrapper != currContainer) {
+                    chunks.push([parseInt(currContainer.id), start, chunk]);                     
+                    chunk = "";
+                    currContainer = wrapper;
+                    start = (line - 1) * this.lineLen + range.startOffset + 1;
+                }
+                chunk += range.toString().replace("-", "");
+            }
+            chunks.push([parseInt(currContainer.id), start, chunk])
+            this.$emit("selected", chunks);
 
-            // In case of backwards selection
-            var [offsetStart, offsetEnd] = [
-                selection.anchorOffset, selection.focusOffset
-            ].sort((a, b) => a - b)
-
-            var length = offsetEnd - offsetStart
-            var relStart = (i - 1) * this.lineLen + offsetStart
-            var relEnd = relStart + length - 1 // the selection is inclusive
-
-            var [start, end] = getRange(this.targetMap, relStart, relEnd)
-            this.$emit('selected', [start, end])
+            // Make everything else selectable again
+            let noselects = document.querySelectorAll(".inselection");
+            noselects.forEach(el => { el.classList.remove("inselection") })
         }
     }, 
 }
@@ -95,9 +113,15 @@ export default {
     font-family: InconsolataClustal, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
     white-space: pre;
 }
-.alignment-wrapper-inner {
+.alignment-wrapper-outer {
     display: inline-block;
     overflow-x: auto;
+}
+.inselection, .inselection * {
+    user-select: none;
+}
+.inselection .target {
+    user-select: text !important; 
 }
 .alignment-wrapper-inner .line {
     display: inline-block;

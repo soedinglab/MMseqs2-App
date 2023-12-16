@@ -1,4 +1,4 @@
-import { Selection } from 'ngl';
+import { Selection, Matrix4 } from 'ngl';
 
 function tryLinkTargetToDB(target, db) {
     var res = db.toLowerCase();
@@ -203,7 +203,7 @@ export function mockPDB(ca, seq, chain) {
     let j = 1
     for (let i = 0; i < atoms.length; i += 3, j++) {
         let [x, y, z] = atoms.slice(i, i + 3).map(element => parseFloat(element))
-        if (x == 0 && y == 0 && z == 0) continue;
+        // if (x == 0 && y == 0 && z == 0) continue;
         pdb.push(
             'ATOM  '
             + j.toString().padStart(5)
@@ -251,4 +251,55 @@ export function debounce(func, delay) {
         func.apply(context, args);
     }, delay);
   };
+}
+
+// Generate THREE.Matrix4 from 3x3 rotation and 1x3 translation matrices
+// Can give this directly to StructureComponent.setTransform() to superpose
+export function makeMatrix4(translation, rotation) {
+    const u = rotation.slice();
+    for (let i = 0; i < 3; i++) {
+        u[i].push(translation[i]);
+    }
+    const nglMatrix = new Matrix4();
+    const flatMatrix = [].concat(...u, [0, 0, 0, 1]);
+    nglMatrix.set(...flatMatrix);
+    return nglMatrix;
+}
+
+// Decompose Matrix4 into Quaternion, Position and Scale
+// Slerp between Quaternions, linear interpolate position for some t (0.0-1.0)
+// Compose new Matrix4 for transformation.
+export function interpolateMatrices(a, b, t) {
+    const quaternionA = new Quaternion();
+    const positionA   = new Vector3();
+    const scaleA      = new Vector3();
+    const quaternionB = new Quaternion();
+    const positionB   = new Vector3();
+    const scaleB      = new Vector3();
+    a.decompose(positionA, quaternionA, scaleA);
+    b.decompose(positionB, quaternionB, scaleB);
+    const quaternion = new Quaternion();
+    quaternion.slerp(quaternionB, t);
+    const position = new Vector3();
+    position.lerpVectors(positionA, positionB, t);
+    const matrix = new Matrix4();
+    matrix.compose(position, quaternion, scaleA);
+    return matrix;
+}
+
+export function animateMatrix(structure, newMatrix, duration) {
+    let startTime = null;
+    const oldMatrix = structure.matrix;
+    const animate = (currentTime) => {
+        if (!startTime) {
+            startTime = currentTime;
+        }
+        let progress = Math.min(1, (currentTime - startTime) / duration);
+        let interpolated = interpolateMatrices(oldMatrix, newMatrix, progress);
+        structure.setTransform(interpolated);
+        if (progress < 1) {
+            window.requestAnimationFrame(animate);
+        }
+    }
+    window.requestAnimationFrame(animate);
 }

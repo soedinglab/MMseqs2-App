@@ -36,7 +36,8 @@
         @click="handleClickToggleTarget"
         title="Toggle between the entire target structure and aligned region"
     >
-        <v-icon v-bind="toolbarIconProps" style='color: #FFC107;' v-if="showTarget == 'aligned'">{{ $MDI.CircleHalf }}</v-icon>
+        <v-icon v-bind="toolbarIconProps" style='color: #FFC107;' v-if="showTarget === 0">{{ ($LOCAL) ? $MDI.CircleHalf : $MDI.CircleOneThird }}</v-icon>
+        <v-icon v-bind="toolbarIconProps" style='color: #FFC107;' v-else-if="!$LOCAL && showTarget === 1">{{ $MDI.CircleTwoThird }}</v-icon>
         <v-icon v-bind="toolbarIconProps" style='color: #FFC107;' v-else>{{ $MDI.Circle }}</v-icon>
         <span v-if="isFullscreen">&nbsp;Toggle full target</span>
     </v-btn>
@@ -85,8 +86,8 @@
 export default {
     props: {
         showQuery: { type: Number, default: 0 },
+        showTarget: { type: Number, default: 0 },
         showArrows: { type: Boolean, default: false },
-        showTarget: { type: String, default: 'aligned' },
         isFullscreen: { type: Boolean, default: false },
         disablePDBButton: { type: Boolean, default: false },
         disableSpinButton: { type: Boolean, default: false },

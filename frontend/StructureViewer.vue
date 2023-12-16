@@ -35,23 +35,14 @@
 import StructureViewerTooltip from './StructureViewerTooltip.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerMixin from './StructureViewerMixin.vue';
-import { mockPDB, makeSubPDB, transformStructure  } from './Utilities.js';
+import { mockPDB, makeSubPDB, transformStructure, makeMatrix4  } from './Utilities.js';
 import { pulchra } from 'pulchra-wasm';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 
 import Panel from './Panel.vue';
-import { Shape, Selection, download, ColormakerRegistry, PdbWriter } from 'ngl';
+import { Shape, Selection, download, ColormakerRegistry, PdbWriter, Color, concatStructures, StructureComponent } from 'ngl';
 
 // Create NGL arrows from array of ([X, Y, Z], [X, Y, Z]) pairs
-function createArrows(matches) {
-    const shape = new Shape('shape');
-    for (let i = 0; i < matches.length; i++) {
-        const [a, b] = matches[i];
-        shape.addArrow(a, b, [0, 1, 1], 0.4);
-    }
-    return shape;
-}
-
 // Get XYZ coordinates of CA of a given residue
 const xyz = (structure, resIndex) => {
     var rp = structure.getResidueProxy();
@@ -61,15 +52,46 @@ const xyz = (structure, resIndex) => {
     return [ap.x, ap.y, ap.z];
 }
 
-// Map 1-based indices in a selection to residue index/resno
-const makeChainMap = (structure, sele) => {
-    let map = new Map()
-    let idx = 1;
-    structure.eachResidue(rp => {
-        map.set(idx++, { index: rp.index, resno: rp.resno });
-    }, new Selection(sele));
-    return map
+// Save indices of matching columns in an alignment
+const getMatchingColumns = (alignment) => {
+    let cols_q = [];
+    let cols_t = [];
+    let id_q = alignment.qStartPos;
+    let id_t = alignment.dbStartPos;
+    for (let i = 0; i < alignment.qAln.length; i++) {
+        if (alignment.qAln[i] === '-' || alignment.dbAln[i] === '-') {
+            if (alignment.qAln[i] === '-') id_t++;
+            else id_q++;
+        } else {
+            cols_q.push(id_q);
+            cols_t.push(id_t);
+            id_q++;
+            id_t++;
+        }
+    }
+    return [cols_q, cols_t]
 }
+
+// Get chain from structure name like Structure_A
+const getChainName = (name) => {
+    let pos = name.lastIndexOf('_');
+    return pos != -1 ? name.substring(pos + 1) : 'A';
+}
+
+// Get coordinates of all atoms found in given selection
+const getAtomXYZ = (structure, sele) => {
+    const xyz = [];
+    structure.eachAtom(ap => { xyz.push([ap.x, ap.y, ap.z]) }, sele); 
+    return xyz;
+}
+
+const colorblindColors = ColormakerRegistry.addScheme(function() {
+    let colors = [0x991999, 0x00BFBF, 0xE9967A, 0x009E73, 0xF0E442, 0x0072B2, 0xD55E00, 0xCC79A7];
+    this.atomColor = function(atom) {
+        return colors[atom.chainIndex % colors.length];
+    }
+}, "colorblindColors")
+ 
 
 export default {
     name: "StructureViewer",
@@ -83,19 +105,11 @@ export default {
     ],
     data() {
         return {
-            qChainResMap: null,
-            qMatches: [],
-            queryChain: '',
-            queryReps: [],
             selection: null,
             showArrows: false,
             showQuery: 0,
-            showTarget: 'aligned',
-            tMatches: [],
-            targetReps: [],
-            tmAlignResults: null,
-            queryMap: this.queryMaps[0],
-            targetMap: this.targetMaps[0],
+            showTarget: 0,
+            tmAlignResults: null
         }
     },
     props: {
@@ -107,34 +121,26 @@ export default {
         targetUnalignedColor: { type: String, default: "#FFE699" },
         qRepr: { type: String, default: "cartoon" },
         tRepr: { type: String, default: "cartoon" },
-        queryMaps: { type: Array, default: null },
-        targetMaps: { type: Array, default: null },
-        hits: { type: Object }
+        hits: { type: Object },
+        autoViewTime: { type: Number, default: 100 }
     },
     methods: {
-        // Parses two alignment strings, and saves matching residues
-        // Each match contains the index of the residue in the structure and a callback
-        // function to retrieve the residue's CA XYZ coordinates to allow retrieval
-        // before and after superposition (with updated coords)
-        saveMatchingResidues(aln1, aln2, str1, str2) {
-            if (aln1.length !== aln2.length) return
-            this.qMatches = []
-            this.tMatches = []
-            for (let i = 0; i < aln1.length; i++) {
-                if (aln1[i] === '-' || aln2[i] === '-') {
-                    continue;
+        // Create arrows connecting CA coordinates for query/target in match columns
+        async drawArrows(str1, str2) {
+            const shape = new Shape('arrows');
+            await Promise.all(this.alignments.map(async (alignment) => {
+                const chain_q = getChainName(alignment.query);
+                const chain_t = getChainName(alignment.target);
+                const [sele_q, sele_t] = getMatchingColumns(alignment).map(arr => arr.join(" or "));
+                const str1_xyz = getAtomXYZ(str1, new Selection(`(${sele_q}) and :${chain_q}.CA`));
+                const str2_xyz = getAtomXYZ(str2, new Selection(`(${sele_t}) and :${chain_t}.CA`));
+                for (let i = 0; i < str1_xyz.length; i++) {
+                    shape.addArrow(str1_xyz[i], str2_xyz[i], [0, 1, 1], 0.4);
                 }
-                // Make sure this residue actually exists in NGL structure representation
-                // e.g. d1b0ba starts with X, reported in alignment but removed by Pulchra
-                let qIdx = this.qChainResMap.get(this.queryMap[i]);
-                if (qIdx === undefined) {
-                    continue;
-                }
-                // Must be 0-based for xyz()
-                let tIdx = this.targetMap[i] - 1;
-                this.qMatches.push({ index: qIdx.index, xyz: () => xyz(str1, qIdx.index) })
-                this.tMatches.push({ index: tIdx, xyz: () => xyz(str2, tIdx) })
-            }
+            }));
+            let component = this.stage.addComponentFromObject(shape);
+            component.addRepresentation('buffer');
+            component.setVisibility(this.showArrows);
         },
         handleToggleArrows() {
             if (!this.stage) return;
@@ -150,106 +156,77 @@ export default {
         },
         handleToggleTarget() {
             if (!this.stage) return;
-            this.showTarget = this.showTarget === 'aligned' ? 'full' : 'aligned';
-        },
-        setSelectionByRange(start, end) {
-            if (this.targetReps.length == 0) return
-            this.targetReps[0].setSelection(`${start}-${end}`)
-            this.stage.autoView(100)
-        },
-        setSelectionData(start, end) {
-            this.selection = [start, end]
-        },
-        setSelection(val) {
-            if (val === 'full') {
-                this.setSelectionData(1, this.alignments[0].dbLen)
+            if (__LOCAL__) {
+                this.showTarget = (this.showTarget === 0) ? 1 : 0;
             } else {
-                this.setSelectionData(this.alignments[0].dbStartPos, this.alignments[0].dbEndPos)
+                this.showTarget = (this.showTarget === 2) ? 0 : this.showTarget + 1; 
             }
+        },
+        setSelectionData(selection) {
+            if (!this.alignments || !this.stage) return;
+            let repr = this.stage.getRepresentationsByName("targetHighlight");
+            repr.setSelection()
+            let seles = [];
+            for (let [i, start, chunk] of selection) {
+                let chain = getChainName(this.alignments[i].target);
+                start += this.alignments[i].dbStartPos;
+                let end = start + chunk.length;
+                seles.push(`${start}-${end}:${chain}`);
+            } 
+            let sele = seles.join(" or ");
+            repr.setSelection(sele);
+            repr.setVisibility(true);
         },
         setQuerySelection() {
-            if (this.queryReps.length == 0) return;
-            this.queryReps[0].setSelection(this.querySele)
-            this.stage.autoView(100)
+            let repr = this.stage.getRepresentationsByName("queryStructure");
+            if (!repr) return;
+            let sele = this.querySele;
+            repr.setSelection(sele);
+            repr.list[0].parent.autoView(sele, this.autoViewTime);
+            if (this.showQuery === 0) {
+                this.stage.getRepresentationsByName("querySurface-1").setVisibility(false);
+                this.stage.getRepresentationsByName("querySurface-2").setVisibility(false);
+            } else if (this.showQuery === 1) {
+                this.stage.getRepresentationsByName("querySurface-1").setVisibility(true);
+                this.stage.getRepresentationsByName("querySurface-2").setVisibility(false);
+            } else {
+                this.stage.getRepresentationsByName("querySurface-1").setVisibility(true);
+                this.stage.getRepresentationsByName("querySurface-2").setVisibility(true);
+            }
         },
-        renderArrows() {
-            // Update arrow shape on shape update
-            if (!this.stage) return
-            if (this.arrowShape) {
-                this.arrowShape.dispose()
-            }
-            let matches = new Array()
-            for (let i = 0; i < this.tMatches.length; i++) {
-                let qMatch = this.qMatches[i]
-                let tMatch = this.tMatches[i]
-                if (this.selection && !(tMatch.index >= this.selection[0] - 1 && tMatch.index < this.selection[1]))
-                    continue
-                matches.push([qMatch.xyz(), tMatch.xyz()])
-            }
-            this.arrowShape = this.stage.addComponentFromObject(createArrows(matches))
-            this.arrowShape.addRepresentation('buffer')
-            this.arrowShape.setVisibility(this.showArrows)
+        setTargetSelection() {
+            let repr = this.stage.getRepresentationsByName("targetStructure");
+            if (!repr) return;
+            let sele = this.targetSele;
+            repr.setSelection(sele);
         },
         async handleMakeImage() {
-            if (!this.stage) {
+            if (!this.stage)
                 return;
-            }
-            let title = [];
-            for (let alignment of this.alignments) {
-                if (this.queryReps.length > 0) {
-                    title.push(alignment.query + "-" + alignment.target);
-                } else {
-                    title.push(alignment.target);
-                }
-            };
+            let hasQuery = this.stage.getRepresentationsByName("queryStructure").length > 0;
+            let title = this.alignments.map(aln => hasQuery ? `${aln.query}-${aln.target}` : aln.target).join("_");
             this.stage.viewer.setLight(undefined, undefined, undefined, 0.2)
             const blob = await this.stage.makeImage({
                 trim: true,
                 factor: (this.isFullscreen) ? 1 : 8,
                 antialias: true,
                 transparent: true,
-            })
+            });
             this.stage.viewer.setLight(undefined, undefined, undefined, this.$vuetify.theme.dark ? 0.4 : 0.2)
-            download(blob, (title.join("_") + ".pdb"))
+            download(blob, `${title}.pdb`)
         },
         handleMakePDB() {
-            if (!this.stage) {
+            if (!this.stage)
                 return;
+            const getPdbText = comp => {
+                let pw = new PdbWriter(comp.structure, { renumberSerial: false });
+                return pw.getData().split('\n').filter(line => line.startsWith('ATOM')).join('\n');
             }
-
-            let qPDB = null;
-            if (this.queryReps.length > 0) {
-                qPDB = "";
-                for (let i = 0; i < this.queryReps.length; i++) {
-                    let curr = new PdbWriter(this.queryReps[i].repr.structure, { renumberSerial: false }).getData()
-                    curr = curr.split('\n').filter(line => line.startsWith('ATOM')).join('\n') + '\n';
-                    qPDB += curr;
-                }
-            }
-
-            let tPDB = null;
-            if (this.targetReps.length > 0) {
-                tPDB = "";
-                for (let i = 0; i < this.targetReps.length; i++) {
-                    let curr = new PdbWriter(this.targetReps[i].repr.structure, { renumberSerial: false }).getData()
-                    curr = curr.split('\n').filter(line => line.startsWith('ATOM')).join('\n') + '\n';
-                    tPDB += curr;
-                }
-            }
-
-            if (!qPDB && !tPDB) {
+            let qPDB = this.stage.getComponentsByName("queryStructure").list.map(getPdbText); 
+            let tPDB = this.stage.getComponentsByName("targetStructure").list.map(getPdbText);
+            if (!qPDB && !tPDB) 
                 return;
-            }
-
-            let title = [];
-            for (let alignment of this.alignments) {
-                if (qPDB) {
-                    title.push(alignment.query + "-" + alignment.target);
-                } else {
-                    title.push(alignment.target);
-                }
-            };
-
+            let title = this.alignments.map(aln => qPDB ? `${aln.query}-${aln.target}` : aln.target);
             let result = null;
             if (qPDB && tPDB) {
                 result =
@@ -261,9 +238,11 @@ REMARK       https://doi.org/10.1101/2022.02.07.479398
 REMARK     Warning: Non C-alpha atoms might have been re-generated by PULCHRA,
 REMARK              if they are not present in the original PDB file.
 MODEL        1
-${qPDB}ENDMDL
+${qPDB.join('\n')}
+ENDMDL
 MODEL        2
-${tPDB}ENDMDL
+${tPDB.join('\n')}
+ENDMDL
 END
 `
             } else {
@@ -275,7 +254,8 @@ REMARK     Please cite:
 REMARK       https://doi.org/10.1101/2022.02.07.479398
 REMARK     Warning: Non C-alpha atoms were re-generated by PULCHRA.
 MODEL        1
-${tPDB}ENDMDL
+${tPDB.join('\n')}
+ENDMDL
 END
 `
             }
@@ -283,61 +263,39 @@ END
         }
     },
     watch: {
-        'showTarget': function(val, _) {
-            this.setSelection(val)
-        },
         'showArrows': function(val, _) {
-            if (!this.stage || !this.arrowShape) return
-            this.arrowShape.setVisibility(val)
-        },
-        'selection': function([start, end]) {
-            this.setSelectionByRange(start, end)
-            this.renderArrows()
+            if (!this.stage) return
+            this.stage.getComponentsByName("arrows").forEach(comp => { comp.setVisibility(val) });
         },
         'showQuery': function() {
-            if (!this.stage) return
-            this.setQuerySelection()
+            if (!this.stage) return;
+            this.setQuerySelection();
+        },
+        'showTarget': function(val, _) {
+            if (!this.stage) return;
+            this.setTargetSelection();
         },
     },
     computed: {
-        queryChainId: function() {
-            return (this.queryChain) ? this.queryChain.charCodeAt(0) - 'A'.charCodeAt(0) : 'A'
-        },
-        queryChainSele: function() {
-            return (this.queryChain) ? `(:${this.queryChain.toUpperCase()} OR :${this.queryChain.toLowerCase()})` : '';
-        },
-        querySubSele: function() {
-            if (!this.qChainResMap) {
-                return '';
-            }
-            let start = this.qChainResMap.get(this.alignments[0].qStartPos);
-            let end   = this.qChainResMap.get(this.alignments[0].qEndPos);
-            let sele  = `${start.resno}-${end.resno}`;
-            if (this.queryChain) {
-                sele = `${sele} AND ${this.queryChainSele}`;
-            }
-            return sele
-        },
         querySele: function() {
-            if (this.showQuery == 0)
-                return this.querySubSele;
-            if (this.showQuery == 1)
-                return this.queryChainSele;
-            return ''
+            if (this.alignments.length === 0 || this.showQuery == 2)
+                return '';
+            if (this.showQuery === 0)
+                return this.alignments.map(a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`).join(" or ");
+            if (this.showQuery === 1)
+                return this.alignments.map(a => `:${getChainName(a.query)}`).join(" or ");
         },
         targetSele: function() {
-            if (!this.selection) return ''
-            return `${this.selection[0]}-${this.selection[1]}`;
+            if (this.alignments.length === 0 || this.showTarget == 2)
+                return '';
+            if (this.showTarget === 0)
+                return this.alignments.map(a => `${a.dbStartPos}-${a.dbEndPos}:${getChainName(a.target)}`).join(" or ");
+            if (this.showTarget === 1)
+                return this.alignments.map(a => `:${getChainName(a.target)}`).join(" or ");
         },
         tmPanelBindings: function() {
             return (this.isFullscreen) ? { 'style': 'margin-top: 10px; font-size: 2em; line-height: 2em' } : {  }
         },
-    },
-    beforeMount() {
-        // console.log(this.hits)
-        // const accession = this.hits.queries[0].header.split(/(\s+)/)[0];
-        // const qChain = accession.match(/_([A-Z]+?)/m)
-        // if (qChain) this.queryChain = qChain[1] //.replace('_', '')
     },
     async mounted() {
         if (typeof(this.alignments[0].tCa) == "undefined")
@@ -372,27 +330,38 @@ END
             }
         }
 
+        // Run PULCHRA per chain then concatenate Structure objects in first StructureComponent
         const targets = [];
+        const selections_t = [];
         let renumber = 0;
         for (let alignment of this.alignments) {
             const chainPos = alignment.target.lastIndexOf('_');
             const chain = chainPos != -1 ? alignment.target.substring(chainPos + 1) : 'A';
             const mock = mockPDB(alignment.tCa, alignment.tSeq, chain);
-            const targetPdb = await pulchra(mock);
-            const target = await this.stage.loadFile(new Blob([targetPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
-            target.structure.eachChain(c => {
-                c.chainname = chain;
-            });
-            target.structure.eachAtom(a => {
-                a.serial = renumber++;
-            });
-            targets.push(target);
+            const pdb = await pulchra(mock);
+            const component = await this.stage.loadFile(new Blob([pdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
+            component.structure.eachChain(c => { c.chainname = chain; });
+            component.structure.eachAtom(a => { a.serial = renumber++; });
+            targets.push(component);
+            selections_t.push(`${alignment.dbStartPos}-${alignment.dbEndPos}:${chain}`);
         }
+        const structure = concatStructures(this.alignments[0].target.split('_')[0], ...targets.map(t => t.structure));
+        const target = this.stage.addComponentFromObject(structure, { name: "targetStructure" });
+        
+        target.addRepresentation('tube', {
+            color: 0x11FFEE,
+            side: 'front',
+            opacity: 0.5,
+            radius: 0.8,
+            visible: false,
+            name: 'targetHighlight'
+        });
+
         if (ColormakerRegistry.hasScheme("_targetScheme")) {
             ColormakerRegistry.removeScheme("_targetScheme")
         }
         this.targetSchemeId = ColormakerRegistry.addSelectionScheme([
-            [this.targetAlignedColor, `${this.alignments[0].dbStartPos}-${this.alignments[0].dbEndPos}`],
+            [this.targetAlignedColor, selections_t.join(" or ")],
             [this.targetUnalignedColor, "*"]
         ], "_targetScheme")
 
@@ -405,29 +374,39 @@ END
             }
             queryPdb = data;
 
-
-            let query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
+            let query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), { ext: 'pdb', firstModelOnly: true, name: 'queryStructure'});
             if (query && query.structure.getAtomProxy().isCg()) {
                 queryPdb = await pulchra(queryPdb);
                 this.stage.removeComponent(query);
-                query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
+                query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true, name: 'queryStructure'}); 
             }
 
             // Map 1-based indices to residue index/resno; only need for query structure
             // Use queryChainSele to make all selections based on actual query chain
-            this.qChainResMap = makeChainMap(query.structure, this.queryChainSele)
-            this.saveMatchingResidues(this.alignments[0].qAln, this.alignments[0].dbAln, query.structure, targets[0].structure)
+            const selections_q = [];
+            for (let alignment of this.alignments) {
+                const chainPos = alignment.query.lastIndexOf('_');
+                const chain = chainPos != -1 ? alignment.query.substring(chainPos + 1) : 'A';
 
-            // Generate colorschemes for query/target based on alignment
+                selections_q.push(`${alignment.qStartPos}-${alignment.qEndPos} and :${chain}`);
+
+                // Renumber to avoid residue gaps
+                let renumber = 1;
+                query.structure.eachResidue(function(rp) {
+                    rp.resno = renumber++;
+                }, new Selection(`:${chain}`))
+            }
+            if (ColormakerRegistry.hasScheme("_queryScheme")) {
+                ColormakerRegistry.removeScheme("_queryScheme")
+            }
             this.querySchemeId = ColormakerRegistry.addSelectionScheme([
-                [this.queryAlignedColor, this.querySubSele],
+                [this.queryAlignedColor, selections_q.join(" or ")],
                 [this.queryUnalignedColor, "*"],
             ], "_queryScheme")
-
+                   
             // Re-align target to query using TM-align for better superposition
             // Target 1st since TM-align generates superposition matrix for 1st structure
             if (this.alignments[0].hasOwnProperty("complexu") && this.alignments[0].hasOwnProperty("complext")) {
-                this.queryReps = [ query.addRepresentation(this.qRepr, {color: this.querySchemeId}) ]
                 const t = this.alignments[0].complext.split(',').map(x => parseFloat(x));
                 let u = this.alignments[0].complexu.split(',').map(x => parseFloat(x));
                 u = [
@@ -435,15 +414,35 @@ END
                     [u[3], u[4], u[5]],
                     [u[6], u[7], u[8]],
                 ];
+                // Can't use setTransform since we need the actual transformed coordinates for arrows
+                transformStructure(target.structure, t, u);
+                query.addRepresentation(this.qRepr, { color: this.querySchemeId, smoothSheet: true, name: "queryStructure"});
+                target.addRepresentation(this.tRepr, { color: this.targetSchemeId, smoothSheet: true, name: "targetStructure" });
 
-                let reps = [];
-                for (let i = 0; i < this.alignments.length; i++) {
-                    transformStructure(targets[i].structure, t, u)
-                    reps.push(targets[i].addRepresentation(this.tRepr, {color: this.targetSchemeId}))
-
+                // Make three separate surface representations based on query toggle state:
+                //   0: Aligned regions of aligned chains
+                //   1: Unaligned regions of aligned chains (shown with 0)
+                //   2: Full structure (all chains; shown with 0 and 1)
+                // Then toggle visibility when showQuery is changed by the user.
+                // TODO probably don't need surface 2 when no. alignments == no. chains
+                const surfaceSele0 = [];
+                const surfaceSele1 = [];
+                const surfaceSele2 = [];
+                for (let alignment of this.alignments) {
+                    let chain = getChainName(alignment.query);
+                    surfaceSele0.push(`${alignment.qStartPos}-${alignment.qEndPos}:${chain}`);
+                    surfaceSele1.push(`(not ${alignment.qStartPos}-${alignment.qEndPos} and :${chain})`);
+                    surfaceSele2.push(`:${chain}`);
                 }
-                this.queryReps = [ query.addRepresentation(this.qRepr, {color: this.querySchemeId}) ]
-                this.targetReps = reps;
+                const surfaceParams = {
+                    color: colorblindColors,
+                    opacity: 0.1,
+                    opaqueBack: false,
+                    useWorker: true
+                }
+                query.addRepresentation("surface", { sele: surfaceSele0.join(" or "), name: "querySurface-0", ...surfaceParams });
+                query.addRepresentation("surface", { sele: surfaceSele1.join(" or "), name: "querySurface-1", visible: false, ...surfaceParams });
+                query.addRepresentation("surface", { sele: `not (${surfaceSele2.join(" or ")})`, name: "querySurface-2", visible: false, ...surfaceParams });
             } else {
                 // Generate subsetted PDBs for TM-align
                 let qSubPdb = makeSubPDB(query.structure, this.querySubSele)
@@ -452,19 +451,22 @@ END
                 const tm = await tmalign(tSubPdb, qSubPdb, alnFasta);
                 this.tmAlignResults = parseTMOutput(tm.output)
                 let { t, u } = parseTMMatrix(tm.matrix)
-                transformStructure(targets[0].structure, t, u)
-                this.queryReps = [ query.addRepresentation(this.qRepr, {color: this.querySchemeId}) ]
-                this.targetReps = [ targets[0].addRepresentation(this.tRepr, {color: this.targetSchemeId}) ]
+                transformStructure(target.structure, t, u)
+                query.addRepresentation(this.qRepr, {color: this.querySchemeId, name: "queryStructure"});
+                target.addRepresentation(this.tRepr, {color: this.targetSchemeId, name: "targetStructure"});
             }
-            this.setSelection(this.showTarget)
-            this.setQuerySelection()
-            this.stage.autoView()
+            await this.drawArrows(query.structure, target.structure)
+
+            this.setQuerySelection();
+            this.setTargetSelection();
+            query.autoView(this.querySele, this.autoViewTime)
         } else {
-            this.targetReps = [ targets[0].addRepresentation(this.tRepr, {color: this.targetSchemeId}) ]
-            this.setSelection(this.showTarget)
+            target.addRepresentation(this.tRepr, {color: this.targetSchemeId, name: "targetStructure"})
             this.setQuerySelection()
-            this.stage.autoView()
+            this.setTargetSelection();
+            this.stage.autoView(this.autoViewTime)
         }
+        
     },
 }
 </script>

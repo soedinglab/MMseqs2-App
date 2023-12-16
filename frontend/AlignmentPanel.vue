@@ -1,11 +1,11 @@
 <template>
     <div class="alignment-panel" slot="content">
         <div class="alignment-wrapper-outer">
-            <template
-                v-for="(alignment, index) in alignments">
+            <template v-for="(alignment, index) in alignments">
                 {{ alignment.query.lastIndexOf('_') != -1 ? alignment.query.substring(alignment.query.lastIndexOf('_')+1) : '' }} ➔ {{ alignment.target }}
                 <Alignment
                     :key="`aln2-${alignment.id}`"
+                    :alnIndex="index"
                     :alignment="alignment"
                     :lineLen="lineLen"
                     :queryMap="queryMaps[index]"
@@ -19,8 +19,6 @@
             <StructureViewer
                 :key="`struc2-${alignments[0].id}`"
                 :alignments="alignments"
-                :queryMaps="queryMaps"
-                :targetMaps="targetMaps"
                 :hits="hits"
                 bgColorLight="white"
                 bgColorDark="#1E1E1E"
@@ -50,10 +48,10 @@ export default {
         hits: { type: Object }
     },
     methods: {
-        setUserSelection([start, end]) {
+        setUserSelection(selection) {
             if (!this.alignments) return
             if (__APP__ != "foldseek") return
-            this.$refs.structureViewer.setSelectionData(start, end)
+            this.$refs.structureViewer.setSelectionData(selection)
         },
         updateMaps() {
             if (!this.alignments) return
@@ -66,7 +64,11 @@ export default {
 
         },
     },
-    watch: { 'alignment': function() { this.updateMaps() } },
+    watch: {
+        'alignment': function() {
+            this.updateMaps()
+        }
+    },
     beforeMount() { this.updateMaps() },
 }
 </script>
