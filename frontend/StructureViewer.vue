@@ -169,7 +169,7 @@ export default {
             let seles = [];
             for (let [i, start, chunk] of selection) {
                 let chain = getChainName(this.alignments[i].target);
-                start += this.alignments[i].dbStartPos;
+                // start += this.alignments[i].dbStartPos;
                 let end = start + chunk.length;
                 seles.push(`${start}-${end}:${chain}`);
             } 

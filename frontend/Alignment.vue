@@ -34,16 +34,26 @@ const blosum62Sim = [
 
 // Get the first and last non-null values in a map between a range
 function getRange(map, start, end) {
-    let first = null, last = null
+    let first = null,
+        last = null
     for (let i = start; i <= end; i++) {
-	let val = map[i]
-	if (val !== null) {
-	    if (first === null) first = val
-	    last = val
-	}
+        let val = map[i]
+        if (val !== null) {
+            if (first === null) first = val
+            last = val
+        }
     }
     return [first, last]
 }
+
+function countCharacter(string, char) {
+    let count = 0;
+    for (let c of string) {
+        if (c === char) count++;
+    }
+    return count;
+}
+
 
 export default {
     props: ['alignment', 'lineLen', 'queryMap', 'targetMap', 'showhelp', 'alnIndex'],
@@ -78,26 +88,30 @@ export default {
         },
         onSelectText(i) {
             var selection = window.getSelection()
+            
+            // Get text and (sequence) starting position for each selected alignment
             let chunks = [];
             let chunk = "";
-            let currContainer = null;
+            let prevWrapper = null;
             let start = 0;
             for (let i = 0; i < selection.rangeCount; i++) {
                 let range = selection.getRangeAt(i);
-                let wrapper = range.startContainer.parentElement.closest(".alignment-wrapper-inner");
-                let line = parseInt(range.startContainer.parentElement.closest(".line").id);
-                if (!currContainer) {
-                    currContainer = wrapper;
-                    start = (line - 1) * this.lineLen + range.startOffset + 1;
-                } else if (wrapper != currContainer) {
-                    chunks.push([parseInt(currContainer.id), start, chunk]);                     
+                let currWrapper = range.startContainer.parentElement.closest(".alignment-wrapper-inner");
+                let lineNo = parseInt(range.startContainer.parentElement.closest(".line").id);
+                if (!prevWrapper) {
+                    prevWrapper = currWrapper;
+                    let preText = range.startContainer.textContent.slice(0, range.startOffset);
+                    start = this.getTargetRowStartPos(lineNo) + range.startOffset - countCharacter(preText, '-');
+                } else if (currWrapper != prevWrapper) {
+                    chunks.push([parseInt(prevWrapper.id), start, chunk]);                     
                     chunk = "";
-                    currContainer = wrapper;
-                    start = (line - 1) * this.lineLen + range.startOffset + 1;
+                    prevWrapper = currWrapper;
+                    let preText = range.startContainer.textContent.slice(0, range.startOffset);
+                    start = this.getTargetRowStartPos(lineNo) + range.startOffset - countCharacter(preText, '-');
                 }
-                chunk += range.toString().replace("-", "");
+                chunk += range.toString();
             }
-            chunks.push([parseInt(currContainer.id), start, chunk])
+            chunks.push([parseInt(prevWrapper.id), start, chunk.replace(/[-]/g, '')])
             this.$emit("selected", chunks);
 
             // Make everything else selectable again
@@ -116,6 +130,9 @@ export default {
 .alignment-wrapper-outer {
     display: inline-block;
     overflow-x: auto;
+}
+.selected {
+    background-color: aqua;
 }
 .inselection, .inselection * {
     user-select: none;
