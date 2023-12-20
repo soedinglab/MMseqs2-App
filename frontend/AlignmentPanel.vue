@@ -11,7 +11,10 @@
                     :queryMap="queryMaps[index]"
                     :targetMap="targetMaps[index]"
                     @selected="setUserSelection"
+                    @alnSelections="setAlignmentSelection"
                     :showhelp="index == alignments.length - 1"
+                    :highlights="highlights[index]"
+                    ref="alignments"
                 />
             </template>
         </div>
@@ -41,6 +44,7 @@ export default {
     data: () => ({
         queryMap: null,
         targetMap: null,
+        highlights: []
     }),
     props: {
         alignments: { type: Array, required: true, },
@@ -52,6 +56,21 @@ export default {
             if (!this.alignments) return
             if (__APP__ != "foldseek") return
             this.$refs.structureViewer.setSelectionData(selection)
+        },
+        setAlignmentSelection(selections) {
+            // array per alignment, then array per line in alignment
+            this.highlights = this.alignments.map(a => new Array(Math.ceil(a.qAln.length / this.lineLen)).fill([undefined, undefined]))
+            for (let [ alnId, startLine, startOffset, endLine, endOffset, _ ] of selections) {
+                for (let i = startLine; i <= endLine; i++) {
+                    if (i === startLine) {
+                        this.highlights[alnId][i] = [startOffset, (i === endLine) ? endOffset : this.lineLen];
+                    } else if (i === endLine) {
+                        this.highlights[alnId][i] = [0, endOffset];
+                    } else {
+                        this.highlights[alnId][i] = [0, this.lineLen];
+                    }
+                }
+            }
         },
         updateMaps() {
             if (!this.alignments) return
@@ -69,7 +88,10 @@ export default {
             this.updateMaps()
         }
     },
-    beforeMount() { this.updateMaps() },
+    beforeMount() {
+        this.updateMaps()
+        this.highlights = this.alignments.map(a => new Array(Math.ceil(a.qAln.length / this.lineLen)).fill([undefined, undefined]))
+    },
 }
 </script>
 
