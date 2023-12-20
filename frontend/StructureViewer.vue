@@ -114,6 +114,7 @@ export default {
     },
     props: {
         alignments: { type: Array },
+        highlights: { type: Array },
         queryFile: { type: String },
         queryAlignedColor: { type: String, default: "#1E88E5" },
         queryUnalignedColor: { type: String, default: "#A5CFF5" },
@@ -162,15 +163,24 @@ export default {
                 this.showTarget = (this.showTarget === 2) ? 0 : this.showTarget + 1; 
             }
         },
+        clearSelection() {
+            if (!this.alignments || !this.stage) return;
+            let repr = this.stage.getRepresentationsByName("targetHighlight");
+            repr.setSelection()
+            repr.setVisibility(false)
+        },
         setSelectionData(selection) {
             if (!this.alignments || !this.stage) return;
             let repr = this.stage.getRepresentationsByName("targetHighlight");
             repr.setSelection()
+            if (selection.length === 0) {
+                repr.setVisibility(false);
+                return;
+            }
             let seles = [];
-            for (let [i, start, chunk] of selection) {
+            for (let [i, start, length] of selection) {
                 let chain = getChainName(this.alignments[i].target);
-                // start += this.alignments[i].dbStartPos;
-                let end = start + chunk.length;
+                let end = start + length;
                 seles.push(`${start}-${end}:${chain}`);
             } 
             let sele = seles.join(" or ");
@@ -275,6 +285,16 @@ END
             if (!this.stage) return;
             this.setTargetSelection();
         },
+        'highlights': function(values) {
+            if (!this.stage || !values) return;
+            let selections = []
+            values.forEach((value, i) => {
+                if (!value) return;
+                let [start, length] = value;
+                selections.push([i, start, length]);
+            })
+            this.setSelectionData(selections)
+        }
     },
     computed: {
         querySele: function() {
@@ -403,7 +423,7 @@ END
                 [this.queryAlignedColor, selections_q.join(" or ")],
                 [this.queryUnalignedColor, "*"],
             ], "_queryScheme")
-                   
+
             // Re-align target to query using TM-align for better superposition
             // Target 1st since TM-align generates superposition matrix for 1st structure
             if (this.alignments[0].hasOwnProperty("complexu") && this.alignments[0].hasOwnProperty("complext")) {
@@ -473,8 +493,8 @@ END
 
 <style scoped>
 .structure-wrapper {
-    width: 400px;
-    height: 300px;
+    width: 500px;
+    height: 400px;
     margin: 0 auto;
 }
 </style>

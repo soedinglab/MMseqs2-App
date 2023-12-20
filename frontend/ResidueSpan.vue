@@ -19,7 +19,10 @@ will render a span with three child spans (before, highlight, after).
         :class="sequenceType"
     ><!--
         --><span>{{ $slots.default[0].text.slice(0, selectionStart) }}</span><!--
-        --><span class="selected">{{ $slots.default[0].text.slice(selectionStart, selectionEnd) }}</span><!--
+        --><span
+            class="selected"
+            @click="emitClickHighlight"
+           >{{ $slots.default[0].text.slice(selectionStart, selectionEnd) }}</span><!--
         --><span>{{ $slots.default[0].text.slice(selectionEnd, $slots.default[0].text.length) }}</span>
     </span>
 </template>
@@ -33,12 +36,9 @@ export default {
         selectionEnd: { type: Number },
     },
     methods: {
-        emitPointerUpEvent(event) {
-            this.$emit('pointerup', event)
-        },
-        emitSelectStartEvent(event) {
-            this.$emit('selectstart', event)
-        },
+        emitPointerUpEvent(event) { this.$emit('pointerup', event) },
+        emitSelectStartEvent(event) { this.$emit('selectstart', event) },
+        emitClickHighlight(event) { this.$emit('clickHighlight', event) },
     }
 }
 </script>
@@ -48,6 +48,7 @@ export default {
     border-radius: 4px;
     background-color: rgba(0, 255, 255, 0.1);
     box-shadow: 0 0 .4em .1em rgba(0, 255, 255, 0.5);
+    cursor: pointer;
 }
 .residues {
     font-family:
