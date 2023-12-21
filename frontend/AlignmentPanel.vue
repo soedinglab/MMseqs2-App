@@ -12,7 +12,7 @@
                     @click="clearAllSelection"
                     :disabled="hasSelection"
                 >
-                    Clear all selections&nbsp;
+                    {{ (alignments[0].hasOwnProperty("complexu")) ? "Clear all selections" : "Clear selection" }}&nbsp;
                     <v-icon style="width: 16px;">{{ $MDI.CloseCircle }}</v-icon>
                 </v-btn>
             </div>
@@ -293,8 +293,15 @@ export default {
 </style>
 
 <style>
-/* Some sort of banding thing here */
+span.selected {
+    border-radius: 4px;
+    background-color: rgba(0, 255, 255, 0.1);
+    box-shadow: 0 0 .4em .1em rgba(0, 255, 255, 0.5);
+    cursor: pointer;
+}
+/* TODO Some sort of banding thing here? */
 /* .alignment-wrapper-inner:nth-child(odd) span.selected {
-    outline: 2px solid navy !important; 
+    background-color: rgba(0, 255, 100, 0.1);
+    box-shadow: 0 0 .4em .1em rgba(0, 255, 100, 0.5);
 } */
 </style>
