@@ -465,8 +465,8 @@ END
                 query.addRepresentation("surface", { sele: `not (${surfaceSele2.join(" or ")})`, name: "querySurface-2", visible: false, ...surfaceParams });
             } else {
                 // Generate subsetted PDBs for TM-align
-                let qSubPdb = makeSubPDB(query.structure, this.querySubSele)
-                let tSubPdb = makeSubPDB(targets[0].structure, `${this.alignments[0].dbStartPos}-${this.alignments[0].dbEndPos}`)
+                let qSubPdb = makeSubPDB(query.structure, this.querySele);
+                let tSubPdb = makeSubPDB(target.structure, this.targetSele);
                 let alnFasta = `>target\n${this.alignments[0].dbAln}\n\n>query\n${this.alignments[0].qAln}`
                 const tm = await tmalign(tSubPdb, qSubPdb, alnFasta);
                 this.tmAlignResults = parseTMOutput(tm.output)
@@ -476,7 +476,6 @@ END
                 target.addRepresentation(this.tRepr, {color: this.targetSchemeId, name: "targetStructure"});
             }
             await this.drawArrows(query.structure, target.structure)
-
             this.setQuerySelection();
             this.setTargetSelection();
             query.autoView(this.querySele, this.autoViewTime)
