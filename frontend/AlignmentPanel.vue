@@ -10,9 +10,10 @@
                     small
                     title="Clear sequence selection"
                     @click="clearAllSelection"
+                    :disabled="hasSelection"
                 >
                     Clear all selections&nbsp;
-                    <v-icon>{{ $MDI.CloseCircle }}</v-icon>
+                    <v-icon style="width: 16px;">{{ $MDI.CloseCircle }}</v-icon>
                 </v-btn>
             </div>
 
@@ -89,21 +90,16 @@ export default {
         highlights: [],
         structureHighlights: [],
         isSelecting: false,
-        clearButton: {
-            visible: false,
-            timeout: null,
-            style: {
-                position: 'absolute',
-                opacity: 0,
-                top: '0px',
-                left: '0px'
-            }
-        }
     }),
     props: {
         alignments: { type: Array, required: true, },
         lineLen: { type: Number, required: true, },
         hits: { type: Object }
+    },
+    computed: {
+        hasSelection() {
+            return !this.structureHighlights.some(e => e !== null);
+        }
     },
     methods: {
         getFirstResidueNumber(map, i) {
