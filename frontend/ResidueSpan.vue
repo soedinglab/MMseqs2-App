@@ -44,12 +44,6 @@ export default {
 </script>
 
 <style>
-.selected {
-    border-radius: 4px;
-    background-color: rgba(0, 255, 255, 0.1);
-    box-shadow: 0 0 .4em .1em rgba(0, 255, 255, 0.5);
-    cursor: pointer;
-}
 .residues {
     font-family:
         InconsolataClustal, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono",
