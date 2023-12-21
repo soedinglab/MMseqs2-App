@@ -155,6 +155,10 @@ export default {
                 this.showQuery = (this.showQuery === 2) ? 0 : this.showQuery + 1;
             }
         },
+        handleResetView() {
+            if (!this.stage) return;
+            this.setQuerySelection();
+        },
         handleToggleTarget() {
             if (!this.stage) return;
             if (__LOCAL__) {
@@ -444,7 +448,6 @@ END
                 //   1: Unaligned regions of aligned chains (shown with 0)
                 //   2: Full structure (all chains; shown with 0 and 1)
                 // Then toggle visibility when showQuery is changed by the user.
-                // TODO probably don't need surface 2 when no. alignments == no. chains
                 const surfaceSele0 = [];
                 const surfaceSele1 = [];
                 const surfaceSele2 = [];
