@@ -21,6 +21,14 @@ import { dateTime, download } from './Utilities.js';
 import MSA from './MSA.vue';
 import Local from './Local.vue';
 
+// Process e.g. AF-{uniprot ID}-F1_model_v4.cif.pdb.gz to just uniprot ID
+function tryFixName(name) {
+    if (name.startsWith("AF-")) {
+        name = name.replaceAll(/(AF[-_]|[-_]F[0-9]+[-_]model[-_]v[0-9]+)/g, '')
+    }
+    return name.replaceAll(/\.(cif|pdb|gz)/g, '');
+}
+
 export default {
     components: {
         MSA,
@@ -59,6 +67,9 @@ export default {
             this.entries = data.entries;
             this.scores = data.scores;
             this.statistics = data.statistics;
+            this.entries.forEach(entry => {
+                entry.name = tryFixName(entry.name);
+            });
         },
         handleDownloadData() {
             if (!this.entries) {
