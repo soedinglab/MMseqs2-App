@@ -7,6 +7,7 @@
     <template v-slot:default>
         <MSA
             v-if="entries.length > 0"
+            :key="key"
             :entries="entries"
             :scores="scores"
             :statistics="statistics"
@@ -30,6 +31,7 @@ export default {
             entries: [],
             scores: [],
             statistics: {},
+            key: ""
         }
     },
     mounted() {
@@ -46,12 +48,14 @@ export default {
     },
     methods: {
         clearData() {
+            this.key = "";
             this.entries = [];
             this.scores = [];
             this.statistics = {};
         },
         handleUploadData(data) {
             this.clearData();
+            this.key = dateTime();  // TODO better uid for uploaded data
             this.entries = data.entries;
             this.scores = data.scores;
             this.statistics = data.statistics;
