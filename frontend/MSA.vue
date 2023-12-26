@@ -376,7 +376,7 @@ export default {
             this.lineLen = lineLen;
         },
         handleCSSGradient(gradients) {
-            const maxSize = 30;
+            const maxSize = 25;
             const numBlocks = Math.ceil(this.alnLen / this.lineLen);
             const blockSize = gradients.length / numBlocks;
 
@@ -385,7 +385,7 @@ export default {
             this.cssGradients = Array.from({ length: numBlocks }, () => []);
             const step = Math.max(Math.floor(blockSize / maxSize), 1);
             for (let i = 0; i < numBlocks; i++) {
-                for (let j = 0; j < Math.min(blockSize, maxSize); j += step) {
+                for (let j = 0; j < Math.max(blockSize, maxSize); j += step) {
                     this.cssGradients[i].push(gradients[j + i * blockSize]);
                 }
             }
