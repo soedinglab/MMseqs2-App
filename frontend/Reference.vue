@@ -16,8 +16,11 @@
 <script>
 export default {
     name: "reference",
-    data: () => ({
-        reference: null,
-    }),
+    props: {
+        reference: {
+            type: String,
+            required: true
+        }
+    },
 }
 </script>
