@@ -34,13 +34,7 @@
 import Identicon from './Identicon.vue';
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import { debounce } from './lib/debounce';
-
-let localStorageEnabled = false;
-try {
-    if (typeof window.localStorage !== 'undefined') {
-        localStorageEnabled = true
-    }
-} catch(e) {}
+import { storage } from './lib/HistoryMixin';
 
 export default {
     components: { Identicon },
@@ -65,9 +59,7 @@ export default {
             }
         },
         items(value) {
-            if (localStorageEnabled) {
-                localStorage.history = JSON.stringify(value);
-            }
+            storage.history = JSON.stringify(value);
         },
         drawer: function (val, oldVal) {
             if (val == true) {
@@ -92,12 +84,7 @@ export default {
             this.current = this.$route.params.ticket;
 
             this.error = false;
-            var itemsTmp;
-            if (localStorageEnabled && localStorage.history) {
-                itemsTmp = JSON.parse(localStorage.history);
-            } else {
-                itemsTmp = [];
-            }
+            var itemsTmp = JSON.parse(storage.history);
 
             let tickets = [];
             var hasCurrent = false;

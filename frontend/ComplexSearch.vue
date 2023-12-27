@@ -131,9 +131,11 @@
     import { djb2, parseResultsList } from './Utilities.js';
     import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
     import ApiDialog from './ApiDialog.vue';
-    import { storage, HistoryMixin } from './lib/HistoryMixin.js';
+    import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
     import Databases from './Databases.vue';
     import QueryTextarea from "./QueryTextarea.vue";
+
+    const storage = new StorageWrapper("complex");
     
     export default {
         name: "search",

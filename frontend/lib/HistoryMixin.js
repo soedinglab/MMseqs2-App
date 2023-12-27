@@ -27,6 +27,28 @@ try {
 
 const storage = localStorageEnabled ? window.localStorage : fakeLocalStorage;
 
+const StorageWrapper = (prefix) => {
+    return {
+        getItem(key) {
+            return storage.getItem(`${prefix}.${key}`);
+        },
+        setItem(key, value) {
+            storage.setItem(`${prefix}.${key}`, value);
+        },
+        removeItem(key) {
+            storage.removeItem(`${prefix}.${key}`);
+        },
+        clear() {
+            let keys = Object.keys(storage);
+            for (let key of keys) {
+                if (key.startsWith(prefix)) {
+                    storage.removeItem(key);
+                }
+            }
+        }
+    }
+};
+
 // Mixin for history-related methods
 const HistoryMixin = {
     methods: {
@@ -49,4 +71,4 @@ const HistoryMixin = {
     }
 };
 
-export { localStorageEnabled, storage, HistoryMixin };
+export { localStorageEnabled, storage, StorageWrapper, HistoryMixin };
