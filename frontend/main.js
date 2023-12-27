@@ -89,8 +89,6 @@ Vue.use({
             apiBase = __CONFIG__.apiEndpoint;
         }
         
-        apiBase = "https://search.foldseek.com/"
-        
         const axiosConfig = {
             baseURL: apiBase,
             headers: defaultHeaders
