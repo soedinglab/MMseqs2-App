@@ -174,7 +174,8 @@
             } else if (storage.getItem('query') && storage.getItem('query').length > 0) {
                 this.query = storage.getItem('query');
             } else {
-                this.query = this.$STRINGS.QUERY_DEFAULT;
+                // FIXME: default query for single chain doesn't work
+                this.query = "";
             }
         },
         computed: {
