@@ -57,15 +57,20 @@
                     :hideEmail="hideEmail"
                     ></databases>
     
-                <v-radio-group v-model="mode">
-                    <v-tooltip open-delay="300" top>
-                        <template v-slot:activator="{ on }">
-                            <label v-on="on">Mode&nbsp;<v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon></label>
-                        </template>
-                        <span v-html="$STRINGS.MODE_HELP"></span>
-                    </v-tooltip>
-                    <v-radio hide-details value="complex" label="Complex"></v-radio>
-                </v-radio-group>
+                    <v-radio-group v-model="mode">
+                        <v-tooltip open-delay="300" top>
+                            <template v-slot:activator="{ on }">
+                                <label v-on="on">Mode&nbsp;<v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon></label>
+                            </template>
+                            <span v-html="$STRINGS.MODE_HELP"></span>
+                        </v-tooltip>
+                        <v-radio hide-details
+                                    v-for="i in ($STRINGS.MODE_COUNT - 0)"
+                                    :key="i"
+                                    :value="'complex-' + $STRINGS['MODE_KEY_' + i]"
+                                    :label="$STRINGS['MODE_TITLE_' + i]"
+                                    ></v-radio>
+                    </v-radio-group>
     
                 <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete>
     
@@ -148,7 +153,7 @@
             return {
                 inSearch: false,
                 errorMessage: "",
-                mode: storage.getItem('mode') || this.$STRINGS.MODE_DEFAULT_KEY,
+                mode: storage.getItem('mode') || ('complex-' + this.$STRINGS.MODE_DEFAULT_KEY),
                 modes: Array.from({length: this.$STRINGS.MODE_COUNT - 0}, (_, i) => i + 1)
                         .reduce((dict, i, _)  => { dict[this.$STRINGS['MODE_KEY_' + i]] = this.$STRINGS['MODE_TITLE_' + i]; return dict; }, {}),
                 email: storage.getItem('email') || "",

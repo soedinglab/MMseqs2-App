@@ -308,8 +308,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if config.App == AppMMseqs2 {
 			request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
 		} else if config.App == AppFoldSeek {
-			if mode == "complex" {
-				request, err = NewComplexSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
+			modes := strings.Split(mode, "-")
+			modeIdx := isIn("complex", modes)
+			if modeIdx != -1 {
+				modeWithoutComplex := strings.Join(append(modes[:modeIdx], modes[modeIdx+1:]...), "-")
+				request, err = NewComplexSearchJobRequest(query, dbs, databases, modeWithoutComplex, config.Paths.Results, email, taxfilter)
 			} else {
 				request, err = NewStructureSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
 			}

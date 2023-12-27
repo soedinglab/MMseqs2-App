@@ -465,13 +465,12 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					return
 				}
 
-				// var mode2num = map[string]string{"3di": "0", "tmalign": "1", "3diaa": "2"}
-				// mode, found := mode2num[job.Mode]
-				// if !found {
-				// 	errChan <- &JobExecutionError{errors.New("invalid mode selected")}
-				// 	return
-				// }
-				mode := "2"
+				var mode2num = map[string]string{"3di": "0", "tmalign": "1", "3diaa": "2"}
+				mode, found := mode2num[job.Mode]
+				if !found {
+					errChan <- &JobExecutionError{errors.New("invalid mode selected")}
+					return
+				}
 
 				columns := "query,"
 				if params.FullHeader {

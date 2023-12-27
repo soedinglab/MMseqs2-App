@@ -86,7 +86,7 @@
 
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <colgroup>
-                            <template v-if="mode == 'complex'">
+                            <template v-if="isComplex">
                             <col style="width: 6.5%;" />
                             <col style="width: 6.5%;" />
                             </template>
@@ -106,18 +106,18 @@
                             <col style="width: 10%;" />
                         </colgroup>
                         <thead>
-                            <tr v-if="mode == 'complex'">
+                            <tr v-if="isComplex">
                                 <th colspan="2" style="text-align:center; width:10%; border-right: 1px solid #333; border-bottom: 1px solid #333;">Complex</th>
                                 <th :colspan="6 +  entry.hasDescription + entry.hasTaxonomy + ((tableMode == 1) ? 2 : 0)" style="text-align:center; border-bottom: 1px solid #333;">Chain</th>
                             </tr>
                             <tr>
-                                <template v-if="mode == 'complex'">
+                                <template v-if="isComplex">
                                 <!-- <th class="thin">ID</th> -->
                                 <th class="thin">qTM</th>
                                 <th class="thin" style="border-right: 1px solid #333; ">tTM</th>
                                 </template>
                                 <th :class="'wide-' + (3 - entry.hasDescription - entry.hasTaxonomy)">
-                                    <template v-if="mode == 'complex'">
+                                    <template v-if="isComplex">
                                         Chain paring
                                     </template>
                                     <template v-else>
@@ -155,13 +155,13 @@
                         <tbody>
                             <template v-for="(group, groupidx) in entry.alignments">
                                 <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active }]">
-                                <template v-if="index == 0 && mode == 'complex'">
+                                <template v-if="index == 0 && isComplex">
                                 <td class="thin" data-label="Query TM-score" :rowspan="group.length">{{ group[0].complexqtm.toFixed(2) }}</td>
                                 <td class="thin" data-label="Target TM-score" :rowspan="group.length">{{ group[0].complexttm.toFixed(2) }}</td>
                                 </template>
-                                <td class="db long" data-label="Target" :style="{ 'border-width' : mode == 'complex' ? '5px' : null, 'border-color' : entry.color }">
+                                <td class="db long" data-label="Target" :style="{ 'border-width' : isComplex ? '5px' : null, 'border-color' : entry.color }">
                                     <a :id="item.id" class="anchor" style="position: absolute; top: 0"></a>
-                                    <template v-if="mode == 'complex'">
+                                    <template v-if="isComplex">
                                         {{ item.query.lastIndexOf('_') != -1 ? item.query.substring(item.query.lastIndexOf('_')+1) : '' }} ➔ 
                                     </template>
                                     <a :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.target}}</a>
@@ -179,7 +179,7 @@
                                 <td class="graphical" data-label="Position" v-if="tableMode == 0">
                                     <Ruler :length="item.qLen" :start="item.qStartPos" :end="item.qEndPos" :color="item.color" :label="index == 0"></Ruler>
                                 </td>
-                                <td class="alignment-action" :rowspan="mode == 'complex' ? group.length : 1" v-if="index == 0">
+                                <td class="alignment-action" :rowspan="isComplex ? group.length : 1" v-if="index == 0">
                                     <!-- performance issue with thousands of v-btns, hardcode the minimal button instead -->
                                     <!-- <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
                                         <v-icon v-once>{{ $MDI.NotificationClearAll }}</v-icon>
@@ -199,7 +199,7 @@
                                     </button>
                                 </td>
                             </tr>
-                            <tr aria-hidden="true" v-if="mode == 'complex'" style="height: 15px"></tr>
+                            <tr aria-hidden="true" v-if="isComplex" style="height: 15px"></tr>
                             </template>
                         </tbody>
                     </table>
@@ -264,6 +264,13 @@ export default {
     computed: {
         mode() {
             return this.hits ? this.hits.mode : "";
+        },
+        isComplex() {
+            if (this.hits && this.hits.results.length > 0 && this.hits.results[0].alignments != null
+                && this.hits.results[0].alignments[0].length > 0 && this.hits.results[0].alignments[0][0].complexqtm != null) {
+                return true;
+            }
+            return false;
         },
         fluidLineLen() {
             if (this.$vuetify.breakpoint.xsOnly) {
