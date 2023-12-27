@@ -107,7 +107,7 @@
                         ({{
                             databases.filter(db => database.includes(db.path)).map(db => db.name).sort().join(", ")
                         }})
-                    </template> with {{ $STRINGS.APP_NAME }} in <strong>{{ modes[mode] }}</strong> mode.
+                    </template> with {{ $STRINGS.APP_NAME }} in <strong>{{ modes[mode.replace('complex-', '')] }}</strong> mode.
                     <div v-if="errorMessage != ''" class="v-alert v-alert--outlined warning--text mt-2">
                         <span>{{ errorMessage }}</span>
                     </div>
