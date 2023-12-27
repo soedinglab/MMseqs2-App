@@ -92,7 +92,7 @@
                             </template>
                             <col style="width: 20%;" />
                             <col v-if="entry.hasDescription" style="width: 30%;" />
-                            <col style="width: 20%;" />
+                            <col v-if="entry.hasTaxonomy" style="width: 20%;" />
                             <col style="width: 6.5%;" />
                             <col style="width: 6.5%;" />
                             <col style="width: 8.5%;" />
