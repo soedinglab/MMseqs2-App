@@ -5,7 +5,7 @@ export default {
     data: () => ({
         stage: null,
         isFullscreen: false,
-        isSpinning: false,
+        isSpinning: true,
     }),
     props: {
         bgColorLight: { type: String, default: "white" },
@@ -76,7 +76,7 @@ export default {
             this.resetView();
         },
         initialiseStage() {
-            window.addEventListener('resize', this.handleResize)
+            window.addEventListener('resize', this.handleResize, { passive: true })
             this.stage = new Stage(this.$refs.viewport, this.stageParameters);
             this.stage.signals.fullscreenChanged.add((isFullscreen) => {
                 if (isFullscreen) {
@@ -90,6 +90,9 @@ export default {
                 }
             });
             this.stage.setSpin(this.isSpinning);
+            this.stage.viewer.renderer.domElement.addEventListener('mousedown', e => {
+                this.isSpinning = false;
+            })
         },
         teardownStage() {
             window.removeEventListener('resize', this.handleResize)

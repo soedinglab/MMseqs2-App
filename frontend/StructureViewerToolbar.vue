@@ -64,6 +64,7 @@
         v-if="!disableSpinButton"
         v-bind="toolbarButtonProps"
         @click="handleClickSpin"
+        :disabled="isSpinning"
         title="Toggle spinning structure"
     >
         <v-icon v-bind="toolbarIconProps">{{ $MDI.AxisZRotateCounterclockwise }}</v-icon>
@@ -89,6 +90,7 @@ export default {
         showTarget: { type: Number, default: 0 },
         showArrows: { type: Boolean, default: false },
         isFullscreen: { type: Boolean, default: false },
+        isSpinning: { type: Boolean, default: true },
         disablePDBButton: { type: Boolean, default: false },
         disableSpinButton: { type: Boolean, default: false },
         disableImageButton: { type: Boolean, default: false },

@@ -1,12 +1,12 @@
 <template>
-<div class="msa-wrapper">
+<div class="msa-wrapper" ref="msaWrapper">
     <div class="msa-block" v-for="([start, end], i) in blockRanges">
         <!-- <SequenceLogo
             :sequences="getEntryRanges(start, end, makeGradients=false)"
             :alphabet="alphabet"
             :lineLen="lineLen"
         /> -->
-        <div class="msa-row" v-for="({name, aa, ss, css}, j) in getEntryRanges(start, end)">
+        <div class="msa-row" v-for="({name, aa, ss, seqStart, css}, j) in getEntryRanges(start, end)">
             <span
                 class="header"
                 :style="headerStyle(j)"
@@ -15,7 +15,7 @@
             <div class="sequence-wrapper">
                 <span class="sequence" :style="css">{{ alphabet === 'aa' ? aa : ss }}</span>
             </div>
-            <span class="count"   >{{ countSequence(i, aa, start, end).toString().padStart(countLen, '&nbsp')  }}</span>
+            <span class="count">{{ countSequence(aa, seqStart).toString().padStart(countLen, '&nbsp')  }}</span>
         </div>
     </div>
 </div>
@@ -25,6 +25,58 @@
 import SequenceLogo from './SequenceLogo.vue';
 import { debounce } from './Utilities.js';
 
+const colorsAa = {
+    "A": "#80A0F0FF",
+    "R": "#F01505FF",
+    "N": "#00FF00FF",
+    "D": "#C048C0FF",
+    "C": "#F08080FF",
+    "Q": "#00FF00FF",
+    "E": "#C048C0FF",
+    "G": "#F09048FF",
+    "H": "#15A4A4FF",
+    "I": "#80A0F0FF",
+    "L": "#80A0F0FF",
+    "K": "#F01505FF",
+    "M": "#80A0F0FF",
+    "F": "#80A0F0FF",
+    "P": "#FFD700FF",
+    "S": "#00FF00FF",
+    "T": "#00FF00FF",
+    "W": "#80A0F0FF",
+    "Y": "#15A4A4FF",
+    "V": "#80A0F0FF",
+    "B": "#FFFFFFFF",
+    "X": "#FFFFFFFF",
+    "Z": "#FFFFFFFF",
+    "-": "#ffffff"
+}
+
+const colors3di = {
+    "A": "#df9a8c",
+    "C": "#fb72c5",
+    "D": "#b4a3d8",
+    "E": "#ff5701",
+    "F": "#d99e81",
+    "G": "#7491c5",
+    "H": "#94abe1",
+    "I": "#609d7b",
+    "K": "#d7a304",
+    "L": "#fe4c8b",
+    "M": "#12a564",
+    "N": "#d570fd",
+    "P": "#cb99c4",
+    "Q": "#da8e99",
+    "R": "#9487d0",
+    "S": "#e842fe",
+    "T": "#42a299",
+    "V": "#fb7edd",
+    "W": "#d1a368",
+    "Y": "#17a8fd",
+    "X": "#c0c0c0",
+    "-": "#ffffff"
+}
+
 export default {
     components: { SequenceLogo, SequenceLogo },
     data() {
@@ -33,6 +85,7 @@ export default {
             lineLen: 80,
             headerLen: null,
             countLen: null,
+            resizeObserver: null
         }
     },
     props: {
@@ -42,10 +95,11 @@ export default {
         alnLen: Number,
         alphabet: String,
         selectedStructures: { type: Array, required: false },
-        referenceStructure: { type: Number }
+        referenceStructure: { type: Number },
+        colorScheme: { type: String, default: 'lddt' }
     },
     mounted() {
-        window.addEventListener('resize', debounce(this.handleResize, 100));
+        this.resizeObserver = new ResizeObserver(debounce(this.handleResize, 100)).observe(this.$refs.msaWrapper);
         this.handleUpdateEntries();
         this.handleResize();
         this.emitGradients();
@@ -55,7 +109,7 @@ export default {
         this.emitGradients();
     },
     beforeDestroy() {
-        window.removeEventListener('resize', this.handleResize);
+        this.resizeObserver.disconnect();
     },
     watch: {
         entries: function() {
@@ -112,14 +166,14 @@ export default {
                 color: isReference
                     ? '#1E88E5'
                     : (isSelected
-                        ? this.$vuetify.theme.dark ? 'lightBlue' : '#e6ac00'
+                        ? '#e6ac00'
                         : this.$vuetify.theme.dark ? 'rgba(180, 180, 180, 1)' : 'black'),
             }
         },
         handleUpdateEntries() {
             this.headerLen = 0;
             this.countLen = 0;
-            this.entries.forEach(e => {
+            this.entries.forEach((e, i) => {
                 this.headerLen = Math.max(this.headerLen, e.name.length);
                 let count = 0;
                 for (const char of e.aa) {
@@ -166,42 +220,53 @@ export default {
             let result = {
                 name: entry.name,
                 aa: entry.aa.slice(start, end),
-                ss: entry.ss.slice(start, end)
+                ss: entry.ss.slice(start, end),
+                seqStart: 0
             };
-            if (makeGradients)
-                result.css = this.generateCSSGradient(start, end, result.aa);
+            for (let i = 0; i < start; i++) {
+                if (entry.aa[i] === '-') continue;
+                result.seqStart++;
+            }
+            if (makeGradients) {
+                result.css = this.generateCSSGradient(start, end, result.ss);
+            }
             return result;
         },
         getEntryRanges(start, end, makeGradients=true) {
             return Array.from(this.entries, entry => this.getEntryRange(entry, start, end, makeGradients));
         },
-        countSequence(blockIndex, sequence) {
+        countSequence(sequence, start) {
             let gaps = sequence.split('-').length - 1;
-            return blockIndex * this.lineLen + this.lineLen - gaps;
+            return start + this.lineLen - gaps;
         },
         generateCSSGradient(start, end, sequence) {
             if (!this.scores) {
                 return null;
             }
-            const colours = this.scores
-                .slice(start, end)
-                .map(score => this.percentageToColor(parseFloat(score)));;
-            
+            let colors = [];
+            if (this.colorScheme === '3di') {
+                for (const residue of sequence) {
+                    colors.push(colors3di[residue]); 
+                }
+            } else {
+                colors = this.scores
+                    .slice(start, end)
+                    .map(score => this.percentageToColor(parseFloat(score)));
+            }
             for (let i = 0; i < sequence.length; i++) {
                 if (sequence[i] === '-') {
-                    colours[i] = this.$vuetify.theme.dark ? "rgba(100, 100, 100, 0.4)" : "rgba(0, 0, 0, 0)";
-                    // colours[i] = "rgba(0, 0, 0, 0)";
+                    colors[i] = this.$vuetify.theme.dark ? "rgba(100, 100, 100, 0.4)" : "rgba(0, 0, 0, 0)";
                 }
             }
-
-            const step = 100 / colours.length;
+            
+            const step = 100 / colors.length;
             let gradient = 'linear-gradient(to right';
             
             let preStep = 0;
             let curStep = step;
-            for (let i = 0; i < colours.length; i++) {
-                curStep = (i === colours.length - 1) ? 100 : preStep + step;
-                gradient += `, ${colours[i]} ${preStep}%, ${colours[i]} ${curStep}%`;
+            for (let i = 0; i < colors.length; i++) {
+                curStep = (i === colors.length - 1) ? 100 : preStep + step;
+                gradient += `, ${colors[i]} ${preStep}%, ${colors[i]} ${curStep}%`;
                 preStep = curStep;
             }
             gradient += ')';
@@ -215,7 +280,6 @@ export default {
                 backgroundClip: this.backgroundClip,
                 color: this.sequenceColor,
                 fontWeight: this.fontWeight,
-                
             };
         }
     },
@@ -229,15 +293,15 @@ export default {
     flex-direction: column;
     font-family: monospace;
     white-space: nowrap;
-    line-height: 1.2em;
+    /* line-height: 1.2em; */
 }
 .msa-block {
-    margin-bottom: 1em;
+    margin-bottom: 1.5em;
 }
 .msa-block:last-child {
     margin-bottom: 0;
 }
-.msa-block .sequence {
+.msa-block .sequence, .msa-block .sequence-ss {
     display: inline-block;
     padding: 0px;
     margin: 0px;
@@ -254,21 +318,31 @@ export default {
     margin: 0;
     display: flex;
     justify-content: space-between;
-    align-items: center;
     gap: 16px;
+    line-height: 1em;
 }
 .header, .count {
-    flex: 0 0 auto;
+    flex-shrink: 0;
+    flex-grow: 0;
     white-space: nowrap;
 }
 .sequence-wrapper {
-    width: 100%;
-    flex: grow;
     overflow: hidden;
     align-content: left;
+    align-items: center;
+    display: flex;
+    flex-grow: 1;
+    text-align: left;
 }
 .sequence {
     margin-left: auto;
+    margin: 0;
+    padding: 0;
+    line-height: 1em;
+}
+.msa-block .sequence-ss::selection {
+  background: rgba(100, 100, 255, 1);
+  color: white;
 }
 .header:hover {
     cursor: pointer;

@@ -4,6 +4,7 @@
     <div class="structure-wrapper" ref="structurepanel">
         <StructureViewerToolbar
             :isFullscreen="isFullscreen"
+            :isSpinning="isSpinning"
             @makeImage="handleMakeImage"
             @makePDB="handleMakePDB"
             @resetView="handleResetView"

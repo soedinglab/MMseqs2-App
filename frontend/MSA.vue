@@ -1,65 +1,46 @@
 <template>
 <div>
     <v-container fluid pa-2 style="overflow: visible; height: 100%;">
-        <v-row style="height: 400px;">
-            <v-col fill-height>
+        <v-row>
+            <v-col class="flex-col">
                 <v-card style="height: 100%">
-                    <v-card-title>Settings</v-card-title>
+                    <v-card-title>Summary</v-card-title>
                     <v-card-text>
                         <v-simple-table style="height: 100%;" id="settings" class="settings auto-height-table">
                             <tbody>
-                                <tr>
-                                    <td style="width: 50%; vertical-align: middle;">Display alphabet</td>
-                                    <td style="width: 0px;" class="settings-td">
-                                        <v-select
-                                            v-model="alphabet"
-                                            :items="alphabetOptions"
-                                            default="aa"
-                                            hide-details
-                                            single-line
-                                            outlined
-                                            dense
-                                            style="max-width: 200px; max-height: 40px; line-height: 40px; border: none;"
-                                        />
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="width: 50%;">Non-gap ratio</td>
-                                    <td style="width: 200px;" class="settings-td">
-                                        <v-text-field
-                                            v-model="matchRatio"
-                                            label="0"
-                                            default="0"
-                                            type="number"
-                                            min="0"
-                                            max="1"
-                                            step="0.01"
-                                            single-line
-                                            hide-details
-                                            outlined
-                                            dense
-                                            style="max-width: 200px; max-height: 40px; line-height: 40px; border: none;"
-                                        />
-                                    </td>
-                                </tr>
-                                <tr v-if="statistics.db">
+                                <tr v-if="statistics.hasOwnProperty('db')">
                                     <td>Database</td>
                                     <td id="msa-database">{{ statistics.db }}</td>
                                 </tr>
-                                <tr v-if="statistics.msaFile">
+                                <tr v-if="statistics.hasOwnProperty('msaFile')">
                                     <td>MSA file</td>
                                     <td id="msa-file">{{ statistics.msaFile }}</td>
                                 </tr>
-                                <tr v-if="statistics.msaLDDT">
+                                <tr v-if="statistics.hasOwnProperty('msaLDDT')">
                                     <td>MSA LDDT</td>
-                                    <td id="msa-lddt">{{ statistics.msaLDDT }}</td>
+                                    <td id="msa-lddt">{{ statistics.msaLDDT.toFixed(3) }}</td>
+                                </tr>
+                                <tr v-if="statistics.hasOwnProperty('cmdString')">
+                                    <td>Command</td>
+                                    <td id="msa-cmd">{{ statistics.cmdString }}</td>
                                 </tr>
                             </tbody>
                         </v-simple-table>
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col>
+            <v-col class="flex-col" v-if="tree">
+                <v-card class="fill-height" style="position: relative;">
+                    <v-card-title style="position: absolute; left: 0; top: 0; margin: 0; padding: 16px; z-index: 1;">Guide Tree</v-card-title>
+                    <Tree
+                        :newick="tree"
+                        :order="entries.map(e => e.name)"
+                        :selection="structureViewerEntries.map(e => e.name)"
+                        :reference="structureViewerReference"
+                    />
+                </v-card>
+            </v-col>
+            <v-col class="flex-col">
                 <v-card class="fill-height" style="position: relative;">
                     <v-card-title style="position: absolute; left: 0; top: 0; margin: 0; padding: 16px; z-index: 1;">Structure</v-card-title>
                     <div v-if="structureViewerSelection" style="padding: 10px; height: 100%; width: 100%;">
@@ -76,22 +57,75 @@
             </v-col>
         </v-row>
         <v-card class="minimap fill-height">
-            <v-row dense v-if="cssGradients">
-                <v-col
-                    v-for="(block, i) in cssGradients"
-                    :key="'col-' + i"
-                    class="gradient-block-col"
-                    :style="minimapBlock(i)"
-                    @click="handleMapBlockClick(i)"
-                >
-                    <div>
-                        <div
-                            v-for="(gradient, j) in block"
-                            :key="'gradient-' + j"
-                            class="gradient-block"
-                        >
-                            <div :style="{ width: '100%', height: '3px', 'background-image': gradient }"></div>
-                        </div>                           
+            <v-row dense v-if="cssGradients" style="align-items: center;">
+                <v-col align="center" no-gutters style="max-width: fit-content; margin-right: 4px; position: relative;">
+                    <div style="display: flex; flex-direction: row;">
+                        <div class="input-div-wrapper expansion-panel" :class="{ 'is-expanded': settingsPanelOpen }">
+                            <div class="input-div">
+                                <label
+                                    title="Toggle between AA and 3Di alphabets"
+                                    class="input-label"
+                                >Alphabet</label>
+                                <v-btn-toggle dense mandatory color="primary" v-model="alphabet">
+                                    <v-btn x-small value="aa" style="width: 40px;">AA</v-btn>
+                                    <v-btn x-small value="ss" style="width: 40px;">3Di</v-btn>
+                                </v-btn-toggle>
+                            </div>
+                            <div class="input-div">
+                                <label
+                                    title="Hide columns with percentage of gaps above this cutoff"
+                                    class="input-label"
+                                >Gaps</label>
+                                <v-text-field
+                                    v-model="matchRatio"
+                                    label="0.0"
+                                    default="0.00"
+                                    type="number"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    single-line
+                                    hide-details
+                                    solo
+                                    flat
+                                    dense
+                                    style="max-width: 80px; max-height: 20px;"
+                                />                       
+                            </div>
+                            <div class="input-div">
+                                <label
+                                    title="Toggle between per-column LDDT and 3Di score matrix-based colorschemes"
+                                    class="input-label"
+                                >Colours</label>
+                                <v-btn-toggle dense mandatory color="primary" v-model="colorScheme">
+                                    <v-btn x-small value="lddt" style="width: 40px;">LDDT</v-btn>
+                                    <v-btn x-small value="3di"  style="width: 40px;">3Di</v-btn>
+                                </v-btn-toggle>
+                            </div>
+                        </div>
+                        <div style="position: relative; display: flex; justify-content: center; align-items: center; width: fit-content; height: 80px;">
+                            <v-btn class="toggle-button" @click="toggleSettingsPanel" small icon title="Toggle MSA viewing options">
+                                <v-icon>{{ settingsBtnIcon }}</v-icon>
+                            </v-btn>
+                        </div>
+                    </div>
+                </v-col>
+                <v-col style="display: flex; flex-direction: row; height: 100%; width: 100%; padding: 0; margin: 0;">
+                    <div
+                        v-for="(block, i) in cssGradients"
+                        :key="'col-' + i"
+                        class="gradient-block-col"
+                        :style="minimapBlock(i)"
+                        @click="handleMapBlockClick(i)"
+                    >
+                        <div class="gradient-block">
+                            <div
+                                v-for="(gradient, j) in block"
+                                :key="'gradient-' + j"
+                                class="gradient-row"
+                                :style="{ 'background-image': gradient }"
+                            />
+                        </div>
                     </div>
                 </v-col>
             </v-row>
@@ -102,6 +136,7 @@
                 :scores="msaViewScores"
                 :alnLen="alnLen"
                 :alphabet="alphabet"
+                :colorScheme="colorScheme"
                 :selectedStructures="structureViewerSelection"
                 :referenceStructure="structureViewerReference"
                 :matchRatio="parseFloat(matchRatio)"
@@ -120,7 +155,9 @@
 import MSAView from './MSAView.vue';
 import StructureViewer from './StructureViewer.vue';
 import StructureViewerMSA from './StructureViewerMSA.vue';
+import Tree from './Tree.vue';
 import { debounce, makePositionMap } from './Utilities.js'
+import MDI from './MDI.js';
 
 function makeMatchRatioMask(entries, ratio) {
     const columnLength = entries[0].aa.length;
@@ -184,11 +221,13 @@ export default {
         MSAView,
         StructureViewer,
         StructureViewerMSA,
+        Tree
     },
     props: {
         entries: [],
         scores: [],
         statistics: {},
+        tree: ""
     },
     data() {
         return {
@@ -199,27 +238,19 @@ export default {
             gradientRatio: null,
             blockIndex: 0,
             alphabet: 'aa',
-            alphabetOptions: [
-                { text: 'Amino Acids', value: 'aa' },
-                { text: '3D Interactions (3Di)', value: 'ss' }
-            ],
+            colorScheme: 'lddt',
             matchRatio: 0.0,
             structureViewerSelection: [],
             structureViewerReference: 0,
-            isLoadingStructure: false
+            isLoadingStructure: false,
+            numMinimapGradients: 30,
+            settingsPanelOpen: true,
         }
     },    
     watch: {
-        // TODO might need when parsing from convertalis
-        // scores: function() {
-        //     this.scores = new Array(this.alnLen).fill(-1);
-        //     for (const [idx, score] of raw.scores) {
-        //         this.scores[idx] = score;
-        //     }
-        // }
         matchRatio: debounce(function() {
             this.handleUpdateMatchRatio();
-        }, 200)
+        }, 400)
     },
     beforeMount() {
         this.handleUpdateMatchRatio();
@@ -264,9 +295,15 @@ export default {
         },
         msaViewScores() {
             return this.scores.filter((_, index) => this.mask[index] === 1);
+        },
+        settingsBtnIcon() {
+            return this.settingsPanelOpen ? MDI.ChevronLeft : MDI.ChevronRight;
         }
     },
     methods: {
+        toggleSettingsPanel() {
+            this.settingsPanelOpen = !this.settingsPanelOpen;
+        },
         handleUpdateMatchRatio: function() {
             if (this.matchRatio === 0.0) {
                 this.mask = new Array(this.entries[0].aa.length).fill(1);
@@ -275,7 +312,6 @@ export default {
             }
         },
         handleStructureLoadingChange(isLoading) {
-            console.log('loading state change', isLoading)
             this.isLoadingStructure = isLoading;
         },
         handleNewStructureViewerReference(entryIndex) {
@@ -339,7 +375,6 @@ export default {
             const top = document.querySelector('.minimap').offsetHeight + 60;  // app-bar + minimap
             const box = this.$refs.msaView.$el.children[index].getBoundingClientRect();
             window.scrollTo({ behavior: 'smooth', top: box.top + window.scrollY - top });
-
         },
         handleAlphabetChange(event) {
             this.alphabet = event.target.value;
@@ -361,9 +396,9 @@ export default {
             const box = this.$refs.msaView.$el.getBoundingClientRect()
             const numBlocks = Math.ceil(this.alnLen / this.lineLen);
             const blockSize = box.height / numBlocks;
-            const top = window.scrollY + box.top;  // top of the msa
+            const top = window.scrollY + box.top;  // top of the msa relative to entire document
             const bot = top + box.height;          // bottom
-            let scroll = top + window.scrollY;     // current scroll pos, relative to msaview offset
+            let scroll = window.scrollY + 180;     // current scroll pos + minimap height
             if (scroll < top) {
                 this.blockIndex = 0;
             } else if (scroll > bot) {
@@ -376,16 +411,15 @@ export default {
             this.lineLen = lineLen;
         },
         handleCSSGradient(gradients) {
-            const maxSize = 25;
             const numBlocks = Math.ceil(this.alnLen / this.lineLen);
             const blockSize = gradients.length / numBlocks;
 
-            // Organise into blocks. Subsetted to maxSize for large MSAs
+            // Organise into blocks. Subsetted to numMinimapGradients for large MSAs
             // Use a step to ensure coverage over entire MSA.
             this.cssGradients = Array.from({ length: numBlocks }, () => []);
-            const step = Math.max(Math.floor(blockSize / maxSize), 1);
+            const step = Math.max(Math.floor(blockSize / this.numMinimapGradients), 1);
             for (let i = 0; i < numBlocks; i++) {
-                for (let j = 0; j < Math.max(blockSize, maxSize); j += step) {
+                for (let j = 0; j < Math.max(blockSize, this.numMinimapGradients); j += step) {
                     this.cssGradients[i].push(gradients[j + i * blockSize]);
                 }
             }
@@ -408,14 +442,22 @@ export default {
     border: 1px solid grey; 
 }
 .gradient-block-col:not(:last-child) {
-    margin-right: -1px;
+    height: 80px;
+}
+.gradient-block {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+.gradient-row {
+    flex: 1;
 }
 .minimap {
     position: sticky;
     top: 48px;
     padding: 16px;
     margin-top: 1em;
-    margin-bottom: 1em;
+    margin-bottom: 2px;
     height: fit-content;
     z-index: 1;
 }
@@ -433,11 +475,81 @@ export default {
     background-color: var(--bg-color-hover);
     cursor: pointer;
 }
-.settings-td {
-    text-align: right;
-    vertical-align: middle;
+.input-label {
+    margin: 0 8px 0 0 !important;
+}
+.input-btn {
+    height: 25px;
+}
+div.input-div-wrapper {
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+    height: 80px;
+    text-align: center;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 0;
+}
+div.input-div {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+}
+div.input-div .v-text-field {
+    min-height: 0 !important;
+    max-height: 20px;
+    max-width: 80px;
+    padding: 0 !important;
+}
+div.input-div .v-input__control, div.input-div .v-input__control * {
     padding: 0;
-    margin: 0;
-    height: 75px !important;
+    min-height: 0 !important;
+    max-height: 20px;
+}
+div.input-div .v-input__slot {
+    padding: 0 4px !important;
+}
+@media only screen and (min-width: 800px) {
+    .flex-col {
+        flex: 1 1 0px;
+        height: 500px;
+    }
+    .flex-col:nth-child(1) {
+        flex: 3;
+        padding-right: 6px;
+    }
+    .flex-col:nth-child(2),
+    .flex-col:nth-child(3) {
+        flex: 4.5;
+    }
+    .flex-col:nth-child(3) {
+        padding-left: 6px;
+    }
+}
+@media only screen and (max-width: 800px) {
+    .flex-col {
+        height: 400px;
+        flex-basis: 100%;
+        padding-bottom: 6px;
+        padding-top: 6px;
+    }
+    .flex-col:nth-child(1) {
+        height: 300px;
+    }
+}
+.expansion-panel {
+    /* transition: width 0.3s ease; */
+    overflow: hidden;
+    width: 100%;
+    position: relative;
+}
+.expansion-panel:not(.is-expanded) {
+    width: 0;
+}
+.toggle-button {
+    color: black;
+    z-index: 2;
 }
 </style>

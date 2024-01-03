@@ -55,6 +55,14 @@ function tryFixTargetName(target, db) {
     return target;
 }
 
+// Process e.g. AF-{uniprot ID}-F1_model_v4.cif.pdb.gz to just uniprot ID
+export function tryFixName(name) {
+    if (name.startsWith("AF-")) {
+        name = name.replaceAll(/(AF[-_]|[-_]F[0-9]+[-_]model[-_]v[0-9]+)/g, '')
+    }
+    return name.replaceAll(/\.(cif|pdb|gz)/g, '');
+}
+
 export function parseResults(data) {
     let empty = 0;
     let total = 0;

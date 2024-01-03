@@ -14,6 +14,7 @@
         </table>
         <StructureViewerToolbar
             :isFullscreen="isFullscreen"
+            :isSpinning="isSpinning"
             :showQuery="showQuery"
             :showTarget="showTarget"
             :showArrows="showArrows"
@@ -174,6 +175,9 @@ export default {
             repr.setVisibility(false)
         },
         setSelectionData(selection) {
+            // FIXME tube/cartoon representation cannot visualise <3 residues
+            //       https://github.com/nglviewer/ngl/issues/759
+            //       use licorice representation for this case? or just +1 to make 3
             if (!this.alignments || !this.stage) return;
             let repr = this.stage.getRepresentationsByName("targetHighlight");
             repr.setSelection()
