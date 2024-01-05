@@ -73,7 +73,8 @@ export default {
             download({
                 entries: this.entries,
                 scores: this.scores,
-                statistics: this.statistics
+                statistics: this.statistics,
+                tree: this.tree
             }, `FoldMason-${dateTime()}.json`);
         }
     }
