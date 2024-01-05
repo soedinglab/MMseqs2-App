@@ -238,7 +238,7 @@ ENDMDL
                 return;
             const { update, remove, add, reference } = generateSelections(newValues, oldValues, this.reference);
             const isReferenceEmpty = Object.keys(reference).length === 0;
-            const isNewReference = isReferenceEmpty || reference.status === 'new';  //reference.item.name !== this.oldReference;
+            const isNewReference = isReferenceEmpty || ['new', 'update'].includes(reference.status);  //reference.item.name !== this.oldReference;
             this.oldReference = isReferenceEmpty ? "" : reference.item.name;
 
             // Always deal with the reference structure first
