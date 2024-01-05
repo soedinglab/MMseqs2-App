@@ -109,7 +109,8 @@ export default {
         this.emitGradients();
     },
     beforeDestroy() {
-        this.resizeObserver.disconnect();
+        if (this.resizeObserver)
+            this.resizeObserver.disconnect();
     },
     watch: {
         entries: function() {
