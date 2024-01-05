@@ -417,10 +417,18 @@ export default {
             // Organise into blocks. Subsetted to numMinimapGradients for large MSAs
             // Use a step to ensure coverage over entire MSA.
             this.cssGradients = Array.from({ length: numBlocks }, () => []);
-            const step = Math.max(Math.floor(blockSize / this.numMinimapGradients), 1);
-            for (let i = 0; i < numBlocks; i++) {
-                for (let j = 0; j < Math.max(blockSize, this.numMinimapGradients); j += step) {
-                    this.cssGradients[i].push(gradients[j + i * blockSize]);
+            if (blockSize < this.numMinimapGradients) {
+                this.cssGradients.forEach((arr, i) => {
+                    let block = i * blockSize;
+                    let slice = gradients.slice(block, block + blockSize);
+                    arr.push(...slice);
+                });
+            } else {
+                const step = (blockSize - 1) / (this.numMinimapGradients - 1);
+                for (let i = 0; i < numBlocks; i++) {
+                    for (let j = 0; j < this.numMinimapGradients; j++) {
+                        this.cssGradients[i].push(gradients[Math.round(j * step) + i * blockSize]);
+                    }
                 }
             }
 
