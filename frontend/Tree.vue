@@ -124,7 +124,7 @@ export default {
         selection: { type: Array },
         reference: { type: Number },
         order: { type: Array },
-        leafSpacing: { type: Number, default: 16 },
+        leafSpacing: { type: Number, default: 20 },
         fontNormal: { type: String, default: "normal 12px sans-serif" },
         fontSelected: { type: String, default: "normal 600 12px sans-serif" },
         referenceColor: { type: String, default: "#1E88E5" },
