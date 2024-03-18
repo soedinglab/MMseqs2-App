@@ -1,7 +1,7 @@
 function tryLinkTargetToDB(target, db) {
     var res = db.toLowerCase();
     if (res.startsWith("pfam")) {
-        return 'https://pfam.xfam.org/family/' + target;
+        return 'https://www.ebi.ac.uk/interpro/entry/pfam/' + target;
     } else if (res.startsWith("pdb")) {
         return 'https://www.rcsb.org/pdb/explore.do?structureId=' + target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '').split('_')[0];
     } else if (res.startsWith("uniclust") || res.startsWith("uniprot") || res.startsWith("sprot") || res.startsWith("swissprot")) {
