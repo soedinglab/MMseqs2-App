@@ -75,8 +75,21 @@ const getMatchingColumns = (alignment) => {
 
 // Get chain from structure name like Structure_A
 const getChainName = (name) => {
+    // HACK FIXME fix AF chain names
+    if (/_v[0-9]+$/.test(name)) {
+        return 'A';
+    }
     let pos = name.lastIndexOf('_');
     return pos != -1 ? name.substring(pos + 1) : 'A';
+}
+
+const getAccession = (name) => {
+    // HACK FIXME fix AF chain names
+    if (/_v[0-9]+$/.test(name)) {
+        return name;
+    }
+    let pos = name.lastIndexOf('_');
+    return pos != -1 ? name.substring(0, pos) : name;
 }
 
 // Get coordinates of all atoms found in given selection
@@ -363,8 +376,7 @@ END
         const selections_t = [];
         let renumber = 0;
         for (let alignment of this.alignments) {
-            const chainPos = alignment.target.lastIndexOf('_');
-            const chain = chainPos != -1 ? alignment.target.substring(chainPos + 1) : 'A';
+            const chain = getChainName(alignment.target);
             const mock = mockPDB(alignment.tCa, alignment.tSeq, chain);
             const pdb = await pulchra(mock);
             const component = await this.stage.loadFile(new Blob([pdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
@@ -373,7 +385,7 @@ END
             targets.push(component);
             selections_t.push(`${alignment.dbStartPos}-${alignment.dbEndPos}:${chain}`);
         }
-        const structure = concatStructures(this.alignments[0].target.split('_')[0], ...targets.map(t => t.structure));
+        const structure = concatStructures(getAccession(this.alignments[0].target), ...targets.map(t => t.structure));
         const target = this.stage.addComponentFromObject(structure, { name: "targetStructure" });
         
         target.addRepresentation('tube', {
@@ -413,8 +425,7 @@ END
             // Use queryChainSele to make all selections based on actual query chain
             const selections_q = [];
             for (let alignment of this.alignments) {
-                const chainPos = alignment.query.lastIndexOf('_');
-                const chain = chainPos != -1 ? alignment.query.substring(chainPos + 1) : 'A';
+                const chain = getChainName(alignment.query);
 
                 selections_q.push(`${alignment.qStartPos}-${alignment.qEndPos} and :${chain}`);
 
