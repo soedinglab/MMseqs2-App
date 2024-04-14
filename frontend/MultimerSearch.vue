@@ -184,7 +184,7 @@ export default {
     computed: {
         searchDisabled() {
             return (
-                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0 || this.predictable
+                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0 || this.predictable || !this.isMultimer
             );
         },
         preloadSource() {
