@@ -38,6 +38,7 @@ const StorageWrapper = (prefix) => {
         removeItem(key) {
             storage.removeItem(`${prefix}.${key}`);
         },
+        baseStorage: storage,
         clear() {
             let keys = Object.keys(storage);
             for (let key of keys) {

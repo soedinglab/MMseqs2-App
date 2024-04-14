@@ -311,3 +311,44 @@ export function animateMatrix(structure, newMatrix, duration) {
     }
     window.requestAnimationFrame(animate);
 }
+
+export function checkMultimer(pdbString) {
+    const lines = pdbString.split('\n');
+    let currentModel = null;
+    const models = {};
+    const chainSet = new Set();
+
+    lines.forEach(line => {
+        const recordType = line.substring(0, 6).trim();
+
+        if (recordType === 'MODEL') {
+            currentModel = line.substring(10, 14).trim();
+            models[currentModel] = new Set();
+        } else if (recordType === 'ATOM') {
+            const chainId = line.substring(21, 22);
+            if (currentModel) {
+                models[currentModel].add(chainId);
+            } else {
+                // This handles the case when there is no explicit MODEL line (single model)
+                chainSet.add(chainId);
+            }
+        } else if (recordType === 'ENDMDL') {
+            currentModel = null;
+        }
+    });
+
+    // If no MODEL record is found, it is a single model PDB
+    if (Object.keys(models).length === 0) {
+        models['single model'] = chainSet;
+    }
+
+    // const results = [];
+    for (let model in models) {
+        if (models[model].size > 1) {
+            return true;
+        }
+        // results.push({ model: model, isComplex: models[model].size > 1, chains: Array.from(models[model]) });
+    }
+
+    return false;
+}

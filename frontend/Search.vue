@@ -95,7 +95,10 @@
         <panel>
         <template slot="content">
             <div class="actions" :style="!$vuetify.breakpoint.xsOnly ?'display:flex; align-items: center;' : null">
-            <v-btn color="primary" :block="$vuetify.breakpoint.xsOnly" x-large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Search</v-btn>
+            <v-item-group class="v-btn-toggle">
+                <v-btn color="primary" :block="false" x-large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Search</v-btn>
+                <v-btn v-if="isMultimer" color="secondary" :block="false" x-large v-on:click="goToMultimer"><v-icon>{{ $MDI.LayersSearchOutline }}</v-icon>&nbsp;Go to Multimer</v-btn>
+            </v-item-group>
             <div :style="!$vuetify.breakpoint.xsOnly ? 'margin-left: 1em;' : 'margin-top: 1em;'">
                 <span><strong>Summary</strong></span><br>
                 Search <template v-if="taxFilter">
@@ -136,7 +139,7 @@ import LoadAcessionButton from './LoadAcessionButton.vue';
 import Reference from "./Reference.vue";
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
-import { djb2, parseResultsList } from './Utilities.js';
+import { djb2, parseResultsList, checkMultimer } from './Utilities.js';
 import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import ApiDialog from './ApiDialog.vue';
 import { storage, HistoryMixin } from './lib/HistoryMixin.js';
@@ -200,6 +203,9 @@ export default {
         },
         preloadAccession() {
             return this.$route.query.accession || "";
+        },
+        isMultimer() {
+            return checkMultimer(this.query);
         }
     },
     watch: {
@@ -306,6 +312,10 @@ export default {
             );
             fr.readAsText(file)
         },
+        goToMultimer() {
+            storage.setItem('complex.query', this.query);
+            this.$router.push({ name: 'multimer'});
+        }
     }
 };
 </script>
