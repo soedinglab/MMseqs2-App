@@ -97,7 +97,7 @@
             <div class="actions" :style="!$vuetify.breakpoint.xsOnly ?'display:flex; align-items: center;' : null">
             <v-item-group class="v-btn-toggle">
                 <v-btn color="primary" :block="false" x-large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Search</v-btn>
-                <v-btn v-if="isMultimer" color="secondary" :block="false" x-large v-on:click="goToMultimer"><v-icon>{{ $MDI.LayersSearchOutline }}</v-icon>&nbsp;Go to Multimer</v-btn>
+                <v-btn v-if="isMultimer" color="secondary" :block="false" x-large v-on:click="goToMultimer"><v-icon>{{ $MDI.Multimer }}</v-icon>&nbsp;Go to Multimer</v-btn>
             </v-item-group>
             <div :style="!$vuetify.breakpoint.xsOnly ? 'margin-left: 1em;' : 'margin-top: 1em;'">
                 <span><strong>Summary</strong></span><br>
@@ -205,6 +205,9 @@ export default {
             return this.$route.query.accession || "";
         },
         isMultimer() {
+            if (__APP__ != "foldseek") {
+                return false;
+            }
             return checkMultimer(this.query);
         }
     },

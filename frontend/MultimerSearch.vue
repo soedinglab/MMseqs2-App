@@ -88,8 +88,8 @@
             <template slot="content">
                 <div class="actions" :style="!$vuetify.breakpoint.xsOnly ?'display:flex; align-items: center;' : null">
                 <v-item-group class="v-btn-toggle">
-                    <v-btn color="primary" :block="false" x-large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.LayersSearchOutline }}</v-icon>&nbsp;Search</v-btn>
-                    <v-btn v-if="!isMultimer" color="secondary" :block="false" x-large v-on:click="goToMonomer"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Go to Monomer</v-btn>
+                    <v-btn color="primary" :block="false" x-large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Search</v-btn>
+                    <v-btn v-if="!isMultimer && query != ''" color="secondary" :block="false" x-large v-on:click="goToMonomer"><v-icon>{{ $MDI.Monomer }}</v-icon>&nbsp;Go to Monomer</v-btn>
                 </v-item-group>
                 <div :style="!$vuetify.breakpoint.xsOnly ? 'margin-left: 1em;' : 'margin-top: 1em;'">
                     <span><strong>Summary</strong></span><br>
