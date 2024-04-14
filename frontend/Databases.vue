@@ -52,6 +52,10 @@ export default {
         hideEmail: {
             type: Boolean,
             default: false
+        },
+        multimerOnly: {
+            type: Boolean,
+            default: false
         }
     },
     data() {
@@ -89,6 +93,10 @@ export default {
                 this.dbqueried = true;
                 this.dberror = false;
                 this.availableDatabases = response.data.databases;
+
+                if (this.multimerOnly) {
+                    this.availableDatabases = this.availableDatabases.filter(db => db.complex);
+                }
 
                 const complete = this.availableDatabases.filter(db => db.status === "COMPLETE");
                 if (this.selectedDatabases.length === 0) {
