@@ -23,6 +23,7 @@ const (
 	JobMsa             JobType = "msa"
 	JobPair            JobType = "pair"
 	JobStructureSearch JobType = "structuresearch"
+	JobComplexSearch   JobType = "complexsearch"
 )
 
 type JobRequest struct {
@@ -54,6 +55,13 @@ func (m *JobRequest) UnmarshalJSON(b []byte) error {
 		return nil
 	case JobStructureSearch:
 		var j StructureSearchJob
+		if err := json.Unmarshal(msg, &j); err != nil {
+			return err
+		}
+		(*m).Job = j
+		return nil
+	case JobComplexSearch:
+		var j ComplexSearchJob
 		if err := json.Unmarshal(msg, &j); err != nil {
 			return err
 		}
@@ -94,6 +102,11 @@ func (m *JobRequest) WriteSupportFiles(base string) error {
 		return errors.New("invalid job type")
 	case JobStructureSearch:
 		if j, ok := m.Job.(StructureSearchJob); ok {
+			return j.WritePDB(filepath.Join(base, "job.pdb"))
+		}
+		return errors.New("invalid job type")
+	case JobComplexSearch:
+		if j, ok := m.Job.(ComplexSearchJob); ok {
 			return j.WritePDB(filepath.Join(base, "job.pdb"))
 		}
 		return errors.New("invalid job type")

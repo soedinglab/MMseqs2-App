@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-type StructureSearchJob struct {
+type ComplexSearchJob struct {
 	Size      int      `json:"size" validate:"required"`
 	Database  []string `json:"database" validate:"required"`
 	Mode      string   `json:"mode" validate:"oneof=3di tmalign 3diaa"`
@@ -17,9 +17,9 @@ type StructureSearchJob struct {
 	query     string
 }
 
-func (r StructureSearchJob) Hash() Id {
+func (r ComplexSearchJob) Hash() Id {
 	h := sha256.New224()
-	h.Write(([]byte)(JobStructureSearch))
+	h.Write(([]byte)(JobComplexSearch))
 	h.Write([]byte(r.query))
 	h.Write([]byte(r.Mode))
 	if r.TaxFilter != "" {
@@ -36,11 +36,11 @@ func (r StructureSearchJob) Hash() Id {
 	return Id(base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(bs))
 }
 
-func (r StructureSearchJob) Rank() float64 {
+func (r ComplexSearchJob) Rank() float64 {
 	return float64(r.Size * max(len(r.Database), 1))
 }
 
-func (r StructureSearchJob) WritePDB(path string) error {
+func (r ComplexSearchJob) WritePDB(path string) error {
 	err := os.WriteFile(path, []byte(r.query), 0644)
 	if err != nil {
 		return err
@@ -48,8 +48,8 @@ func (r StructureSearchJob) WritePDB(path string) error {
 	return nil
 }
 
-func NewStructureSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, taxfilter string) (JobRequest, error) {
-	job := StructureSearchJob{
+func NewComplexSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, taxfilter string) (JobRequest, error) {
+	job := ComplexSearchJob{
 		max(strings.Count(query, "HEADER"), 1),
 		dbs,
 		mode,
@@ -60,14 +60,16 @@ func NewStructureSearchJobRequest(query string, dbs []string, validDbs []Params,
 	request := JobRequest{
 		job.Hash(),
 		StatusPending,
-		JobStructureSearch,
+		JobComplexSearch,
 		job,
 		email,
 	}
 
-	ids := make([]string, len(validDbs))
-	for i, item := range validDbs {
-		ids[i] = item.Path
+	ids := make([]string, 0)
+	for _, item := range validDbs {
+		if item.Complex {
+			ids = append(ids, item.Path)
+		}
 	}
 
 	for _, item := range job.Database {

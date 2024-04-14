@@ -20,8 +20,8 @@ if (typeof(frontendApp) == "undefined") {
     process.exit(1);
 }
 
-if (['mmseqs', 'foldseek'].includes(frontendApp) == false) {
-    console.error("FRONTEND_APP environment variable must be one of mmseqs|foldseek");
+if (['mmseqs', 'foldseek', 'foldmason'].includes(frontendApp) == false) {
+    console.error("FRONTEND_APP environment variable must be one of mmseqs|foldseek|foldmason");
     process.exit(1);
 }
 
@@ -30,6 +30,7 @@ const parsePo = require('./lib/po-reader');
 const appStrings = {
     mmseqs: parsePo(fs.readFileSync('./frontend/assets/mmseqs.en_US.po', { encoding: 'utf8', flag: 'r' })).translations,
     foldseek: parsePo(fs.readFileSync('./frontend/assets/foldseek.en_US.po', { encoding: 'utf8', flag: 'r' })).translations,
+    foldmason: parsePo(fs.readFileSync('./frontend/assets/foldmason.en_US.po', { encoding: 'utf8', flag: 'r' })).translations,
 };
 
 function NullPlugin() { }
@@ -191,6 +192,7 @@ module.exports = (env, argv) => {
                 enabled: isProduction && !isElectron,
                 hashFuncNames: ['sha256', 'sha384']
             }),
+            // !isElectron ? new CompressionPlugin({
             isProduction && !isElectron ? new CompressionPlugin({
                 test: /\.(js|html|css|svg|woff2?|map|ico|wasm)(\?.*)?$/i,
                 minRatio: 1,

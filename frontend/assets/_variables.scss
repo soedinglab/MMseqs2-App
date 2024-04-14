@@ -49,6 +49,7 @@ $utilities: (
 );
 
 @import '~vuetify/src/styles/styles.sass';
+@import '~vuetify/src/components/VBtnToggle/VBtnToggle.sass';
 
 // @each $name, $value in $utilities {
     // @debug $name ": " $value;

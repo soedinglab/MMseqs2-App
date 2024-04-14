@@ -16,7 +16,7 @@
             <v-spacer></v-spacer>
             <slot name="toolbar-extra"></slot>
         </v-toolbar>
-        <v-card rounded="0" :class="['panel', { 'd-flex' : flex }, { 'force-fill-height' : fillHeight }]" v-if="!isCollapsed" :id="uuid">
+        <v-card rounded="0" :class="['panel', { 'd-flex' : flex }, { 'force-fill-height' : fillHeight }]" :style="[{ 'display' : isCollapsed ? 'none !important' : null }]" v-if="!isCollapsed || renderCollapsed" :id="uuid">
             <v-card-text v-if="$slots['desc']" class="subheading justify">
                 <slot name="desc"></slot>
             </v-card-text>
@@ -37,7 +37,8 @@ export default {
         'collapsible' : { default: false, type: Boolean },
         'collapsed' : { default: false, type: Boolean },
         'flex' : { default: true, type: Boolean },
-        'elevation' : { default: null, type: Number }
+        'elevation' : { default: null, type: Number },
+        'renderCollapsed' : { default: false, type: Boolean },
     },
     data() {
         return {

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type LookupResult struct {
@@ -14,9 +15,10 @@ type LookupResult struct {
 type LookupResponse struct {
 	Lookup      []LookupResult `json:"lookup"`
 	HasNextPage bool           `json:"hasNext"`
+	GroupBySet  bool           `json:"groupBySet"`
 }
 
-func Lookup(ticketId Id, page uint64, limit uint64, basepath string) (LookupResponse, error) {
+func Lookup(ticketId Id, page uint64, limit uint64, basepath string, shouldGroup bool) (LookupResponse, error) {
 	result := filepath.Join(basepath, string(ticketId), "query.lookup")
 
 	file, err := os.Open(result)
@@ -24,6 +26,13 @@ func Lookup(ticketId Id, page uint64, limit uint64, basepath string) (LookupResp
 		return LookupResponse{}, err
 	}
 	defer file.Close()
+
+	request, err := getJobRequestFromFile(filepath.Join(basepath, string(ticketId), "job.json"))
+	if err != nil {
+		return LookupResponse{}, err
+	}
+
+	isComplex := request.Type == JobComplexSearch && shouldGroup
 
 	results := make([]LookupResult, 0)
 	res := LookupResult{}
@@ -56,5 +65,28 @@ func Lookup(ticketId Id, page uint64, limit uint64, basepath string) (LookupResp
 		results = append(results, res)
 	}
 
-	return LookupResponse{results, hasNextPage}, nil
+	if isComplex {
+		groupedResults := make(map[uint32]LookupResult)
+		for _, res := range results {
+			if _, exists := groupedResults[res.Set]; !exists {
+				// Find the last index of '_' and slice the string
+				lastIndex := strings.LastIndex(res.Name, "_")
+				if lastIndex != -1 {
+					res.Name = res.Name[:lastIndex]
+				}
+
+				groupedResults[res.Set] = res
+			}
+		}
+
+		// Convert the map to a slice
+		uniqueResults := make([]LookupResult, 0, len(groupedResults))
+		for _, res := range groupedResults {
+			uniqueResults = append(uniqueResults, res)
+		}
+
+		return LookupResponse{uniqueResults, hasNextPage, true}, nil
+	}
+
+	return LookupResponse{results, hasNextPage, false}, nil
 }

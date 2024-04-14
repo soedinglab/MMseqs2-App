@@ -66,11 +66,13 @@
                         v-if="hits.results.length > 1"
                     >
                         <v-tab>All databases</v-tab>
-                        <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments ? entry.alignments.length : 0 }})</v-tab>
+                        <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
                     </v-tabs>
                     <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
                     <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null }">
-                        <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;"><span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments ? entry.alignments.length : 0 }} hits</small></h2>
+                        <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;">
+                            <span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
+                        </h2>
                         <v-btn-toggle mandatory v-model="tableMode" class="ml-auto">
                             <v-btn>
                                 Graphical
@@ -83,10 +85,47 @@
                     </v-flex>
 
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
+                        <colgroup>
+                            <template v-if="isComplex">
+                            <col style="width: 6.5%;" />
+                            <col style="width: 6.5%;" />
+                            </template>
+                            <col style="width: 20%;" />
+                            <col v-if="entry.hasDescription" style="width: 30%;" />
+                            <col v-if="entry.hasTaxonomy" style="width: 20%;" />
+                            <col style="width: 6.5%;" />
+                            <col style="width: 6.5%;" />
+                            <col style="width: 8.5%;" />
+                            <template v-if="tableMode == 0">
+                                <col style="width: 26.5%;" />
+                            </template>
+                            <template v-else>
+                                <col style="width: 6.5%;" />
+                                <col style="width: 10%;" />
+                                <col style="width: 10%;" />
+                            </template>
+                            <col style="width: 10%;" />
+                        </colgroup>
                         <thead>
+                            <tr v-if="isComplex">
+                                <th colspan="2" style="text-align:center; width:10%; border-right: 1px solid #333; border-bottom: 1px solid #333;">Complex</th>
+                                <th :colspan="6 +  entry.hasDescription + entry.hasTaxonomy + ((tableMode == 1) ? 2 : 0)" style="text-align:center; border-bottom: 1px solid #333;">Chain</th>
+                            </tr>
                             <tr>
-                                <th :class="'wide-' + (3 - entry.hasDescription - entry.hasTaxonomy)">Target</th>
-                                <th class="wide-1" v-if="entry.hasDescription">
+                                <template v-if="isComplex">
+                                <!-- <th class="thin">ID</th> -->
+                                <th class="thin">qTM</th>
+                                <th class="thin" style="border-right: 1px solid #333; ">tTM</th>
+                                </template>
+                                <th :class="'wide-' + (3 - entry.hasDescription - entry.hasTaxonomy)">
+                                    <template v-if="isComplex">
+                                        Chain paring
+                                    </template>
+                                    <template v-else>
+                                        Target
+                                    </template>
+                                </th>
+                                <th v-if="entry.hasDescription">
                                     Description
                                     <v-tooltip open-delay="300" top>
                                         <template v-slot:activator="{ on }">
@@ -95,11 +134,11 @@
                                         <span>Triple click to select whole cell (for very long identifiers)</span>
                                     </v-tooltip>
                                 </th>
-                                <th v-if="entry.hasTaxonomy"  class="wide-1">Scientific Name</th>
+                                <th v-if="entry.hasTaxonomy">Scientific Name</th>
                                 <th class="thin">Prob.</th>
                                 <th class="thin">Seq. Id.</th>
                                 <th class="thin">{{ $APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value' }}</th>
-                                <th v-if="tableMode == 1" class="thin">Score</th>
+                                <th class="thin" v-if="tableMode == 1">Score</th>
                                 <th v-if="tableMode == 1">Query Pos.</th>
                                 <th v-if="tableMode == 1">Target Pos.</th>
                                 <th v-if="tableMode == 0">
@@ -115,31 +154,39 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(item, index) in entry.alignments" :key="item.target + index" :class="['hit', { 'active' : item.active }]">
-                                <td class="long db" data-label="Target" :style="'border-color: ' + entry.color">
+                            <template v-for="(group, groupidx) in entry.alignments">
+                                <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active }]">
+                                <template v-if="index == 0 && isComplex">
+                                <td class="thin" data-label="Query TM-score" :rowspan="group.length">{{ group[0].complexqtm.toFixed(2) }}</td>
+                                <td class="thin" data-label="Target TM-score" :rowspan="group.length">{{ group[0].complexttm.toFixed(2) }}</td>
+                                </template>
+                                <td class="db long" data-label="Target" :style="{ 'border-width' : isComplex ? '5px' : null, 'border-color' : entry.color }">
                                     <a :id="item.id" class="anchor" style="position: absolute; top: 0"></a>
+                                    <template v-if="isComplex">
+                                        {{ item.query.lastIndexOf('_') != -1 ? item.query.substring(item.query.lastIndexOf('_')+1) : '' }} ➔ 
+                                    </template>
                                     <a :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.target}}</a>
                                 </td>
                                 <td class="long" data-label="Description" v-if="entry.hasDescription">
                                     <span :title="item.description">{{ item.description }}</span>
                                 </td>
-                                <td v-if="entry.hasTaxonomy" data-label="Taxonomy" class="long"><a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" target="_blank" rel="noopener" :title="item.taxName">{{ item.taxName }}</a></td>
+                                <td class="long" v-if="entry.hasTaxonomy" data-label="Taxonomy"><a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" target="_blank" rel="noopener" :title="item.taxName">{{ item.taxName }}</a></td>
                                 <td class="thin" data-label="Probability">{{ item.prob }}</td>
                                 <td class="thin" data-label="Sequence Identity">{{ item.seqId }}</td>
                                 <td class="thin" :data-label="$APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value'">{{ item.eval }}</td>
                                 <td class="thin" v-if="tableMode == 1" data-label="Score">{{ item.score }}</td>
-                                <td class="thin" v-if="tableMode == 1" data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
-                                <td class="thin" v-if="tableMode == 1" data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
+                                <td v-if="tableMode == 1" data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
+                                <td v-if="tableMode == 1" data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
                                 <td class="graphical" data-label="Position" v-if="tableMode == 0">
                                     <Ruler :length="item.qLen" :start="item.qStartPos" :end="item.qEndPos" :color="item.color" :label="index == 0"></Ruler>
                                 </td>
-                                <td class="alignment-action thin">
+                                <td class="alignment-action" :rowspan="isComplex ? group.length : 1" v-if="index == 0">
                                     <!-- performance issue with thousands of v-btns, hardcode the minimal button instead -->
                                     <!-- <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
                                         <v-icon v-once>{{ $MDI.NotificationClearAll }}</v-icon>
                                     </v-btn> -->
                                     <button 
-                                        @click="showAlignment(item, $event)"
+                                        @click="showAlignment(group, $event)"
                                         type="button"
                                         class="v-btn v-btn--icon v-btn--round v-btn--text v-size--default"
                                         :class="{ 
@@ -147,10 +194,14 @@
                                                     'theme--dark' : $vuetify.theme.dark
                                                 }"
                                         >
-                                        <span class="v-btn__content"><span aria-hidden="true" class="v-icon notranslate theme--dark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg"><path d="M5,13H19V11H5M3,17H17V15H3M7,7V9H21V7"></path></svg></span></span>
+                                        <span class="v-btn__content"><span aria-hidden="true" class="v-icon notranslate theme--dark">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg"><path d="M5,13H19V11H5M3,17H17V15H3M7,7V9H21V7"></path></svg>
+                                        </span></span>
                                     </button>
                                 </td>
                             </tr>
+                            <tr aria-hidden="true" v-if="isComplex" style="height: 15px"></tr>
+                            </template>
                         </tbody>
                     </table>
                     </div>
@@ -159,16 +210,16 @@
             </v-flex>
         </v-layout>
         <portal>
-                <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px'">
-                    <AlignmentPanel
-                        slot="content"
-                        :key="`ap-${alignment.id}`"
-                        :alignment="alignment"
-                        :lineLen="fluidLineLen"
-                        :hits="hits"
-                    />
-                </panel>
-            </portal>
+            <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px;'">
+                <AlignmentPanel
+                    slot="content"
+                    :key="`ap-${alignment.id}`"
+                    :alignments="alignment"
+                    :lineLen="fluidLineLen"
+                    :hits="hits"
+                />
+            </panel>
+        </portal>
     </v-container>
 </template>
 
@@ -203,7 +254,6 @@ export default {
     props: {
         ticket: "",
         error: "",
-        mode: "",
         hits: null,
     },
     created() {
@@ -213,11 +263,23 @@ export default {
         window.removeEventListener("resize", this.handleAlignmentBoxResize);
     },
     computed: {
+        mode() {
+            return this.hits ? this.hits.mode : "";
+        },
+        isComplex() {
+            if (this.hits && this.hits.results.length > 0 && this.hits.results[0].alignments != null
+                && this.hits.results[0].alignments[0].length > 0 && this.hits.results[0].alignments[0][0].complexqtm != null) {
+                return true;
+            }
+            return false;
+        },
         fluidLineLen() {
             if (this.$vuetify.breakpoint.xsOnly) {
                 return 30;
             } else if (this.$vuetify.breakpoint.smAndDown) {
-                return 40;
+                return 45;
+            } else if (this.$vuetify.breakpoint.mdAndDown) {
+                return 60;
             } else {
                 return 80;
             }
@@ -250,13 +312,20 @@ export default {
         }
     },
     methods: {
+        log(args) {
+            console.log(args);
+            return args;
+        },
         showAlignment(item, event) {
             if (this.alignment === item) {
                 this.closeAlignment();
             } else {
-                this.alignment = item;
-                this.activeTarget = event.target.closest('.hit');
-                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight;
+                this.alignment = null;
+                this.$nextTick(() => {
+                    this.alignment = item;
+                    this.activeTarget = event.target.closest('.alignment-action');
+                    this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight;
+                });
             }
         },
         closeAlignment() {
@@ -288,10 +357,10 @@ src: url(assets/InconsolataClustal2.woff2),
 }
 
 @media print, screen and (max-width: 599px) {
-small.ticket {
-    display: inline-block;
-    line-height: 0.9;
-}
+    small.ticket {
+        display: inline-block;
+        line-height: 0.9;
+    }
 }
 
 .result-table {
@@ -318,9 +387,9 @@ small.ticket {
         background: #f9f9f9;
     }
 
-    tbody:hover td[rowspan], tbody tr:hover {
-        background: #eee;
-    }
+    // tbody:hover td[rowspan], tbody tr:hover {
+    //     background: #eee;
+    // }
 
     .alignment-action {
         text-align: center;
@@ -339,9 +408,9 @@ small.ticket {
             background: #333;
         }
 
-        tbody:hover td[rowspan], tbody tr:hover {
-            background: #333;
-        }
+        // tbody:hover td[rowspan], tbody tr:hover {
+        //     background: #333;
+        // }
     }
 }
 
@@ -350,21 +419,7 @@ small.ticket {
         table-layout: fixed;
         border-collapse: collapse;
         width: 100%;
-        th.wide-1 {
-            width: 15%;
-        }
-        th.wide-2 {
-            width: 30%;
-        }
-
-        th.wide-3 {
-            width: 45%;
-        }
-        th.thin {
-            width: 6.5% !important;
-            white-space: nowrap;
-        }
-        td.thin {
+        th.thin, td.thin {
             white-space: nowrap;
         }
         .long {
@@ -385,33 +440,30 @@ small.ticket {
 @media screen and (max-width: 960px) {
     .result-table {
         width: 100%;
+        col {
+            width: auto !important;
+        }
         .long {
             height: 100% !important;
             white-space: normal !important;
             min-height: 48px;
         }
-
         .hits {
             min-width: 300px;
         }
-
         tbody td a {
             min-width: 100px;
         }
-
         tbody td.graphical div.ruler {
             margin: 10px 0;
         }
-
         thead {
             display: none;
         }
-
         tfoot th {
             border: 0;
             display: inherit;
         }
-
         tr {
             box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.1);
             max-width: 100%;
@@ -419,12 +471,10 @@ small.ticket {
             display: block;
             padding: 0.5em;
         }
-
         tr td {
             border: 0;
             display: inherit;
         }
-
         tr td:last-child {
             border-bottom: 0;
         }
@@ -440,7 +490,6 @@ small.ticket {
         tr.detail {
             margin-top: -1rem;
         }
-
         tr:not(.detail):not(.is-empty):not(.table-footer) td {
             display: flex;
             border-bottom: 1px solid #eee;
@@ -474,6 +523,7 @@ small.ticket {
     left:4px;
     right:4px;
     z-index: 999;
+    box-shadow: 0 3px 5px -1px rgba(0,0,0,.2),0 6px 10px 0 rgba(0,0,0,.14),0 1px 18px 0 rgba(0,0,0,.12) !important;
 
     .residues {
         font-family: InconsolataClustal, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
@@ -486,11 +536,5 @@ small.ticket {
         }
     }
 }
-
-.clear-button {
-    font: 14px sans-serif;
-    cursor: pointer;
-}
-
 
 </style>
