@@ -141,6 +141,9 @@ func ReadAlignments[T any](id Id, entries []int64, jobsbase string) (AlignmentRe
 				}
 				results = append(results, *r)
 			}
+			if len(results) == 0 {
+				continue
+			}
 			all = append(all, results)
 		}
 		reader.Delete()
