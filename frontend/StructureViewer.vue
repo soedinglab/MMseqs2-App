@@ -18,6 +18,8 @@
             :showQuery="showQuery"
             :showTarget="showTarget"
             :showArrows="showArrows"
+            :disableQueryButton="!hasQuery"
+            :disableArrowButton="!hasQuery"
             @makeImage="handleMakeImage"
             @makePDB="handleMakePDB"
             @resetView="handleResetView"
@@ -123,7 +125,8 @@ export default {
             showArrows: false,
             showQuery: 0,
             showTarget: 0,
-            tmAlignResults: null
+            tmAlignResults: null,
+            hasQuery: true,
         }
     },
     props: {
@@ -234,8 +237,9 @@ export default {
         async handleMakeImage() {
             if (!this.stage)
                 return;
-            let hasQuery = this.stage.getRepresentationsByName("queryStructure").length > 0;
-            let title = this.alignments.map(aln => hasQuery ? `${aln.query}-${aln.target}` : aln.target).join("_");
+            let wasSpinning = this.isSpinning;
+            this.isSpinning = false;
+            let title = this.alignments.map(aln => this.hasQuery ? `${aln.query}-${aln.target}` : aln.target).join("_");
             this.stage.viewer.setLight(undefined, undefined, undefined, 0.2)
             const blob = await this.stage.makeImage({
                 trim: true,
@@ -245,6 +249,7 @@ export default {
             });
             this.stage.viewer.setLight(undefined, undefined, undefined, this.$vuetify.theme.dark ? 0.4 : 0.2)
             download(blob, `${title}.pdb`)
+            this.isSpinning = wasSpinning;
         },
         handleMakePDB() {
             if (!this.stage)
@@ -346,7 +351,7 @@ END
         //                local --> qCa string
         // Tickets prefixed with 'user-' only occur on user uploaded files
         let queryPdb = "";
-        let hasQuery = true;
+        this.hasQuery = true;
         if (this.$LOCAL) {
             if (this.hits.queries[0].hasOwnProperty('pdb')) {
                 queryPdb = JSON.parse(this.hits.queries[0].pdb);
@@ -367,7 +372,7 @@ END
                 queryPdb = request.data;
             } catch (e) {
                 queryPdb = "";
-                hasQuery = false;
+                this.hasQuery = false;
             }
         }
 
@@ -405,7 +410,7 @@ END
             [this.targetUnalignedColor, "*"]
         ], "_targetScheme")
 
-        if (hasQuery) {
+        if (this.hasQuery) {
             let data = '';
             for (let line of queryPdb.split('\n')) {
                 let numCols = Math.max(0, 80 - line.length);
@@ -499,7 +504,6 @@ END
             query.autoView(this.querySele, this.autoViewTime)
         } else {
             target.addRepresentation(this.tRepr, {color: this.targetSchemeId, name: "targetStructure"})
-            this.setQuerySelection()
             this.setTargetSelection();
             this.stage.autoView(this.autoViewTime)
         }
