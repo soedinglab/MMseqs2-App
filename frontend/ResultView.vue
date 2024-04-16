@@ -267,7 +267,7 @@ export default {
             return this.hits ? this.hits.mode : "";
         },
         isComplex() {
-            if (this.hits?.results?.[0]?.alignments?.[0]?.complexqtm != null) {
+            if (this.hits?.results?.[0]?.alignments?.[0]?.[0]?.complexqtm != null) {
                 return true;
             }
             return false;
