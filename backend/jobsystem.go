@@ -204,10 +204,13 @@ func MakeRedisJobSystem(config ConfigRedis, results string) (*RedisJobSystem, er
 			}
 		}
 		job, err := getJobRequestFromFile(file)
-		if err != nil || job.Status != StatusComplete {
-			job.Status = StatusError
-			jobsystem.SetStatus(job.Id, StatusError)
+		if err != nil {
+			continue
 		}
+		if job.Status != StatusComplete {
+			job.Status = StatusError
+		}
+		jobsystem.SetStatus(job.Id, job.Status)
 	}
 
 	return jobsystem, nil
