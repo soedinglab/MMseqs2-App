@@ -121,7 +121,7 @@
             </panel>
         </v-flex>
         </v-layout>
-        <reference :reference="$STRINGS.CITATION"></reference>
+        <reference :reference="$STRINGS.CITATION_MULTIMER"></reference>
     </v-container>
 </template>
     

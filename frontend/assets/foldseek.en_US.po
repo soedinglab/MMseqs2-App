@@ -28,6 +28,12 @@ msgstr ""
 "s41587-023-01773-0\" target=\"_blank\" rel=\"noopener\">"
 "Fast and accurate protein structure search with Foldseek</a>. Nature Biotechnology, 2023."
 
+msgid "CITATION_MULTIMER"
+msgstr ""
+"Kim W, Mirdita M, Levy Karin E, Gilchrist CLM, Schweke H, Soeding J, Levy E, and Steinegger M."
+" <a href=\"https://www.biorxiv.org/content/10.1101/2024.04.14.589414v1\" target=\"_blank\" rel=\"noopener\">"
+"Rapid and Sensitive Protein Complex Alignment with Foldseek-Multimer</a>. bioRxiv, 2024."
+
 msgid "NAV_URL_COUNT"
 msgstr "3"
 
