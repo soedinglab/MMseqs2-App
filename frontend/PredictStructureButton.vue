@@ -35,8 +35,13 @@ import { create } from 'axios';
 
 function cleanFasta(fasta) {
     const i = fasta.indexOf('\n');
-    const header = fasta.substring(0, i + 1);
-    const seq = fasta.substring(i + 1).replace(/\s+/g, '');
+    
+    const hasHeader = fasta[0] === '>';
+    const header = hasHeader ? fasta.substring(0, i + 1) : '>unknown\n';
+
+    const seqStart = hasHeader ? i + 1 : 0;
+    const seq = fasta.substring(seqStart).replace(/\s+/g, '');
+
     return header + seq;
 }
 
