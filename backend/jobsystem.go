@@ -186,7 +186,7 @@ type RedisJobSystem struct {
 	Client *redis.Client
 }
 
-func MakeRedisJobSystem(config ConfigRedis, results string) (*RedisJobSystem, error) {
+func MakeRedisJobSystem(config ConfigRedis, results string, isServer bool) (*RedisJobSystem, error) {
 	jobsystem := &RedisJobSystem{
 		BaseJobSystem{},
 		redis.NewClient(&redis.Options{
@@ -198,6 +198,10 @@ func MakeRedisJobSystem(config ConfigRedis, results string) (*RedisJobSystem, er
 	}
 	jobsystem.StatusMutex = &sync.Mutex{}
 	jobsystem.Results = results
+
+	if !isServer {
+		return jobsystem, nil
+	}
 
 	dirs, err := os.ReadDir(filepath.Clean(results))
 	if err != nil {

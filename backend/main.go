@@ -91,13 +91,13 @@ func main() {
 
 	switch t {
 	case WORKER:
-		jobsystem, err := MakeRedisJobSystem(config.Redis, config.Paths.Results)
+		jobsystem, err := MakeRedisJobSystem(config.Redis, config.Paths.Results, false)
 		if err != nil {
 			panic(err)
 		}
 		worker(jobsystem, config)
 	case SERVER:
-		jobsystem, err := MakeRedisJobSystem(config.Redis, config.Paths.Results)
+		jobsystem, err := MakeRedisJobSystem(config.Redis, config.Paths.Results, true)
 		if err != nil {
 			panic(err)
 		}
