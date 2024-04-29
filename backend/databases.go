@@ -25,6 +25,7 @@ type Params struct {
 	FullHeader bool   `json:"full_header"`
 	Index      string `json:"index"`
 	Search     string `json:"search"`
+	Multimer   string `json:"multimer"`
 	Status     Status `json:"status"`
 }
 
@@ -177,6 +178,7 @@ func UpgradeParams(filename string) (Params, error) {
 	paramsNew.Order = paramsOld.Display.Order
 	paramsNew.Index = paramsOld.Display.Index
 	paramsNew.Search = paramsOld.Display.Search
+	paramsNew.Multimer = ""
 	paramsNew.Status = paramsOld.Status
 
 	err = SaveParams(filename, paramsNew)

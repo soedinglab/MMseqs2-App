@@ -504,7 +504,13 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					"--complex-report-mode",
 					"0",
 				}
-				parameters = append(parameters, strings.Fields(params.Search)...)
+
+				par := params.Search
+				if params.Multimer != "" {
+					par = params.Multimer
+				}
+
+				parameters = append(parameters, strings.Fields(par)...)
 
 				if job.Mode == "summary" {
 					parameters = append(parameters, "--greedy-best-hits")
