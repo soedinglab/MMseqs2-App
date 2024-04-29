@@ -52,7 +52,7 @@ func execCommand(verbose bool, parameters ...string) (*exec.Cmd, chan error, err
 	SetSysProcAttr(cmd)
 
 	// Make sure MMseqs2's progress bar doesn't break
-	cmd.Env = append(os.Environ(), "TTY=0")
+	cmd.Env = append(os.Environ(), "TTY=0", "MMSEQS_CALL_DEPTH=1")
 
 	if verbose {
 		cmd.Stdout = os.Stdout
