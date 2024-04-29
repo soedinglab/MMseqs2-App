@@ -83,11 +83,11 @@ const getChainName = (name) => {
     }
     let pos = name.lastIndexOf('_');
     if (pos != -1) {
-        name = name.substring(pos + 1);
+        let match = name.substring(pos + 1);
+        return match.length >= 1 ? match[0] : 'A';
     }
-    // handle stoichiometry and return only chain name
-    let match = name.match(/(.*?)-[0-9]+$/);
-    return match ? match[1] : name;
+    // fallback
+    return 'A';
 }
 
 const getAccession = (name) => {
