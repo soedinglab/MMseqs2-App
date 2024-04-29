@@ -176,17 +176,28 @@ type JobSystem interface {
 	QueueLength() (int, error)
 }
 
+type BaseJobSystem struct {
+	StatusMutex *sync.Mutex
+	Results     string
+}
+
 type RedisJobSystem struct {
+	BaseJobSystem
 	Client *redis.Client
 }
 
 func MakeRedisJobSystem(config ConfigRedis, results string) (*RedisJobSystem, error) {
-	jobsystem := &RedisJobSystem{redis.NewClient(&redis.Options{
-		Network:  config.Network,
-		Addr:     config.Address,
-		Password: config.Password,
-		DB:       config.DbIndex,
-	})}
+	jobsystem := &RedisJobSystem{
+		BaseJobSystem{},
+		redis.NewClient(&redis.Options{
+			Network:  config.Network,
+			Addr:     config.Address,
+			Password: config.Password,
+			DB:       config.DbIndex,
+		}),
+	}
+	jobsystem.StatusMutex = &sync.Mutex{}
+	jobsystem.Results = results
 
 	dirs, err := os.ReadDir(filepath.Clean(results))
 	if err != nil {
@@ -214,37 +225,6 @@ func MakeRedisJobSystem(config ConfigRedis, results string) (*RedisJobSystem, er
 	}
 
 	return jobsystem, nil
-}
-
-func (j *RedisJobSystem) SetStatus(id Id, status Status) error {
-	_, err := j.Client.Set("mmseqs:status:"+string(id), string(status), 0).Result()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (j *RedisJobSystem) Status(id Id) (Status, error) {
-	res, err := j.Client.Get("mmseqs:status:" + string(id)).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return StatusUnknown, nil
-		}
-		return StatusError, err
-	}
-
-	return Status(res), nil
-}
-
-func (j *RedisJobSystem) GetTicket(id Id) (Ticket, error) {
-	t := Ticket{id, StatusUnknown}
-	if !t.Valid() {
-		return t, errors.New("invalid ID")
-	}
-	s, err := j.Status(t.Id)
-	t.RawStatus = s
-	return t, err
 }
 
 func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubmit bool) (Ticket, error) {
@@ -282,7 +262,7 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 		return Ticket{id, StatusError}, errors.New("invalid job")
 	}
 
-	t := Ticket{id, StatusUnknown}
+	t := Ticket{id, StatusPending}
 	err = j.Client.Watch(func(tx *redis.Tx) error {
 		err := request.WriteSupportFiles(workdir)
 		if err != nil {
@@ -302,11 +282,11 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 		if err != nil {
 			return err
 		}
-		_, err = tx.Set("mmseqs:status:"+string(id), string(StatusPending), 0).Result()
+
+		err = j.SetStatus(id, StatusPending)
 		if err != nil {
 			return err
 		}
-		t.RawStatus = StatusPending
 
 		_, err = tx.ZAdd("mmseqs:pending", redis.Z{Score: job.Rank(), Member: string(id)}).Result()
 		if err != nil {
@@ -317,63 +297,15 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	})
 
 	if err != nil {
-		t.RawStatus = StatusError
-		_, errRedis := j.Client.Set("mmseqs:status:"+string(id), string(StatusError), 0).Result()
-		if errRedis != nil {
-			return t, errRedis
-		}
+		j.SetStatus(id, StatusError)
 		return t, err
 	}
 
 	return t, nil
 }
 
-func (j *RedisJobSystem) MultiStatus(ids []string) ([]Ticket, error) {
-	if len(ids) == 0 {
-		return make([]Ticket, 0), nil
-	}
-
-	var queries []string
-	for _, value := range ids {
-		if !validId(value) {
-			continue
-		}
-		queries = append(queries, "mmseqs:status:"+value)
-	}
-
-	r, err := j.Client.MGet(queries...).Result()
-	if err != nil {
-		return nil, err
-	}
-
-	var result []Ticket
-	for i, item := range r {
-		var value string
-		switch vv := item.(type) {
-		case nil:
-			value = string(StatusUnknown)
-		case []byte:
-			value = string(vv)
-		default:
-			value = fmt.Sprint(vv)
-		}
-		result = append(result, Ticket{Id(ids[i]), Status(value)})
-	}
-
-	return result, nil
-}
-
 func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
-	Zpop := redis.NewScript(`
-		local result = redis.call('zrange', KEYS[1], 0, 0)
-		if result then
-			result = result[1]
-			redis.call('zremrangebyrank', KEYS[1], 0, 0)
-		end
-		return result
-`)
-
-	pop, err := Zpop.Run(j.Client, []string{"mmseqs:pending"}).Result()
+	pop, err := j.Client.ZPopMin("mmseqs:pending", 1).Result()
 	if err != nil {
 		if pop != nil {
 			return nil, err
@@ -381,8 +313,12 @@ func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
 		return nil, nil
 	}
 
+	if len(pop) == 0 {
+		return nil, nil
+	}
+
 	var id Id
-	switch vv := pop.(type) {
+	switch vv := pop[0].Member.(type) {
 	case nil:
 		return nil, errors.New("invalid ticket id")
 	case []byte:
@@ -408,11 +344,10 @@ func (j *RedisJobSystem) QueueLength() (int, error) {
 }
 
 type LocalJobSystem struct {
-	QueueMutex  *sync.Mutex
-	Queue       []Id
-	StatusMutex *sync.Mutex
-	Results     string
-	queued      int
+	BaseJobSystem
+	QueueMutex *sync.Mutex
+	Queue      []Id
+	queued     int
 }
 
 func MakeLocalJobSystem(results string, CheckOld bool) (LocalJobSystem, error) {
@@ -468,7 +403,7 @@ func MakeLocalJobSystem(results string, CheckOld bool) (LocalJobSystem, error) {
 	return jobsystem, nil
 }
 
-func (j *LocalJobSystem) getJobFileName(id Id) string {
+func (j *BaseJobSystem) getJobFileName(id Id) string {
 	return filepath.Join(filepath.Clean(j.Results), string(id), "job.json")
 }
 
@@ -544,7 +479,7 @@ func getJobRequestFromFile(file string) (JobRequest, error) {
 	return job, nil
 }
 
-func (j *LocalJobSystem) SetStatus(id Id, status Status) error {
+func (j *BaseJobSystem) SetStatus(id Id, status Status) error {
 	file := j.getJobFileName(id)
 	j.StatusMutex.Lock()
 	err := setStatusInJobFile(file, status)
@@ -555,7 +490,7 @@ func (j *LocalJobSystem) SetStatus(id Id, status Status) error {
 	return nil
 }
 
-func (j *LocalJobSystem) Status(id Id) (Status, error) {
+func (j *BaseJobSystem) Status(id Id) (Status, error) {
 	file := j.getJobFileName(id)
 	j.StatusMutex.Lock()
 	res, err := getStatusFromJobFile(file)
@@ -566,7 +501,7 @@ func (j *LocalJobSystem) Status(id Id) (Status, error) {
 	return res, nil
 }
 
-func (j *LocalJobSystem) GetTicket(id Id) (Ticket, error) {
+func (j *BaseJobSystem) GetTicket(id Id) (Ticket, error) {
 	t := Ticket{id, StatusUnknown}
 	if !t.Valid() {
 		return t, errors.New("invalid ID")
@@ -645,7 +580,7 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	return t, nil
 }
 
-func (j *LocalJobSystem) MultiStatus(ids []string) ([]Ticket, error) {
+func (j *BaseJobSystem) MultiStatus(ids []string) ([]Ticket, error) {
 	result := make([]Ticket, 0)
 
 	if len(ids) == 0 {
