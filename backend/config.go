@@ -67,6 +67,7 @@ var defaultFileContent = []byte(`{
             "uniref"        : "~databases/uniref30_2103",
             "pdb"           : "~databases/pdb70",
             "environmental" : "~databases/colabfold_envdb_202108",
+			"environmentalpair" : "~databases/spire_ctg10_2401_db",
             // paths for templates
             "pdb70"         : "~databases/pdb70",
             "pdbdivided"    : "~databases/pdbdivided",
@@ -151,13 +152,14 @@ var defaultFileContent = []byte(`{
 `)
 
 type ConfigColabFoldPaths struct {
-	ParallelStages bool   `json:"parallelstages"`
-	Uniref         string `json:"uniref"`
-	Pdb            string `json:"pdb"`
-	Environmental  string `json:"environmental"`
-	Pdb70          string `json:"pdb70"`
-	PdbDivided     string `json:"pdbdivided"`
-	PdbObsolete    string `json:"pdbobsolete"`
+	ParallelStages    bool   `json:"parallelstages"`
+	Uniref            string `json:"uniref"`
+	Pdb               string `json:"pdb"`
+	Environmental     string `json:"environmental"`
+	EnvironmentalPair string `json:"environmentalpair"`
+	Pdb70             string `json:"pdb70"`
+	PdbDivided        string `json:"pdbdivided"`
+	PdbObsolete       string `json:"pdbobsolete"`
 }
 
 type ConfigPaths struct {

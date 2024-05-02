@@ -900,8 +900,10 @@ MMSEQS="$1"
 QUERY="$2"
 BASE="$4"
 DB1="$5"
-USE_PAIRWISE="$6"
-PAIRING_STRATEGY="$7"
+DB2="$6"
+USE_ENV="$7"
+USE_PAIRWISE="$8"
+PAIRING_STRATEGY="$9"
 SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a --k-score 'seq:96,prof:80' -e 0.1 --max-seqs 10000"
 EXPAND_PARAM="--expansion-mode 0 -e inf --expand-filter-clusters 0 --max-seq-id 0.95"
 export MMSEQS_CALL_DEPTH=1
@@ -922,14 +924,36 @@ fi
 "${MMSEQS}" align   "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_pair" "${BASE}/res_exp_realign_pair_bt" --db-load-mode 2 -e inf -a
 "${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-dummy-mode 1
 "${MMSEQS}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_final" "${BASE}/pair.a3m" --db-load-mode 2 --msa-format-mode 5
-"${MMSEQS}" rmdb "${BASE}/qdb"
-"${MMSEQS}" rmdb "${BASE}/qdb_h"
+
 "${MMSEQS}" rmdb "${BASE}/res"
 "${MMSEQS}" rmdb "${BASE}/res_exp"
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign"
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign_pair"
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign_pair_bt"
 "${MMSEQS}" rmdb "${BASE}/res_final"
+
+if [ "${USE_ENV}" = "1" ]; then
+	"${MMSEQS}" search "${BASE}/qdb" "${DB2}" "${BASE}/res" "${BASE}/tmp" $SEARCH_PARAM
+	"${MMSEQS}" expandaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res" "${DB2}.idx" "${BASE}/res_exp" --db-load-mode 2 ${EXPAND_PARAM}
+	"${MMSEQS}" align   "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 -c 0.5 --cov-mode 1
+	"${MMSEQS}" pairaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-dummy-mode 0
+	"${MMSEQS}" align   "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp_realign_pair" "${BASE}/res_exp_realign_pair_bt" --db-load-mode 2 -e inf -a
+	"${MMSEQS}" pairaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-dummy-mode 1
+	"${MMSEQS}" result2msa "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_final" "${BASE}/pair.env.a3m" --db-load-mode 2 --msa-format-mode 5
+	cat "${BASE}/pair.a3m" "${BASE}/pair.env.a3m" > "${BASE}/pair.a3m_tmp"
+	mv -f -- "${BASE}/pair.a3m_tmp" "${BASE}/pair.a3m"
+fi
+
+"${MMSEQS}" rmdb "${BASE}/res"
+"${MMSEQS}" rmdb "${BASE}/res_exp"
+"${MMSEQS}" rmdb "${BASE}/res_exp_realign"
+"${MMSEQS}" rmdb "${BASE}/res_exp_realign_pair"
+"${MMSEQS}" rmdb "${BASE}/res_exp_realign_pair_bt"
+"${MMSEQS}" rmdb "${BASE}/res_final"
+
+"${MMSEQS}" rmdb "${BASE}/qdb"
+"${MMSEQS}" rmdb "${BASE}/qdb_h"
+
 rm -rf -- "${BASE}/tmp"
 `)
 		err = script.Close()
@@ -937,6 +961,7 @@ rm -rf -- "${BASE}/tmp"
 			return &JobExecutionError{err}
 		}
 		modes := strings.Split(job.Mode, "-")
+		useEnv := isIn("env", modes) != -1
 		usePairwise := isIn("pairwise", modes) != -1
 		var b2i = map[bool]int{false: 0, true: 1}
 
@@ -961,6 +986,8 @@ rm -rf -- "${BASE}/tmp"
 			config.Paths.Databases,
 			resultBase,
 			config.Paths.ColabFold.Uniref,
+			config.Paths.ColabFold.EnvironmentalPair,
+			strconv.Itoa(b2i[useEnv]),
 			strconv.Itoa(b2i[usePairwise]),
 			pairingStrategy,
 		}
