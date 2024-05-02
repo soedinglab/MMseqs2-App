@@ -255,7 +255,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 MMSEQS="$1"
 QUERY="$2"
 BASE="$3"
-$MMSEQS base:createdb "${QUERY}" "${BASE}/query" --shuffle 0
+$MMSEQS base:createdb "${QUERY}" "${BASE}/query" --shuffle 0 --dbtype 1
 awk -v out="${BASE}/query" 'BEGIN { printf("") > (out"_aa.index"); printf("") > (out"_ss.index"); } NR % 2 == 1 { print $0 >> (out"_aa.index"); next } { $1 = $1 - 1; print $0 >> (out"_ss.index") }' "${BASE}/query.index"
 mv -f -- "${BASE}/query_aa.index" "${BASE}/query.index"
 ln -s -- "${BASE}/query" "${BASE}/query_ss"
@@ -666,7 +666,7 @@ SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a --k-score 'seq:96,prof:80' 
 FILTER_PARAM="--filter-min-enable 1000 --diff ${DIFF} --qid 0.0,0.2,0.4,0.6,0.8,1.0 --qsc 0 --max-seq-id 0.95"
 EXPAND_PARAM="--expansion-mode 0 -e ${EXPAND_EVAL} --expand-filter-clusters ${FILTER} --max-seq-id 0.95"
 mkdir -p "${BASE}"
-"${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb"
+"${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb" --dbtype 1
 "${MMSEQS}" search "${BASE}/qdb" "${DB1}" "${BASE}/res" "${BASE}/tmp1" $SEARCH_PARAM
 "${MMSEQS}" mvdb "${BASE}/tmp1/latest/profile_1" "${BASE}/prof_res"
 "${MMSEQS}" lndb "${BASE}/qdb_h" "${BASE}/prof_res_h"
@@ -907,7 +907,7 @@ PAIRING_STRATEGY="$9"
 SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a --k-score 'seq:96,prof:80' -e 0.1 --max-seqs 10000"
 EXPAND_PARAM="--expansion-mode 0 -e inf --expand-filter-clusters 0 --max-seq-id 0.95"
 export MMSEQS_CALL_DEPTH=1
-"${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb" --shuffle 0
+"${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb" --shuffle 0 --dbtype 1
 "${MMSEQS}" search "${BASE}/qdb" "${DB1}" "${BASE}/res" "${BASE}/tmp" $SEARCH_PARAM
 if [ "${USE_PAIRWISE}" = "1" ]; then
     for i in qdb res qdb_h; do
