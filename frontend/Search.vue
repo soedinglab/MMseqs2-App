@@ -19,7 +19,8 @@
                 :disabled="searchDisabled"
                 :email="email"
                 :mode="mode"
-                :database="database"></api-dialog>
+                :database="database"
+                :taxfilter="taxFilter ? taxFilter.value : ''"></api-dialog>
             <v-icon v-if="query.length > 0" title="Clear" @click="query = ''" style="margin-right: 16px">{{ $MDI.Delete }}</v-icon>
             <v-tooltip open-delay="300" top>
                 <template v-slot:activator="{ on }">
