@@ -93,6 +93,35 @@ func execCommandSync(verbose bool, parameters ...string) error {
 
 var fasta3DiInput = regexp.MustCompile(`^>.*?\n.*?\n>3DI.*?\n.*?\n`).MatchString
 
+func ismmCIFFile(filePath string) (bool, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		firstLine := scanner.Text()
+		if strings.TrimSpace(firstLine) != "" {
+			break
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return false, err
+	}
+	if !scanner.Scan() {
+		return false, errors.New("empty file")
+	}
+
+	firstLine := scanner.Text()
+	if strings.HasPrefix(firstLine, "# ") || strings.HasPrefix(firstLine, "data_") {
+		return true, nil
+	}
+	return false, nil
+}
+
 func RunJob(request JobRequest, config ConfigRoot) (err error) {
 	switch job := request.Job.(type) {
 	case SearchJob:
@@ -282,6 +311,18 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			if err != nil {
 				return &JobExecutionError{err}
 			}
+		} else {
+			isCif, err := ismmCIFFile(inputFile)
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+			if isCif {
+				newFilePath := filepath.Join(resultBase, "job.cif")
+				if err := os.Rename(inputFile, newFilePath); err != nil {
+					return &JobExecutionError{err}
+				}
+				inputFile = newFilePath
+			}
 		}
 
 		for index, database := range job.Database {
@@ -446,6 +487,19 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		semaphore := make(chan struct{}, max(1, maxParallel))
 
 		inputFile := filepath.Join(resultBase, "job.pdb")
+
+		isCif, err := ismmCIFFile(inputFile)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		if isCif {
+			newFilePath := filepath.Join(resultBase, "job.cif")
+			if err := os.Rename(inputFile, newFilePath); err != nil {
+				return &JobExecutionError{err}
+			}
+			inputFile = newFilePath
+		}
+
 		for index, database := range job.Database {
 			wg.Add(1)
 			semaphore <- struct{}{}

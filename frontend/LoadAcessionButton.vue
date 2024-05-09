@@ -76,7 +76,7 @@ export default {
                     this.loading = false;
                 };
             if (source == "PDB") {
-                url = "https://files.rcsb.org/download/" + accession.toUpperCase() + ".pdb";
+                url = "https://files.rcsb.org/download/" + accession.toUpperCase() + ".cif";
                 fun = simpleFetch;
             } else if (source == "AlphaFoldDB") {
                 url = "https://alphafold.ebi.ac.uk/api/search?q=(text:*" + accession + " OR text:" + accession + "*)&type=main&start=0&rows=1"
