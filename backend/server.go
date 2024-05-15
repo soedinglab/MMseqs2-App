@@ -598,14 +598,23 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		var suffix string
+		var queryPath string
 		switch config.App {
 		case "foldseek":
-			suffix = ".pdb"
+			pdbPath := filepath.Join(config.Paths.Results, string(ticket.Id), "job.pdb")
+			cifPath := filepath.Join(config.Paths.Results, string(ticket.Id), "job.cif")
+			if fileExists(pdbPath) {
+				queryPath = pdbPath
+			} else if fileExists(cifPath) {
+				queryPath = cifPath
+			} else {
+				http.Error(w, "File not found", http.StatusBadRequest)
+				return
+			}
 		default:
-			suffix = ".fasta"
+			queryPath = filepath.Join(config.Paths.Results, string(ticket.Id), "job.fasta")
 		}
-		query, err := os.ReadFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job"+suffix))
+		query, err := os.ReadFile(queryPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
