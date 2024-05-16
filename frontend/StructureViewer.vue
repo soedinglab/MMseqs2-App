@@ -112,7 +112,11 @@ const colorblindColors = ColormakerRegistry.addScheme(function() {
         return colors[atom.chainIndex % colors.length];
     }
 }, "colorblindColors")
- 
+
+const getPdbText = comp => {
+    let pw = new PdbWriter(comp.structure, { renumberSerial: false });
+    return pw.getData().split('\n').filter(line => line.startsWith('ATOM')).join('\n');
+}
 
 export default {
     name: "StructureViewer",
@@ -259,10 +263,6 @@ export default {
         handleMakePDB() {
             if (!this.stage)
                 return;
-            const getPdbText = comp => {
-                let pw = new PdbWriter(comp.structure, { renumberSerial: false });
-                return pw.getData().split('\n').filter(line => line.startsWith('ATOM')).join('\n');
-            }
             let qPDB = this.stage.getComponentsByName("queryStructure").list.map(getPdbText); 
             let tPDB = this.stage.getComponentsByName("targetStructure").list.map(getPdbText);
             if (!qPDB && !tPDB) 
@@ -417,15 +417,25 @@ END
 
         if (this.hasQuery) {
             let data = '';
-            for (let line of queryPdb.split('\n')) {
-                let numCols = Math.max(0, 80 - line.length);
-                let newLine = line + ' '.repeat(numCols) + '\n';
-                data += newLine
+            let ext = 'pdb';
+            queryPdb = queryPdb.trimStart();
+            if (queryPdb[0] == "#" || queryPdb.startsWith("data_")) {
+                ext = 'cif';
+            } else {
+                for (let line of queryPdb.split('\n')) {
+                    let numCols = Math.max(0, 80 - line.length);
+                    let newLine = line + ' '.repeat(numCols) + '\n';
+                    data += newLine
+                }
+                queryPdb = data;
             }
-            queryPdb = data;
 
-            let query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), { ext: 'pdb', firstModelOnly: true, name: 'queryStructure'});
+            let query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), { ext: ext, firstModelOnly: true, name: 'queryStructure'});
             if (query && query.structure.getAtomProxy().isCg()) {
+                if (ext == "cif") {
+                    // FIXME: pulchra probably should learn mmCIF
+                    queryPdb = getPdbText(query);
+                }
                 queryPdb = await pulchra(queryPdb);
                 this.stage.removeComponent(query);
                 query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true, name: 'queryStructure'}); 
