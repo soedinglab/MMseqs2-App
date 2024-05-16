@@ -314,41 +314,79 @@ export function animateMatrix(structure, newMatrix, duration) {
 
 export function checkMultimer(pdbString) {
     const lines = pdbString.split('\n');
-    let currentModel = null;
     const models = {};
     const chainSet = new Set();
 
-    lines.forEach(line => {
-        const recordType = line.substring(0, 6).trim();
+    const trimmed = pdbString.trimStart();
+    const isCIF = trimmed[0] === "#" || trimmed.startsWith("data_");
 
-        if (recordType === 'MODEL') {
-            currentModel = line.substring(10, 14).trim();
-            models[currentModel] = new Set();
-        } else if (recordType === 'ATOM') {
-            const chainId = line.substring(21, 22);
-            if (currentModel) {
-                models[currentModel].add(chainId);
-            } else {
-                // This handles the case when there is no explicit MODEL line (single model)
-                chainSet.add(chainId);
+    if (!isCIF) {
+        let currentModel = null;
+
+        lines.forEach(line => {
+            const recordType = line.substring(0, 6).trim();
+
+            if (recordType === 'MODEL') {
+                currentModel = line.substring(10, 14).trim();
+                models[currentModel] = new Set();
+            } else if (recordType === 'ATOM') {
+                const chainId = line.substring(21, 22);
+                if (currentModel) {
+                    models[currentModel].add(chainId);
+                } else {
+                    chainSet.add(chainId);
+                }
+            } else if (recordType === 'ENDMDL') {
+                currentModel = null;
             }
-        } else if (recordType === 'ENDMDL') {
-            currentModel = null;
-        }
-    });
+        });
+    } else {
+        let inLoop = false;
+        let modelIndex = -1;
+        let chainIndex = -1;
+        let atomIndex = -1;
+        let columnCount = 0;
 
-    // If no MODEL record is found, it is a single model PDB
+        lines.forEach(line => {
+            if (line.startsWith("loop_")) {
+                inLoop = true;
+                columnCount = 0;
+            } else if (inLoop && line.startsWith("_atom_site.")) {
+                const colName = line.trim();
+                if (colName === "_atom_site.pdbx_PDB_model_num") {
+                    modelIndex = columnCount;
+                } else if (colName === "_atom_site.auth_asym_id") {
+                    chainIndex = columnCount;
+                } else if (colName === "_atom_site.group_PDB") {
+                    atomIndex = columnCount;
+                }
+                columnCount++;
+            } else if (inLoop && line.startsWith("#")) {
+                inLoop = false;
+            } else if (inLoop && line.trim()) {
+                const dataColumns = line.trim().split(/\s+/);
+                const groupPDB = atomIndex !== -1 ? dataColumns[atomIndex] : null;
+                if (groupPDB !== "ATOM") {
+                    return;
+                }
+                
+                const modelNum = modelIndex !== -1 ? dataColumns[modelIndex] : null;
+                const chainId = chainIndex !== -1 ? dataColumns[chainIndex] : null;
+
+                if (modelNum) {
+                    if (!models[modelNum]) {
+                        models[modelNum] = new Set();
+                    }
+                    models[modelNum].add(chainId);
+                } else {
+                    chainSet.add(chainId);
+                }
+            }
+        });
+    }
+
     if (Object.keys(models).length === 0) {
         models['single model'] = chainSet;
     }
-
-    // const results = [];
-    for (let model in models) {
-        if (models[model].size > 1) {
-            return true;
-        }
-        // results.push({ model: model, isComplex: models[model].size > 1, chains: Array.from(models[model]) });
-    }
-
-    return false;
+    return Object.values(models).some(model => model.size > 1);
 }
