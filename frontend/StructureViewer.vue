@@ -421,6 +421,8 @@ END
             queryPdb = queryPdb.trimStart();
             if (queryPdb[0] == "#" || queryPdb.startsWith("data_")) {
                 ext = 'cif';
+                // NGL doesn't like AF3's _chem_comp entries
+                queryPdb = queryPdb.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
             } else {
                 for (let line of queryPdb.split('\n')) {
                     let numCols = Math.max(0, 80 - line.length);
