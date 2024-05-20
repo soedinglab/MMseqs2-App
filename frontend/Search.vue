@@ -7,7 +7,7 @@
             <template v-if="$APP == 'foldseek'">
                 Input protein
                 <template v-if="!$vuetify.breakpoint.smAndDown">
-                    structure (PDB) or sequence (FASTA)
+                    structure (PDB/CIF) or sequence (FASTA)
                 </template>
             </template>
             <template v-else>

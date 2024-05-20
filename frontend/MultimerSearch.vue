@@ -4,7 +4,7 @@
         <v-flex xs12>
             <panel class="query-panel d-flex fill-height" fill-height>
             <template slot="header">
-                Input protein multimer structure (PDB)
+                Input protein multimer structure (PDB/CIF)
             </template>
             <template slot="toolbar-extra">
                 <api-dialog

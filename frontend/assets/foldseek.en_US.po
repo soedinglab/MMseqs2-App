@@ -56,14 +56,14 @@ msgid "NAV_URL_3"
 msgstr "https://steineggerlab.com/"
 
 msgid "QUERIES_HELP"
-msgstr "Enter a protein structure in PDB format or upload a PDB file."
+msgstr "Enter a protein structure in PDB or mmCIF format or upload a PDB or mmCIF file."
 
 msgid "UPLOAD_LABEL"
 msgstr "Upload PDB"
 
 msgid "CURL_INTRO"
 msgstr ""
-" Use this command to get a submit a file in PDB format to the Foldseek "
+" Use this command to get a submit a file in PDB or mmCIF format to the Foldseek "
 "search server. Replace the ‘PATH_TO_FILE’ string with the path to the file."
 
 msgid "MODE_HELP"
