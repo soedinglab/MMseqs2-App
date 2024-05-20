@@ -283,15 +283,6 @@ export default {
                 return 80;
             }
         },
-        filteredResults() {
-            if (!this.hits) {
-                return [];
-            }
-            if (this.selectedDatabases === 0) {
-                return this.hits.results;
-            }
-            return [this.hits.results[this.selectedDatabases - 1]];
-        },
         resultState() {
             if (this.hits == null && this.error == "") {
                 return "PENDING";
