@@ -30,7 +30,7 @@ import ResultView from './ResultView.vue';
 import Local from './Local.vue';
 
 export default {
-    name: 'result',
+    name: 'ResultLocal',
     mixins: [ResultMixin],
     components: { ResultView, Local },
     data() {

@@ -10,7 +10,7 @@ function clamp(a,b,c) {
 }
 
 export default {
-    name: 'result',
+    name: 'ResultMixin',
     data() {
         return {
             ticket: "",

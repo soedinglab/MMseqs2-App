@@ -240,7 +240,7 @@ function getAbsOffsetTop($el) {
 }
 
 export default {
-    name: 'result',
+    name: 'ResultView',
     components: { Panel, AlignmentPanel, Ruler },
     data() {
         return {

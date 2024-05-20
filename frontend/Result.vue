@@ -25,6 +25,7 @@ function pdb2ca(pdb) {
 }
 
 export default {
+    name: 'Result',
     components: { ResultView },
     mixins: [ResultMixin],
     mounted() {
