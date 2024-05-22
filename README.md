@@ -10,6 +10,9 @@ The application runs either:
 ## Desktop App
 Head over to the [release page](https://github.com/soedinglab/MMseqs2-App/releases) and download the latest version. We support Linux, macOS and Windows.
 
+> [!IMPORTANT]
+> The desktop app is currently not maintained. Currently, only the backend-only mode for ColabFold and the MMseqs2 and Foldseek webservers are being maintained. We will revisit the desktop app at some point in the future.
+
 ### Adding a search database
 Once the app is installed, open the Settings panel. There you can add either sequence databases in FASTA format, such as our [Uniclust](https://uniclust.mmseqs.com/) databases or profile databases in Stockholm format, such as the [PFAM](ftp://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.full.gz).
 

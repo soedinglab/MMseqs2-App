@@ -1,7 +1,7 @@
 {
   "name": "mmseqs-app",
   "productName": "MMseqs2 App",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "author": "Milot Mirdita <milot@mirdita.de>",
   "description": "MMseqs2 is a software suite to search and annotate huge sequence sets. We built a graphical interface to make it more useful for interactive data exploration.",
   "repository": "https://github.com/soedinglab/MMseqs2-App",
