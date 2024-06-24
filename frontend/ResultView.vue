@@ -55,6 +55,29 @@
                 </div>
 
                 <template slot="content" v-if="hits && hits.results">
+                    <!-- hack to get a menu that can be used from outside the list -->
+                    <!-- we don't want to make potentially thousands of menus -->
+                    <v-menu offset-y ref="menuwrapper" absolute>
+                        <template v-slot:activator="{ on: activation, attrs: attrs }">
+                            <div style="display: none">{{ menuActivator = activation }}</div>
+                        </template>
+                        <v-list>
+                            <v-list-item two-line
+                                v-for="(item, index) in menuItems"
+                                :key="index"
+                                :href="item.href"
+                                target="_blank"
+                                rel="noopener"
+                                >
+                                <v-list-item-content>
+                                    <v-list-item-title>{{ item.label }}</v-list-item-title>
+                                    <v-list-item-subtitle>
+                                        {{ item.accession }}
+                                    </v-list-item-subtitle>
+                                </v-list-item-content>
+                            </v-list-item>
+                        </v-list>
+                    </v-menu>
                     <v-tabs
                         :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"
                         center-active
@@ -165,7 +188,8 @@
                                     <template v-if="isComplex">
                                         {{ item.query.lastIndexOf('_') != -1 ? item.query.substring(item.query.lastIndexOf('_')+1) : '' }} ➔ 
                                     </template>
-                                    <a :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.target}}</a>
+                                    <a style="text-decoration: underline; color: #2196f3;" v-if="Array.isArray(item.href)" @click="forwardDropdown($event, item.href)"rel="noopener" :title="item.target">{{item.target}} Ext</a>
+                                    <a v-else :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.target}}</a>
                                 </td>
                                 <td class="long" data-label="Description" v-if="entry.hasDescription">
                                     <span :title="item.description">{{ item.description }}</span>
@@ -248,7 +272,9 @@ export default {
             activeTarget: null,
             alnBoxOffset: 0,
             selectedDatabases: 0,
-            tableMode: 0
+            tableMode: 0,
+            menuActivator: null,
+            menuItems: [],
         }
     },
     props: {
@@ -261,6 +287,11 @@ export default {
     },
     beforeDestroy() {
         window.removeEventListener("resize", this.handleAlignmentBoxResize);
+    },
+    mounted() {
+        this.$nextTick(() => {
+            console.log(this.menuActivator);
+        });
     },
     computed: {
         mode() {
@@ -326,7 +357,13 @@ export default {
             if (this.activeTarget != null) {
                 this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight;
             }
-        }, 32, false)
+        }, 32, false),
+        forwardDropdown(event, items) {
+            if (this.menuActivator) {
+                this.menuItems = items;
+                this.menuActivator.click(event);
+            }
+        }
     }
 };
 </script>

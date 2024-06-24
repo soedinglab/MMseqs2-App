@@ -1,38 +1,68 @@
 import { Selection, Matrix4 } from 'ngl';
 
 function tryLinkTargetToDB(target, db) {
-    var res = db.toLowerCase();
-    if (res.startsWith("pfam")) {
-        return 'https://www.ebi.ac.uk/interpro/entry/pfam/' + target;
-    } else if (res.startsWith("pdb")) {
-        return 'https://www.rcsb.org/pdb/explore.do?structureId=' + target.replaceAll(/-assembly[0-9]+/g, '').replaceAll(/\.(cif|pdb)(\.gz)?/g, '').split('_')[0];
-    } else if (res.startsWith("uniclust") || res.startsWith("uniprot") || res.startsWith("sprot") || res.startsWith("swissprot")) {
-        return 'https://www.uniprot.org/uniprot/' + target;
-    } else if (res.startsWith("eggnog_")) {
-        return 'http://eggnogdb.embl.de/#/app/results?target_nogs=' + target;
-    } else if (res.startsWith("cdd")) {
-        return 'https://www.ncbi.nlm.nih.gov/Structure/cdd/cddsrv.cgi?uid=' + target;
-    }
-
-    if (__APP__ == "foldseek") {
-        if (target.startsWith("AF-")) {
-            return 'https://www.alphafold.ebi.ac.uk/entry/' + target.replaceAll(/-F[0-9]+-model_v[0-9]+(\.(cif|pdb))?(\.gz)?(_[A-Z0-9]+)?$/g, '');
-        } else if (target.startsWith("GMGC")) {
-            return 'https://gmgc.embl.de/search.cgi?search_id=' + target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '')
-        } else if (target.startsWith("MGYP")) {
-            return 'https://esmatlas.com/explore/detail/' + target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '')
+    try {
+        var res = db.toLowerCase();
+        if (res.startsWith("pfam")) {
+            return 'https://www.ebi.ac.uk/interpro/entry/pfam/' + target;
+        } else if (res.startsWith("pdb")) {
+            return 'https://www.rcsb.org/pdb/explore.do?structureId=' + target.replaceAll(/-assembly[0-9]+/g, '').replaceAll(/\.(cif|pdb)(\.gz)?/g, '').split('_')[0];
+        } else if (res.startsWith("uniclust") || res.startsWith("uniprot") || res.startsWith("sprot") || res.startsWith("swissprot")) {
+            return 'https://www.uniprot.org/uniprot/' + target;
+        } else if (res.startsWith("eggnog_")) {
+            return 'http://eggnogdb.embl.de/#/app/results?target_nogs=' + target;
+        } else if (res.startsWith("cdd")) {
+            return 'https://www.ncbi.nlm.nih.gov/Structure/cdd/cddsrv.cgi?uid=' + target;
         }
 
-        if (res.startsWith("cath")) {
-            if (target.startsWith('af_')) {
-                const cath = target.substring(target.lastIndexOf('_') + 1);
-                return "https://www.cathdb.info/version/latest/superfamily/" + cath;
-            } else {
-                return "https://www.cathdb.info/version/latest/domain/"+ target;
+        if (__APP__ == "foldseek") {
+            if (target.startsWith("AF-")) {
+                 let accession = target.replaceAll(/-F[0-9]+-model_v[0-9]+(\.(cif|pdb))?(\.gz)?(_[A-Z0-9]+)?$/g, '');
+                 accession = accession.substring(3);
+                 return [
+                     { label: 'AFDB', accession: accession, href:'https://www.alphafold.ebi.ac.uk/entry/' + accession },
+                     { label: 'UniProt', accession: accession, href: 'https://www.uniprot.org/uniprot/' + accession },
+                 ];
+            } else if (target.startsWith("GMGC")) {
+                return 'https://gmgc.embl.de/search.cgi?search_id=' + target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '')
+            } else if (target.startsWith("MGYP")) {
+                return 'https://esmatlas.com/explore/detail/' + target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '')
+            } else if (target.startsWith("LevyLab_")) {
+                let accession = target.split('_')[1];
+                return [
+                    { label: 'AFDB', accession: accession, href:'https://www.alphafold.ebi.ac.uk/entry/' + accession },
+                    { label: 'UniProt', accession: accession, href: 'https://www.uniprot.org/uniprot/' + accession },
+                ];
+            } else if ( target.startsWith("ProtVar_")) {
+                let accession1 = target.split('_')[1];
+                let accession2 = target.split('_')[2];
+                let result = [
+                    { label: 'AFDB', accession: accession1, href:'https://www.alphafold.ebi.ac.uk/entry/' + accession1 },
+                    { label: 'UniProt', accession: accession1, href: 'https://www.uniprot.org/uniprot/' + accession1 },
+                ];
+                if (accession1 != accession2) {
+                    result.push({ label: 'AFDB', accession: accession2, href:'https://www.alphafold.ebi.ac.uk/entry/' + accession2 });
+                    result.push({ label: 'UniProt', accession: accession2, href: 'https://www.uniprot.org/uniprot/' + accession2 });
+                }
+                return result;
+            } else if (target.startsWith("ModelArchive_")) {
+                return 'https://modelarchive.org/doi/10.5452/' + target.split('_')[1];
+            } else if (target.startsWith("Predictome_")) {
+                return 'https://predictomes.org/summary/' + target.split('_')[1];
+            }
+            if (res.startsWith("cath")) {
+                if (target.startsWith('af_')) {
+                    const cath = target.substring(target.lastIndexOf('_') + 1);
+                    return "https://www.cathdb.info/version/latest/superfamily/" + cath;
+                } else {
+                    return "https://www.cathdb.info/version/latest/domain/"+ target;
+                }
             }
         }
+        return null;
+    } catch (e) {
+        return null;
     }
-    return null;
 }
 
 function tryFixTargetName(target, db) {
