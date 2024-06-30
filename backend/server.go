@@ -656,6 +656,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
+		database := req.URL.Query().Get("database")
 		var fasta []FastaEntry
 		var results []SearchResult
 		var mode string
@@ -666,6 +667,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			mode = job.Mode
 			ids = []int64{id}
 			databases := job.Database
+			if database != "" {
+				if isIn(database, job.Database) == -1 {
+					http.Error(w, "Database not found", http.StatusBadRequest)
+					return
+				}
+				databases = []string{database}
+			}
 			results, err = Alignments(ticket.Id, ids, databases, config.Paths.Results)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -676,6 +684,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			ids = []int64{id}
 			isFoldseek = true
 			databases := job.Database
+			if database != "" {
+				if isIn(database, job.Database) == -1 {
+					http.Error(w, "Database not found", http.StatusBadRequest)
+					return
+				}
+				databases = []string{database}
+			}
 			results, err = FSAlignments(ticket.Id, ids, databases, config.Paths.Results)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -696,6 +711,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 			isFoldseek = true
 			databases := job.Database
+			if database != "" {
+				if isIn(database, job.Database) == -1 {
+					http.Error(w, "Database not found", http.StatusBadRequest)
+					return
+				}
+				databases = []string{database}
+			}
 			results, err = ComplexAlignments(ticket.Id, ids, databases, config.Paths.Results)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)

@@ -390,9 +390,10 @@ END
             let tSeq = alignment.tSeq;
             let tCa = alignment.tCa;
             if (Number.isInteger(alignment.tCa) && Number.isInteger(alignment.tSeq)) {
+                const db = alignment.db;
                 const idx = alignment.tCa;
                 const ticket =  this.$route.params.ticket;
-                const response = await this.$axios.get("api/result/" + ticket + '/' + this.$route.params.entry + '?format=brief&index=' + idx);
+                const response = await this.$axios.get("api/result/" + ticket + '/' + this.$route.params.entry + '?format=brief&index=' + idx + '&database=' + db);
                 tSeq = response.data.tSeq;
                 tCa = response.data.tCa;
             }

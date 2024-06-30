@@ -210,7 +210,7 @@
                                         <v-icon v-once>{{ $MDI.NotificationClearAll }}</v-icon>
                                     </v-btn> -->
                                     <button 
-                                        @click="showAlignment(group, $event)"
+                                        @click="showAlignment(group, entry.db, $event)"
                                         type="button"
                                         class="v-btn v-btn--icon v-btn--round v-btn--text v-size--default"
                                         :class="{ 
@@ -337,12 +337,13 @@ export default {
             console.log(args);
             return args;
         },
-        showAlignment(item, event) {
+        showAlignment(item, db, event) {
             if (this.alignment === item) {
                 this.closeAlignment();
             } else {
                 this.alignment = null;
                 this.$nextTick(() => {
+                    item.map(item => item.db = db);
                     this.alignment = item;
                     this.activeTarget = event.target.closest('.alignment-action');
                     this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight;
