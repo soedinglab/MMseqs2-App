@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -33,57 +34,149 @@ type AlignmentEntry struct {
 	TaxonName     string      `json:"taxName,omitempty"`
 }
 
+type MarshalFormat int
+
+const (
+	MarshalDefault       MarshalFormat = 0
+	MarshalTargetNumeric MarshalFormat = 1
+	MarshalTargetOnly    MarshalFormat = 2
+)
+
 type FoldseekAlignmentEntry struct {
-	Query         string      `json:"query"`
-	Target        string      `json:"target"`
-	SeqId         float32     `json:"seqId"`
-	AlnLength     int         `json:"alnLength"`
-	Missmatches   int         `json:"missmatches"`
-	Gapsopened    int         `json:"gapsopened"`
-	QueryStartPos int         `json:"qStartPos"`
-	QueryEndPos   int         `json:"qEndPos"`
-	DbStartPos    int         `json:"dbStartPos"`
-	DbEndPos      int         `json:"dbEndPos"`
-	Prob          float32     `json:"prob"`
-	Eval          float64     `json:"eval"`
-	Score         int         `json:"score"`
-	QueryLength   int         `json:"qLen"`
-	DbLength      int         `json:"dbLen"`
-	QueryAln      string      `json:"qAln"`
-	DbAln         string      `json:"dbAln"`
-	TargetCa      string      `json:"tCa"`
-	TargetSeq     string      `json:"tSeq"`
-	TaxonId       json.Number `json:"taxId,omitempty"`
-	TaxonName     string      `json:"taxName,omitempty"`
+	MarshalFormat MarshalFormat `json:"-"`
+	Query         string        `json:"query"`
+	Target        string        `json:"target"`
+	SeqId         float32       `json:"seqId"`
+	AlnLength     int           `json:"alnLength"`
+	Missmatches   int           `json:"missmatches"`
+	Gapsopened    int           `json:"gapsopened"`
+	QueryStartPos int           `json:"qStartPos"`
+	QueryEndPos   int           `json:"qEndPos"`
+	DbStartPos    int           `json:"dbStartPos"`
+	DbEndPos      int           `json:"dbEndPos"`
+	Prob          float32       `json:"prob"`
+	Eval          float64       `json:"eval"`
+	Score         int           `json:"score"`
+	QueryLength   int           `json:"qLen"`
+	DbLength      int           `json:"dbLen"`
+	QueryAln      string        `json:"qAln"`
+	DbAln         string        `json:"dbAln"`
+	TargetCa      string        `json:"tCa"`
+	TargetSeq     string        `json:"tSeq"`
+	TaxonId       json.Number   `json:"taxId,omitempty"`
+	TaxonName     string        `json:"taxName,omitempty"`
+}
+
+func (entry FoldseekAlignmentEntry) MarshalJSON() ([]byte, error) {
+	type Alias FoldseekAlignmentEntry
+
+	if entry.MarshalFormat == MarshalDefault {
+		return json.Marshal(&struct {
+			*Alias
+		}{
+			Alias: (*Alias)(&entry),
+		})
+	} else if entry.MarshalFormat == MarshalTargetNumeric {
+		targetCaInt, err := strconv.Atoi(entry.TargetCa)
+		if err != nil {
+			return nil, err
+		}
+		targetSeqInt, err := strconv.Atoi(entry.TargetSeq)
+		if err != nil {
+			return nil, err
+		}
+
+		return json.Marshal(&struct {
+			*Alias
+			TargetCa  int `json:"tCa"`
+			TargetSeq int `json:"tSeq"`
+		}{
+			Alias:     (*Alias)(&entry),
+			TargetCa:  targetCaInt,
+			TargetSeq: targetSeqInt,
+		})
+	} else if entry.MarshalFormat == MarshalTargetOnly {
+		return json.Marshal(&struct {
+			TargetSeq string `json:"tSeq"`
+			TargetCa  string `json:"tCa"`
+		}{
+			TargetSeq: entry.TargetSeq,
+			TargetCa:  entry.TargetCa,
+		})
+	} else {
+		return nil, nil
+	}
 }
 
 type ComplexAlignmentEntry struct {
-	Query           string      `json:"query"`
-	Target          string      `json:"target"`
-	SeqId           float32     `json:"seqId"`
-	AlnLength       int         `json:"alnLength"`
-	Missmatches     int         `json:"missmatches"`
-	Gapsopened      int         `json:"gapsopened"`
-	QueryStartPos   int         `json:"qStartPos"`
-	QueryEndPos     int         `json:"qEndPos"`
-	DbStartPos      int         `json:"dbStartPos"`
-	DbEndPos        int         `json:"dbEndPos"`
-	Prob            float32     `json:"prob"`
-	Eval            float64     `json:"eval"`
-	Score           int         `json:"score"`
-	QueryLength     int         `json:"qLen"`
-	DbLength        int         `json:"dbLen"`
-	QueryAln        string      `json:"qAln"`
-	DbAln           string      `json:"dbAln"`
-	TargetCa        string      `json:"tCa"`
-	TargetSeq       string      `json:"tSeq"`
-	ComplexAssignId int         `json:"complexid"`
-	ComplexQtmScore float32     `json:"complexqtm"`
-	ComplexTtmScore float32     `json:"complexttm"`
-	ComplexU        string      `json:"complexu"`
-	ComplexT        string      `json:"complext"`
-	TaxonId         json.Number `json:"taxId,omitempty"`
-	TaxonName       string      `json:"taxName,omitempty"`
+	MarshalFormat   MarshalFormat `json:"-"`
+	Query           string        `json:"query"`
+	Target          string        `json:"target"`
+	SeqId           float32       `json:"seqId"`
+	AlnLength       int           `json:"alnLength"`
+	Missmatches     int           `json:"missmatches"`
+	Gapsopened      int           `json:"gapsopened"`
+	QueryStartPos   int           `json:"qStartPos"`
+	QueryEndPos     int           `json:"qEndPos"`
+	DbStartPos      int           `json:"dbStartPos"`
+	DbEndPos        int           `json:"dbEndPos"`
+	Prob            float32       `json:"prob"`
+	Eval            float64       `json:"eval"`
+	Score           int           `json:"score"`
+	QueryLength     int           `json:"qLen"`
+	DbLength        int           `json:"dbLen"`
+	QueryAln        string        `json:"qAln"`
+	DbAln           string        `json:"dbAln"`
+	TargetCa        string        `json:"tCa"`
+	TargetSeq       string        `json:"tSeq"`
+	ComplexAssignId int           `json:"complexid"`
+	ComplexQtmScore float32       `json:"complexqtm"`
+	ComplexTtmScore float32       `json:"complexttm"`
+	ComplexU        string        `json:"complexu"`
+	ComplexT        string        `json:"complext"`
+	TaxonId         json.Number   `json:"taxId,omitempty"`
+	TaxonName       string        `json:"taxName,omitempty"`
+}
+
+func (entry ComplexAlignmentEntry) MarshalJSON() ([]byte, error) {
+	type Alias ComplexAlignmentEntry
+
+	if entry.MarshalFormat == MarshalDefault {
+		return json.Marshal(&struct {
+			*Alias
+		}{
+			Alias: (*Alias)(&entry),
+		})
+	} else if entry.MarshalFormat == MarshalTargetNumeric {
+		targetCaInt, err := strconv.Atoi(entry.TargetCa)
+		if err != nil {
+			return nil, err
+		}
+		targetSeqInt, err := strconv.Atoi(entry.TargetSeq)
+		if err != nil {
+			return nil, err
+		}
+
+		return json.Marshal(&struct {
+			*Alias
+			TargetCa  int `json:"tCa"`
+			TargetSeq int `json:"tSeq"`
+		}{
+			Alias:     (*Alias)(&entry),
+			TargetCa:  targetCaInt,
+			TargetSeq: targetSeqInt,
+		})
+	} else if entry.MarshalFormat == MarshalTargetOnly {
+		return json.Marshal(&struct {
+			TargetSeq string `json:"tSeq"`
+			TargetCa  string `json:"tCa"`
+		}{
+			TargetSeq: entry.TargetSeq,
+			TargetCa:  entry.TargetCa,
+		})
+	} else {
+		return nil, nil
+	}
 }
 
 type EmptyEntry struct{}
@@ -98,48 +191,72 @@ type SearchResult struct {
 	Alignments interface{} `json:"alignments"`
 }
 
-type AlignmentResponse struct {
-	Queries []FastaEntry   `json:"queries"`
-	Results []SearchResult `json:"results"`
-}
-
 func dbpaths(path string) (string, string) {
 	return path, path + ".index"
 }
 
-type AlignmentParser func(Id, []int64, string) (AlignmentResponse, error)
+func ReadAlignment[T any](reader io.Reader) ([]T, error) {
+	var results []T
+	r := new(T)
+	parser := NewTsvParser(reader, r)
+	for {
+		eof, err := parser.Next()
+		if eof {
+			break
+		}
+		if err != nil {
+			return results, err
+		}
+		results = append(results, *r)
+	}
+	return results, nil
+}
 
-func ReadAlignments[T any](id Id, entries []int64, jobsbase string) (AlignmentResponse, error) {
+func ReadQuery(id Id, entries []int64, jobsbase string) ([]FastaEntry, error) {
 	base := filepath.Join(jobsbase, string(id))
-	matches, err := filepath.Glob(filepath.Join(filepath.Clean(base), "alis_*.index"))
+	query := filepath.Join(base, "query")
+	seqReader := Reader[uint32]{}
+	err := seqReader.Make(dbpaths(query))
+	fasta := make([]FastaEntry, 0)
 	if err != nil {
-		return AlignmentResponse{}, err
+		return fasta, err
+	}
+	hdrReader := Reader[uint32]{}
+	err = hdrReader.Make(dbpaths(query + "_h"))
+	if err != nil {
+		seqReader.Delete()
+		return fasta, err
 	}
 
+	for _, entry := range entries {
+		sequence := strings.TrimSpace(seqReader.Data(entry))
+		seqReader.Delete()
+		header := strings.TrimSpace(hdrReader.Data(entry))
+		hdrReader.Delete()
+		fasta = append(fasta, FastaEntry{header, sequence})
+	}
+	seqReader.Delete()
+	hdrReader.Delete()
+	return fasta, nil
+}
+
+func ReadAlignments[T any](id Id, entries []int64, databases []string, jobsbase string) ([]SearchResult, error) {
+	base := filepath.Join(jobsbase, string(id))
 	reader := Reader[uint32]{}
 	res := make([]SearchResult, 0)
-	for _, item := range matches {
-		name := strings.TrimSuffix(item, ".index")
+	for _, db := range databases {
+		name := filepath.Join(filepath.Clean(base), "alis_"+db)
 		err := reader.Make(dbpaths(name))
 		if err != nil {
-			return AlignmentResponse{}, err
+			return res, err
 		}
 		all := make([][]T, 0)
 		for _, entry := range entries {
-			var results []T
-			r := new(T)
 			data := strings.NewReader(reader.Data(entry))
-			parser := NewTsvParser(data, r)
-			for {
-				eof, err := parser.Next()
-				if eof {
-					break
-				}
-				if err != nil {
-					reader.Delete()
-					return AlignmentResponse{}, err
-				}
-				results = append(results, *r)
+			results, err := ReadAlignment[T](data)
+			if err != nil {
+				reader.Delete()
+				return res, err
 			}
 			if len(results) == 0 {
 				continue
@@ -151,48 +268,19 @@ func ReadAlignments[T any](id Id, entries []int64, jobsbase string) (AlignmentRe
 		res = append(res, SearchResult{strings.TrimPrefix(base, "alis_"), all})
 	}
 
-	query := filepath.Join(base, "query")
-
-	seqReader := Reader[uint32]{}
-	err = seqReader.Make(dbpaths(query))
-	if err != nil {
-		return AlignmentResponse{}, err
-	}
-	hdrReader := Reader[uint32]{}
-	err = hdrReader.Make(dbpaths(query + "_h"))
-	if err != nil {
-		seqReader.Delete()
-		return AlignmentResponse{}, err
-	}
-
-	fasta := make([]FastaEntry, 0)
-	for _, entry := range entries {
-		sequence := strings.TrimSpace(seqReader.Data(entry))
-		seqReader.Delete()
-		header := strings.TrimSpace(hdrReader.Data(entry))
-		hdrReader.Delete()
-		fasta = append(fasta, FastaEntry{header, sequence})
-	}
-	seqReader.Delete()
-	hdrReader.Delete()
-
-	return AlignmentResponse{fasta, res}, nil
+	return res, nil
 }
 
-func Alignments(id Id, entry []int64, jobsbase string) (AlignmentResponse, error) {
-	return ReadAlignments[AlignmentEntry](id, entry, jobsbase)
+func Alignments(id Id, entry []int64, databases []string, jobsbase string) ([]SearchResult, error) {
+	return ReadAlignments[AlignmentEntry](id, entry, databases, jobsbase)
 }
 
-func FSAlignments(id Id, entry []int64, jobsbase string) (AlignmentResponse, error) {
-	return ReadAlignments[FoldseekAlignmentEntry](id, entry, jobsbase)
+func FSAlignments(id Id, entry []int64, databases []string, jobsbase string) ([]SearchResult, error) {
+	return ReadAlignments[FoldseekAlignmentEntry](id, entry, databases, jobsbase)
 }
 
-func ComplexAlignments(id Id, entry []int64, jobsbase string) (AlignmentResponse, error) {
-	return ReadAlignments[ComplexAlignmentEntry](id, entry, jobsbase)
-}
-
-func NullParser(id Id, entry []int64, jobsbase string) (AlignmentResponse, error) {
-	return AlignmentResponse{}, nil
+func ComplexAlignments(id Id, entry []int64, databases []string, jobsbase string) ([]SearchResult, error) {
+	return ReadAlignments[ComplexAlignmentEntry](id, entry, databases, jobsbase)
 }
 
 func addFile(tw *tar.Writer, path string) error {

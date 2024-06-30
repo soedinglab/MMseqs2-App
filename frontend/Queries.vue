@@ -92,7 +92,7 @@ export default {
 
             this.error = "";
             this.groupBySet = false;
-            if (this.ticket.startsWith('user')) {
+            if (this.ticket.startsWith('user-')) {
                 let localData = this.$root.userData;
                 this.items = localData.map((res, i) => ({ id: i, name: res.query.header, set: i }));
                 this.multi = this.items.length > 1 || (this.items.length == 1 && this.items[0].id != 0);

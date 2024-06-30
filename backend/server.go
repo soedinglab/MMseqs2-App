@@ -656,21 +656,33 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		var parseFunc AlignmentParser
+		var fasta []FastaEntry
+		var results []SearchResult
 		var mode string
 		var ids []int64
+		isFoldseek := false
 		switch job := request.Job.(type) {
 		case SearchJob:
 			mode = job.Mode
-			parseFunc = Alignments
 			ids = []int64{id}
+			databases := job.Database
+			results, err = Alignments(ticket.Id, ids, databases, config.Paths.Results)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 		case StructureSearchJob:
 			mode = job.Mode
-			parseFunc = FSAlignments
 			ids = []int64{id}
+			isFoldseek = true
+			databases := job.Database
+			results, err = FSAlignments(ticket.Id, ids, databases, config.Paths.Results)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 		case ComplexSearchJob:
 			mode = job.Mode
-			parseFunc = ComplexAlignments
 			result, err := Lookup(ticket.Id, 0, math.MaxInt32, config.Paths.Results, false)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -682,37 +694,99 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 					ids = append(ids, int64(lookup.Id))
 				}
 			}
-		case MsaJob:
-			mode = job.Mode
-			parseFunc = NullParser
-			ids = []int64{}
-		case PairJob:
-			mode = job.Mode
-			parseFunc = NullParser
-			ids = []int64{}
+			isFoldseek = true
+			databases := job.Database
+			results, err = ComplexAlignments(ticket.Id, ids, databases, config.Paths.Results)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 		default:
-			mode = ""
-			parseFunc = NullParser
-			ids = []int64{}
+			http.Error(w, "Invalid job type", http.StatusBadRequest)
+			return
 		}
-		results, err := parseFunc(ticket.Id, ids, config.Paths.Results)
+
+		parIndex := req.URL.Query().Get("index")
+		format := req.URL.Query().Get("format")
+		if isFoldseek && format == "brief" {
+			resIndex := -1
+			if parIndex != "" {
+				tmp, err := strconv.ParseInt(parIndex, 10, 32)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				resIndex = int(tmp)
+			}
+			for _, res := range results {
+				if res.Alignments == nil {
+					continue
+				}
+				cnt := 0
+				switch conv := res.Alignments.(type) {
+				case [][]FoldseekAlignmentEntry:
+					for _, inner := range conv {
+						for i := range inner {
+							if cnt == resIndex {
+								w.Header().Set("Cache-Control", "public, max-age=3600")
+								err = json.NewEncoder(w).Encode(inner[i])
+								if err != nil {
+									http.Error(w, err.Error(), http.StatusBadRequest)
+								}
+								return
+							}
+							idx := strconv.Itoa(cnt)
+							inner[i].MarshalFormat = MarshalTargetNumeric
+							inner[i].TargetCa = idx
+							inner[i].TargetSeq = idx
+							cnt++
+						}
+					}
+				case [][]ComplexAlignmentEntry:
+					for _, inner := range conv {
+						for i := range inner {
+							if cnt == resIndex {
+								w.Header().Set("Cache-Control", "public, max-age=3600")
+								err = json.NewEncoder(w).Encode(inner[i])
+								if err != nil {
+									http.Error(w, err.Error(), http.StatusBadRequest)
+									return
+								}
+								return
+							}
+							idx := strconv.Itoa(cnt)
+							inner[i].MarshalFormat = MarshalTargetNumeric
+							inner[i].TargetCa = idx
+							inner[i].TargetSeq = idx
+							cnt++
+						}
+					}
+				default:
+					continue
+				}
+			}
+			if resIndex != -1 {
+				http.Error(w, "Not found", http.StatusBadRequest)
+				return
+			}
+		}
+
+		fasta, err = ReadQuery(ticket.Id, ids, config.Paths.Results)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-
 		type AlignmentModeResponse struct {
 			Queries []FastaEntry   `json:"queries"`
 			Mode    string         `json:"mode"`
 			Results []SearchResult `json:"results"`
 		}
 		w.Header().Set("Cache-Control", "public, max-age=3600")
-		err = json.NewEncoder(w).Encode(AlignmentModeResponse{results.Queries, mode, results.Results})
+		err = json.NewEncoder(w).Encode(AlignmentModeResponse{fasta, mode, results})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-
 	})
 	r.Handle("/result/{ticket}/{entry}", compressHandler(resultHandler)).Methods("GET")
 

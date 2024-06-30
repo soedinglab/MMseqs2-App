@@ -39,9 +39,7 @@ func NewTsvParser(reader io.Reader, data interface{}) *Parser {
 	return p
 }
 
-// Next puts reader forward by a line
 func (p *Parser) Next() (eof bool, err error) {
-	// Get next record
 	var records []string
 
 	for {
@@ -58,24 +56,44 @@ func (p *Parser) Next() (eof bool, err error) {
 		}
 	}
 
+	// set up indices only once
 	if len(p.indices) == 0 {
-		p.indices = make([]int, len(records))
-		// mapping simple index
-		for i := 0; i < len(records); i++ {
-			p.indices[i] = i + 1
+		t := reflect.TypeOf(p.ref.Interface())
+		if t.Kind() == reflect.Ptr {
+			// dereference to get struct type
+			t = t.Elem()
+		}
+		numFields := t.NumField()
+		p.indices = make([]int, numFields)
+
+		recordIndex := 0
+		for i := 0; i < numFields; i++ {
+			field := t.Field(i)
+			jsonTag := field.Tag.Get("json")
+			if jsonTag == "-" {
+				// skip
+				p.indices[i] = -1
+				continue
+			}
+			if recordIndex < len(records) {
+				p.indices[i] = recordIndex
+				recordIndex++
+			} else {
+				// skip
+				p.indices[i] = -1
+			}
 		}
 	}
 
-	// record should be a pointer
-	for i, record := range records {
-		idx := p.indices[i]
-		if idx == 0 {
-			// skip empty index
+	for i, idx := range p.indices {
+		if idx == -1 {
 			continue
 		}
-
-		// get target field
-		field := p.ref.Field(idx - 1)
+		if idx >= len(records) {
+			continue
+		}
+		field := p.ref.Field(i)
+		record := records[idx]
 
 		switch field.Kind() {
 		case reflect.String:

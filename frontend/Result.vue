@@ -31,7 +31,7 @@ export default {
     mounted() {
         this.$root.$on('downloadJSON', () => {
             let data;
-            if (this.ticket.startsWith('user')) {
+            if (this.ticket.startsWith('user-')) {
                 data = this.$root.userData;
                 download(data, `${`Foldseek_${dateTime()}.json`}`)
             } else {
@@ -68,11 +68,11 @@ export default {
             this.resetProperties();
             try {
                 let hits;
-                if (this.ticket.startsWith('user')) {
+                if (this.ticket.startsWith('user-')) {
                     let localData = this.$root.userData;
                     hits = localData[this.$route.params.entry];
                 } else {
-                    const response = await this.$axios.get("api/result/" + this.ticket + '/' + this.$route.params.entry);
+                    const response = await this.$axios.get("api/result/" + this.ticket + '/' + this.$route.params.entry + '?format=brief');
                     const data = response.data;
                     if (data.alignments == null || data.alignments.length > 0) {
                         hits = parseResults(data);
@@ -110,6 +110,7 @@ export default {
                         this.$axios.get(`api/result/${this.ticket}/query`)
                     ]);
                     const data = parseResults(hitResponse.data);
+                    data.query = {};
                     data.query.pdb = JSON.stringify(hitQuery.data);
                     data.query.qCa = pdb2ca(hitQuery.data);
                     return data;

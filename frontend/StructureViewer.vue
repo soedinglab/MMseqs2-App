@@ -363,7 +363,7 @@ END
             } else {
                 queryPdb = mockPDB(this.hits.queries[0].qCa, this.hits.queries[0].sequence, 'A');
             }
-        } else if (this.$route.params.ticket.startsWith('user')) {
+        } else if (this.$route.params.ticket.startsWith('user-')) {
             // Check for special 'user' ticket for when users have uploaded JSON
             if (this.hits.queries[0].hasOwnProperty('pdb')) {
                 queryPdb = JSON.parse(this.hits.queries[0].pdb);
@@ -387,7 +387,16 @@ END
         let renumber = 0;
         for (let alignment of this.alignments) {
             const chain = getChainName(alignment.target);
-            const mock = mockPDB(alignment.tCa, alignment.tSeq, chain);
+            let tSeq = alignment.tSeq;
+            let tCa = alignment.tCa;
+            if (Number.isInteger(alignment.tCa) && Number.isInteger(alignment.tSeq)) {
+                const idx = alignment.tCa;
+                const ticket =  this.$route.params.ticket;
+                const response = await this.$axios.get("api/result/" + ticket + '/' + this.$route.params.entry + '?format=brief&index=' + idx);
+                tSeq = response.data.tSeq;
+                tCa = response.data.tCa;
+            }
+            const mock = mockPDB(tCa, tSeq, chain);
             const pdb = await pulchra(mock);
             const component = await this.stage.loadFile(new Blob([pdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
             component.structure.eachChain(c => { c.chainname = chain; });

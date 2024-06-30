@@ -98,7 +98,7 @@ export default {
                 tickets.push(itemsTmp[i].id);
                 itemsTmp[i].status = "UNKNOWN";
             }
-            if (this.current != undefined && hasCurrent == false && !this.current.startsWith('user')) {
+            if (this.current != undefined && hasCurrent == false && !this.current.startsWith('user-')) {
                 tickets.unshift(this.current);
                 itemsTmp.unshift({ id: this.current, status: "UNKNOWN", time: +(new Date()) })
             }
