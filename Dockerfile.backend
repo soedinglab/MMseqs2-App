@@ -1,23 +1,23 @@
 ARG FRONTEND_APP
 ARG downloader=${FRONTEND_APP}_downloader
 
-FROM scratch as mmseqs_downloader
+FROM scratch AS mmseqs_downloader
 WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-avx2.tar.gz  .
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-sse41.tar.gz .
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-sse2.tar.gz  .
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-arm64.tar.gz  .
 
-FROM scratch as foldseek_downloader
+FROM scratch AS foldseek_downloader
 WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-avx2.tar.gz  .
 #ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse41.tar.gz .
 ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse2.tar.gz  .
 ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-arm64.tar.gz  .
 
-FROM $downloader as downloader
+FROM $downloader AS downloader
 
-FROM --platform=$BUILDPLATFORM golang:latest as builder
+FROM --platform=$BUILDPLATFORM golang:latest AS builder
 ARG TARGETARCH
 ARG FRONTEND_APP
 
