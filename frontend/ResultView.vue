@@ -288,14 +288,9 @@ export default {
     beforeDestroy() {
         window.removeEventListener("resize", this.handleAlignmentBoxResize);
     },
-    mounted() {
-        this.$nextTick(() => {
-            console.log(this.menuActivator);
-        });
-    },
     computed: {
         mode() {
-            return this.hits ? this.hits.mode : "";
+            return this.hits?.mode ?? "";
         },
         isComplex() {
             if (this.hits?.results?.[0]?.alignments?.[0]?.[0]?.complexqtm != null) {
@@ -315,7 +310,7 @@ export default {
             }
         },
         resultState() {
-            if (this.hits == null && this.error == "") {
+            if (this.hits == null) {
                 return "PENDING";
             }
             if (!this.hits.results) {

@@ -47,8 +47,12 @@ export default {
     props: ['alignment', 'lineLen', 'queryMap', 'targetMap', 'showhelp', 'alnIndex', 'highlights'],
     components: { ResidueSpan },
     methods: {
-        getSelectionStart(i) { return this.highlights[i-1][0] },
-        getSelectionEnd(i) { return this.highlights[i-1][1] },
+        getSelectionStart(i) {
+            return (i > 0 && i <= this.highlights.length) ? this.highlights[i-1][0] : 0;
+        },
+        getSelectionEnd(i) {
+            return (i > 0 && i <= this.highlights.length) ? this.highlights[i-1][1] : 0;
+        },
 
         // Get the index of a given residue in the alignment
         getQueryIndex(index) { return this.queryMap[index] },
