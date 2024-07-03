@@ -1,23 +1,32 @@
+ARG FRONTEND_APP
+ARG downloader=${FRONTEND_APP}_downloader
+
+FROM scratch as mmseqs_downloader
+ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-avx2.tar.gz  /download
+ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-sse41.tar.gz /download
+ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-sse2.tar.gz  /download
+ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-arm64.tar.gz  /download
+
+FROM scratch as foldseek_downloader
+ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-avx2.tar.gz  /download
+#ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse41.tar.gz /download
+ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse2.tar.gz  /download
+ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-arm64.tar.gz  /download
+
+FROM $downloader as downloader
+
 FROM --platform=$BUILDPLATFORM golang:latest as builder
 ARG TARGETARCH
+ARG FRONTEND_APP
 
 WORKDIR /opt/build
 ADD backend .
 RUN GOOS=linux GOARCH=$TARGETARCH go build -o mmseqs-web
 
-ADD https://mmseqs.com/latest/mmseqs-linux-avx2.tar.gz  .
-ADD https://mmseqs.com/latest/mmseqs-linux-sse41.tar.gz .
-ADD https://mmseqs.com/latest/mmseqs-linux-sse2.tar.gz  .
-ADD https://mmseqs.com/latest/mmseqs-linux-arm64.tar.gz  .
-
-ADD https://mmseqs.com/foldseek/foldseek-linux-avx2.tar.gz  .
-#ADD https://mmseqs.com/foldseek/foldseek-linux-sse41.tar.gz .
-ADD https://mmseqs.com/foldseek/foldseek-linux-sse2.tar.gz  .
-ADD https://mmseqs.com/foldseek/foldseek-linux-arm64.tar.gz  .
-
 ADD https://raw.githubusercontent.com/soedinglab/MMseqs2/678c82ac44f1178bf9a3d49bfab9d7eed3f17fbc/util/mmseqs_wrapper.sh binaries/mmseqs
 ADD https://raw.githubusercontent.com/steineggerlab/foldseek/0a68e16214a6db745cee783128ccba8546ea5dc9/util/foldseek_wrapper.sh binaries/foldseek
 
+COPY --from=downloader /download .
 RUN mkdir binaries; \
     if [ "$TARGETARCH" = "arm64" ]; then \
       for i in mmseqs foldseek; do \
