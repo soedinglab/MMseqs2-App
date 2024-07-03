@@ -144,8 +144,11 @@ import { djb2, parseResultsList, checkMultimer } from './Utilities.js';
 import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import ApiDialog from './ApiDialog.vue';
 import { storage, HistoryMixin } from './lib/HistoryMixin.js';
+import { BlobDatabase } from './lib/BlobDatabase.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
+
+const db = BlobDatabase();
 
 export default {
     name: "search",
@@ -178,11 +181,15 @@ export default {
             accessionLoading: false,
         };
     },
-    mounted() {
+    async mounted() {
         if (this.preloadAccession.length > 0) {
             this.query = "";
-        } else if (storage.getItem('query') && storage.getItem('query').length > 0) {
-            this.query = storage.getItem('query');
+            return;
+        }
+
+        let query = await db.getItem('query');
+        if (query && query.length > 0) {
+            this.query = query;
         } else {
             this.query = this.$STRINGS.QUERY_DEFAULT;
         }
@@ -220,7 +227,7 @@ export default {
             storage.setItem('email', value);
         },
         query(value) {
-            storage.setItem('query', value);
+            db.setItem('query', value);
         },
         database(value) {
             storage.setItem('database', JSON.stringify(value));
@@ -316,8 +323,8 @@ export default {
             );
             fr.readAsText(file)
         },
-        goToMultimer() {
-            storage.setItem('complex.query', this.query);
+        async goToMultimer() {
+            await db.setItem('multimer.query', this.query);
             this.$router.push({ name: 'multimer'});
         }
     }

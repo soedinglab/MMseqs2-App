@@ -137,9 +137,11 @@ import { djb2, parseResultsList, checkMultimer } from './Utilities.js';
 import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import ApiDialog from './ApiDialog.vue';
 import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
+import { BlobDatabase } from './lib/BlobDatabase.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
 
+const db = BlobDatabase();
 const storage = new StorageWrapper("complex");
 
 export default {
@@ -173,11 +175,14 @@ export default {
             accessionLoading: false,
         };
     },
-    mounted() {
+    async mounted() {
         if (this.preloadAccession.length > 0) {
             this.query = "";
-        } else if (storage.getItem('query') && storage.getItem('query').length > 0) {
-            this.query = storage.getItem('query');
+            return;
+        }
+        let query = await db.getItem('multimer.query');
+        if (query && query.length > 0) {
+            this.query = query;
         } else {
             // FIXME: default query for single chain doesn't work
             this.query = "";
@@ -207,7 +212,7 @@ export default {
             storage.setItem('email', value);
         },
         query(value) {
-            storage.setItem('query', value);
+            db.setItem('multimer.query', value);
         },
         database(value) {
             storage.setItem('database', JSON.stringify(value));
@@ -296,8 +301,8 @@ export default {
             );
             fr.readAsText(file)
         },
-        goToMonomer() {
-            storage.baseStorage.setItem('query', this.query);
+        async goToMonomer() {
+            await db.setItem('query', this.query);
             this.$router.push({ name: 'search'});
         }
     }
