@@ -385,17 +385,23 @@ END
         const targets = [];
         const selections_t = [];
         let renumber = 0;
+        let remoteData = null;
+        let i = 0;
         for (let alignment of this.alignments) {
             const chain = getChainName(alignment.target);
             let tSeq = alignment.tSeq;
             let tCa = alignment.tCa;
             if (Number.isInteger(alignment.tCa) && Number.isInteger(alignment.tSeq)) {
-                const db = alignment.db;
-                const idx = alignment.tCa;
-                const ticket =  this.$route.params.ticket;
-                const response = await this.$axios.get("api/result/" + ticket + '/' + this.$route.params.entry + '?format=brief&index=' + idx + '&database=' + db);
-                tSeq = response.data.tSeq;
-                tCa = response.data.tCa;
+                if (remoteData == null) {
+                    const db = alignment.db;
+                    const idx = alignment.tCa;
+                    const ticket =  this.$route.params.ticket;
+                    const response = await this.$axios.get("api/result/" + ticket + '/' + this.$route.params.entry + '?format=brief&index=' + idx + '&database=' + db);
+                    remoteData = response.data;
+                }
+                tSeq = remoteData[i].tSeq;
+                tCa = remoteData[i].tCa;
+                i++;
             }
             const mock = mockPDB(tCa, tSeq, chain);
             const pdb = await pulchra(mock);

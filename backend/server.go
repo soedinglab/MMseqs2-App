@@ -748,40 +748,55 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				switch conv := res.Alignments.(type) {
 				case [][]FoldseekAlignmentEntry:
 					for _, inner := range conv {
-						for i := range inner {
-							if cnt == resIndex {
-								w.Header().Set("Cache-Control", "public, max-age=3600")
-								err = json.NewEncoder(w).Encode(inner[i])
-								if err != nil {
-									http.Error(w, err.Error(), http.StatusBadRequest)
-								}
-								return
+						if cnt == resIndex {
+							w.Header().Set("Cache-Control", "public, max-age=3600")
+							err = json.NewEncoder(w).Encode(inner)
+							if err != nil {
+								http.Error(w, err.Error(), http.StatusBadRequest)
 							}
-							idx := strconv.Itoa(cnt)
-							inner[i].MarshalFormat = MarshalTargetNumeric
-							inner[i].TargetCa = idx
-							inner[i].TargetSeq = idx
-							cnt++
+							return
 						}
+						for i := range inner {
+							if resIndex == -1 {
+								idx := strconv.Itoa(cnt)
+								inner[i].MarshalFormat = MarshalTargetNumeric
+								inner[i].TargetCa = idx
+								inner[i].TargetSeq = idx
+							}
+						}
+						cnt++
 					}
 				case [][]ComplexAlignmentEntry:
-					for _, inner := range conv {
-						for i := range inner {
-							if cnt == resIndex {
-								w.Header().Set("Cache-Control", "public, max-age=3600")
-								err = json.NewEncoder(w).Encode(inner[i])
-								if err != nil {
-									http.Error(w, err.Error(), http.StatusBadRequest)
-									return
-								}
-								return
+					if resIndex == -1 {
+						for _, inner := range conv {
+							for i := range inner {
+								inner[i].MarshalFormat = MarshalTargetNumeric
+								inner[i].TargetCa = strconv.Itoa(inner[i].ComplexAssignId)
+								inner[i].TargetSeq = strconv.Itoa(inner[i].ComplexAssignId)
 							}
-							idx := strconv.Itoa(cnt)
-							inner[i].MarshalFormat = MarshalTargetNumeric
-							inner[i].TargetCa = idx
-							inner[i].TargetSeq = idx
-							cnt++
 						}
+					} else {
+						w.Header().Set("Cache-Control", "public, max-age=3600")
+						w.Write([]byte("["))
+						skippedFirst := false
+						for _, inner := range conv {
+							for j := range inner {
+								if resIndex == inner[j].ComplexAssignId {
+									if !skippedFirst {
+										skippedFirst = true
+									} else {
+										w.Write([]byte(","))
+									}
+									err = json.NewEncoder(w).Encode(inner[j])
+									if err != nil {
+										http.Error(w, err.Error(), http.StatusBadRequest)
+										return
+									}
+								}
+							}
+						}
+						w.Write([]byte("]"))
+						return
 					}
 				default:
 					continue
