@@ -516,7 +516,7 @@ END
                     color: colorblindColors,
                     opacity: 0.1,
                     opaqueBack: false,
-                    useWorker: false
+                    useWorker: true
                 }
                 query.addRepresentation("surface", { sele: surfaceSele0.join(" or "), name: "querySurface-0", ...surfaceParams });
                 query.addRepresentation("surface", { sele: surfaceSele1.join(" or "), name: "querySurface-1", visible: false, ...surfaceParams });
