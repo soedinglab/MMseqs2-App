@@ -385,6 +385,7 @@ END
         const targets = [];
         const selections_t = [];
         let renumber = 0;
+        let lastIdx = null;
         let remoteData = null;
         let i = 0;
         for (let alignment of this.alignments) {
@@ -392,12 +393,13 @@ END
             let tSeq = alignment.tSeq;
             let tCa = alignment.tCa;
             if (Number.isInteger(alignment.tCa) && Number.isInteger(alignment.tSeq)) {
-                if (remoteData == null) {
-                    const db = alignment.db;
-                    const idx = alignment.tCa;
+                const db = alignment.db;
+                const idx = alignment.tCa;
+                if (idx != lastIdx) {
                     const ticket =  this.$route.params.ticket;
                     const response = await this.$axios.get("api/result/" + ticket + '/' + this.$route.params.entry + '?format=brief&index=' + idx + '&database=' + db);
                     remoteData = response.data;
+                    lastIdx = idx;
                 }
                 tSeq = remoteData[i].tSeq;
                 tCa = remoteData[i].tCa;
