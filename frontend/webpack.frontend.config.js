@@ -229,8 +229,7 @@ module.exports = (env, argv) => {
             minimizer: [new TerserPlugin({
                 terserOptions: {
                     format: {
-                        beautify: true,
-                        keep_fnames: true
+                        beautify: true
                     }
                 }
             })],
