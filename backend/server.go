@@ -748,23 +748,23 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				switch conv := res.Alignments.(type) {
 				case [][]FoldseekAlignmentEntry:
 					for _, inner := range conv {
-						if cnt == resIndex {
-							w.Header().Set("Cache-Control", "public, max-age=3600")
-							err = json.NewEncoder(w).Encode(inner)
-							if err != nil {
-								http.Error(w, err.Error(), http.StatusBadRequest)
-							}
-							return
-						}
 						for i := range inner {
+							if cnt == resIndex {
+								w.Header().Set("Cache-Control", "public, max-age=3600")
+								err = json.NewEncoder(w).Encode([]FoldseekAlignmentEntry{inner[i]})
+								if err != nil {
+									http.Error(w, err.Error(), http.StatusBadRequest)
+								}
+								return
+							}
 							if resIndex == -1 {
 								idx := strconv.Itoa(cnt)
 								inner[i].MarshalFormat = MarshalTargetNumeric
 								inner[i].TargetCa = idx
 								inner[i].TargetSeq = idx
 							}
+							cnt++
 						}
-						cnt++
 					}
 				case [][]ComplexAlignmentEntry:
 					if resIndex == -1 {
