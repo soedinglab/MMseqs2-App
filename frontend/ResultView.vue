@@ -54,7 +54,7 @@
                     </v-container>
                 </div>
 
-                <template slot="content" v-if="hits && hits.results">
+                <template slot="content" v-if="resultState == 'RESULT' && hits && hits.results">
                     <!-- hack to get a menu that can be used from outside the list -->
                     <!-- we don't want to make potentially thousands of menus -->
                     <v-menu offset-y ref="menuwrapper" absolute>
@@ -310,6 +310,9 @@ export default {
             }
         },
         resultState() {
+            if (this.error != "") {
+                return "ERROR";
+            }
             if (this.hits == null) {
                 return "PENDING";
             }
@@ -324,6 +327,7 @@ export default {
                     return "RESULT";
                 }
             }
+
             return "ERROR";
         }
     },
