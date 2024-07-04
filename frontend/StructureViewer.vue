@@ -100,9 +100,19 @@ const getAccession = (name) => {
 }
 
 // Get coordinates of all atoms found in given selection
+// skip consecutive res indices as they are most likely alternative locations
+// foldseek always chooses the first alt locations, so we mimic this behavior
 const getAtomXYZ = (structure, sele) => {
     const xyz = [];
-    structure.eachAtom(ap => { xyz.push([ap.x, ap.y, ap.z]) }, sele); 
+    let lastResidueIndex = -1;
+
+    structure.eachAtom(ap => {
+        if (ap.resno !== lastResidueIndex) {
+            xyz.push([ap.x, ap.y, ap.z]);
+            lastResidueIndex = ap.resno;
+        }
+    }, sele); 
+
     return xyz;
 }
 
@@ -159,9 +169,14 @@ export default {
                 const chain_q = getChainName(alignment.query);
                 const chain_t = getChainName(alignment.target);
                 const [sele_q, sele_t] = getMatchingColumns(alignment).map(arr => arr.join(" or "));
+
                 const str1_xyz = getAtomXYZ(str1, new Selection(`(${sele_q}) and :${chain_q}.CA`));
                 const str2_xyz = getAtomXYZ(str2, new Selection(`(${sele_t}) and :${chain_t}.CA`));
-                for (let i = 0; i < str1_xyz.length; i++) {
+
+                if (str1_xyz.length != str2_xyz.length) {
+                    console.warn("Different number of CA atoms in query and target", str1_xyz.length, str2_xyz.length);
+                }
+                for (let i = 0; i < Math.min(str1_xyz.length, str2_xyz.length); i++) {
                     shape.addArrow(str1_xyz[i], str2_xyz[i], [0, 1, 1], 0.4);
                 }
             }));
