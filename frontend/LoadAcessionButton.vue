@@ -9,6 +9,7 @@
             </v-btn>
         </template>
         <v-card>
+            <form @submit.prevent="loadSelected">
             <v-card-title>
                 <div class="text-h5">Load accession</div>
             </v-card-title>
@@ -20,8 +21,9 @@
             <v-card-actions>
                 <v-spacer></v-spacer>
                 <v-btn text @click.native="show = false">Cancel</v-btn>
-                <v-btn color="primary" text @click.native="loadSelected" :disabled="this.accession.length == 0 || loading">Load</v-btn>
+                <v-btn type="submit" color="primary" text @click.native="loadSelected" :disabled="this.accession.length == 0 || loading">Load</v-btn>
             </v-card-actions>
+            </form>
         </v-card>
     </v-dialog>
 </template>
