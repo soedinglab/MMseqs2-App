@@ -97,7 +97,7 @@ func main() {
 		}
 		worker(jobsystem, config)
 	case SERVER:
-		jobsystem, err := MakeRedisJobSystem(config.Redis, config.Paths.Results, true)
+		jobsystem, err := MakeRedisJobSystem(config.Redis, config.Paths.Results, config.Server.CheckOld)
 		if err != nil {
 			panic(err)
 		}

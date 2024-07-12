@@ -44,7 +44,9 @@ var defaultFileContent = []byte(`{
         },
         */
         // should CORS headers be set to allow requests from anywhere
-        "cors"       : true
+        "cors"       : true,
+		// should old jobs be checked on startup
+		"checkold"   : true
     },
     "worker": {
         // should workers exit immediately after SIGINT/SIGTERM signal or gracefully wait for job completion
@@ -224,6 +226,7 @@ type ConfigServer struct {
 	PathPrefix  string           `json:"pathprefix"`
 	DbManagment bool             `json:"dbmanagment"`
 	CORS        bool             `json:"cors"`
+	CheckOld    bool             `json:"checkold"`
 	Auth        *ConfigAuth      `json:"auth"`
 	RateLimit   *ConfigRateLimit `json:"ratelimit"`
 }

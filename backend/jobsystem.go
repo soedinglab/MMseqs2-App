@@ -186,7 +186,7 @@ type RedisJobSystem struct {
 	Client *redis.Client
 }
 
-func MakeRedisJobSystem(config ConfigRedis, results string, isServer bool) (*RedisJobSystem, error) {
+func MakeRedisJobSystem(config ConfigRedis, results string, checkOld bool) (*RedisJobSystem, error) {
 	jobsystem := &RedisJobSystem{
 		BaseJobSystem{},
 		redis.NewClient(&redis.Options{
@@ -199,7 +199,7 @@ func MakeRedisJobSystem(config ConfigRedis, results string, isServer bool) (*Red
 	jobsystem.StatusMutex = &sync.Mutex{}
 	jobsystem.Results = results
 
-	if !isServer {
+	if !checkOld {
 		return jobsystem, nil
 	}
 
