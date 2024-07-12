@@ -103,8 +103,8 @@ func ismmCIFFile(filePath string) (bool, error) {
 	firstLine := ""
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		firstLine = scanner.Text()
-		if strings.TrimSpace(firstLine) != "" {
+		firstLine = strings.TrimSpace(scanner.Text())
+		if firstLine != "" {
 			break
 		}
 	}
@@ -116,7 +116,7 @@ func ismmCIFFile(filePath string) (bool, error) {
 		return false, errors.New("empty file")
 	}
 
-	if strings.HasPrefix(firstLine, "# ") || strings.HasPrefix(firstLine, "data_") {
+	if strings.HasPrefix(firstLine, "#") || strings.HasPrefix(firstLine, "data_") {
 		return true, nil
 	}
 	return false, nil
