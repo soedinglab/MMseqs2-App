@@ -3,14 +3,19 @@
         <div v-bind:id="id + 'label'" class="btn__content" aria-hidden>
             {{ label }}
         </div>
-        <input :aria-label="label" type="file" v-on:change="upload">
+        <input :aria-label="label" type="file" v-on:change="upload" :multiple="multiple" :accept="accept">
     </v-btn>
 </template>
 
 <script>
 export default {
     name: 'file-button',
-    props: ['id', 'label'],
+    props: {
+        id: String,
+        label: String,
+        multiple: { type: Boolean, default: false },
+        accept: { type: String, default: "*" }
+    },
     methods: {
         upload(event) {
             var files = this.$el.getElementsByTagName('input')[0].files;
