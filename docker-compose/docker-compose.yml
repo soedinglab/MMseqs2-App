@@ -49,9 +49,7 @@ services:
     entrypoint: /usr/local/bin/setup_db.sh
     volumes:
       - ./setup_db.sh:/usr/local/bin/setup_db.sh:ro
-      - ${DB_PATH}:/opt/mmseqs-web/databases
-    tmpfs:
-      - /tmp:exec
+      - ${DB_PATH}:/opt/mmseqs-web/databases:rw
     profiles:
       - setup
     environment:

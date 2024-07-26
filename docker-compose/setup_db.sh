@@ -8,12 +8,14 @@ for DB in "${@}"; do
 
 SAFE=$(echo "${DB}" | tr -cd '[a-zA-Z0-9]._-')
 if [ ! -e "/opt/mmseqs-web/databases/${SAFE}.dbtype" ]; then
-    "${APP}" databases "${DB}" "/opt/mmseqs-web/databases/${SAFE}" /tmp || continue
+    "${APP}" databases "${DB}" "/opt/mmseqs-web/databases/${SAFE}" "/opt/mmseqs-web/databases/tmp_${SAFE}" || continue
 fi
 
 if [ ! -e "/opt/mmseqs-web/databases/${SAFE}.idx.dbtype" ]; then
-    "${APP}" createindex "/opt/mmseqs-web/databases/${SAFE}" /tmp --split 1
+    "${APP}" createindex "/opt/mmseqs-web/databases/${SAFE}" "/opt/mmseqs-web/databases/tmp_${SAFE}" --split 1
 fi
+
+rm -rf -- "/opt/mmseqs-web/databases/tmp_${SAFE}"
 
 VERSION=$(cat "/opt/mmseqs-web/databases/${SAFE}.version" | head -n1 | awk '{ print $1; }')
 TAXONOMY=$("${APP}" databases --tsv | awk -v db="${DB}" '$1 == db { printf("%s", $3); f=1; exit; } END { if (f==0) printf("false"); }')
