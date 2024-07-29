@@ -85,7 +85,7 @@ export default {
             lineLen: 80,
             headerLen: null,
             countLen: null,
-            resizeObserver: null
+            resizeObserver: null,
         }
     },
     props: {
@@ -199,9 +199,9 @@ export default {
             const charDiff = Math.abs(Math.ceil(content.length * (sequence.scrollWidth - containerWidth) / sequence.scrollWidth));
 
             if (sequence.scrollWidth > containerWidth) {
-                this.lineLen -= charDiff;
+                this.lineLen = Math.min(this.lineLen - charDiff, this.entries[0].aa.length);
             } else if (sequence.scrollWidth < containerWidth) {
-                this.lineLen += charDiff;                
+                this.lineLen = Math.min(this.lineLen + charDiff, this.entries[0].aa.length);
             }
         },
         emitGradients() {

@@ -8,11 +8,11 @@
                     <v-card-text>
                         <v-simple-table style="height: 100%;" id="settings" class="settings auto-height-table">
                             <tbody>
-                                <tr v-if="statistics.hasOwnProperty('db')">
+                                <tr v-if="$LOCAL && statistics.hasOwnProperty('db')">
                                     <td>Database</td>
                                     <td id="msa-database">{{ statistics.db }}</td>
                                 </tr>
-                                <tr v-if="statistics.hasOwnProperty('msaFile')">
+                                <tr v-if="$LOCAL && statistics.hasOwnProperty('msaFile')">
                                     <td>MSA file</td>
                                     <td id="msa-file">{{ statistics.msaFile }}</td>
                                 </tr>

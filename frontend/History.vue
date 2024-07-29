@@ -138,9 +138,22 @@ export default {
                 });
         }, 16, true),
         formattedRoute(element) {
-            // if (element.status == 'COMPLETE') {
-            //     return '/result/' + element.id + '/0';
-            // }
+            if (element.status == 'COMPLETE') {
+                this.$axios.get("api/ticket/type/" + element.id).then(
+                    (response) => {
+                        const data = response.data;
+                        switch (data.type) {
+                            case "search":
+                            case "structuresearch":
+                            case "complexsearch":
+                                return '/result/' + element.id + '/0';
+                            case "foldmasoneasymsa":
+                                return '/result/foldmason/' + element.id;
+                            default:
+                                return '/';
+                        }
+                    })
+            }
             return '/queue/' + element.id;
         },
         formattedDate(timestamp) {
