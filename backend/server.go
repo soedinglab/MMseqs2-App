@@ -455,6 +455,71 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 	}
 
+	ticketFoldMasonMSAHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
+		// var request JobRequest
+		var queries []string
+		var fileNames []string
+		var gapOpen int64
+		var gapExtend int64
+
+		/* 		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
+				err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+
+				f, _, err := req.FormFile("q")
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				queries = req.Form("queries[]")
+
+				buf := new(bytes.Buffer)
+				buf.ReadFrom(f)
+				query = buf.String()
+		 	} else {*/
+
+		err := req.ParseForm()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		queries = req.Form["queries[]"]
+		fileNames = req.Form["fileNames[]"]
+
+		gapOpen, err = strconv.ParseInt(req.FormValue("gapOpen"), 10, 32)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		gapExtend, err = strconv.ParseInt(req.FormValue("gapExtend"), 10, 32)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// }
+		request, err := NewFoldMasonMSAJobRequest(queries, fileNames, gapOpen, gapExtend)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		err = json.NewEncoder(w).Encode(result)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	if config.Server.RateLimit != nil {
 		type RateLimitResponse struct {
 			Status string `json:"status"`
@@ -486,6 +551,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if config.App == AppColabFold {
 			r.Handle("/ticket/pair", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketPairHandlerFunc)).Methods("POST")
 		}
+		if config.App == AppFoldSeek {
+			r.Handle("/ticket/foldmason", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketFoldMasonMSAHandlerFunc)).Methods("POST")
+		}
 	} else {
 		if config.App == AppMMseqs2 || config.App == AppFoldSeek {
 			r.HandleFunc("/ticket", ticketHandlerFunc).Methods("POST")
@@ -495,6 +563,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 		if config.App == AppColabFold {
 			r.HandleFunc("/ticket/pair", ticketPairHandlerFunc).Methods("POST")
+		}
+		if config.App == AppFoldSeek {
+			r.HandleFunc("/ticket/foldmason", ticketFoldMasonMSAHandlerFunc).Methods("POST")
 		}
 	}
 
@@ -589,6 +660,33 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		io.Copy(w, bufio.NewReader(file))
+	}).Methods("GET")
+
+	r.HandleFunc("/result/foldmason/{ticket}", func(w http.ResponseWriter, req *http.Request) {
+		vars := mux.Vars(req)
+		ticket, err := jobsystem.GetTicket(Id(vars["ticket"]))
+		log.Println(ticket, "hello")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		path := filepath.Join(filepath.Clean(config.Paths.Results), string(ticket.Id), "foldmason.json")
+
+		file, err := os.Open(path)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		w.Header().Set("Content-Type", "application/json")
+
+		_, err = io.Copy(w, file)
+		if err != nil {
+			http.Error(w, "Failed to send file.", http.StatusInternalServerError)
+			return
+		}
 	}).Methods("GET")
 
 	queryHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

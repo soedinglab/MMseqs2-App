@@ -11,8 +11,10 @@ Vue.use(Portal);
 import App from './App.vue';
 import Search from './Search.vue';
 import MultimerSearch from './MultimerSearch.vue';
+import FoldMasonSearch from './FoldMasonSearch.vue';
 import Queue from './Queue.vue';
 import Queries from './Queries.vue';
+import ResultFoldMason from './ResultFoldMason.vue';
 
 const appStrings = {
     mmseqs: require('./assets/mmseqs.en_US.po').default,
@@ -30,6 +32,8 @@ const router = __LOCAL__ ? null : new VueRouter({
         { name: 'search', path: '/search', component: Search },
         { path: '/complex', redirect: { name: 'multimer' } },
         { name: 'multimer', path: '/multimer', component: MultimerSearch },
+        { name: 'foldmason', path: '/foldmason', component: FoldMasonSearch },
+        { name: 'foldmasonresult', path: '/result/foldmason/:ticket', component: ResultFoldMason },
         { name: 'queue', path: '/queue/:ticket', component: Queue },
         { 
             name: 'result',
@@ -90,6 +94,7 @@ Vue.use({
             apiBase = __CONFIG__.apiEndpoint;
         }
         
+        apiBase = "http://127.0.0.1:8081/"; 
         const axiosConfig = {
             baseURL: apiBase,
             headers: defaultHeaders

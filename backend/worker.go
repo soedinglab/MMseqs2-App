@@ -1143,6 +1143,41 @@ rm -rf -- "${BASE}/tmp"
 			return &JobExecutionError{err}
 		}
 		return nil
+	case FoldMasonMSAJob:
+		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		parameters := []string{
+			config.Paths.FoldMason,
+			"easy-msa",
+			filepath.Join(resultBase, "pdbs/"),
+			filepath.Join(resultBase, "foldmason"),
+			filepath.Join(resultBase, "tmp/"),
+			"--gap-open",
+			strconv.FormatInt(job.GapOpen, 10),
+			"--gap-extend",
+			strconv.FormatInt(job.GapExtend, 10),
+			"--report-mode",
+			"2",
+		}
+		cmd, done, err := execCommand(config.Verbose, parameters...)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		select {
+		case <-time.After(1 * time.Hour):
+			if err := KillCommand(cmd); err != nil {
+				log.Printf("Failed to kill: %s\n", err)
+			}
+			return &JobTimeoutError{}
+		case err := <-done:
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+		}
+		if config.Verbose {
+			log.Print("Process finished gracefully without error")
+		}
+		return nil
+
 	default:
 		return &JobInvalidError{}
 	}

@@ -71,6 +71,9 @@ export default {
             let url;
             let fun;
             // make a new axios instance to not leak the electron access token
+            // TODO separate non-component logic out so we can make this atomic
+            //      then can just give a list of accessions (comma separated),
+            //      and lookup pdbs in Promise list
             const axios = create();
             const simpleFetch = response => {
                     this.$emit('select', response.data);

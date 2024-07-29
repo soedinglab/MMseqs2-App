@@ -186,6 +186,9 @@ export default {
         handleResize() {
             // Resize based on first row
             const container = document.querySelector(".msa-row");
+            if (!container) {
+                return
+            }
             const header    = container.querySelector(".header");
             const count     = container.querySelector(".count");
             const sequence  = container.querySelector(".sequence");

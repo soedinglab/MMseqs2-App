@@ -138,9 +138,9 @@ export default {
                 });
         }, 16, true),
         formattedRoute(element) {
-            if (element.status == 'COMPLETE') {
-                return '/result/' + element.id + '/0';
-            }
+            // if (element.status == 'COMPLETE') {
+            //     return '/result/' + element.id + '/0';
+            // }
             return '/queue/' + element.id;
         },
         formattedDate(timestamp) {

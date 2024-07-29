@@ -24,6 +24,7 @@ const (
 	JobPair            JobType = "pair"
 	JobStructureSearch JobType = "structuresearch"
 	JobComplexSearch   JobType = "complexsearch"
+	JobFoldMasonMSA    JobType = "foldmasoneasymsa"
 )
 
 type JobRequest struct {
@@ -88,6 +89,13 @@ func (m *JobRequest) UnmarshalJSON(b []byte) error {
 		}
 		(*m).Job = j
 		return nil
+	case JobFoldMasonMSA:
+		var j FoldMasonMSAJob
+		if err := json.Unmarshal(msg, &j); err != nil {
+			return err
+		}
+		(*m).Job = j
+		return nil
 	}
 
 	return errors.New("invalid job type")
@@ -122,6 +130,11 @@ func (m *JobRequest) WriteSupportFiles(base string) error {
 		return errors.New("invalid job type")
 	case JobIndex:
 		return nil
+	case JobFoldMasonMSA:
+		if j, ok := m.Job.(FoldMasonMSAJob); ok {
+			return j.WritePDB(filepath.Join(base))
+		}
+		return errors.New("invalid job type")
 	}
 	return nil
 }
