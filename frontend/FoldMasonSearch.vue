@@ -7,13 +7,7 @@
                 Input protein structures (PDB/CIF)
             </template>
             <template slot="toolbar-extra">
-                <api-dialog
-                    :disabled="alignDisabled"
-                    :email="email"
-                    :mode="mode"
-                    :database="database"
-                    :taxfilter="taxFilter ? taxFilter.value : ''"></api-dialog>
-                <v-icon v-if="query.length > 0" title="Clear" @click="query = ''" style="margin-right: 16px">{{ $MDI.Delete }}</v-icon>
+                <v-icon v-if="queries.length > 0" title="Clear" @click="queries = []" style="margin-right: 16px">{{ $MDI.Delete }}</v-icon>
                 <v-tooltip open-delay="300" top>
                     <template v-slot:activator="{ on }">
                         <v-icon v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
@@ -22,10 +16,6 @@
                 </v-tooltip>
             </template>
             <template slot="content">
-                <!-- <query-textarea
-                    :loading="accessionLoading"
-                    v-model="query">
-                </query-textarea> -->
                 <div class="query-chip-group">
                     <v-chip
                         v-for="(q, index) in queries"
@@ -40,12 +30,6 @@
                 </div>
                 <div class="actions input-buttons-panel">
                     <div class="input-buttons-left">
-                        <!-- <load-acession-button
-                            @select="query = $event"
-                            @loading="accessionLoading = $event"
-                            :preload-source="preloadSource"
-                            :preload-accession="preloadAccession"
-                        ></load-acession-button> -->
                         <file-button
                             id="file"
                             :label="$STRINGS.UPLOAD_LABEL"
@@ -72,45 +56,6 @@
                     {{ $MDI.Restore }}</v-icon>
             </template>
             <div slot="content">
-               <!--  
-                <v-switch
-                    v-model="params.wg"
-                    label="Global sequence weighting"
-                    id="wgToggle"
-                    hide-details
-                />
-                <v-switch
-                    v-model="params.filterMsa"
-                    label="Filter MSA"
-                    id="filterMsaToggle"
-                    hide-details
-                />
-                <v-switch
-                    v-model="params.compBias"
-                    label="Composition bias correction"
-                    id="compBiasToggle"
-                    hide-details
-                />
-                <v-slider
-                    v-model="params.matchRatio"
-                    min="0.0"
-                    max="1.0"
-                    step="0.01"
-                    label="Match ratio"
-                >
-                    <template v-slot:append>
-                        <v-text-field
-                            v-model="params.matchRatio"
-                            min="0.0"
-                            max="1.0"
-                            step="0.01"
-                            type="number"
-                            single-line
-                            hide-details
-                            dense
-                        />
-                    </template>
-                </v-slider> -->
                 <v-text-field
                     v-model="params.gapOpen"
                     min="0"
@@ -127,24 +72,6 @@
                     label="Gap extension penalty"
                     dense
                 />
-<!--                 <v-text-field
-                    v-model="params.refineIters"
-                    min="0"
-                    max="50"
-                    step="1"
-                    type="number"
-                    label="Refinement iterations"
-                    dense
-                />
--->
-                <!-- <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete> -->
-    
-                <v-tooltip v-if="!$ELECTRON && !hideEmail" open-delay="300" top>
-                    <template v-slot:activator="{ on }">
-                        <v-text-field v-on="on" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
-                    </template>
-                    <span>Send an email when the job is done.</span>
-                </v-tooltip>
             </div>
             </panel>
         </v-flex>
@@ -156,7 +83,6 @@
                     <v-btn color="primary" :block="false" x-large v-on:click="search" :disabled="alignDisabled">
                         <v-icon>{{ $MDI.Wall }}</v-icon>
                         &nbsp;Align</v-btn>
-                    <v-btn v-if="!isMultimer && query != ''" color="secondary" :block="false" x-large v-on:click="goToMonomer"><v-icon>{{ $MDI.Monomer }}</v-icon>&nbsp;Go to Monomer</v-btn>
                 </v-item-group>
                 <div :style="!$vuetify.breakpoint.xsOnly ? 'margin-left: 1em;' : 'margin-top: 1em;'">
                     <span><strong>Summary</strong></span><br>
@@ -181,17 +107,12 @@ import FileButton from "./FileButton.vue";
 import LoadAcessionButton from './LoadAcessionButton.vue';
 import Reference from "./Reference.vue";
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
-// import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
-import { djb2, parseResultsList, checkMultimer } from './Utilities.js';
+import { djb2, parseResultsList } from './Utilities.js';
 import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import ApiDialog from './ApiDialog.vue';
-import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
-import { BlobDatabase } from './lib/BlobDatabase.js';
+import { HistoryMixin } from './lib/HistoryMixin.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
-
-const db = BlobDatabase();
-const storage = new StorageWrapper("complex");
 
 const defaultParams = {
     wg: true,
@@ -221,67 +142,18 @@ export default {
         return {
             inSearch: false,
             errorMessage: "",
-            mode: storage.getItem('mode') || ('complex-' + this.$STRINGS.MODE_DEFAULT_KEY),
-            modes: Array.from({length: this.$STRINGS.MODE_COUNT - 0}, (_, i) => i + 1)
-                    .reduce((dict, i, _)  => { dict[this.$STRINGS['MODE_KEY_' + i]] = this.$STRINGS['MODE_TITLE_' + i]; return dict; }, {}),
-            email: storage.getItem('email') || "",
-            hideEmail: true,
-            query: "",
-            database: JSON.parse(storage.getItem('database') || '[]'),
-            databases: JSON.parse(storage.getItem('databases') || '[]'),
-            taxFilter: JSON.parse(storage.getItem('taxFilter') || 'null'),
-            predictable: false,
-            accessionLoading: false,
             queries: [],   // [ { name: "file", text: "ATOM..." }, { name: "file", text: "ATOM..." } ...]
             params: structuredClone(defaultParams)
         };
     },
     async mounted() {
-        if (this.preloadAccession.length > 0) {
-            this.query = "";
-            return;
-        }
-        let query = await db.getItem('multimer.query');
-        if (query && query.length > 0) {
-            this.query = query;
-        } else {
-            // FIXME: default query for single chain doesn't work
-            this.query = "";
-        }
     },
     computed: {
         alignDisabled() {
             return this.queries.length == 0;
         },
-        preloadSource() {
-            return this.$route.query.source || "";
-        },
-        preloadAccession() {
-            return this.$route.query.accession || "";
-        },
-        isMultimer() {
-            return checkMultimer(this.query);
-        }
     },
     watch: {
-        mode(value) {
-            storage.setItem('mode', value);
-        },
-        email(value) {
-            storage.setItem('email', value);
-        },
-        query(value) {
-            db.setItem('multimer.query', value);
-        },
-        database(value) {
-            storage.setItem('database', JSON.stringify(value));
-        },
-        databases(value) {
-            storage.setItem('databases', JSON.stringify(value));
-        },
-        taxFilter(value) {
-            storage.setItem('taxFilter', JSON.stringify(value));
-        },
     },
     methods: {
         async search() {
@@ -367,9 +239,8 @@ export default {
             fr.addEventListener(
                 "load",
                 (e) => {
-                    let data = parseResultsList(JSON.parse(e.target.result));
-                    this.$root.userData = data;
-                    this.$router.push({ name: 'result', params: { ticket: `user-${hash}`, entry: 0 }}).catch(error => {});
+                    this.$root.userData = JSON.parse(e.target.result);
+                    this.$router.push({ name: 'foldmasonresult', params: { ticket: `user-${hash}` }}).catch(error => {});
                 }
             );
             fr.readAsText(file)
@@ -377,10 +248,6 @@ export default {
         resetParams() {
             this.params = structuredClone(defaultParams);
         },
-        async goToMonomer() {
-            await db.setItem('query', this.query);
-            this.$router.push({ name: 'search'});
-        }
     }
 };
 </script>

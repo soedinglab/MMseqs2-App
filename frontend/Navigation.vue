@@ -67,6 +67,44 @@
             </v-list-item>
             </template>
         </v-list-group>
+        <v-list-group v-else-if="$route.name === 'foldmasonresult'" v-model="expanded">
+            <template slot="activator">
+                <v-list-item-action>
+                    <v-icon>{{ $MDI.FileDownloadOutline }}</v-icon>
+                </v-list-item-action>
+                <v-list-item-content>
+                    <v-list-item-title>Downloads</v-list-item-title>
+                </v-list-item-content>
+            </template>
+            <template v-if="!this.mini">
+            <v-list-item
+                @click="downloadMSA"
+                style="padding-left: 16px;"
+                title="Download all result data (JSON file)"
+            >
+                <v-list-item-action>
+                    <v-icon>{{ $MDI.TextBoxOutline }}</v-icon>
+                </v-list-item-action>
+                <v-list-item-content>
+                    <v-list-item-title>MSTA</v-list-item-title>
+                    <v-list-item-subtitle>.fasta file</v-list-item-subtitle>
+                </v-list-item-content>
+            </v-list-item>
+            <v-list-item
+                @click="downloadJSON"
+                style="padding-left: 16px;"
+                title="Download all result data (JSON file)"
+            >
+                <v-list-item-action>
+                    <v-icon>{{ $MDI.ApplicationBracesOutline }}</v-icon>
+                </v-list-item-action>
+                <v-list-item-content>
+                    <v-list-item-title>All data</v-list-item-title>
+                    <v-list-item-subtitle>Reloadable JSON file</v-list-item-subtitle>
+                </v-list-item-content>
+            </v-list-item>
+            </template>
+        </v-list-group>
 
         <v-divider></v-divider>
 
@@ -173,6 +211,9 @@ export default {
         },
         downloadJSON() {
             this.$root.$emit("downloadJSON");
+        },
+        downloadMSA() {
+            this.$root.$emit("downloadMSA");
         }
     }
 }

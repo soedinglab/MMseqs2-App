@@ -158,6 +158,16 @@ export function djb2(str) {
   return hash >>> 0; // Convert to an unsigned 32-bit integer
 }
 
+export function downloadBlob(blob, name) {
+    const link = document.createElement('a');
+    // const date = new Date().toLocaleString('sv').replace(' ', '_').replaceAll('-', '_').replaceAll(':', '_');
+    link.href = URL.createObjectURL(blob);
+    link.download = name;
+    // link.download = `${this.$STRINGS.APP_NAME}_${date}.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
 export function download(data, name) {
     const json = JSON.stringify(data);
     const blob = new Blob([json], { type: 'application/json' });

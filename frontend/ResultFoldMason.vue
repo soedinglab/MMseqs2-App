@@ -72,7 +72,8 @@
 
 
 <script>
-import { download, dateTime } from './Utilities.js';
+import { download, downloadBlob, dateTime } from './Utilities.js';
+import makeZip from './lib/zip.js'
 import MSA from './MSA.vue';
 import MSAView from './MSAView.vue';
 import Panel from './Panel.vue';
@@ -89,13 +90,16 @@ export default {
     },
     mounted() {
         this.$root.$on('downloadJSON', () => {
-            let data;
-            if (this.ticket.startsWith('user-')) {
-                data = this.$root.userData;
-                download(data, `${`Foldseek_${dateTime()}.json`}`)
-            } else {
-                this.fetchAllData();
-            }
+            if (!this.msaData) return;
+            download(this.msaData, "foldmason.json");
+        })
+        this.$root.$on('downloadMSA', () => {
+            let encoder = new TextEncoder();
+            let zip_file = makeZip([
+                { name: 'foldmason_aa.fa', data: encoder.encode(this.formatMSA('aa')) },
+                { name: 'foldmason_ss.fa', data: encoder.encode(this.formatMSA('ss')) },
+            ]);
+            downloadBlob(zip_file, "foldmason.zip");
         })
         if (this.msaData) {
             return;
@@ -135,6 +139,10 @@ export default {
             this.ticket = this.$route.params.ticket;
             this.error = "";
             this.msaData = null;
+        },
+        formatMSA(alphabet) {
+            if (!this.msaData) return;
+            return this.msaData.entries.map(entry => `>${entry.name}\n${entry[alphabet]}`).join('\n');
         },
         async fetchData() {
             this.resetProperties();
