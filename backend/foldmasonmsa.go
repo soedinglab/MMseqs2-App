@@ -27,6 +27,13 @@ func (r FoldMasonMSAJob) Hash() Id {
 	return Id(base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(bs))
 }
 
+func (r FoldMasonMSAJob) Rank() float64 {
+	if len(r.Queries) == 0 {
+		return 0
+	}
+	return float64(len(r.Queries) * len(r.Queries[0]))
+}
+
 func (r FoldMasonMSAJob) WritePDB(path string) error {
 	var pdbDir = filepath.Join(path, "pdbs")
 	os.Mkdir(pdbDir, os.ModePerm)
