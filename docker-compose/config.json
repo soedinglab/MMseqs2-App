@@ -14,7 +14,8 @@
         "results"      : "/opt/mmseqs-web/jobs",
         "temporary"    : "/tmp",
         "mmseqs"       : "/usr/local/bin/mmseqs",
-        "foldseek"     : "/usr/local/bin/foldseek"
+        "foldseek"     : "/usr/local/bin/foldseek",
+        "foldmason"     : "/usr/local/bin/foldmason"
     },
     "redis" : {
         "network"  : "tcp",

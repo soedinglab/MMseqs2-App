@@ -78,6 +78,7 @@ var defaultFileContent = []byte(`{
         */
         // path to foldseek binary
         "foldseek"     : "~foldseek",
+        "foldmason"     : "~foldmason",
         // path to mmseqs binary
         "mmseqs"       : "~mmseqs"
     },
