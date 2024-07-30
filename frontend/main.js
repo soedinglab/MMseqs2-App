@@ -93,8 +93,7 @@ Vue.use({
         } else {
             apiBase = __CONFIG__.apiEndpoint;
         }
-        
-        apiBase = "http://127.0.0.1:8081/"; 
+
         const axiosConfig = {
             baseURL: apiBase,
             headers: defaultHeaders
