@@ -1,5 +1,4 @@
 ARG FRONTEND_APP
-ARG TARGETARCH
 ARG downloader=${FRONTEND_APP}_${TARGETARCH}_downloader
 
 FROM scratch AS mmseqs_amd64_downloader
