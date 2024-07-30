@@ -1,18 +1,25 @@
 ARG FRONTEND_APP
-ARG downloader=${FRONTEND_APP}_downloader
+ARG TARGETARCH
+ARG downloader=${FRONTEND_APP}_${TARGETARCH}_downloader
 
-FROM scratch AS mmseqs_downloader
+FROM scratch AS mmseqs_amd64_downloader
 WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-avx2.tar.gz  .
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-sse41.tar.gz .
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-sse2.tar.gz  .
+
+FROM scratch AS mmseqs_arm64_downloader
+WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-arm64.tar.gz  .
 
-FROM scratch AS foldseek_downloader
+FROM scratch AS foldseek_amd64_downloader
 WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-avx2.tar.gz  .
 #ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse41.tar.gz .
 ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse2.tar.gz  .
+
+FROM scratch AS foldseek_arm64_downloader
+WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-arm64.tar.gz  .
 
 FROM $downloader AS downloader
@@ -46,9 +53,8 @@ RUN mkdir binaries; \
           fi; \
         done; \
       done; \
-    fi;
-
-RUN chmod -R +x binaries
+    fi; \
+    chmod -R +x binaries;
 
 FROM debian:stable-slim
 LABEL maintainer="Milot Mirdita <milot@mirdita.de>"
