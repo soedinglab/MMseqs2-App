@@ -1157,6 +1157,8 @@ rm -rf -- "${BASE}/tmp"
 			strconv.FormatInt(job.GapExtend, 10),
 			"--report-mode",
 			"2",
+			"--report-paths",
+			"0",
 		}
 		cmd, done, err := execCommand(config.Verbose, parameters...)
 		if err != nil {
