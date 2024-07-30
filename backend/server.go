@@ -456,38 +456,51 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	}
 
 	ticketFoldMasonMSAHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
-		// var request JobRequest
 		var queries []string
 		var fileNames []string
 		var gapOpen int64
 		var gapExtend int64
 
-		/* 		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
-				err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				}
+		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
+			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 
-				f, _, err := req.FormFile("q")
+			files := req.MultipartForm.File["queries[]"]
+			if len(files) == 0 {
+				http.Error(w, "No files uploaded", http.StatusBadRequest)
+				return
+			}
+
+			for _, fileHeader := range files {
+				file, err := fileHeader.Open()
 				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
+					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				queries = req.Form("queries[]")
+				defer file.Close()
 
 				buf := new(bytes.Buffer)
-				buf.ReadFrom(f)
-				query = buf.String()
-		 	} else {*/
+				_, err = io.Copy(buf, file)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 
-		err := req.ParseForm()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+				query := buf.String()
+				queries = append(queries, query)
+			}
+		} else {
+			err := req.ParseForm()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			queries = req.Form["queries[]"]
+
 		}
-
-		queries = req.Form["queries[]"]
 		fileNames = req.Form["fileNames[]"]
 
 		gapOpen, err = strconv.ParseInt(req.FormValue("gapOpen"), 10, 32)
@@ -502,7 +515,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		// }
 		request, err := NewFoldMasonMSAJobRequest(queries, fileNames, gapOpen, gapExtend)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
