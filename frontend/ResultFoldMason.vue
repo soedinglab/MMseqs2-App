@@ -118,7 +118,6 @@ export default {
     },
     computed: {
         resultState() {
-            console.log(this.error, this.$data.msaData)
             if (this.error != "") {
                 return "ERROR";
             }
