@@ -4,16 +4,16 @@
         <v-flex xs12>
             <panel class="query-panel d-flex fill-height" fill-height>
             <template slot="header">
-                Input protein structures (PDB/CIF)
+                Input protein structures (PDB only) for MSTA
             </template>
             <template slot="toolbar-extra">
                 <v-icon v-if="queries.length > 0" title="Clear" @click="queries = []" style="margin-right: 16px">{{ $MDI.Delete }}</v-icon>
-                <v-tooltip open-delay="300" top>
+                <!-- <v-tooltip open-delay="300" top>
                     <template v-slot:activator="{ on }">
                         <v-icon v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
                     </template>
                     <span>{{ $STRINGS.QUERIES_HELP }}</span>
-                </v-tooltip>
+                </v-tooltip> -->
             </template>
             <template slot="content">
                 <div class="query-chip-group">
@@ -38,7 +38,7 @@
                         ></file-button>
                         <!-- <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton> -->
                         <!-- <file-button id="localMSAFile" label="Upload MSA file" @upload="uploadMSA"></file-button> -->
-                        <file-button id="localFile" label="Upload JSON" @upload="uploadJSON"></file-button>
+                        <file-button id="localFile" label="Upload previous result (JSON)" @upload="uploadJSON"></file-button>
                     </div>
                 </div>
             </template>
@@ -86,7 +86,7 @@
                 </v-item-group>
                 <div :style="!$vuetify.breakpoint.xsOnly ? 'margin-left: 1em;' : 'margin-top: 1em;'">
                     <span><strong>Summary</strong></span><br>
-                    Align <strong>{{ queries.length }}</strong> structures
+                    Align <strong>{{ queries.length }}</strong> structures with FoldMason
                     <!-- </template> with {{ $STRINGS.APP_NAME }} in <strong>{{ modes[mode.replace('complex-', '')] }}</strong> mode. -->
                     <div v-if="errorMessage != ''" class="v-alert v-alert--outlined warning--text mt-2">
                         <span>{{ errorMessage }}</span>
@@ -97,7 +97,7 @@
             </panel>
         </v-flex>
         </v-layout>
-        <reference :reference="$STRINGS.CITATION_MULTIMER"></reference>
+        <reference :reference="$STRINGS.CITATION_FOLDMASON"></reference>
     </v-container>
 </template>
     

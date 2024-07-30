@@ -23,7 +23,7 @@
                 <v-icon>{{ $MDI.Wall }}</v-icon>
             </v-list-item-action>
             <v-list-item-content>
-                <v-list-item-title>FoldMason</v-list-item-title>
+                <v-list-item-title>FoldMason MSA</v-list-item-title>
             </v-list-item-content>
         </v-list-item>
       
