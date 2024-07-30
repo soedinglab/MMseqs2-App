@@ -17,10 +17,13 @@ WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-avx2.tar.gz  .
 #ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse41.tar.gz .
 ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse2.tar.gz  .
+ONBUILD ADD https://mmseqs.com/foldmason/foldmason-linux-avx2.tar.gz .
+ONBUILD ADD https://mmseqs.com/foldmason/foldmason-linux-sse2.tar.gz .
 
 FROM scratch AS foldseek_arm64_downloader
 WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-arm64.tar.gz  .
+ONBUILD ADD https://mmseqs.com/foldmason/foldmason-linux-arm64.tar.gz .
 
 FROM $downloader AS downloader
 
@@ -38,14 +41,14 @@ ADD https://raw.githubusercontent.com/steineggerlab/foldseek/0a68e16214a6db745ce
 COPY --from=downloader /opt/build/* .
 RUN mkdir binaries; \
     if [ "$TARGETARCH" = "arm64" ]; then \
-      for i in mmseqs foldseek; do \
+      for i in mmseqs foldseek foldmason; do \
         if [ -e "${i}-linux-arm64.tar.gz" ]; then \
           cat ${i}-linux-arm64.tar.gz | tar -xzvf- ${i}/bin/${i}; \
           mv -f -- ${i}/bin/${i} binaries/${i}; \
         fi; \
       done; \
     else \
-      for i in mmseqs foldseek; do \
+      for i in mmseqs foldseek foldmason; do \
         for j in sse2 sse41 avx2; do \
           if [ -e "${i}-linux-${j}.tar.gz" ]; then \
             cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}/bin/${i}; \
@@ -53,6 +56,7 @@ RUN mkdir binaries; \
           fi; \
         done; \
       done; \
+      sed 's|foldseek|foldmason|g' binaries/foldseek > binaries/foldmason; \
     fi; \
     chmod -R +x binaries;
 
