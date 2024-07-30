@@ -150,7 +150,7 @@ export default {
     },
     computed: {
         alignDisabled() {
-            return this.queries.length == 0;
+            return this.queries.length == 0 || this.inSearch;
         },
     },
     watch: {
