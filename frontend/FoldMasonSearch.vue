@@ -185,7 +185,7 @@ export default {
                     case "COMPLETE":
                         this.addToHistory(response.data.id);
                         this.$router.push({
-                            name: "result", params: { ticket: response.data.id, entry: 0 }
+                            name: "foldmasonresult", params: { ticket: response.data.id }
                         });
                         break;
                     case "RATELIMIT":
