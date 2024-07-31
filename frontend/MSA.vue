@@ -110,7 +110,7 @@
                         </div>
                     </div>
                 </v-col>
-                <v-col style="display: flex; flex-direction: row; height: 100%; width: 100%; padding: 0; margin: 0;">
+                <v-col class="minimap-col">
                     <div
                         v-for="(block, i) in cssGradients"
                         :key="'col-' + i"
@@ -448,8 +448,6 @@ export default {
     position: relative;
     display: inline-block;
     border: 1px solid grey; 
-}
-.gradient-block-col:not(:last-child) {
     height: 80px;
 }
 .gradient-block {
@@ -468,6 +466,14 @@ export default {
     margin-bottom: 2px;
     height: fit-content;
     z-index: 1;
+}
+.minimap-col {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    width: 100%;
+    padding: 0;
+    margin: 0;
 }
 .gradient-block-col::before {
     content: '';

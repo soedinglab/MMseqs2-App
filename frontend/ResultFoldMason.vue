@@ -2,7 +2,7 @@
     <v-container grid-list-md fluid pa-2>
         <v-layout wrap>
             <v-flex xs12>
-            <panel>
+            <panel class="msa-panel">
                 <template slot="header">
                     <template v-if="!$LOCAL && !msaData">
                         <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
@@ -165,3 +165,8 @@ export default {
     }
 };
 </script>
+<style scoped>
+.msa-panel {
+    margin-bottom: 600px;
+}
+</style>
