@@ -272,7 +272,7 @@ export default {
                 transparent: true,
             });
             this.stage.viewer.setLight(undefined, undefined, undefined, this.$vuetify.theme.dark ? 0.4 : 0.2)
-            download(blob, `${title}.pdb`)
+            download(blob, `${title}.png`)
             this.isSpinning = wasSpinning;
         },
         handleMakePDB() {
