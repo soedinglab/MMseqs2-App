@@ -1,5 +1,5 @@
-# App and Server for MMseqs2, Foldseek and ColabFold
-[MMseqs2](https://github.com/soedinglab/MMseqs2) and [Foldseek](https://github.com/steineggerlab/foldseek) are software suites to search and annotate huge sequence and structure sets. We built a graphical interface for interactive data exploration. Check out a live instance for [MMseqs2](https://search.mmseqs.com) and for [Foldseek](https://search.foldseek.com). Additionally, this codebase holds the API server for [ColabFold](https://github.com/sokrypton/ColabFold).
+# App and Server for MMseqs2, Foldseek, FoldMason and ColabFold
+[MMseqs2](https://github.com/soedinglab/MMseqs2) and [Foldseek](https://github.com/steineggerlab/foldseek) are software suites to search and annotate huge sequence and structure sets. We built a graphical interface for interactive data exploration. Check out a live instance for [MMseqs2](https://search.mmseqs.com) and for [Foldseek/FoldMason](https://search.foldseek.com). Additionally, this codebase holds the API server for [ColabFold](https://github.com/sokrypton/ColabFold).
 
 The application runs either:
 * on your server through docker-compose, where it can make your sequence, profile or structure databases easily accessible over the web
