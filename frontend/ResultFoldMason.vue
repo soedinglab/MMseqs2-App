@@ -98,6 +98,7 @@ export default {
             let zip_file = makeZip([
                 { name: 'foldmason_aa.fa', data: encoder.encode(this.formatMSA('aa')) },
                 { name: 'foldmason_ss.fa', data: encoder.encode(this.formatMSA('ss')) },
+                { name: 'foldmason.nw',    data: encoder.encode(this.msaData.tree) },
             ]);
             downloadBlob(zip_file, "foldmason.zip");
         })

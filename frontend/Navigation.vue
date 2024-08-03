@@ -80,7 +80,7 @@
             <v-list-item
                 @click="downloadMSA"
                 style="padding-left: 16px;"
-                title="Download all result data (JSON file)"
+                title="Download MSTAs (FASTA files)"
             >
                 <v-list-item-action>
                     <v-icon>{{ $MDI.TextBoxOutline }}</v-icon>
