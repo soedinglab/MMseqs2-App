@@ -166,19 +166,19 @@ export default {
     },
     methods: {
         async handleLoadExample() {
-            const url = "https://search.foldseek.com/dl/foldmason_example.json";
+            let response = null;
             try {
-                const response = await this.$axios.get(url);
-                if (!response.ok) {
+                const url = "https://search.foldseek.com/dl/foldmason_example.json";
+                response = await this.$axios.get(url);
+                if (!response) {
                     throw new Error(`Error fetching example: ${response.status}`);
                 }
             } catch (error) {
                 this.errorMessage = "Error loading example";
                 throw error;
-            } finally {
-                this.$root.userData = await JSON.parse(response.data);
-                this.$router.push({ name: 'foldmasonresult', params: { ticket: `ticket-example` }}).catch(error => {});
             }
+            this.$root.userData = response.data;
+            this.$router.push({ name: 'foldmasonresult', params: { ticket: `user-example` }}).catch(error => {});
         },
         async search() {
             var request = {
