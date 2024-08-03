@@ -39,6 +39,15 @@
                         <!-- <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton> -->
                         <!-- <file-button id="localMSAFile" label="Upload MSA file" @upload="uploadMSA"></file-button> -->
                         <file-button id="localFile" label="Upload previous result (JSON)" @upload="uploadJSON"></file-button>
+                        <v-btn
+                            type="button"
+                            class="btn btn--raised btn--file"
+                            style="position: relative;"
+                            color="primary"
+                            @click="handleLoadExample"
+                        >
+                            Load example MSTA
+                        </v-btn>
                     </div>
                 </div>
             </template>
@@ -156,6 +165,21 @@ export default {
     watch: {
     },
     methods: {
+        async handleLoadExample() {
+            const url = "https://search.foldseek.com/dl/foldmason_example.json";
+            try {
+                const response = await this.$axios.get(url);
+                if (!response.ok) {
+                    throw new Error(`Error fetching example: ${response.status}`);
+                }
+            } catch (error) {
+                this.errorMessage = "Error loading example";
+                throw error;
+            } finally {
+                this.$root.userData = await JSON.parse(response.data);
+                this.$router.push({ name: 'foldmasonresult', params: { ticket: `ticket-example` }}).catch(error => {});
+            }
+        },
         async search() {
             var request = {
                 queries: this.queries.map(q => q.text),
