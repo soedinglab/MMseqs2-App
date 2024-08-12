@@ -159,7 +159,7 @@ export default {
     },
     computed: {
         alignDisabled() {
-            return this.queries.length == 0 || this.inSearch;
+            return this.queries.length <= 1 || this.inSearch;
         },
     },
     watch: {
