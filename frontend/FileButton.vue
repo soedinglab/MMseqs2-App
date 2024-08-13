@@ -3,7 +3,7 @@
         <div v-bind:id="id + 'label'" class="btn__content" aria-hidden>
             {{ label }}
         </div>
-        <input :aria-label="label" type="file" v-on:change="upload" :multiple="multiple" :accept="accept">
+        <input ref="fileInput" :aria-label="label" type="file" v-on:change="upload" :multiple="multiple" :accept="accept">
     </v-btn>
 </template>
 
@@ -20,6 +20,9 @@ export default {
         upload(event) {
             var files = this.$el.getElementsByTagName('input')[0].files;
             this.$emit('upload', files);
+        },
+        trigger() {
+            this.$refs.fileInput.click();
         }
     }
 }

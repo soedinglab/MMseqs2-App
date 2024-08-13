@@ -16,21 +16,48 @@
                 </v-tooltip> -->
             </template>
             <template slot="content">
-                <div class="query-chip-group">
-                    <v-chip
-                        v-for="(q, index) in queries"
-                        outlined
-                        close
-                        :key="q.name"
-                        :value="q.name"
-                        @click:close="removeQuery(index)"
+                <div class="w-44 gr-2 mb-2">
+                    <div
+                        class="d-flex flex-column align-center dotted-border gr-4"
+                        :class="{ 'dotted-border-hover': inFileDrag }"
+                        @click="triggerFilePicker"
+                        @drop="handleDrop"
+                        @dragover="handleDragOver"
+                        @dragleave="handleDragLeave"
                     >
-                        {{ q.name }}
-                    </v-chip>
+                        <v-icon
+                            size="50"
+                            color="blue-accent-4"
+                        >
+                            {{ $MDI.FileUpload }}
+                        </v-icon>
+                        <p class="text-body-2">
+                            Drag & drop at least 2 PDB/mmCIF files here or choose from files.
+                        </p>
+                    </div>
+                   
+                    <div v-if="queries.length > 0" class="query-chip-group">
+                        <v-card-subtitle>Uploaded Files</v-card-subtitle>
+                        <v-card-text>
+                            <v-chip
+                                v-for="(q, index) in queries"
+                                close
+                                outlined
+                                :key="q.name"
+                                :value="q.name"
+                                @click:close="removeQuery(index)"
+                            >
+                                <v-icon left>{{ $MDI.File }}</v-icon>
+                                {{ q.name }}
+                            </v-chip>                           
+                        </v-card-text>
+                    </div>
                 </div>
+
                 <div class="actions input-buttons-panel">
                     <div class="input-buttons-left">
                         <file-button
+                            ref="fileInput"
                             id="file"
                             :label="$STRINGS.UPLOAD_LABEL"
                             v-on:upload="upload"
@@ -152,7 +179,8 @@ export default {
             inSearch: false,
             errorMessage: "",
             queries: [],   // [ { name: "file", text: "ATOM..." }, { name: "file", text: "ATOM..." } ...]
-            params: structuredClone(defaultParams)
+            params: structuredClone(defaultParams),
+            inFileDrag: false
         };
     },
     async mounted() {
@@ -272,6 +300,21 @@ export default {
         resetParams() {
             this.params = structuredClone(defaultParams);
         },
+        triggerFilePicker() {
+            this.$refs.fileInput.trigger();
+        },
+        handleDrop(event) {
+            event.preventDefault();
+            this.upload(event.dataTransfer.files);
+            this.inFileDrag = false;
+        },
+        handleDragOver(event) {
+            event.preventDefault();
+            this.inFileDrag = true;
+        },
+        handleDragLeave(event) {
+            this.inFileDrag = false;     
+        }
     }
 };
 </script>
@@ -323,5 +366,33 @@ export default {
 
 .theme--light .v-input label {
     color: #00000099;
+}
+                        
+.upload-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.dotted-border {
+    border: 2px dashed #ccc;
+    border-width: 2px;
+    border-radius: 5px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.dotted-border:hover {
+    border: 2px dashed #1976d2;
+    background-color: rgba(21, 101, 192, 0.04);
+}
+.dotted-border-hover {
+    border: 2px dashed #1976d2;
+    background-color: rgba(21, 101, 192, 0.04);
+}
+
+.uploaded-file {
+    margin: 10px 0;
 }
 </style>
