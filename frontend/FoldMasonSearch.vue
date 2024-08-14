@@ -189,6 +189,9 @@ export default {
         alignDisabled() {
             return this.queries.length <= 1 || this.inSearch;
         },
+        fileNameSet() {
+            return new Set(this.queries.map(f => f.name)); 
+        }
     },
     watch: {
     },
@@ -260,6 +263,13 @@ export default {
         async removeQuery(index) {
             this.queries.splice(index, 1);
         },
+        async addFiles(newFiles) {
+            for (const newFile of newFiles) {
+                if (!this.fileNameSet.has(newFile.name)) {
+                    this.queries.push(newFile);
+                }
+            }
+        },
         /**
          * Load all files and add them to component state
          * TODOs:
@@ -279,7 +289,7 @@ export default {
             try {
                 const fileReadPromises = Array.from(files).map(readFile);
                 const fileContents = await Promise.all(fileReadPromises);
-                this.queries = fileContents;
+                this.addFiles(fileContents);
             } catch(error) {
                 console.log("Error reading files", error);
             }
