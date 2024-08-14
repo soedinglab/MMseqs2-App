@@ -16,41 +16,23 @@
                 </v-tooltip> -->
             </template>
             <template slot="content">
-                <div class="w-44 gr-2 mb-2">
-                    <div
-                        class="d-flex flex-column align-center dotted-border gr-4"
-                        :class="{ 'dotted-border-hover': inFileDrag }"
-                        @click="triggerFilePicker"
-                        @drop="handleDrop"
-                        @dragover="handleDragOver"
-                        @dragleave="handleDragLeave"
-                    >
-                        <v-icon
-                            size="50"
-                            color="blue-accent-4"
-                        >
-                            {{ $MDI.FileUpload }}
-                        </v-icon>
-                        <p class="text-body-2">
-                            Drag & drop at least 2 PDB/mmCIF files here or choose from files.
-                        </p>
-                    </div>
-                   
+                <div class="upload-container w-44 gr-2 mb-2">
+                    <DragUploadBox
+                            @uploadedFiles="upload"
+                            multiple
+                    ></DragUploadBox> 
+                  
                     <div v-if="queries.length > 0" class="query-chip-group">
-                        <v-card-subtitle>Uploaded Files</v-card-subtitle>
-                        <v-card-text>
-                            <v-chip
-                                v-for="(q, index) in queries"
-                                close
-                                outlined
-                                :key="q.name"
-                                :value="q.name"
-                                @click:close="removeQuery(index)"
-                            >
-                                <v-icon left>{{ $MDI.File }}</v-icon>
-                                {{ q.name }}
-                            </v-chip>                           
-                        </v-card-text>
+                        <v-chip
+                            v-for="(q, index) in queries"
+                            close
+                            outlined
+                            :key="q.name"
+                            :value="q.name"
+                            @click:close="removeQuery(index)"
+                        >
+                            {{ q.name }}
+                        </v-chip>                           
                     </div>
                 </div>
 
@@ -149,6 +131,7 @@ import ApiDialog from './ApiDialog.vue';
 import { HistoryMixin } from './lib/HistoryMixin.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
+import DragUploadBox from "./DragUploadBox.vue";
 
 const defaultParams = {
     wg: true,
@@ -172,7 +155,8 @@ export default {
         Reference,
         ApiDialog,
         Databases,
-        QueryTextarea
+        QueryTextarea,
+        DragUploadBox
     },
     data() {
         return {
@@ -310,21 +294,6 @@ export default {
         resetParams() {
             this.params = structuredClone(defaultParams);
         },
-        triggerFilePicker() {
-            this.$refs.fileInput.trigger();
-        },
-        handleDrop(event) {
-            event.preventDefault();
-            this.upload(event.dataTransfer.files);
-            this.inFileDrag = false;
-        },
-        handleDragOver(event) {
-            event.preventDefault();
-            this.inFileDrag = true;
-        },
-        handleDragLeave(event) {
-            this.inFileDrag = false;     
-        }
     }
 };
 </script>
@@ -350,6 +319,7 @@ export default {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 7px;
+    margin-top: 10px;
 }
 .query-panel .actions {
     flex: 0;
@@ -378,11 +348,6 @@ export default {
     color: #00000099;
 }
                         
-.upload-container {
-    display: flex;
-    flex-direction: column;
-}
-
 .dotted-border {
     border: 2px dashed #ccc;
     border-width: 2px;
@@ -404,5 +369,14 @@ export default {
 
 .uploaded-file {
     margin: 10px 0;
+}
+
+.upload-container {
+    display: flex;
+    flex-direction: column;
+}
+                           
+.upload-drag-area {
+    width: 100%;
 }
 </style>
