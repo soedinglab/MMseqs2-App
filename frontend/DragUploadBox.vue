@@ -78,7 +78,6 @@ export default {
     cursor: pointer;
     transition: all 0.3s ease;
 }
-
 .dotted-border:hover {
     border: 2px dashed #1976d2;
     background-color: rgba(21, 101, 192, 0.04);
@@ -87,20 +86,13 @@ export default {
     border: 2px dashed #1976d2;
     background-color: rgba(21, 101, 192, 0.04);
 }
-
-.uploaded-file {
-    margin: 10px 0;
-}
-
 .upload-container {
     display: flex;
     flex-direction: column;
 }
-                           
 .upload-drag-area {
     width: 100%;
 }
-                
 .hidden-button {
     display: none;
 }

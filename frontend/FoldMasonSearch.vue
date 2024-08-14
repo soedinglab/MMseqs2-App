@@ -38,13 +38,6 @@
 
                 <div class="actions input-buttons-panel">
                     <div class="input-buttons-left">
-                        <file-button
-                            ref="fileInput"
-                            id="file"
-                            :label="$STRINGS.UPLOAD_LABEL"
-                            v-on:upload="upload"
-                            :multiple="true"
-                        ></file-button>
                         <!-- <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton> -->
                         <!-- <file-button id="localMSAFile" label="Upload MSA file" @upload="uploadMSA"></file-button> -->
                         <file-button id="localFile" label="Upload previous result (JSON)" @upload="uploadJSON"></file-button>
