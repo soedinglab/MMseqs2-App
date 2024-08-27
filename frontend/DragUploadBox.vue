@@ -8,12 +8,10 @@
             @dragover="handleDragOver"
             @dragleave="handleDragLeave"
         >
-            <v-icon
-                size="50"
-                color="blue-accent-4"
-            >
-                {{ $MDI.FileUpload }}
-            </v-icon>
+            <v-btn outlined large style="margin-bottom: 10px">
+                <v-icon size="30" color="blue-accent-4">{{ $MDI.FileUpload }}</v-icon>
+                Click to select files
+            </v-btn>
             <p class="text-body-2">{{ bodyText }}</p>
         </div>
         <input
@@ -42,7 +40,7 @@ export default {
     data() {
         return {
             inFileDrag: false,
-            bodyText: "Drag & drop at least 2 PDB/mmCIF files here, or click to open the file picker."
+            bodyText: "Drag & drop at least two PDB files here."
         };
     },
     methods: {
@@ -87,11 +85,20 @@ export default {
     background-color: rgba(21, 101, 192, 0.04);
 }
 .upload-container {
+    height: 100%;
     display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 .upload-drag-area {
+    min-height: 250px;
+    height: 100%;
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 .hidden-button {
     display: none;

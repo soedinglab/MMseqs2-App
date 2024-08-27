@@ -16,8 +16,9 @@
                 </v-tooltip> -->
             </template>
             <template slot="content">
-                <div class="upload-container w-44 gr-2 mb-2">
+                <div class="upload-outer-container w-44 gr-2 mb-2">
                     <DragUploadBox
+                            class="drag-upload-box"
                             @uploadedFiles="upload"
                             multiple
                     ></DragUploadBox> 
@@ -341,35 +342,22 @@ export default {
     color: #00000099;
 }
                         
-.dotted-border {
-    border: 2px dashed #ccc;
-    border-width: 2px;
-    border-radius: 5px;
-    padding: 40px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.dotted-border:hover {
-    border: 2px dashed #1976d2;
-    background-color: rgba(21, 101, 192, 0.04);
-}
-.dotted-border-hover {
-    border: 2px dashed #1976d2;
-    background-color: rgba(21, 101, 192, 0.04);
-}
-
 .uploaded-file {
     margin: 10px 0;
 }
 
-.upload-container {
+.upload-outer-container {
+    min-height: 300px;
     display: flex;
     flex-direction: column;
 }
-                           
-.upload-drag-area {
-    width: 100%;
+
+.drag-upload-box >>> .upload-drag-area {
+    height: 100%;
+    background-image: url("./assets/marv-foldmason-gray.png");
+    background-repeat: no-repeat;
+    background-position: right 15px bottom -10px;
+    background-size: 220px;
+    line-height: 1.5;
 }
 </style>
