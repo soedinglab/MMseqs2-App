@@ -1,6 +1,12 @@
 <template>
 <div style="padding: 10px; height: inherit; width: 100%; overflow-y: auto;" ref="parentDiv">
-    <canvas id="tree"/>
+    <canvas
+        id="tree"
+        :class="canvasClass"
+        @click="handleClick"
+        @mousemove="handleMouseOver"
+        @mouseleave="handleMouseLeave"
+    />
 </div>
 </template>
 
@@ -114,9 +120,11 @@ function calculateTreeDepth(node, currentDepth=0) {
 export default {
     data() {
         return {
-            'tree': {},
-            'headers': [],
-            'resizeObserver': null,
+            tree: {},
+            headers: [],
+            resizeObserver: null,
+            headerStartX: null,
+            isHovering: false
         }
     },
     props: {
@@ -124,15 +132,18 @@ export default {
         selection: { type: Array },
         reference: { type: Number },
         order: { type: Array },
-        leafSpacing: { type: Number, default: 20 },
         fontNormal: { type: String, default: "normal 12px sans-serif" },
         fontSelected: { type: String, default: "normal 600 12px sans-serif" },
         referenceColor: { type: String, default: "#1E88E5" },
-        selectionColor: { type: String, default: "#E6AC00" }
+        selectionColor: { type: String, default: "#E6AC00" },
+        maxHeaderChars: { type: Number, default: 25 }
     },
     computed: {
         strokeStyle() {
             return this.$vuetify.theme.dark ? 'white' : 'black';
+        },
+        canvasClass() {
+            return this.isHovering ? "hover" : "";
         }
     },
     watch: {
@@ -163,9 +174,9 @@ export default {
         isReference(node) {
             return (this.reference !== undefined && this.selection[this.reference] === node.name);
         },
-        drawTree(ctx, node, startX, startY, length, depth=0, childIndex=0, fullWidth=100) {
+        drawTree(ctx, node, startX, startY, length, headerHeight, depth=0, childIndex=0, fullWidth=100) {
             const endX = (!node.branches ? fullWidth : startX + length);
-            const endY = startY + this.leafSpacing * (
+            const endY = startY + headerHeight * (
                 childIndex === 0
                     ? -(node.branches ? node.branches[1].height : 0.5)
                     : +(node.branches ? node.branches[0].height : 0.5)
@@ -173,7 +184,7 @@ export default {
             this.drawElbowConnector(ctx, startX, startY, endX, endY);
             if (node.branches) {
                 for (let i = 0; i < node.branches.length; i++) {
-                    this.drawTree(ctx, node.branches[i], endX, endY, length, depth + 1, i, fullWidth);
+                    this.drawTree(ctx, node.branches[i], endX, endY, length, headerHeight, depth + 1, i, fullWidth);
                 }
             } else {
                 if (this.selection) {
@@ -182,7 +193,10 @@ export default {
                         ? (this.isReference(node) ? this.referenceColor : this.selectionColor)
                         : this.strokeStyle;
                 }
-                ctx.fillText(node.name, endX + 5, endY + 4);
+                let name = (node.name.length > this.maxHeaderChars)
+                    ? `${node.name.substring(0, this.maxHeaderChars)}…`
+                    : node.name;
+                ctx.fillText(name, endX + 5, endY + 4);
             }
         },
         clearTree() {
@@ -200,25 +214,50 @@ export default {
             ctx.strokeStyle = this.strokeStyle;
             ctx.font = this.fontSelected;  // Calculate width bolded
             
+            // Calculate spacing for header substrings of length maxHeaderChars
+            // +extra to account for ellipsis
             let headerWidth = 0;
+            let headerHeight = 0;
             this.headers.forEach(header => {
-                let { width } = ctx.measureText(header);
+                let { width, fontBoundingBoxAscent } = ctx.measureText(header.substring(0, this.maxHeaderChars + 3));
                 headerWidth = Math.max(headerWidth, width);
-            })
-
+                headerHeight = Math.max(headerHeight, fontBoundingBoxAscent);
+            });
+            headerHeight *= 2
+            
             canvas.style.width = '100%';
-            canvas.style.height = `${this.tree.height * this.leafSpacing}px`;
+            canvas.style.height = `${this.headers.length * headerHeight}px`;
 
             let depth = calculateTreeDepth(this.tree);
-            let fullWidth = canvas.offsetWidth - headerWidth - 10;
+            let fullWidth = canvas.offsetWidth - headerWidth;
             let length = fullWidth / (depth + 1);
+            
+            // Store x position where headers start being drawn
+            // Used when identifying header on click
+            this.headerStartX = fullWidth;
 
+            // Prevent blurriness on high DPI displays
             const ratio = window.devicePixelRatio;
-            canvas.height = this.tree.height * this.leafSpacing * ratio;
+            canvas.height = this.headers.length * headerHeight * ratio;
             canvas.width = canvas.offsetWidth * ratio;
             ctx.scale(ratio, ratio);
+
             ctx.font = this.fontNormal;
-            this.drawTree(ctx, this.tree, -5, this.tree.height * this.leafSpacing, length, 0, 0, fullWidth);           
+            this.drawTree(ctx, this.tree, -5, this.headers.length * headerHeight, length, headerHeight, 0, 0, fullWidth);           
+        },
+        handleClick(event) {
+            if (event.layerX > this.headerStartX) {
+                let canvas = event.target;
+                const divHeight = canvas.height / this.headers.length;
+                const headerIndex = Math.floor((event.layerY - 10) / divHeight);
+                this.$emit(event.altKey ? "newStructureReference" : "newStructureSelection", headerIndex);
+            }
+        },
+        handleMouseOver(event) {
+            this.isHovering = (event.layerX > this.headerStartX);
+        },
+        handleMouseLeave() {
+            this.isHovering = false;
         }
     },
     mounted() {
@@ -228,8 +267,9 @@ export default {
         this.resizeObserver = new ResizeObserver(debounce(this.visualiseTree, 200)).observe(this.$refs.parentDiv);
     },
     beforeDestroy() {
-        if (this.resizeObserver)
+        if (this.resizeObserver) {
             this.resizeObserver.disconnect();
+        }
     }
 }
 </script>
@@ -237,5 +277,9 @@ export default {
 <style>
 canvas {
     image-rendering: pixelated;
+    cursor: auto;
+}
+canvas.hover {
+    cursor: pointer;
 }
 </style>

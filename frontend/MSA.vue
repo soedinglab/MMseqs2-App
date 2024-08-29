@@ -37,6 +37,8 @@
                         :order="entries.map(e => e.name)"
                         :selection="structureViewerEntries.map(e => e.name)"
                         :reference="structureViewerReference"
+                        @newStructureSelection="handleNewStructureViewerSelection"
+                        @newStructureReference="handleNewStructureViewerReference"
                     />
                 </v-card>
             </v-col>
