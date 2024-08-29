@@ -9,9 +9,10 @@
         <div class="msa-row" v-for="({name, aa, ss, seqStart, css}, j) in getEntryRanges(start, end)">
             <span
                 class="header"
+                :title="name"
                 :style="headerStyle(j)"
                 @click="handleClickHeader($event, j)"
-            >{{ name.padStart(headerLen, '&nbsp') }}</span>
+            >{{ name }}</span>
             <div class="sequence-wrapper">
                 <span class="sequence" :style="css">{{ alphabet === 'aa' ? aa : ss }}</span>
             </div>
@@ -96,7 +97,8 @@ export default {
         alphabet: String,
         selectedStructures: { type: Array, required: false },
         referenceStructure: { type: Number },
-        colorScheme: { type: String, default: 'lddt' }
+        colorScheme: { type: String, default: 'lddt' },
+        maxHeaderWidth: { type: Number, default: 30 }
     },
     mounted() {
         this.resizeObserver = new ResizeObserver(debounce(this.handleResize, 100)).observe(this.$refs.msaWrapper);
@@ -175,7 +177,7 @@ export default {
             this.headerLen = 0;
             this.countLen = 0;
             this.entries.forEach((e, i) => {
-                this.headerLen = Math.max(this.headerLen, e.name.length);
+                this.headerLen = Math.min(30, Math.max(this.headerLen, e.name.length));
                 let count = 0;
                 for (const char of e.aa) {
                     if (char !== '-') count++;
@@ -192,7 +194,7 @@ export default {
             const header    = container.querySelector(".header");
             const count     = container.querySelector(".count");
             const sequence  = container.querySelector(".sequence");
-            const containerWidth = container.offsetWidth - header.scrollWidth - count.scrollWidth - 32;
+            const containerWidth = container.offsetWidth - header.offsetWidth - count.offsetWidth - 32;
             
             // calculate #chars difference
             const content = sequence.textContent;
@@ -297,15 +299,16 @@ export default {
     flex-direction: column;
     font-family: monospace;
     white-space: nowrap;
-    /* line-height: 1.2em; */
 }
 .msa-block {
     margin-bottom: 1.5em;
+    display: grid;
+    grid-template-columns: 1fr;
 }
 .msa-block:last-child {
     margin-bottom: 0;
 }
-.msa-block .sequence, .msa-block .sequence-ss {
+.msa-block .sequence {
     display: inline-block;
     padding: 0px;
     margin: 0px;
@@ -314,21 +317,18 @@ export default {
     z-index: 0;
 }
 .msa-block .sequence::selection {
-  background: rgba(100, 100, 255, 1);
-  color: white;
+    background: rgba(100, 100, 255, 1);
+    color: white;
 }
 .msa-row {
     padding: 0;
     margin: 0;
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 5fr auto;
+    width: 100%;
     justify-content: space-between;
     gap: 16px;
     line-height: 1em;
-}
-.header, .count {
-    flex-shrink: 0;
-    flex-grow: 0;
-    white-space: nowrap;
 }
 .sequence-wrapper {
     overflow: hidden;
@@ -344,9 +344,9 @@ export default {
     padding: 0;
     line-height: 1em;
 }
-.msa-block .sequence-ss::selection {
-  background: rgba(100, 100, 255, 1);
-  color: white;
+.header {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .header:hover {
     cursor: pointer;
