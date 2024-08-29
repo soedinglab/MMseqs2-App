@@ -324,7 +324,7 @@ export default {
     padding: 0;
     margin: 0;
     display: grid;
-    grid-template-columns: 1fr 5fr auto;
+    grid-template-columns: fit-content(20%) 5fr auto;
     width: 100%;
     justify-content: space-between;
     gap: 16px;
