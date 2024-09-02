@@ -27,7 +27,6 @@ import StructureViewerMixin from './StructureViewerMixin.vue';
 import { mockPDB, makeSubPDB, makeMatrix4, interpolateMatrices, animateMatrix  } from './Utilities.js';
 import { download, PdbWriter, Matrix4, Quaternion, Vector3 } from 'ngl';
 import { pulchra } from 'pulchra-wasm';
-import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 
 // Mock alignment object from two (MSA-derived) aligned strings
 function mockAlignment(one, two) {
@@ -181,17 +180,26 @@ ENDMDL
                 makeSubPDB(refComp.structure, aln ? `${aln.qStartPos}-${aln.qEndPos}` : ''),
                 makeSubPDB(newComp.structure, aln ? `${aln.dbStartPos}-${aln.dbEndPos}` : '')
             ]);
-            const { output, matrix } = await tmalign(targetPDB, queryPDB, fasta);
-            const { t, u }  = parseTMMatrix(matrix);
-            const tmResults = parseTMOutput(output);
-            return Promise.resolve({
-                matrix: makeMatrix4(t, u),
-                tmResults: tmResults,
-                alignment: aln,
+            const dataToProcess = {
+                refPDB: targetPDB,
+                newPDB: queryPDB,
+                alnFasta: fasta
+            };
+            return new Promise((resolve, reject) => {
+                const worker = new Worker(new URL("TMAlignWorker.js", import.meta.url));
+                worker.onmessage = function (e) {
+                    const { t, u, tmResults } = e.data;
+                    resolve({
+                        matrix: makeMatrix4(t, u),
+                        tmResults: tmResults
+                    }); 
+                }
+                worker.onerror = function (e) {
+                    reject(e);
+                }
+                worker.postMessage(dataToProcess);
             });
         },
-        // TODO: use an index based key here instead of 'name' attribute
-        //       then can always grab a structure by an index with getComponentsByName
         async addStructureToStage(index, aa, ca) {
             const mock = mockPDB(ca, aa.replace(/-/g, ''), 'A');
             const pdb  = await pulchra(mock);
@@ -241,7 +249,6 @@ ENDMDL
             }
 
             // Changed status of reference
-            // TODO incorrect when clearing from reference then reselecting new reference from empty
             const isDiffReference = this.reference !== this.curReferenceIndex;
             const isNewReference  = !oldSet.has(this.reference);
             const referenceChanged = isDiffReference || isNewReference;
@@ -266,17 +273,17 @@ ENDMDL
                 }
                 ref.autoView();
             }
-            
+
             await Promise.all(
                 add.map(async (idx) => {
                     const data = this.entries[idx];
                     const structure = await this.addStructureToStage(idx, data.aa, data.ca);
                     const { matrix } = await this.tmAlignToReference(idx);
-                    structure.addRepresentation(this.representationStyle, this.regularStyleParameters);
                     structure.setTransform(matrix);
+                    structure.addRepresentation(this.representationStyle, this.regularStyleParameters);
                 })
             );
-            
+
             await Promise.all(
                 remove.map(async (idx) => {
                     const structure = this.getComponentByIndex(idx);

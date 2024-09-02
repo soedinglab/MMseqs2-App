@@ -35,7 +35,7 @@
                     <Tree
                         :newick="tree"
                         :order="entries.map(e => e.name)"
-                        :selection="structureViewerEntries.map(e => e.name)"
+                        :selection="structureViewerSelection.map(i => entries[i].name)"
                         :reference="structureViewerReference"
                         @newStructureSelection="handleNewStructureViewerSelection"
                         @newStructureReference="handleNewStructureViewerReference"
@@ -159,7 +159,7 @@ import MSAView from './MSAView.vue';
 import StructureViewer from './StructureViewer.vue';
 import StructureViewerMSA from './StructureViewerMSA.vue';
 import Tree from './Tree.vue';
-import { debounce, makePositionMap } from './Utilities.js'
+import { debounce, makePositionMap, tryFixName } from './Utilities.js'
 import MDI from './MDI.js';
 
 function makeMatchRatioMask(entries, ratio) {
@@ -257,6 +257,9 @@ export default {
     },
     beforeMount() {
         this.handleUpdateMatchRatio();
+        for (let entry of this.entries) {
+            entry.name = tryFixName(entry.name)
+        }
     },
     mounted() {
         window.addEventListener("scroll", this.handleScroll);

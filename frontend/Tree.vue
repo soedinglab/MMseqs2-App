@@ -172,7 +172,7 @@ export default {
             return (this.selection.includes(node.name));
         },
         isReference(node) {
-            if (this.reference === undefined) return false;
+            if (this.reference === undefined || this.reference === -1) return false;
             return (node.name === this.order[this.reference]);
         },
         drawTree(ctx, node, startX, startY, length, headerHeight, depth=0, childIndex=0, fullWidth=100) {
@@ -250,7 +250,7 @@ export default {
             if (event.layerX > this.headerStartX) {
                 const canvas = event.target;
                 const divHeight = canvas.height / this.headers.length;
-                const index = Math.floor(((event.layerY - 10) * window.devicePixelRatio) / divHeight);
+                const index = Math.floor(event.offsetY * window.devicePixelRatio / divHeight);
                 const status = (this.selection.length === 0 || event.altKey) ? "newStructureReference" : "newStructureSelection";
                 this.$emit(status, index);
             }

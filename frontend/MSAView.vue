@@ -6,7 +6,10 @@
             :alphabet="alphabet"
             :lineLen="lineLen"
         /> -->
-        <div class="msa-row" v-for="({name, aa, ss, seqStart, css}, j) in getEntryRanges(start, end)">
+        <!--
+            <div class="msa-row" v-for="({name, aa, ss, seqStart, css}, j) in getEntryRanges(start, end)">
+        -->
+        <template v-for="({name, aa, ss, seqStart, css}, j) in getEntryRanges(start, end)">
             <span
                 class="header"
                 :title="name"
@@ -16,8 +19,9 @@
             <div class="sequence-wrapper">
                 <span class="sequence" :style="css">{{ alphabet === 'aa' ? aa : ss }}</span>
             </div>
-            <span class="count">{{ countSequence(aa, seqStart).toString().padStart(countLen, '&nbsp')  }}</span>
-        </div>
+            <span class="count">{{ countSequence(aa, seqStart).toString()  }}</span>
+        </template>
+        <!-- </div> -->
     </div>
 </div>
 </template>
@@ -124,7 +128,7 @@ export default {
     },
     computed: {
         firstSequenceWidth() {
-            const container = document.querySelector(".msa-row");
+            const container = document.querySelector(".msa-block");
             if (!container)
                 return 0
             const sequence = container.querySelector(".sequence");
@@ -150,14 +154,14 @@ export default {
     },
     methods: {
         handleClickHeader(event, index) {
-            if (event.altKey) {
+            if (this.selectedStructures.length === 0 || event.altKey) {
                 this.$emit("newStructureReference", index);
             } else {
                 this.$emit("newStructureSelection", index);
             }
         },
         getSequenceWidth() {
-            const container = document.querySelector(".msa-row");
+            const container = document.querySelector(".msa-block");
             const sequence  = container.querySelector(".sequence");
             return sequence.scrollWidth;
         },
@@ -187,7 +191,7 @@ export default {
         },
         handleResize() {
             // Resize based on first row
-            const container = document.querySelector(".msa-row");
+            const container = document.querySelector(".msa-block");
             if (!container) {
                 return
             }
@@ -299,11 +303,16 @@ export default {
     flex-direction: column;
     font-family: monospace;
     white-space: nowrap;
+    width: 100%;
 }
 .msa-block {
     margin-bottom: 1.5em;
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: fit-content(20%) 5fr auto;
+    width: 100%;
+    justify-content: space-between;
+    gap: 0px 16px;
+    line-height: 1em;
 }
 .msa-block:last-child {
     margin-bottom: 0;
@@ -321,14 +330,15 @@ export default {
     color: white;
 }
 .msa-row {
-    padding: 0;
+    display: contents;
+/*     padding: 0;
     margin: 0;
     display: grid;
     grid-template-columns: fit-content(20%) 5fr auto;
     width: 100%;
     justify-content: space-between;
     gap: 16px;
-    line-height: 1em;
+    line-height: 1em; */
 }
 .sequence-wrapper {
     overflow: hidden;
@@ -346,9 +356,13 @@ export default {
 }
 .header {
     overflow: hidden;
+    text-align: left;
     text-overflow: ellipsis;
 }
 .header:hover {
     cursor: pointer;
+}
+.count {
+    text-align: right;
 }
 </style>
