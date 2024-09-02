@@ -47,7 +47,8 @@
                     <v-card-title style="position: absolute; left: 0; top: 0; margin: 0; padding: 16px; z-index: 1;">Structure</v-card-title>
                     <div v-if="structureViewerSelection" style="padding: 10px; height: 100%; width: 100%;">
                         <StructureViewerMSA
-                            :entries="structureViewerEntries"
+                            :entries="entries"
+                            :selection="structureViewerSelection"
                             :reference="structureViewerReference"
                             @loadingChange="handleStructureLoadingChange"
                         />
@@ -316,32 +317,32 @@ export default {
         handleStructureLoadingChange(isLoading) {
             this.isLoadingStructure = isLoading;
         },
+        // New reference emitted from MSAView.
+        // entryIndex is based on ALL entries, not just selection (taken from row of MSA block)
+        // Add new structure to selection if index not already in selection,
+        // otherwise just switch reference index.
         handleNewStructureViewerReference(entryIndex) {
-            // New reference emitted from MSAView.
-            // entryIndex is based on ALL entries, not just selection (taken from row of MSA block)
-            // Add new structure to selection if index not already in selection,
-            // otherwise just switch reference index.
-            const selection = this.structureViewerSelection.slice();
-            const index = selection.indexOf(entryIndex);
-            if (index === this.structureViewerReference) {
+            if (entryIndex === this.structureViewerReference) {
                 this.structureViewerSelection = [];
-                this.structureViewerReference = 0;
+                this.structureViewerReference = -1;
                 return;
             }
+            const selection = this.structureViewerSelection.slice();
+            const index = selection.indexOf(entryIndex);
             if (index === -1) {
                 selection.push(entryIndex);
             }
             this.structureViewerSelection = selection;
-            this.structureViewerReference = this.structureViewerSelection.indexOf(entryIndex);
+            this.structureViewerReference = entryIndex;
         },
         handleNewStructureViewerSelection(entryIndex) {
-            const selection = this.structureViewerSelection.slice();
-            const index = selection.indexOf(entryIndex);
-            if (index === this.structureViewerReference) {
+            if (entryIndex === this.structureViewerReference) {
                 this.structureViewerSelection = [];
-                this.structureViewerReference = 0;
+                this.structureViewerReference = -1;
                 return;
             }
+            const selection = this.structureViewerSelection.slice();
+            const index = selection.indexOf(entryIndex);
             if (index !== -1) {
                 selection.splice(index, 1);
             } else {

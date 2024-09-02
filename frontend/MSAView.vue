@@ -163,7 +163,7 @@ export default {
         },
         headerStyle(index) {
             const isSelected  = this.selectedStructures.length > 0 && this.selectedStructures.includes(index);
-            const isReference = this.selectedStructures.length > 0 && this.selectedStructures[this.referenceStructure] === index;
+            const isReference = this.selectedStructures.length > 0 && this.referenceStructure === index;
             return {
                 fontWeight: isSelected ? 'bold' : 'normal',                
                 color: isReference

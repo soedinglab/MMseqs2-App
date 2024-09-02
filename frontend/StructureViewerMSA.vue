@@ -85,34 +85,6 @@ function mockAlignment(one, two) {
     return res;
 }
 
-function generateSelections(newValues, oldValues, refIndex) {
-    const update = [];
-    const remove = [];
-    const add    = [];
-    const reference = {};
-    const oldValuesSet = new Set(oldValues);
-    newValues.forEach((newValue, index) => {
-        if (index === refIndex) {
-            reference.item = newValue;
-            if (oldValuesSet.has(newValue)) {
-                reference.status = 'update';
-                oldValuesSet.delete(newValue);
-            } else {
-                reference.status = 'new';
-            }
-            return;
-        }
-        if (oldValuesSet.has(newValue)) {
-            update.push(newValue);
-            oldValuesSet.delete(newValue);
-        } else {
-            add.push(newValue);
-        }
-    });
-    remove.push(...oldValuesSet);
-    return { update, remove, add, reference };
-}
-
 export default {
     name: "StructureViewerMSA",
     components: {
@@ -124,12 +96,12 @@ export default {
     ],
     data: () => ({
         structures: [],  // { name, aa, 3di (ss), ca, NGL structure, alignment, map }
-        curReferenceIndex: 0,
-        oldReference: ""
+        curReferenceIndex: 0,  // index in ALL sequences, not just visualised subset - used as key
     }),
     props: {
-        entries: { type: Array },
-        reference: { type: Number },
+        entries: { type: Array, required: true },
+        selection: { type: Array, required: true },
+        reference: { type: Number, required: true },
         bgColorLight: { type: String, default: "white" },
         bgColorDark: { type: String, default: "#1E1E1E" },
         representationStyle: { type: String, default: "cartoon" },
@@ -145,8 +117,8 @@ export default {
     methods: {
         resetView() {
             if (!this.stage) return;
-            if (this.structures.length > 0) {
-                this.structures[this.curReferenceIndex].structure.autoView(this.transitionDuration);
+            if (this.selection.length > 0) {
+                this.getComponentByIndex(this.reference).autoView(this.transitionDuration);
             } else {
                 this.stage.autoView(this.transitionDuration);
             }
@@ -189,38 +161,42 @@ ENDMDL
                 download(blob, "foldmason.png")
             })
         },
+        getComponentByIndex(index) {
+            if (!this.stage) return;
+            const compList = this.stage.getComponentsByName(`key-${index}`);
+            if (compList.list.length === 0) return -1;
+            return compList.list[0];
+        },
         async tmAlignToReference(index) {
-            if (index === this.curReferenceIndex) {
+            if (index === this.reference) {
                 return;
             }
-            const reference = this.structures[this.curReferenceIndex].structure;
-            const alignment = mockAlignment(this.structures[this.curReferenceIndex].aa, this.structures[index].aa);
-            const alnFasta = `>target\n${alignment.dbAln}\n\n>query\n${alignment.qAln}`;
-            const structure = this.structures[index].structure;
+            const refData = this.entries[this.reference];
+            const newData = this.entries[index];
+            const refComp = this.getComponentByIndex(this.reference);
+            const newComp = this.getComponentByIndex(index);
+            const aln = mockAlignment(refData.aa, newData.aa);
+            const fasta = `>target\n${aln.dbAln}\n\n>query\n${aln.qAln}`;
             const [queryPDB, targetPDB] = await Promise.all([
-                makeSubPDB(reference.structure, alignment ? `${alignment.qStartPos}-${alignment.qEndPos}` : ''),
-                makeSubPDB(structure.structure, alignment ? `${alignment.dbStartPos}-${alignment.dbEndPos}` : '')
+                makeSubPDB(refComp.structure, aln ? `${aln.qStartPos}-${aln.qEndPos}` : ''),
+                makeSubPDB(newComp.structure, aln ? `${aln.dbStartPos}-${aln.dbEndPos}` : '')
             ]);
-            const { output, matrix } = await tmalign(targetPDB, queryPDB, alnFasta);
+            const { output, matrix } = await tmalign(targetPDB, queryPDB, fasta);
             const { t, u }  = parseTMMatrix(matrix);
             const tmResults = parseTMOutput(output);
             return Promise.resolve({
                 matrix: makeMatrix4(t, u),
                 tmResults: tmResults,
-                alignment: alignment,
+                alignment: aln,
             });
         },
-        async addStructureToStage(data) {
-            const { name, aa, ca } = data;
-            const index = this.structures.push({...data}) - 1;
-            const pdb = await pulchra(mockPDB(ca, aa.replace(/-/g, ''), 'A'));
-            const structure = await this.stage.loadFile(
-                new Blob([pdb], { type: 'text/plain' }),
-                {ext: 'pdb', firstModelOnly: true, name: name }
-            );
-            this.structures[index].index = index;
-            this.structures[index].structure = structure;
-            return index;
+        // TODO: use an index based key here instead of 'name' attribute
+        //       then can always grab a structure by an index with getComponentsByName
+        async addStructureToStage(index, aa, ca) {
+            const mock = mockPDB(ca, aa.replace(/-/g, ''), 'A');
+            const pdb  = await pulchra(mock);
+            const blob = new Blob([pdb], { type: 'text/plain' })
+            return this.stage.loadFile(blob, { ext: 'pdb', firstModelOnly: true, name: `key-${index}` });
         },
         async shiftStructure({ structure }, index, shiftValue) {
             const { x, y, z } = structure.position;
@@ -234,73 +210,94 @@ ENDMDL
             this.stage.autoView();
         },
         async updateEntries(newValues, oldValues) {
-            if (!this.stage)
+            if (!this.stage) {
                 return;
-            const { update, remove, add, reference } = generateSelections(newValues, oldValues, this.reference);
-            const isReferenceEmpty = Object.keys(reference).length === 0;
-            const isNewReference = isReferenceEmpty || ['new', 'update'].includes(reference.status);  //reference.item.name !== this.oldReference;
-            this.oldReference = isReferenceEmpty ? "" : reference.item.name;
-
-            // Always deal with the reference structure first
-            if (!isReferenceEmpty && isNewReference) {
-                let idx;
-                if (reference.status === "update") {
-                    idx = this.structures.findIndex(item => item.name === reference.item.name);
-                    this.structures[idx].representation.setParameters(this.referenceStyleParameters);
-                    this.structures[idx].structure.setTransform(new Matrix4());
-                } else {
-                    idx = await this.addStructureToStage(reference.item);
-                    this.structures[idx].representation = this.structures[idx].structure.addRepresentation(
-                        this.representationStyle,
-                        this.referenceStyleParameters
-                    );
-                }
-                this.structures[idx].structure.autoView();
-                this.curReferenceIndex = idx;
             }
 
+            // Selections - structures to update/remove/add
+            const newSet = new Set(newValues);
+            const oldSet = new Set(oldValues);
+            
+            if (newSet.size === 0) {
+                this.stage.removeAllComponents();
+                return;
+            }
+
+            const update = [];
+            const remove = [];
+            const add    = [];
+
+            for (const value of oldSet) {
+                if (value === this.reference) continue;
+                if (newSet.has(value)) {
+                    update.push(value);
+                } else {
+                    remove.push(value);
+                }
+            }
+            for (const value of newSet) {
+                if (value === this.reference || oldSet.has(value)) continue;
+                add.push(value);
+            }
+
+            // Changed status of reference
+            // TODO incorrect when clearing from reference then reselecting new reference from empty
+            const isDiffReference = this.reference !== this.curReferenceIndex;
+            const isNewReference  = !oldSet.has(this.reference);
+            const referenceChanged = isDiffReference || isNewReference;
+
+            this.curReferenceIndex = this.reference;
+
+            // Update the reference
+            // If reference already exists, just change the colour and reset its transform
+            // Otherwise add as new structure to the NGL Stage
+            if (referenceChanged) {
+                let data = this.entries[this.reference];
+                let ref;
+                if (isNewReference) {
+                    ref = await this.addStructureToStage(this.reference, data.aa, data.ca);
+                    ref.addRepresentation(this.representationStyle, this.referenceStyleParameters);
+                } else {
+                    ref = this.getComponentByIndex(this.reference);
+                    ref.reprList[0].setVisibility(false);
+                    ref.reprList[0].setParameters(this.referenceStyleParameters)
+                    ref.setTransform(new Matrix4());
+                    ref.reprList[0].setVisibility(true);
+                }
+                ref.autoView();
+            }
+            
             await Promise.all(
-                update.map(async (item) => {
-                    const index = this.structures.findIndex(structure => item.name === structure.name);
-                    if (index === -1) {
-                        return;
-                    }
-                    if (isNewReference) {
-                        const entry = this.structures[index];
-                        entry.representation.setVisibility(false);
-                        const { matrix, tmResults, alignment } = await this.tmAlignToReference(index);
-                        entry.tmResults = tmResults;
-                        entry.alignment = alignment;                
-                        entry.representation.setParameters(this.regularStyleParameters);
-                        entry.structure.setTransform(matrix);
-                        entry.representation.setVisibility(true);
-                        // animateMatrix(this.structures[index].structure, matrix, 1000);
-                    }
+                add.map(async (idx) => {
+                    const data = this.entries[idx];
+                    const structure = await this.addStructureToStage(idx, data.aa, data.ca);
+                    const { matrix } = await this.tmAlignToReference(idx);
+                    structure.addRepresentation(this.representationStyle, this.regularStyleParameters);
+                    structure.setTransform(matrix);
                 })
             );
-
+            
             await Promise.all(
-                remove.map(async (item) => {
-                    this.stage
-                        .getComponentsByName(item.name)
-                        .forEach(item => this.stage.removeComponent(item));
-                    const index = this.structures.findIndex(structure => item.name === structure.name);
-                    this.structures.splice(index, 1);
+                remove.map(async (idx) => {
+                    const structure = this.getComponentByIndex(idx);
+                    this.stage.removeComponent(structure);
                 })
             );
-
+            
+            if (!referenceChanged) {
+                return;
+            }
+            
             await Promise.all(
-                add.map(async (item) => {
-                    const index = await this.addStructureToStage(item);
-                    const { matrix, tmResults, alignment } = await this.tmAlignToReference(index);
-                    const entry = this.structures[index];
-                    entry.tmResults = tmResults;
-                    entry.alignment = alignment;
-                    entry.representation = entry.structure.addRepresentation(
-                        this.representationStyle,
-                        this.regularStyleParameters
-                    );
-                    entry.structure.setTransform(matrix);
+                update.map(async (idx) => {
+                    const structure = this.getComponentByIndex(idx); 
+                    if (!structure || structure.reprList.length === 0) return;
+                    const [ representation ] = structure.reprList;
+                    representation.setVisibility(false);
+                    const { matrix } = await this.tmAlignToReference(idx);
+                    representation.setParameters(this.regularStyleParameters)
+                    structure.setTransform(matrix);
+                    representation.setVisibility(true);
                 })
             );
         },
@@ -309,7 +306,7 @@ ENDMDL
         '$vuetify.theme.dark': function() {
             this.stage.viewer.setBackground(this.bgColor);
         },
-        entries: function(newV, oldV) {
+        selection: function(newV, oldV) {
             this.updateEntries(newV, oldV);
         },
     },
