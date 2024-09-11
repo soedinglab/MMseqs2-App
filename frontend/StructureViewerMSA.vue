@@ -95,7 +95,7 @@ export default {
     ],
     data: () => ({
         structures: [],  // { name, aa, 3di (ss), ca, NGL structure, alignment, map }
-        curReferenceIndex: 0,  // index in ALL sequences, not just visualised subset - used as key
+        curReferenceIndex: -1,  // index in ALL sequences, not just visualised subset - used as key
     }),
     props: {
         entries: { type: Array, required: true },
@@ -205,9 +205,11 @@ ENDMDL
                         matrix: makeMatrix4(t, u),
                         tmResults: tmResults
                     }); 
+                    worker.terminate();
                 }
                 worker.onerror = function (e) {
                     reject(e);
+                    worker.terminate();
                 }
                 worker.postMessage(dataToProcess);
             });
@@ -306,7 +308,7 @@ ENDMDL
             if (!referenceChanged) {
                 return;
             }
-            
+
             await Promise.all(
                 update.map(async (idx) => {
                     const structure = this.getComponentByIndex(idx); 
