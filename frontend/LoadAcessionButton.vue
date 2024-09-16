@@ -44,6 +44,7 @@ export default {
             sources: [
                 { text: 'PDB (rcsb.org)', value: 'PDB' },
                 { text: 'AlphaFoldDB (ebi.ac.uk)', value: 'AlphaFoldDB' },
+                { text: 'BFVD (bfvd.foldseek.com)', value: 'BFVD' },
             ]
         };
     },
@@ -82,6 +83,9 @@ export default {
                 };
             if (source == "PDB") {
                 url = "https://files.rcsb.org/download/" + accession.toUpperCase() + ".cif";
+                fun = simpleFetch;
+            } else if (source == "BFVD") {
+                url = "https://bfvd.steineggerlab.workers.dev/pdb/" + accession.toUpperCase() + ".pdb"
                 fun = simpleFetch;
             } else if (source == "AlphaFoldDB") {
                 url = "https://alphafold.ebi.ac.uk/api/search?q=(text:*" + accession + " OR text:" + accession + "*)&type=main&start=0&rows=1"
