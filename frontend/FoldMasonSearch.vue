@@ -118,7 +118,6 @@ import Panel from "./Panel.vue";
 import FileButton from "./FileButton.vue";
 import LoadAcessionButton from './LoadAcessionButton.vue';
 import Reference from "./Reference.vue";
-import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import { djb2, parseResultsList } from './Utilities.js';
 import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import ApiDialog from './ApiDialog.vue';
@@ -190,20 +189,17 @@ export default {
             this.$router.push({ name: 'foldmasonresult', params: { ticket: `user-example` }}).catch(error => {});
         },
         async search() {
-            var request = {
-                queries: this.queries.map(q => q.text),
-                fileNames: this.queries.map(q => q.name),
-                gapOpen: this.params.gapOpen,
-                gapExtend: this.params.gapExtend
-            };
-            // if (typeof(request.q) === 'string' && request.q != '') {
-            //     if (request.q[request.q.length - 1] != '\n') {
-            //         request.q += '\n';
-            //     }
-            // }
+            const params = new FormData();
+            this.queries.forEach((v) => {
+                params.append('fileNames[]', v.name);
+                params.append('queries[]', new Blob([v.text], { type: 'text/plain' }), v.name);
+            });
+            params.append('gapOpen', this.params.gapOpen);
+            params.append('gapExtend', this.params.gapExtend);
+
             try {
                 this.inSearch = true;
-                const response = await this.$axios.post("api/ticket/foldmason", convertToQueryUrl(request), {
+                const response = await this.$axios.post("api/ticket/foldmason", params, {
                     transformRequest: AxiosCompressRequest(this.$axios)
                 });
                 this.errorMessage = "";
