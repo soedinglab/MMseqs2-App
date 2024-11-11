@@ -24,6 +24,7 @@
 import StructureViewerTooltip from './StructureViewerTooltip.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerMixin from './StructureViewerMixin.vue';
+import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import { mockPDB, makeSubPDB, makeMatrix4, interpolateMatrices, animateMatrix  } from './Utilities.js';
 import { download, PdbWriter, Matrix4, Quaternion, Vector3, concatStructures } from 'ngl';
 import { pulchra } from 'pulchra-wasm';
@@ -192,26 +193,31 @@ ENDMDL
                 makeSubPDB(refComp.structure, aln ? `${aln.qStartPos}-${aln.qEndPos}` : ''),
                 makeSubPDB(newComp.structure, aln ? `${aln.dbStartPos}-${aln.dbEndPos}` : '')
             ]);
-            const dataToProcess = {
-                refPDB: targetPDB,
-                newPDB: queryPDB,
-                alnFasta: fasta
-            };
-            return new Promise((resolve, reject) => {
+            if (!__LOCAL__) {
                 const worker = new Worker(new URL("TMAlignWorker.js", import.meta.url));
-                worker.onmessage = function (e) {
-                    const { t, u, tmResults } = e.data;
-                    resolve({
-                        matrix: makeMatrix4(t, u),
-                        tmResults: tmResults
-                    }); 
-                    worker.terminate();
-                }
-                worker.onerror = function (e) {
-                    reject(e);
-                    worker.terminate();
-                }
-                worker.postMessage(dataToProcess);
+                return new Promise((resolve, reject) => {
+                    worker.onmessage = function (e) {
+                        const { t, u, tmResults } = e.data;
+                        resolve({
+                            matrix: makeMatrix4(t, u),
+                            tmResults: tmResults
+                        }); 
+                        worker.terminate();
+                    }
+                    worker.onerror = function (e) {
+                        reject(e);
+                        worker.terminate();
+                    }
+                    worker.postMessage({ refPDB: targetPDB, newPDB: queryPDB, alnFasta: fasta });
+                });
+            }
+            const { output, matrix } = await tmalign(targetPDB, queryPDB, fasta);
+            const { t, u }  = parseTMMatrix(matrix);
+            const tmResults = parseTMOutput(output);
+            return Promise.resolve({
+                matrix: makeMatrix4(t, u),
+                tmResults: tmResults,
+                alignment: aln
             });
         },
         async addStructureToStage(index, aa, ca) {

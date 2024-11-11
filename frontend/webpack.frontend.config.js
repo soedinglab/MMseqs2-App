@@ -215,7 +215,7 @@ module.exports = (env, argv) => {
                 },
             }) : new NullPlugin(),
             isLocal ?  new webpack.optimize.LimitChunkCountPlugin({
-                maxChunks: 2,
+                maxChunks: 3,
               }) : new NullPlugin(),
             !isProduction && isElectron ?
                 new webpack.HotModuleReplacementPlugin() : new NullPlugin(),
@@ -234,19 +234,31 @@ module.exports = (env, argv) => {
                 }
             })],
             splitChunks: {
+                minSize: 0,
+                minSizeReduction: 0,
                 cacheGroups: {
                     vendor: {
-                      test: /[\\/]node_modules[\\/]/,
-                      name: 'vendor',
-                      chunks: 'all',
-                      priority: -10,
-                      reuseExistingChunk: true,
+                        test: /[\\/]node_modules[\\/]/,
+                        name: 'vendor',
+                        chunks: 'all',
+                        priority: -10,
+                        reuseExistingChunk: true,
+                        enforce: true
+                    },
+                    workerGroup: {
+                        test: /TMAlignWorker\.js$/,
+                        name: 'tmworker',
+                        chunks: 'all',
+                        priority: -15,
+                        reuseExistingChunk: true,
+                        enforce: true
                     },
                     frontend: {
-                      name: 'frontend',
-                      chunks: 'all',
-                      priority: -20,
-                      reuseExistingChunk: true,
+                        name: 'frontend',
+                        chunks: 'all',
+                        priority: -20,
+                        reuseExistingChunk: true,
+                        enforce: true
                     },
                 },
             }
