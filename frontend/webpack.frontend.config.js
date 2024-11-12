@@ -225,6 +225,8 @@ module.exports = (env, argv) => {
     
     if (isLocal) {
         exports.optimization = {
+            moduleIds: 'deterministic',
+            chunkIds: 'deterministic',
             minimize: true,
             minimizer: [new TerserPlugin({
                 terserOptions: {
