@@ -52,8 +52,6 @@ func (r FoldMasonMSAJob) WritePDB(path string) error {
 	return nil
 }
 
-//err := os.WriteFile(filepath.Join(pdbDir, r.FileNames[idx]), []byte(query), 0644)
-
 func NewFoldMasonMSAJobRequest(
 	queries []string,
 	fileNames []string,
