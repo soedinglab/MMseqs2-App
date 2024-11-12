@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 type FoldMasonMSAJob struct {
@@ -38,8 +39,11 @@ func (r FoldMasonMSAJob) WritePDB(path string) error {
 	var pdbDir = filepath.Join(path, "pdbs")
 	os.Mkdir(pdbDir, os.ModePerm)
 	for idx, query := range r.Queries {
-		// FIXME check CIF vs PDB here
 		name := cleanPathComponent.ReplaceAllString(r.FileNames[idx], "")
+		ext := filepath.Ext(r.FileNames[idx])
+		if ext == ".cif" || ext == ".mmcif" {
+			name = strings.TrimSuffix(name, ext) + ".cif"
+		}
 		err := os.WriteFile(filepath.Join(pdbDir, name), []byte(query), 0644)
 		if err != nil {
 			return err
@@ -47,6 +51,8 @@ func (r FoldMasonMSAJob) WritePDB(path string) error {
 	}
 	return nil
 }
+
+//err := os.WriteFile(filepath.Join(pdbDir, r.FileNames[idx]), []byte(query), 0644)
 
 func NewFoldMasonMSAJobRequest(
 	queries []string,
