@@ -40,7 +40,7 @@ export default {
     data() {
         return {
             inFileDrag: false,
-            bodyText: "Drag & drop at least two PDB files here."
+            bodyText: "Drag & drop at least two PDB/CIF files here."
         };
     },
     methods: {
