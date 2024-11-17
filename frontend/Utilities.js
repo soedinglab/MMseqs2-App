@@ -57,6 +57,12 @@ function tryLinkTargetToDB(target, db) {
                 } else {
                     return "https://www.cathdb.info/version/latest/domain/"+ target;
                 }
+            } else if (res.startsWith("bfvd")) {
+                const bfvd = target.replaceAll(/_.*/g, '');
+                return [ 
+                    { label: "BFVD", accession: bfvd, href: "https://bfvd.foldseek.com/cluster/" + bfvd },
+                    { label: "UniRef", accession: bfvd, href: "https://www.uniprot.org/uniref/UniRef100_" + bfvd },
+                ]
             }
         }
         return null;
@@ -72,6 +78,8 @@ function tryFixTargetName(target, db) {
             return target.replaceAll(/\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
         } else if (res.startsWith("pdb") || res.startsWith("gmgc") || res.startsWith("mgyp") || res.startsWith("mgnify")) {
             return target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '');
+        } else if (res.startsWith("bfvd")) {
+            return target.replaceAll(/_unrelaxed.*/g, '');
         }
         if (res.startsWith("cath")) {
             if (target.startsWith('af_')) {
