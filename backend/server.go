@@ -770,12 +770,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		var fasta []FastaEntry
 		var results []SearchResult
 		var mode string
-		var ids []int64
 		isFoldseek := false
 		switch job := request.Job.(type) {
 		case SearchJob:
 			mode = job.Mode
-			ids = []int64{id}
+			ids := []int64{id}
 			databases := job.Database
 			if database != "" {
 				if isIn(database, job.Database) == -1 {
@@ -789,9 +788,14 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			fasta, err = ReadQueryByIds(ticket.Id, ids, config.Paths.Results)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 		case StructureSearchJob:
 			mode = job.Mode
-			ids = []int64{id}
+			ids := []int64{id}
 			isFoldseek = true
 			databases := job.Database
 			if database != "" {
@@ -806,6 +810,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			fasta, err = ReadQueryByIds(ticket.Id, ids, config.Paths.Results)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 		case ComplexSearchJob:
 			mode = job.Mode
 			result, err := Lookup(ticket.Id, 0, math.MaxInt32, config.Paths.Results, false)
@@ -813,10 +822,10 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			ids = make([]int64, 0)
+			keys := make([]uint32, 0)
 			for _, lookup := range result.Lookup {
 				if lookup.Set == uint32(id) {
-					ids = append(ids, int64(lookup.Id))
+					keys = append(keys, uint32(lookup.Id))
 				}
 			}
 			isFoldseek = true
@@ -828,7 +837,12 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				}
 				databases = []string{database}
 			}
-			results, err = ComplexAlignments(ticket.Id, ids, databases, config.Paths.Results)
+			results, err = ComplexAlignments(ticket.Id, keys, databases, config.Paths.Results)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			fasta, err = ReadQueryByKeys(ticket.Id, keys, config.Paths.Results)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -918,11 +932,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 		}
 
-		fasta, err = ReadQuery(ticket.Id, ids, config.Paths.Results)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
 		type AlignmentModeResponse struct {
 			Queries []FastaEntry   `json:"queries"`
 			Mode    string         `json:"mode"`

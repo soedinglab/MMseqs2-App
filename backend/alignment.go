@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -212,7 +213,7 @@ func ReadAlignment[T any](reader io.Reader) ([]T, error) {
 	return results, nil
 }
 
-func ReadQuery(id Id, entries []int64, jobsbase string) ([]FastaEntry, error) {
+func ReadQueryByIds(id Id, ids []int64, jobsbase string) ([]FastaEntry, error) {
 	base := filepath.Join(jobsbase, string(id))
 	query := filepath.Join(base, "query")
 	seqReader := Reader[uint32]{}
@@ -228,11 +229,9 @@ func ReadQuery(id Id, entries []int64, jobsbase string) ([]FastaEntry, error) {
 		return fasta, err
 	}
 
-	for _, entry := range entries {
-		sequence := strings.TrimSpace(seqReader.Data(entry))
-		seqReader.Delete()
-		header := strings.TrimSpace(hdrReader.Data(entry))
-		hdrReader.Delete()
+	for _, id := range ids {
+		sequence := strings.TrimSpace(seqReader.Data(id))
+		header := strings.TrimSpace(hdrReader.Data(id))
 		fasta = append(fasta, FastaEntry{header, sequence})
 	}
 	seqReader.Delete()
@@ -240,10 +239,55 @@ func ReadQuery(id Id, entries []int64, jobsbase string) ([]FastaEntry, error) {
 	return fasta, nil
 }
 
-func ReadAlignments[T any](id Id, entries []int64, databases []string, jobsbase string) ([]SearchResult, error) {
+func ReadQueryByKeys(id Id, keys []uint32, jobsbase string) ([]FastaEntry, error) {
+	base := filepath.Join(jobsbase, string(id))
+	query := filepath.Join(base, "query")
+	seqReader := Reader[uint32]{}
+	err := seqReader.Make(dbpaths(query))
+	fasta := make([]FastaEntry, 0)
+	if err != nil {
+		return fasta, err
+	}
+	hdrReader := Reader[uint32]{}
+	err = hdrReader.Make(dbpaths(query + "_h"))
+	if err != nil {
+		seqReader.Delete()
+		return fasta, err
+	}
+
+	for _, key := range keys {
+		id, found := seqReader.Id(key)
+		sequence := ""
+		if found {
+			sequence = strings.TrimSpace(seqReader.Data(id))
+		}
+		id, found = hdrReader.Id(key)
+		header := ""
+		if found {
+			header = strings.TrimSpace(hdrReader.Data(id))
+		}
+		fasta = append(fasta, FastaEntry{header, sequence})
+	}
+	seqReader.Delete()
+	hdrReader.Delete()
+	return fasta, nil
+}
+
+func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, databases []string, jobsbase string) ([]SearchResult, error) {
 	base := filepath.Join(jobsbase, string(id))
 	reader := Reader[uint32]{}
 	res := make([]SearchResult, 0)
+
+	var lookupByKey bool
+	switch any(entries[0]).(type) {
+	case uint32:
+		lookupByKey = true
+	case int64:
+		lookupByKey = false
+	default:
+		return nil, fmt.Errorf("unsupported type: %T", entries[0])
+	}
+
 	for _, db := range databases {
 		name := filepath.Join(filepath.Clean(base), "alis_"+db)
 		err := reader.Make(dbpaths(name))
@@ -252,7 +296,19 @@ func ReadAlignments[T any](id Id, entries []int64, databases []string, jobsbase 
 		}
 		all := make([][]T, 0)
 		for _, entry := range entries {
-			data := strings.NewReader(reader.Data(entry))
+			var body string
+			if lookupByKey {
+				alnKey := any(entry).(uint32)
+				alnId, found := reader.Id(alnKey)
+				if !found {
+					reader.Delete()
+					return nil, fmt.Errorf("missing key: %T", alnKey)
+				}
+				body = reader.Data(alnId)
+			} else {
+				body = reader.Data(any(entry).(int64))
+			}
+			data := strings.NewReader(body)
 			results, err := ReadAlignment[T](data)
 			if err != nil {
 				reader.Delete()
@@ -272,15 +328,15 @@ func ReadAlignments[T any](id Id, entries []int64, databases []string, jobsbase 
 }
 
 func Alignments(id Id, entry []int64, databases []string, jobsbase string) ([]SearchResult, error) {
-	return ReadAlignments[AlignmentEntry](id, entry, databases, jobsbase)
+	return ReadAlignments[AlignmentEntry, int64](id, entry, databases, jobsbase)
 }
 
 func FSAlignments(id Id, entry []int64, databases []string, jobsbase string) ([]SearchResult, error) {
-	return ReadAlignments[FoldseekAlignmentEntry](id, entry, databases, jobsbase)
+	return ReadAlignments[FoldseekAlignmentEntry, int64](id, entry, databases, jobsbase)
 }
 
-func ComplexAlignments(id Id, entry []int64, databases []string, jobsbase string) ([]SearchResult, error) {
-	return ReadAlignments[ComplexAlignmentEntry](id, entry, databases, jobsbase)
+func ComplexAlignments(id Id, entry []uint32, databases []string, jobsbase string) ([]SearchResult, error) {
+	return ReadAlignments[ComplexAlignmentEntry, uint32](id, entry, databases, jobsbase)
 }
 
 func addFile(tw *tar.Writer, path string) error {
