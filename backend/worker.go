@@ -393,6 +393,8 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				if params.Taxonomy && job.TaxFilter != "" {
 					parameters = append(parameters, "--taxon-list")
 					parameters = append(parameters, job.TaxFilter)
+					parameters = append(parameters, "--report-mode")
+					parameters = append(parameters, "0")
 				}
 
 				if is3Di {
