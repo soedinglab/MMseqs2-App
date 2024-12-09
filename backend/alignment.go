@@ -190,6 +190,16 @@ type FastaEntry struct {
 type SearchResult struct {
 	Database   string      `json:"db"`
 	Alignments interface{} `json:"alignments"`
+	TaxonomyReport interface{} `json:"taxonomyreport"`
+}
+
+type TaxonomyReport struct {
+    Proportion    float64 `json:"proportion"`
+    CladeReads    int     `json:"cladeReads"`
+    TaxonReads    int     `json:"taxonReads"`
+    Rank          string  `json:"rank"`
+    TaxonID       string  `json:"taxonId"`
+    ScientificName string `json:"scientificName"`
 }
 
 func dbpaths(path string) (string, string) {
@@ -320,11 +330,74 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 			all = append(all, results)
 		}
 		reader.Delete()
+
+		// Read the taxonomy report
+        taxonomyReportPath := filepath.Join(base, "alis_afsp_report")
+        taxonomyReport, err := ReadTaxonomyReport(taxonomyReportPath)
+        if err != nil {
+            return res, err
+        }
+
 		base := filepath.Base(name)
-		res = append(res, SearchResult{strings.TrimPrefix(base, "alis_"), all})
+		res = append(res, SearchResult{
+			strings.TrimPrefix(base, "alis_"), 
+			all,
+			taxonomyReport, // Include taxonomy report
+			})
 	}
 
 	return res, nil
+}
+
+func ReadTaxonomyReport(filePath string) ([]TaxonomyReport, error) {
+    file, err := os.Open(filePath)
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
+
+    var reports []TaxonomyReport
+    scanner := bufio.NewScanner(file)
+
+    for scanner.Scan() {
+        line := scanner.Text()
+        fields := strings.Split(line, "\t")
+        if len(fields) < 6 {
+            return nil
+        }
+
+        // Parse the fields
+        proportion, err := strconv.ParseFloat(fields[0], 64)
+        if err != nil {
+            return nil, err
+        }
+
+        cladeReads, err := strconv.Atoi(fields[1])
+        if err != nil {
+            return nil, err
+        }
+
+        taxonReads, err := strconv.Atoi(fields[2])
+        if err != nil {
+            return nil, err
+        }
+
+        report := TaxonomyReport{
+            Proportion:    proportion,
+            CladeReads:    cladeReads,
+            TaxonReads:    taxonReads,
+            Rank:          fields[3],
+            TaxonID:       fields[4],
+            ScientificName: strings.TrimSpace(fields[5]),
+        }
+        reports = append(reports, report)
+    }
+
+    if err := scanner.Err(); err != nil {
+        return nil, err
+    }
+
+    return reports, nil
 }
 
 func Alignments(id Id, entry []int64, databases []string, jobsbase string) ([]SearchResult, error) {
