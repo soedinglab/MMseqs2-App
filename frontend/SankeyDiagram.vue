@@ -1,6 +1,7 @@
 <template>
 	 <div class="sankey-container">
-            <svg ref="sankeySvg" width="600" height="300"></svg>
+        <svg ref="sankeyContainer" width="960" height="400"></svg>    
+		<!-- <svg ref="sankeySvg" width="600" height="300"></svg> -->
 			<!-- <pre v-if="rawData">{{ rawData }}</pre> -->
         </div>
 </template>
@@ -22,19 +23,19 @@ export default {
 		}
     },
     data: () => ({
-		sankeyData: {
-            nodes: [
-                { name: "Node A" },
-                { name: "Node B" },
-                { name: "Node C" },
-                { name: "Node D" }
-            ],
-            links: [
-                { source: 0, target: 1, value: 10 },
-                { source: 1, target: 2, value: 5 },
-                { source: 1, target: 3, value: 5 }
-            ]
-        },
+		// sankeyData: {
+        //     nodes: [
+        //         { name: "Node A" },
+        //         { name: "Node B" },
+        //         { name: "Node C" },
+        //         { name: "Node D" }
+        //     ],
+        //     links: [
+        //         { source: 0, target: 1, value: 10 },
+        //         { source: 1, target: 2, value: 5 },
+        //         { source: 1, target: 3, value: 5 }
+        //     ]
+        // },
 
 		loading: false,
 
@@ -121,11 +122,11 @@ watch: {
         rawData: {
 			immediate: true,
 			handler(newValue) {
-				// this.processRawData(newValue);
 				// this.loading = true;
 				this.$nextTick(() => {
-                if (newValue) {
-                    this.drawSankeyTest();
+					if (newValue) {
+					this.createSankey(newValue);
+                    // this.drawSankeyTest();
                 }
             });
 			},
@@ -133,7 +134,7 @@ watch: {
     },
     methods: {
 		drawSankeyTest() {
-			console.log("Raw Data:", this.rawData);
+			// console.log("Raw Data:", this.rawData);
             const svg = d3.select(this.$refs.sankeySvg);
             const width = +svg.attr("width");
             const height = +svg.attr("height");
@@ -197,9 +198,9 @@ watch: {
 		// Function for processing/parsing data
 		processRawData(data) {
 			if (!this.rawData || !Array.isArray(this.rawData)) {
-  console.warn("rawData is not an array or is undefined", this.rawData);
-  return;
-}
+				console.warn("rawData is not an array or is undefined", this.rawData);
+				return;
+			}
 			this.allNodesByRank = {}; // Reset the nodes by rank
 
 			// Filter out clades from raw data
@@ -208,6 +209,7 @@ watch: {
 
 			// Store nodes by rank from full data (for calculation of maxTaxaLimit)
 			nonClades.forEach((node) => {
+				console.log(node.rank);
 				if (!this.allNodesByRank[node.rank]) {
 					this.allNodesByRank[node.rank] = [];
 				}
@@ -247,7 +249,7 @@ watch: {
 					type: "",
 				};
 
-				console.log(node.taxon_id);
+				console.log(node.taxon_id); // DEBUG
 
 				if (d.rank !== "no rank" && !this.isUnclassifiedTaxa(d)) {
 					// Declare type as 'classified'
@@ -411,10 +413,6 @@ watch: {
 			const marginRight = 70;
 			const leftMargin = 10;
 
-			// const svg = select(container)
-			// 	.attr("viewBox", [0, 0, width, height + marginBottom])
-			// 	.classed("hide", false);
-
 			const svg = d3
 			.select(container)
 			.append("svg")
@@ -449,6 +447,7 @@ watch: {
 			}, {});
 
 			graph.nodes.forEach((node) => {
+			console.log(node.rank);
 				node.x0 = columnMap[node.rank];
 				node.x1 = node.x0 + sankeyGenerator.nodeWidth();
 
@@ -487,24 +486,24 @@ watch: {
 				.attr("stroke", "#000")
 				.attr("stroke-width", 1);
 
-			// // Function to highlight lineage
-			// const highlightLineage = (node) => {
-			// 	const lineageIds = new Set(node.lineage.map((n) => n.id));
-			// 	lineageIds.add(node.id);
+			// Function to highlight lineage
+			const highlightLineage = (node) => {
+				const lineageIds = new Set(node.lineage.map((n) => n.id));
+				lineageIds.add(node.id);
 
-			// 	svg.selectAll("rect").style("opacity", (d) => (lineageIds.has(d.id) ? 1 : 0.2));
-			// 	svg.selectAll("path").style("opacity", (d) => (lineageIds.has(d.source.id) && lineageIds.has(d.target.id) ? 1 : 0.2));
-			// 	svg.selectAll(".label").style("opacity", (d) => (lineageIds.has(d.id) ? 1 : 0.1));
-			// 	svg.selectAll(".clade-reads").style("opacity", (d) => (lineageIds.has(d.id) ? 1 : 0.1));
-			// };
+				svg.selectAll("rect").style("opacity", (d) => (lineageIds.has(d.id) ? 1 : 0.2));
+				svg.selectAll("path").style("opacity", (d) => (lineageIds.has(d.source.id) && lineageIds.has(d.target.id) ? 1 : 0.2));
+				svg.selectAll(".label").style("opacity", (d) => (lineageIds.has(d.id) ? 1 : 0.1));
+				svg.selectAll(".clade-reads").style("opacity", (d) => (lineageIds.has(d.id) ? 1 : 0.1));
+			};
 
-			// // Function to reset highlight
-			// const resetHighlight = () => {
-			// 	svg.selectAll("rect").style("opacity", 1);
-			// 	svg.selectAll("path").style("opacity", 1);
-			// 	svg.selectAll(".label").style("opacity", 1);
-			// 	svg.selectAll(".clade-reads").style("opacity", 1);
-			// };
+			// Function to reset highlight
+			const resetHighlight = () => {
+				svg.selectAll("rect").style("opacity", 1);
+				svg.selectAll("path").style("opacity", 1);
+				svg.selectAll(".label").style("opacity", 1);
+				svg.selectAll(".clade-reads").style("opacity", 1);
+			};
 
 			// // Define a clipping path for each link (crops out curve when links are too thick)
 			// svg
@@ -521,53 +520,53 @@ watch: {
 			// 	.attr("height", height);
 
 			// // Add links
-			// svg
-			// 	.append("g")
-			// 	.attr("fill", "none")
-			// 	.attr("stroke-opacity", 0.3)
-			// 	.selectAll("path")
-			// 	.data(graph.links)
-			// 	.enter()
-			// 	.append("path")
-			// 	.attr("d", d3sankey.sankeyLinkHorizontal())
-			// 	.attr("stroke", (d) => (d.target.type === "unclassified" ? unclassifiedLabelColor : color(d.source.color))) // Set link color to source node color with reduced opacity
-			// 	.attr("stroke-width", (d) => Math.max(1, d.width));
-			// // .attr("clip-path", (d, i) => `url(#clip-path-${this.instanceId}-${i})`);
+			svg
+				.append("g")
+				.attr("fill", "none")
+				.attr("stroke-opacity", 0.3)
+				.selectAll("path")
+				.data(graph.links)
+				.enter()
+				.append("path")
+				.attr("d", sankeyLinkHorizontal())
+				.attr("stroke", (d) => (d.target.type === "unclassified" ? unclassifiedLabelColor : color(d.source.color))) // Set link color to source node color with reduced opacity
+				.attr("stroke-width", (d) => Math.max(1, d.width));
+			// .attr("clip-path", (d, i) => `url(#clip-path-${this.instanceId}-${i})`);
 
-			// // Create node group (node + labels) and add mouse events
-			// const nodeGroup = svg
-			// 	.append("g")
-			// 	.selectAll(".node-group")
-			// 	.data(graph.nodes)
-			// 	.enter()
-			// 	.append("g")
-			// 	.attr("class", (d) => "node-group taxid-" + d.id)
-			// 	.attr("transform", (d) => `translate(${d.x0}, ${d.y0})`)
-			// 	.on("mouseover", (event, d) => {
-			// 		highlightLineage(d);
-			// 		// Create the tooltip div
-			// 		select("body")
-			// 			.append("div")
-			// 			.attr("class", "tooltip")
-			// 			.html(
-			// 				`
-			// 				<div style="padding-top: 4px; padding-bottom: 4px; padding-left: 8px; padding-right: 8px;">
-			// 					<p style="font-size: 0.6rem; margin-bottom: 0px;">#${d.id}</p>
-			// 					<div style="display: flex; justify-content: space-between; align-items: center;">
-			// 						<div style="font-weight: bold; font-size: 0.875rem;">${d.name}</div>
-			// 						<span style="background-color: rgba(255, 167, 38, 0.25); color: #ffa726; font-weight: bold; padding: 4px 8px; border-radius: 12px; font-size: 0.875rem; margin-left: 10px;">${d.rank}</span>
-			// 					</div>
-			// 					<hr style="margin: 8px 0; border: none; border-top: 1px solid #fff; opacity: 0.2;">
-			// 					<div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem;">
-			// 						<div style="font-weight: bold;">Clade Reads</div>
-			// 						<div style="margin-left: 10px;">${d.value}</div>
-			// 					</div>
-			// 				</div>
-			// 			`
-			// 			)
-			// 			.style("left", `${d.x + d.dx}px`)
-			// 			.style("top", `${d.y + window.scrollY}px`);
-			// 	})
+			// Create node group (node + labels) and add mouse events
+			const nodeGroup = svg
+				.append("g")
+				.selectAll(".node-group")
+				.data(graph.nodes)
+				.enter()
+				.append("g")
+				.attr("class", (d) => "node-group taxid-" + d.id)
+				.attr("transform", (d) => `translate(${d.x0}, ${d.y0})`)
+				.on("mouseover", (event, d) => {
+					highlightLineage(d);
+					// Create the tooltip div
+					d3.select("body")
+						.append("div")
+						.attr("class", "tooltip")
+						.html(
+							`
+							<div style="padding-top: 4px; padding-bottom: 4px; padding-left: 8px; padding-right: 8px;">
+								<p style="font-size: 0.6rem; margin-bottom: 0px;">#${d.id}</p>
+								<div style="display: flex; justify-content: space-between; align-items: center;">
+									<div style="font-weight: bold; font-size: 0.875rem;">${d.name}</div>
+									<span style="background-color: rgba(255, 167, 38, 0.25); color: #ffa726; font-weight: bold; padding: 4px 8px; border-radius: 12px; font-size: 0.875rem; margin-left: 10px;">${d.rank}</span>
+								</div>
+								<hr style="margin: 8px 0; border: none; border-top: 1px solid #fff; opacity: 0.2;">
+								<div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem;">
+									<div style="font-weight: bold;">Clade Reads</div>
+									<div style="margin-left: 10px;">${d.value}</div>
+								</div>
+							</div>
+						`
+						)
+						.style("left", `${d.x + d.dx}px`)
+						.style("top", `${d.y + window.scrollY}px`);
+				})
 			// 	.on("mousemove", (event, d) => {
 			// 		// Move the tooltip as the mouse moves
 			// 		select(".tooltip")
@@ -588,45 +587,53 @@ watch: {
 			// 			selectAll(".taxid-" + d.id).classed("active", true);
 			// 			this.$emit("select", { name: d.name, id: d.id });
 			// 		}
-			// 	});
+			// 	})
+			;
 
-			// // Create node rectangles
-			// nodeGroup
-			// 	.append("rect")
-			// 	.attr("width", (d) => d.x1 - d.x0)
-			// 	.attr("height", (d) => Math.max(1, d.y1 - d.y0))
-			// 	.attr("fill", (d) => (d.type === "unclassified" ? unclassifiedLabelColor : d.color))
-			// 	.attr("class", (d) => "node taxid-" + d.id) // Apply the CSS class for cursor
-			// 	.style("cursor", "pointer");
+			// Create node rectangles
+			nodeGroup
+				.append("rect")
+				.attr("width", (d) => d.x1 - d.x0)
+				.attr("height", (d) => Math.max(1, d.y1 - d.y0))
+				.attr("fill", (d) => (d.type === "unclassified" ? unclassifiedLabelColor : d.color))
+				.attr("class", (d) => "node taxid-" + d.id) // Apply the CSS class for cursor
+				.style("cursor", "pointer");
 
-			// // Add node name labels next to node
-			// nodeGroup
-			// 	.append("text")
-			// 	.attr("id", (d) => `nodeName-${d.id}`)
-			// 	.attr("class", (d) => "label taxid-" + d.id)
-			// 	.attr("x", (d) => d.x1 - d.x0 + 3)
-			// 	.attr("y", (d) => (d.y1 - d.y0) / 2)
-			// 	.attr("dy", "0.35em")
-			// 	.attr("text-anchor", "start")
-			// 	.text((d) => d.name)
-			// 	.style("font-size", "9px")
-			// 	.style("cursor", "pointer");
+			// Add node name labels next to node
+			nodeGroup
+				.append("text")
+				.attr("id", (d) => `nodeName-${d.id}`)
+				.attr("class", (d) => "label taxid-" + d.id)
+				.attr("x", (d) => d.x1 - d.x0 + 3)
+				.attr("y", (d) => (d.y1 - d.y0) / 2)
+				.attr("dy", "0.35em")
+				.attr("text-anchor", "start")
+				.text((d) => d.name)
+				.style("font-size", "9px")
+				.style("cursor", "pointer");
 
-			// // Add label above node (proportion/clade reads)
-			// nodeGroup
-			// 	.append("text")
-			// 	.attr("id", (d) => `cladeReads-${d.id}`)
-			// 	.attr("class", "clade-reads")
-			// 	.attr("x", (d) => (d.x1 - d.x0) / 2)
-			// 	.attr("y", -4)
-			// 	.attr("dy", "0.35em")
-			// 	.attr("text-anchor", "middle")
-			// 	.style("font-size", "9px")
-			// 	.text((d) => this.formatCladeReads(d.value))
-			// 	.style("cursor", "pointer");
+			// Add label above node (proportion/clade reads)
+			nodeGroup
+				.append("text")
+				.attr("id", (d) => `cladeReads-${d.id}`)
+				.attr("class", "clade-reads")
+				.attr("x", (d) => (d.x1 - d.x0) / 2)
+				.attr("y", -4)
+				.attr("dy", "0.35em")
+				.attr("text-anchor", "middle")
+				.style("font-size", "9px")
+				.text((d) => this.formatCladeReads(d.value))
+				.style("cursor", "pointer");
 
 			// // Highlight nodes matching search query
-			// // this.highlightNodes(this.searchQuery);
+			// this.highlightNodes(this.searchQuery);
+		},
+
+		formatCladeReads(value) {
+			if (value >= 1000) {
+				return `${(value / 1000).toFixed(2)}k`;
+			}
+			return value.toString();
 		},
 
 		isUnclassifiedTaxa(d) {
@@ -687,7 +694,7 @@ watch: {
 			// Listener for screen resizing event
 			// window.addEventListener("resize", this.updateDiagramWidth);
 
-			this.drawSankeyTest();
+			// this.drawSankeyTest();
 			// await this.updateSankey();
 		},
 		beforeUnmount() {
