@@ -1,8 +1,6 @@
 <template>
 	 <div class="sankey-container">
-        <svg ref="sankeyContainer" width="960" height="400"></svg>    
-		<!-- <svg ref="sankeySvg" width="600" height="300"></svg> -->
-			<!-- <pre v-if="rawData">{{ rawData }}</pre> -->
+        <svg ref="sankeyContainer" width="100%" height="500"></svg>    
         </div>
 </template>
 
@@ -23,20 +21,6 @@ export default {
 		}
     },
     data: () => ({
-		// sankeyData: {
-        //     nodes: [
-        //         { name: "Node A" },
-        //         { name: "Node B" },
-        //         { name: "Node C" },
-        //         { name: "Node D" }
-        //     ],
-        //     links: [
-        //         { source: 0, target: 1, value: 10 },
-        //         { source: 1, target: 2, value: 5 },
-        //         { source: 1, target: 3, value: 5 }
-        //     ]
-        // },
-
 		loading: false,
 
 		// Data for tooltip
@@ -126,75 +110,12 @@ watch: {
 				this.$nextTick(() => {
 					if (newValue) {
 					this.createSankey(newValue);
-                    // this.drawSankeyTest();
                 }
             });
 			},
 		},
     },
     methods: {
-		drawSankeyTest() {
-			// console.log("Raw Data:", this.rawData);
-            const svg = d3.select(this.$refs.sankeySvg);
-            const width = +svg.attr("width");
-            const height = +svg.attr("height");
-
-            // Clear any existing content
-            svg.selectAll("*").remove();
-
-            const sankeyGenerator = sankey()
-                .nodeAlign(sankeyJustify)
-                .nodeWidth(20)
-                .nodePadding(10)
-                .extent([
-                    [1, 1],
-                    [width - 1, height - 6]
-                ]);
-
-            const graph = sankeyGenerator({
-                nodes: this.sankeyData.nodes.map((d) => Object.assign({}, d)),
-                links: this.sankeyData.links.map((d) => Object.assign({}, d))
-            });
-
-            // Draw links
-            svg.append("g")
-                .attr("fill", "none")
-                .attr("stroke-opacity", 0.5)
-                .selectAll("path")
-                .data(graph.links)
-                .join("path")
-                .attr("d", sankeyLinkHorizontal())
-                .attr("stroke", "#555")
-                .attr("stroke-width", (d) => Math.max(1, d.width));
-
-            // Draw nodes
-            const node = svg.append("g")
-                .attr("stroke", "#000")
-                .selectAll("g")
-                .data(graph.nodes)
-                .join("g");
-
-            node.append("rect")
-                .attr("x", (d) => d.x0)
-                .attr("y", (d) => d.y0)
-                .attr("height", (d) => d.y1 - d.y0)
-                .attr("width", (d) => d.x1 - d.x0)
-                .attr("fill", "#1f77b4")
-                .attr("stroke", "#000");
-
-            node.append("text")
-                .attr("x", (d) => d.x0 - 6)
-                .attr("y", (d) => (d.y1 + d.y0) / 2)
-                .attr("dy", "0.35em")
-                .attr("text-anchor", "end")
-                .text((d) => d.name)
-                .attr("font-size", "10px")
-                .attr("fill", "#000")
-                .filter((d) => d.x0 < width / 2)
-                .attr("x", (d) => d.x1 + 6)
-                .attr("text-anchor", "start");
-        },
-
 		// Function for processing/parsing data
 		processRawData(data) {
 			if (!this.rawData || !Array.isArray(this.rawData)) {
@@ -209,7 +130,6 @@ watch: {
 
 			// Store nodes by rank from full data (for calculation of maxTaxaLimit)
 			nonClades.forEach((node) => {
-				console.log(node.rank);
 				if (!this.allNodesByRank[node.rank]) {
 					this.allNodesByRank[node.rank] = [];
 				}
@@ -220,7 +140,7 @@ watch: {
 			// this.updateConfigureMenu();
 		},
 		// Function for processing/parsing data
-		parseData(data, isFullGraph = false) {
+		parseData(data, isFullGraph = true) {
 			const nodes = [];
 			const unclassifiedNodes = [];
 			const allNodes = [];
@@ -249,8 +169,6 @@ watch: {
 					type: "",
 				};
 
-				console.log(node.taxon_id); // DEBUG
-
 				if (d.rank !== "no rank" && !this.isUnclassifiedTaxa(d)) {
 					// Declare type as 'classified'
 					node.type = "classified";
@@ -264,14 +182,18 @@ watch: {
 					// Include all ranks for lineage tracking
 					if (node.rank !== "clade") {
 						let lastLineageNode = currentLineage[currentLineage.length - 1];
-
 						if (lastLineageNode) {
-							while (lastLineageNode && rankHierarchyFull[node.rank] <= rankHierarchyFull[lastLineageNode.rank]) {
-								currentLineage.pop();
+
+							let currentRank = rankHierarchyFull[node.rank] ?? Infinity;
+							let lastRank = rankHierarchyFull[lastLineageNode.rank] ?? Infinity;
+								while (lastLineageNode && currentRank <= lastRank) {
+								const poppedNode = currentLineage.pop();
 								lastLineageNode = currentLineage[currentLineage.length - 1];
+
+								currentRank = rankHierarchyFull[node.rank] ?? Infinity;
+								lastRank = rankHierarchyFull[lastLineageNode.rank] ?? Infinity;
 							}
 						}
-
 						// Append current node to currentLineage array + store lineage data
 						currentLineage.push(node);
 						node.lineage = [...currentLineage];
@@ -330,7 +252,7 @@ watch: {
 					allNodes.push(...nodesByRank[rank]);
 
 					// Sort nodes by clade_reads in descending order and select the top nodes based on slider value
-					const topNodes = nodesByRank[rank].sort((a, b) => b.clade_reads - a.clade_reads).slice(0, isFullGraph ? nodesByRank[rank].length : this.taxaLimit); // Don't apply taxaLimit when parsing fullGraphData
+					const topNodes = nodesByRank[rank].sort((a, b) => b.clade_reads - a.clade_reads).slice(0, isFullGraph ? nodesByRank[rank].length : 10); // Don't apply taxaLimit when parsing fullGraphData
 					nodes.push(...topNodes);
 				}
 			});
@@ -405,10 +327,11 @@ watch: {
 			const container = this.$refs.sankeyContainer;
 			d3.select(container).selectAll("*").remove(); // Clear the previous diagram
 
-			const width = 960;
+			const width = 1160;
 			const height = 360;
 			const nodeWidth = 30;
-			const nodePadding = 13;
+			const nodePadding = 20;
+
 			const marginBottom = 50; // Margin for rank labels
 			const marginRight = 70;
 			const leftMargin = 10;
@@ -447,7 +370,6 @@ watch: {
 			}, {});
 
 			graph.nodes.forEach((node) => {
-			console.log(node.rank);
 				node.x0 = columnMap[node.rank];
 				node.x1 = node.x0 + sankeyGenerator.nodeWidth();
 
@@ -519,7 +441,7 @@ watch: {
 			// 	.attr("width", (d) => d.target.x0 - d.source.x1)
 			// 	.attr("height", height);
 
-			// // Add links
+			// Add links
 			svg
 				.append("g")
 				.attr("fill", "none")
@@ -567,27 +489,27 @@ watch: {
 						.style("left", `${d.x + d.dx}px`)
 						.style("top", `${d.y + window.scrollY}px`);
 				})
-			// 	.on("mousemove", (event, d) => {
-			// 		// Move the tooltip as the mouse moves
-			// 		select(".tooltip")
-			// 			.style("left", `${event.pageX + 10}px`)
-			// 			.style("top", `${event.pageY + 10}px`);
-			// 	})
-			// 	.on("mouseout", () => {
-			// 		resetHighlight();
-			// 		// Remove the tooltip when mouse leaves
-			// 		select(".tooltip").remove();
-			// 	})
-			// 	.on("click", (event, d) => {
-			// 		if (event.target.classList.contains("active")) {
-			// 			selectAll("rect.node, text.label").classed("active", false);
-			// 			this.$emit("select", null);
-			// 		} else {
-			// 			selectAll("rect.node, text.label").classed("active", false);
-			// 			selectAll(".taxid-" + d.id).classed("active", true);
-			// 			this.$emit("select", { name: d.name, id: d.id });
-			// 		}
-			// 	})
+				.on("mousemove", (event, d) => {
+					// Move the tooltip as the mouse moves
+					d3.select(".tooltip")
+						.style("left", `${event.pageX + 10}px`)
+						.style("top", `${event.pageY + 10}px`);
+				})
+				.on("mouseout", () => {
+					resetHighlight();
+					// Remove the tooltip when mouse leaves
+					d3.select(".tooltip").remove();
+				})
+				// .on("click", (event, d) => {
+				// 	if (event.target.classList.contains("active")) {
+				// 		selectAll("rect.node, text.label").classed("active", false);
+				// 		this.$emit("select", null);
+				// 	} else {
+				// 		selectAll("rect.node, text.label").classed("active", false);
+				// 		selectAll(".taxid-" + d.id).classed("active", true);
+				// 		this.$emit("select", { name: d.name, id: d.id });
+				// 	}
+				// })
 			;
 
 			// Create node rectangles
