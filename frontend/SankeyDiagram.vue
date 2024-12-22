@@ -1,6 +1,6 @@
 <template>
 	 <div class="sankey-container">
-        <svg ref="sankeyContainer" width="100%" height="500"></svg>    
+        <svg ref="sankeyContainer"></svg>    
         </div>
 </template>
 
@@ -94,7 +94,6 @@ export default {
 }),
 watch: {
 	loading(newValue) {
-			// console.log("Loading state changed:", newValue); // DEBUG
 			if (!newValue) {
 				this.$nextTick(() => {
 					// Ensure the DOM is updated before creating the Sankey diagram.
@@ -320,15 +319,12 @@ watch: {
 			// // Check if nodes and links are not empty
 			if (!nodes.length || !links.length) {
 				console.warn("No data to create Sankey diagram");
-				// select(this.$refs.svg).classed("hide", true);
 				return;
 			}
 
 			const container = this.$refs.sankeyContainer;
 			d3.select(container).selectAll("*").remove(); // Clear the previous diagram
 
-			const width = 1160;
-			const height = 360;
 			const nodeWidth = 30;
 			const nodePadding = 20;
 
@@ -336,11 +332,13 @@ watch: {
 			const marginRight = 70;
 			const leftMargin = 10;
 
-			const svg = d3
-			.select(container)
-			.append("svg")
-			.attr("width", width)
-			.attr("height", height + marginBottom)
+			const width = container.parentElement.clientWidth; // Dynamically get parent width
+			const height = 360 + marginBottom; // Fixed height for now
+			
+			const svg = d3.select(container)
+			.attr("viewBox", `0 0 ${width} ${height}`)
+			.attr("width", "100%")
+			.attr("height", height)
 			.attr("id", this.id); // Set the id based on the prop for download reference
 
 			const sankeyGenerator = sankey()
@@ -353,6 +351,7 @@ watch: {
 					[10, 10],
 					[width - marginRight, height - 6],
 				]);
+
 			const graph = sankeyGenerator({
 				nodes: nodes.map((d) => Object.assign({}, d)),
 				links: links.map((d) => Object.assign({}, d)),
@@ -612,15 +611,20 @@ watch: {
 				return func(...args);
 			};
 		},
+		 onResize() {
+			if (this.rawData) {
+				this.drawSankey(this.rawData);
+			}
+		},
 		mounted() {
 			// Listener for screen resizing event
-			// window.addEventListener("resize", this.updateDiagramWidth);
+			window.addEventListener("resize", this.onResize);
 
 			// this.drawSankeyTest();
 			// await this.updateSankey();
 		},
 		beforeUnmount() {
-			// window.removeEventListener("resize", this.updateDiagramWidth);
+			window.removeEventListener("resize", this.onResize);
 		},
 	},
 }
@@ -629,13 +633,18 @@ watch: {
 
 <style scoped>
 .sankey-container {
-	/* display: flex; */
+	display: flex;
 	width: 100%;
-	height: 400px; /* Ensure it takes full viewport height */
+	height: auto; /* Ensure it takes full viewport height */
+}
+svg {
+  display: block; /* Prevent extra margins caused by inline SVG */
+  width: 100%;
+  height: auto;
 }
 .sankey-diagram {
 	width: 100%;
-	height: 400px;
+	height: auto;
 	padding-bottom: 32px;
 	overflow-x: scroll;
 	/* Hide horizontal scrollbar for IE, Edge and Firefox */
