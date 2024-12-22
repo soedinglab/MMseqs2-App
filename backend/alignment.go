@@ -195,11 +195,11 @@ type SearchResult struct {
 
 type TaxonomyReport struct {
     Proportion    float64 `json:"proportion"`
-    CladeReads    int     `json:"cladeReads"`
-    TaxonReads    int     `json:"taxonReads"`
+    CladeReads    int     `json:"clade_reads"`
+    TaxonReads    int     `json:"taxon_reads"`
     Rank          string  `json:"rank"`
-    TaxonID       string  `json:"taxonId"`
-    ScientificName string `json:"scientificName"`
+    TaxonID       string  `json:"taxon_id"`
+    ScientificName string `json:"name"`
 }
 
 func dbpaths(path string) (string, string) {
@@ -363,7 +363,7 @@ func ReadTaxonomyReport(filePath string) ([]TaxonomyReport, error) {
         line := scanner.Text()
         fields := strings.Split(line, "\t")
         if len(fields) < 6 {
-            return nil
+            return nil, err
         }
 
         // Parse the fields

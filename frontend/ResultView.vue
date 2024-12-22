@@ -106,7 +106,9 @@
                             </v-btn>
                         </v-btn-toggle>
                     </v-flex>
-
+                    <v-flex>
+                        <SankeyDiagram :rawData="hits.results[0].taxonomyreport"></SankeyDiagram>
+                    </v-flex>
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <colgroup>
                             <template v-if="isComplex">
@@ -251,6 +253,7 @@
 import Panel from './Panel.vue';
 import AlignmentPanel from './AlignmentPanel.vue';
 import Ruler from './Ruler.vue';
+import SankeyDiagram from './SankeyDiagram.vue';
 
 import { debounce } from './lib/debounce';
 
@@ -265,7 +268,7 @@ function getAbsOffsetTop($el) {
 
 export default {
     name: 'ResultView',
-    components: { Panel, AlignmentPanel, Ruler },
+    components: { Panel, AlignmentPanel, Ruler, SankeyDiagram },
     data() {
         return {
             alignment: null,
@@ -423,7 +426,6 @@ src: url(assets/InconsolataClustal2.woff2),
         word-wrap: normal;
     }
 }
-
 
 .theme--dark {
     .result-table {
