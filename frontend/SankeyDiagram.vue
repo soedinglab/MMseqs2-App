@@ -464,13 +464,21 @@ watch: {
 				.attr("class", (d) => "node-group taxid-" + d.id)
 				.attr("transform", (d) => `translate(${d.x0}, ${d.y0})`)
 				.on("mouseover", (event, d) => {
+    				// Highlight the lineage
 					highlightLineage(d);
-					// Create the tooltip div
-					d3.select("body")
+
+					// Append tooltip to the body
+					const tooltip = d3.select("body")
 						.append("div")
 						.attr("class", "tooltip")
-						.html(
-							`
+						.style("position", "absolute")
+						.style("background-color", "rgba(38, 50, 56, 0.95)")
+						.style("color", "white")
+						.style("border-radius", "8px")
+						.style("padding", "10px")
+						.style("box-shadow", "0 2px 6px rgba(0, 0, 0, 0.1)")
+						.style("opacity", 1)
+						.html(`
 							<div style="padding-top: 4px; padding-bottom: 4px; padding-left: 8px; padding-right: 8px;">
 								<p style="font-size: 0.6rem; margin-bottom: 0px;">#${d.id}</p>
 								<div style="display: flex; justify-content: space-between; align-items: center;">
@@ -483,10 +491,12 @@ watch: {
 									<div style="margin-left: 10px;">${d.value}</div>
 								</div>
 							</div>
-						`
-						)
-						.style("left", `${d.x + d.dx}px`)
-						.style("top", `${d.y + window.scrollY}px`);
+						`);
+
+					// Position the tooltip
+					tooltip
+					.style("left", `${event.pageX + 10}px`)
+					.style("top", `${event.pageY + 10}px`);
 				})
 				.on("mousemove", (event, d) => {
 					// Move the tooltip as the mouse moves
@@ -499,16 +509,6 @@ watch: {
 					// Remove the tooltip when mouse leaves
 					d3.select(".tooltip").remove();
 				})
-				// .on("click", (event, d) => {
-				// 	if (event.target.classList.contains("active")) {
-				// 		selectAll("rect.node, text.label").classed("active", false);
-				// 		this.$emit("select", null);
-				// 	} else {
-				// 		selectAll("rect.node, text.label").classed("active", false);
-				// 		selectAll(".taxid-" + d.id).classed("active", true);
-				// 		this.$emit("select", { name: d.name, id: d.id });
-				// 	}
-				// })
 			;
 
 			// Create node rectangles
@@ -658,5 +658,15 @@ svg {
 
 svg.hide {
 	display: none;
+}
+/* Node Hover Tooltip */
+.tooltip {
+	position: absolute;
+	background-color: rgba(38, 50, 56, 0.95);
+	padding: 10px;
+	border-radius: 8px;
+	color: white;
+	pointer-events: none;
+	z-index: 1000;
 }
 </style>
