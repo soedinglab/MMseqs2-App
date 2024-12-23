@@ -11,9 +11,6 @@ import { rankOrderFull, sankeyRankColumns } from "./rankUtils";
 
 export default {
 	name: "SankeyDiagram",
-	components: {
-		// SankeyTooltip,
-	},
     props: {
         rawData: {
 			type: Array,
@@ -21,51 +18,11 @@ export default {
 		}
     },
     data: () => ({
-		loading: false,
-
-		// Data for tooltip
-			hoverDetails: {
-				visible: false,
-				data: {},
-			},
-			tooltipPosition: {
-				x: 0,
-				y: 0,
-			},
-
 		// Data for graph rendering
-		id: "testtest", // DEBUG
 		nonCladesRawData: null, // rawData with just clades filtered out
 		allNodesByRank: {},
 		rankOrderFull, // Imported from rankUtils
 		rankOrder: [...sankeyRankColumns, "no rank"],
-		fullRankOrder: [
-			"superkingdom",
-			"kingdom",
-			"subkingdom",
-			"superphylum",
-			"phylum",
-			"subphylum",
-			"superclass",
-			"class",
-			"subclass",
-			"superorder",
-			"order",
-			"suborder",
-			"infraorder",
-			"parvorder",
-			"superfamily",
-			"family",
-			"subfamily",
-			"supergenus",
-			"genus",
-			"subgenus",
-			"superspecies",
-			"species",
-			"subspecies",
-			"no rank",
-			"clade",
-		],
 		colors: [
 			"#57291F",
 			"#C0413B",
@@ -91,26 +48,16 @@ export default {
 			"#FFCD87",
 			"#BC7576",
 		],
-}),
-watch: {
-	loading(newValue) {
-			if (!newValue) {
-				this.$nextTick(() => {
-					// Ensure the DOM is updated before creating the Sankey diagram.
-					// Runs Only When the Container is Available.
-					this.createSankey();
-				});
-			}
-		},
-        rawData: {
+	}),
+	watch: {
+		rawData: {
 			immediate: true,
 			handler(newValue) {
-				// this.loading = true;
 				this.$nextTick(() => {
 					if (newValue) {
-					this.createSankey(newValue);
-                }
-            });
+						this.createSankey(newValue);
+					}
+				});
 			},
 		},
     },
@@ -134,9 +81,6 @@ watch: {
 				}
 				this.allNodesByRank[node.rank].push(node);
 			});
-
-			// Update the configure menu with the maximum taxa per rank
-			// this.updateConfigureMenu();
 		},
 		// Function for processing/parsing data
 		parseData(data, isFullGraph = true) {
@@ -327,10 +271,8 @@ watch: {
 
 			const nodeWidth = 30;
 			const nodePadding = 20;
-
 			const marginBottom = 50; // Margin for rank labels
 			const marginRight = 70;
-			const leftMargin = 10;
 
 			const width = container.parentElement.clientWidth; // Dynamically get parent width
 			const height = 360 + marginBottom; // Fixed height for now
@@ -338,8 +280,7 @@ watch: {
 			const svg = d3.select(container)
 			.attr("viewBox", `0 0 ${width} ${height}`)
 			.attr("width", "100%")
-			.attr("height", height)
-			.attr("id", this.id); // Set the id based on the prop for download reference
+			.attr("height", height);
 
 			const sankeyGenerator = sankey()
 				.nodeId((d) => d.id)
@@ -545,9 +486,6 @@ watch: {
 				.style("font-size", "9px")
 				.text((d) => this.formatCladeReads(d.value))
 				.style("cursor", "pointer");
-
-			// // Highlight nodes matching search query
-			// this.highlightNodes(this.searchQuery);
 		},
 
 		formatCladeReads(value) {
@@ -575,30 +513,6 @@ watch: {
 			return true;
 		},
 
-		// Functions for rerendering/updating Sankey
-		async updateSankey() {
-			// Start loading, show loading display
-			this.loading = true;
-
-			try {
-				// await this.fetchSankey();
-			} catch (error) {
-				console.error("Error in updateSankey:", error);
-			} finally {
-				setTimeout(() => {
-					this.loading = false;
-				}, 100); // Small delay to ensure DOM updates
-			}
-		},
-		async fetchSankey() {
-			await new Promise((resolve) => {
-				setTimeout(() => {
-					this.createSankey(); // Create the Sankey diagram immediately after getting data
-					resolve();
-				}, 50); // Immediate execution after fetching data
-			});
-		},
-
 		// Throttle function (used for improving performance during node hover)
 		throttle(func, delay) {
 			let lastCall = 0;
@@ -611,7 +525,7 @@ watch: {
 				return func(...args);
 			};
 		},
-		 onResize() {
+		onResize() {
 			if (this.rawData) {
 				this.drawSankey(this.rawData);
 			}
@@ -619,9 +533,6 @@ watch: {
 		mounted() {
 			// Listener for screen resizing event
 			window.addEventListener("resize", this.onResize);
-
-			// this.drawSankeyTest();
-			// await this.updateSankey();
 		},
 		beforeUnmount() {
 			window.removeEventListener("resize", this.onResize);
