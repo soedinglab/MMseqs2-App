@@ -264,6 +264,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		var dbs []string
 		var mode string
 		var email string
+		var iterativesearch bool
 		var taxfilter string
 
 		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
@@ -285,6 +286,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
+                        iterativesearch = req.FormValue("iterativesearch") == "true"
 			taxfilter = req.FormValue("taxfilter")
 		} else {
 			err := req.ParseForm()
@@ -296,6 +298,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
+                        iterativesearch = req.FormValue("iterativesearch") == "true"
 			taxfilter = req.FormValue("taxfilter")
 		}
 
@@ -315,7 +318,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				modeWithoutComplex := strings.Join(append(modes[:modeIdx], modes[modeIdx+1:]...), "-")
 				request, err = NewComplexSearchJobRequest(query, dbs, databases, modeWithoutComplex, config.Paths.Results, email, taxfilter)
 			} else {
-				request, err = NewStructureSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
+				request, err = NewStructureSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, iterativesearch, taxfilter)
 			}
 		} else {
 			http.Error(w, "Job type not supported by this server", http.StatusBadRequest)
