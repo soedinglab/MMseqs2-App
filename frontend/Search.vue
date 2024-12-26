@@ -35,147 +35,127 @@
                 v-model="query">
             </query-textarea>
 
-                        <div class="actions input-buttons-panel">
-                            <div class="input-buttons-left">
-                                <load-acession-button v-if="$APP == 'foldseek'" @select="query = $event" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
-                                <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
-                                <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton>
-                            </div>
-                            <file-button id="localFile" label="Upload previous results" @upload="uploadJSON"></file-button>
-                        </div>
-                    </template>
-                </panel>
-            </v-flex>
-            <v-flex xs12>
-                <!-- Databases Section -->
-                <panel collapsible collapsed>
-                    <template slot="header">
-                        <template v-if="!$vuetify.breakpoint.smAndDown">
-                            Databases
-                        </template>
-                        <template v-else>
-                            DBs
-                        </template>
-                    </template>
-                    <div slot="content">
-                        <!-- Existing Database Selection -->
-                        <div class="input-group">
-                            <v-tooltip open-delay="300" top>
-                                <template v-slot:activator="{ on }">
-                                    <label v-on="on">Databases&nbsp;<v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon></label>
-                                </template>
-                                <span v-if="$ELECTRON || hideEmail">Choose the databases to search against and the result mode.</span>
-                                <span v-else>Choose the databases to search against, the result mode, and optionally an email to notify you when the job is done.</span>
-                            </v-tooltip>
-                        </div>
-
-                        <template v-if="databases.length > 0">
-                            <v-checkbox v-for="(db, index) in databases" v-model="database" :key="index" :value="db.path" :label="db.name + ' ' + db.version" :append-icon="(db.status == 'ERROR' || db.status == 'UNKNOWN') ? $MDI.AlertCircleOutline : ((db.status == 'PENDING' || db.status == 'RUNNING') ? $MDI.ProgressWrench : undefined)" :disabled="db.status != 'COMPLETE'" hide-details></v-checkbox>
-                        </template>
-
-                        <div v-if="databasesNotReady" class="alert alert-info mt-1">
-                            <span>Databases are loading...</span>
-                        </div>
-                    </div>
-                </panel>
-
-                <!-- Search Parameters Section -->
-                <panel collapsible collapsed>
-                    <template slot="header">
-                        <template v-if="!$vuetify.breakpoint.smAndDown">
-                            Search Parameters
-                        </template>
-                        <template v-else>
-                            Params
-                        </template>
-                    </template>
-                    <div slot="content">
-                        <!-- Mode Section -->
-                        <v-radio-group v-model="mode">
-                            <v-tooltip open-delay="300" top>
-                                <template v-slot:activator="{ on }">
-                                    <label v-on="on">Mode&nbsp;<v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon></label>
-                                </template>
-                                <span v-html="$STRINGS.MODE_HELP"></span>
-                            </v-tooltip>
-                            <v-radio hide-details
-                                    v-for="i in ($STRINGS.MODE_COUNT - 0)"
-                                    :key="i"
-                                    :value="$STRINGS['MODE_KEY_' + i]"
-                                    :label="$STRINGS['MODE_TITLE_' + i]">
-                            </v-radio>
-                        </v-radio-group>
-
-                        <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete>
-
-                        <v-divider class="my-2"></v-divider>
-
-                        <v-radio-group v-model="iterativeSearch">
-                            <v-tooltip open-delay="300" top>
-                                <template v-slot:activator="{ on }">
-                                    <label v-on="on">
-                                        Iterative search
-                                        <v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
-                                    </label>
-                                </template>
-                                <span>Improve sensitivity of search by performing an iterative search (--num-iterations 3).</span>
-                            </v-tooltip>
-
-                            <v-radio label="On" :value="true"></v-radio>
-                            <v-radio label="Off" :value="false"></v-radio>
-                        </v-radio-group>
-                    </div>
-                </panel>
-
-
-            </v-flex>
-            <v-flex>
-                <panel>
-                <template slot="content">
-                    <div class="actions" :style="!$vuetify.breakpoint.xsOnly ?'display:flex; align-items: center;' : null">
-                    <v-btn color="primary" :block="$vuetify.breakpoint.xsOnly" x-large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Search</v-btn>
-                    <div :style="!$vuetify.breakpoint.xsOnly ? 'margin-left: 1em;' : 'margin-top: 1em;'">
-                        <span><strong>Summary</strong></span><br>
-                        Search <template v-if="taxFilter">
-                            <strong>{{ taxFilter.text }}</strong> in
-                        </template>
-                        <template v-if="database.length == databases.length">
-                            <strong>all available</strong> databases
-                        </template>
-                        <template v-else>
-                            <strong>{{ database.length }}</strong>
-                            <template v-if="database.length == 1">
-                                database
-                            </template>
-                            <template v-else>
-                                databases
-                            </template>
-                            ({{
-                                databases.filter(db => database.includes(db.path)).map(db => db.name).sort().join(", ")
-                            }})
-                        </template> with {{ $STRINGS.APP_NAME }} in <strong>{{ modes[mode] }}</strong> mode<span v-if="iterativeSearch"><strong> iterative</strong></span>.
-                        <div v-if="errorMessage != ''" class="v-alert v-alert--outlined warning--text mt-2">
-                            <span>{{ errorMessage }}</span>
-                        </div>
-                    </div>
-                    </div>
-                </template>
-                </panel>
-            </v-flex>
-        </v-layout>
-    <v-layout wrap>
+            <div class="actions input-buttons-panel">
+                <div class="input-buttons-left">
+                    <load-acession-button v-if="$APP == 'foldseek'" @select="query = $event" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
+                    <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
+                    <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton>
+                    <file-button id="localFile" label="Upload previous results" @upload="uploadJSON"></file-button>
+                </div>
+            </div>
+        </template>
+        </panel>
+    </v-flex>
     <v-flex xs12>
-        <v-card rounded="0">
-        <v-card-title primary-title class="pb-0 mb-0">
-            <div class="text-h5 mb-0">Reference</div>
-        </v-card-title>
-        <v-card-title primary-title class="pt-0 mt-0">
-            <p class="text-subtitle-2 mb-0" v-html="$STRINGS.CITATION"></p>
-        </v-card-title>
-        </v-card>
+        <panel collapsible collapsed render-collapsed>
+        <template slot="header">
+            <template v-if="!$vuetify.breakpoint.smAndDown">
+                Databases
+            </template>
+            <template v-else>
+                DBs
+            </template>
+        </template>
+        <div slot="content">
+            <databases
+                    :selected="database"
+                    :all-databases="databases"
+                    @update:selected="database = $event"
+                    @update:all-databases="databases = $event"
+                    :hideEmail="hideEmail"
+                    ></databases>
+        </div>
+        </panel>
+        <panel collapsible collapsed render-collapsed>
+        <template slot="header">
+            <template v-if="!$vuetify.breakpoint.smAndDown">
+                Search Parameters
+            </template>
+            <template v-else>
+                Params
+            </template>
+        </template>
+        <div slot="content">
+            <v-radio-group v-model="mode">
+                <v-tooltip open-delay="300" top>
+                    <template v-slot:activator="{ on }">
+                        <label v-on="on">Mode&nbsp;<v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon></label>
+                    </template>
+                    <span v-html="$STRINGS.MODE_HELP"></span>
+                </v-tooltip>
+                <v-radio hide-details
+                            v-for="i in ($STRINGS.MODE_COUNT - 0)"
+                            :key="i"
+                            :value="$STRINGS['MODE_KEY_' + i]"
+                            :label="$STRINGS['MODE_TITLE_' + i]"
+                            ></v-radio>
+            </v-radio-group>
+
+            <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete>
+
+            <v-radio-group v-model="iterativeSearch">
+                <v-tooltip open-delay="300" top>
+                    <template v-slot:activator="{ on }">
+                        <label v-on="on">
+                            Iterative search
+                            <v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
+                        </label>
+                    </template>
+                    <span>Improve sensitivity of search by performing an iterative search (--num-iterations 3).</span>
+                </v-tooltip>
+
+                <v-radio label="On" :value="true"></v-radio>
+                <v-radio label="Off" :value="false"></v-radio>
+            </v-radio-group>
+
+            <v-tooltip v-if="!$ELECTRON && !hideEmail" open-delay="300" top>
+                <template v-slot:activator="{ on }">
+                    <v-text-field v-on="on" label="Notification Email (Optional)" placeholder="you@example.org" v-model="email"></v-text-field>
+                </template>
+                <span>Send an email when the job is done.</span>
+            </v-tooltip>
+        </div>
+        </panel>
+    </v-flex>
+    <v-flex>
+        <panel>
+        <template slot="content">
+            <div class="actions" :style="!$vuetify.breakpoint.xsOnly ?'display:flex; align-items: center;' : null">
+            <v-item-group class="v-btn-toggle">
+                <v-btn color="primary" :block="false" x-large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Search</v-btn>
+                <v-btn v-if="isMultimer" color="secondary" :block="false" x-large v-on:click="goToMultimer"><v-icon>{{ $MDI.Multimer }}</v-icon>&nbsp;Go to Multimer</v-btn>
+            </v-item-group>
+            <div :style="!$vuetify.breakpoint.xsOnly ? 'margin-left: 1em;' : 'margin-top: 1em;'">
+                <span><strong>Summary</strong></span><br>
+                Search <template v-if="taxFilter">
+                    <strong>{{ taxFilter.text }}</strong> in
+                </template>
+                <template v-if="database.length == databases.length">
+                    <strong>all available</strong> databases
+                </template>
+                <template v-else>
+                    <strong>{{ database.length }}</strong>
+                    <template v-if="database.length == 1">
+                        database
+                    </template>
+                    <template v-else>
+                        databases
+                    </template>
+                    ({{
+                        databases.filter(db => database.includes(db.path)).map(db => db.name).sort().join(", ")
+                    }})
+                </template> with {{ $STRINGS.APP_NAME }} in <strong>{{ modes[mode] }}</strong> mode<span v-if="iterativeSearch"><strong> iterative</strong></span>.
+                <div v-if="errorMessage != ''" class="v-alert v-alert--outlined warning--text mt-2">
+                    <span>{{ errorMessage }}</span>
+                </div>
+            </div>
+            </div>
+        </template>
+        </panel>
     </v-flex>
     </v-layout>
-    </v-container>
+    <reference :reference="$STRINGS.CITATION"></reference>
+</v-container>
 </template>
 
 <script>
@@ -213,8 +193,7 @@ export default {
         return {
             inSearch: false,
             errorMessage: "",
-            showCurl: false,
-            mode: this.$STRINGS.MODE_DEFAULT_KEY,
+            mode: storage.getItem('mode') || this.$STRINGS.MODE_DEFAULT_KEY,
             modes: Array.from({length: this.$STRINGS.MODE_COUNT - 0}, (_, i) => i + 1)
                     .reduce((dict, i, _)  => { dict[this.$STRINGS['MODE_KEY_' + i]] = this.$STRINGS['MODE_TITLE_' + i]; return dict; }, {}),
             email: storage.getItem('email') || "",
@@ -239,18 +218,6 @@ export default {
             this.query = query;
         } else {
             this.query = this.$STRINGS.QUERY_DEFAULT;
-        }
-        if (localStorageEnabled && localStorage.database) {
-            this.database = JSON.parse(localStorage.database);
-        }
-        if (localStorageEnabled && localStorage.databases) {
-            this.databases = JSON.parse(localStorage.databases);
-        }
-        if (localStorageEnabled && localStorage.iterativeSearch) {
-            this.iterativeSearch = JSON.parse(localStorage.iterativeSearch);
-        }
-        if (localStorageEnabled && localStorage.taxFilter) {
-            this.taxFilter = JSON.parse(localStorage.taxFilter);
         }
     },
     computed: {
@@ -307,8 +274,7 @@ export default {
                 q: this.query,
                 database: this.database,
                 mode: this.mode,
-                email: this.email,
-                iterativesearch: this.iterativeSearch
+                email: this.email
             };
             if (__APP__ == "foldseek" && typeof(request.q) === 'string' && request.q != '') {
                 if (request.q[request.q.length - 1] != '\n') {
@@ -327,6 +293,9 @@ export default {
             }
             if (this.taxFilter) {
                 request.taxfilter = this.taxFilter.value;
+            }
+            if (this.iterativeSearch) {
+                request.iterativesearch = this.iterativeSearch.value;
             }
             try {
                 this.inSearch = true;
