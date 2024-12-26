@@ -96,6 +96,7 @@
                         <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;">
                             <span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
                         </h2>
+                        
                         <v-btn-toggle mandatory v-model="tableMode" class="ml-auto">
                             <v-btn>
                                 Graphical
@@ -106,7 +107,7 @@
                             </v-btn>
                         </v-btn-toggle>
                     </v-flex>
-                    <v-flex>
+                    <v-flex v-if="hits.results && hits.results[0].taxonomyreport">
                         <SankeyDiagram :rawData="hits.results[0].taxonomyreport"></SankeyDiagram>
                     </v-flex>
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">

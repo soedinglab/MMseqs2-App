@@ -332,11 +332,8 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 		reader.Delete()
 
 		// Read the taxonomy report
-        taxonomyReportPath := filepath.Join(base, "alis_afsp_report")
-        taxonomyReport, err := ReadTaxonomyReport(taxonomyReportPath)
-        if err != nil {
-            return res, err
-        }
+        taxonomyReportPath := filepath.Join(base, "alis_" + db + "_report")
+        taxonomyReport, _ := ReadTaxonomyReport(taxonomyReportPath)
 
 		base := filepath.Base(name)
 		res = append(res, SearchResult{
@@ -352,7 +349,8 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 func ReadTaxonomyReport(filePath string) ([]TaxonomyReport, error) {
     file, err := os.Open(filePath)
     if err != nil {
-        return nil, err
+        // Return an empty report for any error
+        return []TaxonomyReport{}, nil
     }
     defer file.Close()
 
@@ -363,23 +361,24 @@ func ReadTaxonomyReport(filePath string) ([]TaxonomyReport, error) {
         line := scanner.Text()
         fields := strings.Split(line, "\t")
         if len(fields) < 6 {
-            return nil, err
+			// Skip invalid lines
+            continue
         }
 
         // Parse the fields
         proportion, err := strconv.ParseFloat(fields[0], 64)
         if err != nil {
-            return nil, err
+            continue
         }
 
         cladeReads, err := strconv.Atoi(fields[1])
         if err != nil {
-            return nil, err
+            continue
         }
 
         taxonReads, err := strconv.Atoi(fields[2])
         if err != nil {
-            return nil, err
+            continue
         }
 
         report := TaxonomyReport{
@@ -391,10 +390,6 @@ func ReadTaxonomyReport(filePath string) ([]TaxonomyReport, error) {
             ScientificName: strings.TrimSpace(fields[5]),
         }
         reports = append(reports, report)
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
     }
 
     return reports, nil
