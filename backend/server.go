@@ -286,7 +286,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
-                        iterativesearch = req.FormValue("iterativesearch") == "true"
+			iterativesearch = req.FormValue("iterativesearch") == "true"
 			taxfilter = req.FormValue("taxfilter")
 		} else {
 			err := req.ParseForm()
@@ -298,7 +298,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
-                        iterativesearch = req.FormValue("iterativesearch") == "true"
+			iterativesearch = req.FormValue("iterativesearch") == "true"
 			taxfilter = req.FormValue("taxfilter")
 		}
 

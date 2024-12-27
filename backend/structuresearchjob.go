@@ -10,12 +10,12 @@ import (
 )
 
 type StructureSearchJob struct {
-	Size      int        `json:"size" validate:"required"`
-	Database  []string   `json:"database" validate:"required"`
-	Mode      string     `json:"mode" validate:"oneof=3di tmalign 3diaa"`
-        IterativeSearch bool `json:"iterativesearch"`
-	TaxFilter string     `json:"taxfilter"
-	query     string
+	Size            int      `json:"size" validate:"required"`
+	Database        []string `json:"database" validate:"required"`
+	Mode            string   `json:"mode" validate:"oneof=3di tmalign 3diaa"`
+	IterativeSearch bool     `json:"iterativesearch"`
+	TaxFilter       string   `json:"taxfilter"`
+	query           string
 }
 
 func (r StructureSearchJob) Hash() Id {
@@ -23,9 +23,9 @@ func (r StructureSearchJob) Hash() Id {
 	h.Write(([]byte)(JobStructureSearch))
 	h.Write([]byte(r.query))
 	h.Write([]byte(r.Mode))
-        if r.IterativeSearch {
-           h.Write([]byte("Iterative"))
-        }
+	if r.IterativeSearch {
+		h.Write([]byte("iterative"))
+	}
 	if r.TaxFilter != "" {
 		h.Write([]byte(r.TaxFilter))
 	}
@@ -57,7 +57,7 @@ func NewStructureSearchJobRequest(query string, dbs []string, validDbs []Params,
 		max(strings.Count(query, "HEADER"), 1),
 		dbs,
 		mode,
-                iterativeSearch,
+		iterativeSearch,
 		taxfilter,
 		query,
 	}

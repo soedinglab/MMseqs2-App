@@ -55,27 +55,16 @@
             <template v-else>
                 DBs
             </template>
+            &amp; search settings
         </template>
         <div slot="content">
             <databases
-                    :selected="database"
-                    :all-databases="databases"
-                    @update:selected="database = $event"
-                    @update:all-databases="databases = $event"
-                    :hideEmail="hideEmail"
-                    ></databases>
-        </div>
-        </panel>
-        <panel collapsible collapsed render-collapsed>
-        <template slot="header">
-            <template v-if="!$vuetify.breakpoint.smAndDown">
-                Search Parameters
-            </template>
-            <template v-else>
-                Params
-            </template>
-        </template>
-        <div slot="content">
+                :selected="database"
+                :all-databases="databases"
+                @update:selected="database = $event"
+                @update:all-databases="databases = $event"
+                :hideEmail="hideEmail"
+                ></databases>
             <v-radio-group v-model="mode">
                 <v-tooltip open-delay="300" top>
                     <template v-slot:activator="{ on }">
@@ -93,20 +82,19 @@
 
             <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete>
 
-            <v-radio-group v-model="iterativeSearch">
-                <v-tooltip open-delay="300" top>
-                    <template v-slot:activator="{ on }">
-                        <label v-on="on">
+            <v-tooltip open-delay="300" top>
+                <template v-slot:activator="{ on }">
+                    <v-checkbox>
+                        <template slot="label">
+                            <label v-on="on">
                             Iterative search
                             <v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
                         </label>
-                    </template>
-                    <span>Improve sensitivity of search by performing an iterative search (--num-iterations 3).</span>
-                </v-tooltip>
-
-                <v-radio label="On" :value="true"></v-radio>
-                <v-radio label="Off" :value="false"></v-radio>
-            </v-radio-group>
+                        </template>
+                    </v-checkbox>
+                </template>
+                <span>Improve sensitivity of search by performing an iterative search (--num-iterations 3).</span>
+            </v-tooltip>
 
             <v-tooltip v-if="!$ELECTRON && !hideEmail" open-delay="300" top>
                 <template v-slot:activator="{ on }">
@@ -141,10 +129,12 @@
                     <template v-else>
                         databases
                     </template>
+                    <template v-if="database.length > 0">
                     ({{
                         databases.filter(db => database.includes(db.path)).map(db => db.name).sort().join(", ")
                     }})
-                </template> with {{ $STRINGS.APP_NAME }} in <strong>{{ modes[mode] }}</strong> mode<span v-if="iterativeSearch"><strong> iterative</strong></span>.
+                    </template>
+                </template> with {{ $STRINGS.APP_NAME }} in <template v-if="iterativeSearch">iterative</template> <strong>{{ modes[mode] }}</strong> mode.
                 <div v-if="errorMessage != ''" class="v-alert v-alert--outlined warning--text mt-2">
                     <span>{{ errorMessage }}</span>
                 </div>
