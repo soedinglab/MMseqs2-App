@@ -84,7 +84,7 @@
 
             <v-tooltip open-delay="300" top>
                 <template v-slot:activator="{ on }">
-                    <v-checkbox>
+                    <v-checkbox v-model="iterativeSearch">
                         <template slot="label">
                             <label v-on="on">
                             Iterative search
@@ -285,7 +285,7 @@ export default {
                 request.taxfilter = this.taxFilter.value;
             }
             if (this.iterativeSearch) {
-                request.iterativesearch = this.iterativeSearch.value;
+                request.iterativesearch = this.iterativeSearch;
             }
             try {
                 this.inSearch = true;
