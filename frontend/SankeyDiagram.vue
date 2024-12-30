@@ -450,6 +450,43 @@ export default {
 					// Remove the tooltip when mouse leaves
 					d3.select(".tooltip").remove();
 				})
+				.on("click", (event, d) => {
+					// Deselect any previously selected nodes
+					svg.selectAll("rect.node").style("stroke", null).style("stroke-width", null);
+					svg.selectAll("text.label").style("font-weight", null);
+
+					// Highlight the selected node
+					d3.select(`.taxid-${d.id} rect`)
+						.style("stroke", "black")
+						.style("stroke-width", "2px");
+
+					d3.select(`.taxid-${d.id} text.label`)
+						.style("font-weight", "bold");
+
+						console.log(d);
+
+					// Function to collect all IDs of the current node and its descendants
+					const collectIds = (node) => {
+						let ids = [node.id]; // Include the current node's ID
+						if (node.sourceLinks) {
+							// Recursively collect IDs from targetLinks (child nodes)
+							node.sourceLinks.forEach((link) => {
+								ids = ids.concat(collectIds(link.target));
+							});
+						}
+						return ids;
+					};
+
+					// Collect all IDs
+					const allNodeIds = collectIds(d);
+
+					// Emit the IDs array
+					console.log(allNodeIds);
+					this.$emit("selectTaxon", allNodeIds);
+
+					// Emit the selected node data if needed
+					this.$emit("selectTaxon", { name: d.name, id: d.id });
+				});
 			;
 
 			// Create node rectangles
