@@ -481,11 +481,7 @@ export default {
 					const allNodeIds = collectIds(d);
 
 					// Emit the IDs array
-					console.log(allNodeIds);
 					this.$emit("selectTaxon", allNodeIds);
-
-					// Emit the selected node data if needed
-					this.$emit("selectTaxon", { name: d.name, id: d.id });
 				});
 			;
 

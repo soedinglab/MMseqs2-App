@@ -283,6 +283,7 @@ export default {
             selectedDatabases: 0,
             isSankeyVisible: false,
             selectedTaxId: null,
+            selectedTaxIds: [],
             tableMode: 0,
             menuActivator: null,
             menuItems: [],
@@ -375,14 +376,10 @@ export default {
                 this.menuActivator.click(event);
             }
         },
-        handleSankeySelect(selectedData) {
-            // Update the selected tax ID when a node is clicked in the SankeyDiagram
-            this.selectedTaxId = Number(selectedData.id) || null;
-            console.log('selectedTaxId:',typeof this.selectedTaxId, this.selectedTaxId);
-
-            // // Update the selectedTaxIds property when the SankeyDiagram emits node IDs
-            // this.selectedTaxIds = selectedNodeIds.map(Number); // Ensure all IDs are numbers
-            // console.log('Selected Tax IDs:', this.selectedTaxIds);
+        handleSankeySelect(selectedNodeIds) {
+            // Update the selectedTaxIds property when the SankeyDiagram emits node IDs
+            this.selectedTaxIds = selectedNodeIds.map(Number); // Ensure all IDs are numbers
+            console.log('Selected Tax IDs:', this.selectedTaxIds);
         },
         filteredAlignments(alignments) {
             // Convert alignments to an array if it is an object
@@ -395,37 +392,17 @@ export default {
                 return []; // Return an empty array if conversion fails
             }
 
-            if (!this.selectedTaxId) {
-                return alignments; // Return all groups if no selectedTaxId
+            if (!this.selectedTaxIds || this.selectedTaxIds.length === 0) {
+                return alignments; // Return all groups if no selectedTaxIds
             }
 
-            // Filter each group to only include items that match the selectedTaxId
+            // console.log(this.selectedTaxIds);
+
+            // Filter each group to only include items with taxId in selectedTaxIds
             return alignments
-                .map(group => group.filter(item => Number(item.taxId) === Number(this.selectedTaxId)))
+                .map(group => group.filter(item => this.selectedTaxIds.includes(Number(item.taxId))))
                 .filter(group => group.length > 0); // Remove empty groups
         },
-        // filteredAlignments(alignments) {
-        //     // Convert alignments to an array if it is an object
-        //     if (alignments && !Array.isArray(alignments)) {
-        //         alignments = Object.values(alignments); // Convert to an array
-        //     }
-
-        //     if (!Array.isArray(alignments)) {
-        //         console.warn('Alignments is not an array after conversion:', alignments);
-        //         return []; // Return an empty array if conversion fails
-        //     }
-
-        //     if (!this.selectedTaxIds || this.selectedTaxIds.length === 0) {
-        //         return alignments; // Return all groups if no selectedTaxIds
-        //     }
-
-        //     console.log(this.selectedTaxIds);
-
-        //     // Filter each group to only include items with taxId in selectedTaxIds
-        //     return alignments
-        //         .map(group => group.filter(item => this.selectedTaxIds.includes(Number(item.taxId))))
-        //         .filter(group => group.length > 0); // Remove empty groups
-        // },
     }
 };
 </script>
