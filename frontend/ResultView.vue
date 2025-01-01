@@ -92,13 +92,13 @@
                         <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
                     </v-tabs>
                     <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
-                    <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null }">
+                    <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null, 'align-items': 'center' }">
                         <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;">
                             <span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
                         </h2>
 
                         <!-- Button to toggle Sankey Diagram visibility -->
-                        <v-btn @click="isSankeyVisible = !isSankeyVisible" class="ml-auto mr-2">
+                        <v-btn @click="isSankeyVisible = !isSankeyVisible" class="ml-auto mr-2" large>
                             {{ isSankeyVisible ? 'Hide Sankey' : 'Show Sankey' }}
                         </v-btn>
                         
