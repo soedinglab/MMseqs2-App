@@ -18,6 +18,8 @@ export default {
 		}
     },
     data: () => ({
+		currentSelectedNode: null, // Track the currently selected node
+		
 		// Data for graph rendering
 		nonCladesRawData: null, // rawData with just clades filtered out
 		allNodesByRank: {},
@@ -455,6 +457,13 @@ export default {
 					svg.selectAll("rect.node").style("stroke", null).style("stroke-width", null);
 					svg.selectAll("text.label").style("font-weight", null);
 
+					// If the same node is clicked again, deselect it
+					if (this.currentSelectedNode && this.currentSelectedNode.id === d.id) {
+						this.currentSelectedNode = null;
+						this.$emit("selectTaxon", null); // Emit an empty array to show all IDs
+						return;
+					}
+
 					// Highlight the selected node
 					d3.select(`.taxid-${d.id} rect`)
 						.style("stroke", "black")
@@ -473,6 +482,9 @@ export default {
 
 					// Collect all IDs
 					const allNodeIds = collectIds(d);
+
+					// Update the currently selected node
+        			this.currentSelectedNode = d;
 
 					// Emit the IDs array
 					this.$emit("selectTaxon", allNodeIds);
@@ -612,6 +624,7 @@ svg {
   width: 100%;
   height: auto;
 }
+
 .sankey-diagram {
 	width: 100%;
 	height: auto;

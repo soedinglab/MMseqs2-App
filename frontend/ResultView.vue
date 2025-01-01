@@ -377,18 +377,15 @@ export default {
             }
         },
         handleSankeySelect(selectedNodeIds) {
-            // Update the selectedTaxIds property when the SankeyDiagram emits node IDs
-            this.selectedTaxIds = selectedNodeIds.map(Number); // Ensure all IDs are numbers
-            console.log('Selected Tax IDs:', this.selectedTaxIds);
+            this.selectedTaxIds = selectedNodeIds ? selectedNodeIds.map(Number) : null; 
         },
         filteredAlignments(alignments) {
             // Convert alignments to an array if it is an object
             if (alignments && !Array.isArray(alignments)) {
-                alignments = Object.values(alignments); // Convert to an array
+                alignments = Object.values(alignments);
             }
 
             if (!Array.isArray(alignments)) {
-                console.warn('Alignments is not an array after conversion:', alignments);
                 return []; // Return an empty array if conversion fails
             }
 
@@ -396,12 +393,10 @@ export default {
                 return alignments; // Return all groups if no selectedTaxIds
             }
 
-            // console.log(this.selectedTaxIds);
-
             // Filter each group to only include items with taxId in selectedTaxIds
             return alignments
                 .map(group => group.filter(item => this.selectedTaxIds.includes(Number(item.taxId))))
-                .filter(group => group.length > 0); // Remove empty groups
+                .filter(group => group.length > 0);
         },
     }
 };
