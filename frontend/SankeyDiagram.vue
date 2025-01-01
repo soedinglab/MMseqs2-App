@@ -15,8 +15,12 @@ export default {
         rawData: {
 			type: Array,
 			required: true,
-		}
-    },
+		},
+		currentSelectedNodeId: {
+			type: String,
+			default: null,
+		},
+	},
     data: () => ({
 		currentSelectedNode: null, // Track the currently selected node
 		
@@ -460,7 +464,7 @@ export default {
 					// If the same node is clicked again, deselect it
 					if (this.currentSelectedNode && this.currentSelectedNode.id === d.id) {
 						this.currentSelectedNode = null;
-						this.$emit("selectTaxon", null); // Emit an empty array to show all IDs
+						this.$emit("selectTaxon", { nodeId: null, descendantIds: null }); // Emit an empty array to show all IDs
 						return;
 					}
 
@@ -487,7 +491,7 @@ export default {
         			this.currentSelectedNode = d;
 
 					// Emit the IDs array
-					this.$emit("selectTaxon", allNodeIds);
+					this.$emit("selectTaxon", { nodeId: d.id, descendantIds: allNodeIds });
 				});
 			;
 
@@ -498,7 +502,9 @@ export default {
 				.attr("height", (d) => Math.max(1, d.y1 - d.y0))
 				.attr("fill", (d) => (d.type === "unclassified" ? unclassifiedLabelColor : d.color))
 				.attr("class", (d) => "node taxid-" + d.id) // Apply the CSS class for cursor
-				.style("cursor", "pointer");
+				.style("cursor", "pointer")
+				.style("stroke", (d) => this.currentSelectedNodeId === d.id ? "black" : null)
+				.style("stroke-width", (d) => this.currentSelectedNodeId === d.id ? "2px" : "0px");
 
 			// Add node name labels next to node
 			nodeGroup
@@ -511,7 +517,8 @@ export default {
 				.attr("text-anchor", "start")
 				.text((d) => d.name)
 				.style("font-size", "9px")
-				.style("cursor", "pointer");
+				.style("cursor", "pointer")
+				.style("font-weight", (d) => (this.currentSelectedNodeId === d.id ? "bold" : "normal"));
 
 			// Add label above node (proportion/clade reads)
 			nodeGroup

@@ -113,7 +113,7 @@
                         </v-btn-toggle>
                     </v-flex>
                     <v-flex v-if="isSankeyVisible && entry.taxonomyreport">
-                        <SankeyDiagram :rawData="entry.taxonomyreport" @selectTaxon="handleSankeySelect"></SankeyDiagram>
+                        <SankeyDiagram :rawData="entry.taxonomyreport" :currentSelectedNodeId="selectedTaxId" @selectTaxon="handleSankeySelect"></SankeyDiagram>
                     </v-flex>
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <colgroup>
@@ -283,7 +283,7 @@ export default {
             selectedDatabases: 0,
             isSankeyVisible: false,
             selectedTaxId: null,
-            selectedTaxIds: [],
+            filteredHitsTaxIds: [],
             tableMode: 0,
             menuActivator: null,
             menuItems: [],
@@ -376,8 +376,9 @@ export default {
                 this.menuActivator.click(event);
             }
         },
-        handleSankeySelect(selectedNodeIds) {
-            this.selectedTaxIds = selectedNodeIds ? selectedNodeIds.map(Number) : null; 
+        handleSankeySelect({ nodeId, descendantIds }) {
+            this.selectedTaxId = nodeId;
+            this.filteredHitsTaxIds = descendantIds ? descendantIds.map(Number) : null; 
         },
         filteredAlignments(alignments) {
             // Convert alignments to an array if it is an object
@@ -389,13 +390,13 @@ export default {
                 return []; // Return an empty array if conversion fails
             }
 
-            if (!this.selectedTaxIds || this.selectedTaxIds.length === 0) {
-                return alignments; // Return all groups if no selectedTaxIds
+            if (!this.filteredHitsTaxIds || this.filteredHitsTaxIds.length === 0) {
+                return alignments; // Return all groups if no filteredAlignments
             }
 
-            // Filter each group to only include items with taxId in selectedTaxIds
+            // Filter each group to only include items with taxId in filteredAlignments
             return alignments
-                .map(group => group.filter(item => this.selectedTaxIds.includes(Number(item.taxId))))
+                .map(group => group.filter(item => this.filteredHitsTaxIds.includes(Number(item.taxId))))
                 .filter(group => group.length > 0);
         },
     }
