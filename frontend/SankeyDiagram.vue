@@ -463,18 +463,12 @@ export default {
 					d3.select(`.taxid-${d.id} text.label`)
 						.style("font-weight", "bold");
 
-						console.log(d);
 
 					// Function to collect all IDs of the current node and its descendants
 					const collectIds = (node) => {
-						let ids = [node.id]; // Include the current node's ID
-						if (node.sourceLinks) {
-							// Recursively collect IDs from targetLinks (child nodes)
-							node.sourceLinks.forEach((link) => {
-								ids = ids.concat(collectIds(link.target));
-							});
-						}
-						return ids;
+						let childrenIds = [node.id];
+						childrenIds = childrenIds.concat(this.findChildren(this.rawData, node));
+						return childrenIds;
 					};
 
 					// Collect all IDs
@@ -544,6 +538,38 @@ export default {
 				return false;
 			}
 			return true;
+		},
+		findChildren(rawData, selectedNode) {
+			const ids = [];
+			let startAdding = false;
+
+			const rankIndex = sankeyRankColumns.reduce((acc, rank, index) => {
+			acc[rank] = index;
+			return acc;
+			}, {});
+
+			for (let i = 0; i < rawData.length; i++) {
+				const d = rawData[i];
+
+				if (d.taxon_id === selectedNode.id) {
+					// Start adding child nodes from here
+					startAdding = true;
+					continue; // Move to the next iteration to skip the current node
+				}
+
+				if (startAdding) {
+					const selectedNodeRank = rankIndex[selectedNode.trueRank] ?? -1; 
+  					const comparingNodeRank = rankIndex[d.rank] ?? Infinity;
+					if (comparingNodeRank > selectedNodeRank) {
+						ids.push(d.taxon_id);
+					} else {
+						// Stop when we encounter a node at the same or higher rank
+						break;
+					}
+				}
+			}
+
+			return ids;
 		},
 
 		// Throttle function (used for improving performance during node hover)
