@@ -132,12 +132,16 @@ export default {
 					if (node.rank !== "clade") {
 						let lastLineageNode = currentLineage[currentLineage.length - 1];
 						if (lastLineageNode) {
-
 							let currentRank = rankHierarchyFull[node.rank] ?? Infinity;
 							let lastRank = rankHierarchyFull[lastLineageNode.rank] ?? Infinity;
-								while (lastLineageNode && currentRank <= lastRank) {
+							
+							while (lastLineageNode && currentRank <= lastRank) {
 								const poppedNode = currentLineage.pop();
 								lastLineageNode = currentLineage[currentLineage.length - 1];
+
+								if (!lastLineageNode) {
+									break; // Exit the loop if no more nodes in the lineage
+								}
 
 								currentRank = rankHierarchyFull[node.rank] ?? Infinity;
 								lastRank = rankHierarchyFull[lastLineageNode.rank] ?? Infinity;
