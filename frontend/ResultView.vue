@@ -92,11 +92,17 @@
                         <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
                     </v-tabs>
                     <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
-                    <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null }">
+                    <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null, 'align-items': 'center' }">
                         <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;">
                             <span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
                         </h2>
-                        <v-btn-toggle mandatory v-model="tableMode" class="ml-auto">
+
+                        <!-- Button to toggle Sankey Diagram visibility -->
+                        <v-btn @click="isSankeyVisible = !isSankeyVisible" class="ml-auto mr-2" large>
+                            {{ isSankeyVisible ? 'Hide Sankey' : 'Show Sankey' }}
+                        </v-btn>
+                        
+                        <v-btn-toggle mandatory v-model="tableMode" >
                             <v-btn>
                                 Graphical
                             </v-btn>
@@ -106,7 +112,9 @@
                             </v-btn>
                         </v-btn-toggle>
                     </v-flex>
-
+                    <v-flex v-if="isSankeyVisible && entry.taxonomyreport">
+                        <SankeyDiagram :rawData="entry.taxonomyreport" :currentSelectedNodeId="selectedTaxId" @selectTaxon="handleSankeySelect"></SankeyDiagram>
+                    </v-flex>
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <colgroup>
                             <template v-if="isComplex">
@@ -177,7 +185,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <template v-for="(group, groupidx) in entry.alignments">
+                            <template v-for="(group, groupidx) in filteredAlignments(entry.alignments)" >
                                 <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active }]">
                                 <template v-if="index == 0 && isComplex">
                                 <td class="thin" data-label="Query TM-score" :rowspan="group.length">{{ group[0].complexqtm.toFixed(2) }}</td>
@@ -251,6 +259,7 @@
 import Panel from './Panel.vue';
 import AlignmentPanel from './AlignmentPanel.vue';
 import Ruler from './Ruler.vue';
+import SankeyDiagram from './SankeyDiagram.vue';
 
 import { debounce } from './lib/debounce';
 
@@ -265,13 +274,16 @@ function getAbsOffsetTop($el) {
 
 export default {
     name: 'ResultView',
-    components: { Panel, AlignmentPanel, Ruler },
+    components: { Panel, AlignmentPanel, Ruler, SankeyDiagram },
     data() {
         return {
             alignment: null,
             activeTarget: null,
             alnBoxOffset: 0,
             selectedDatabases: 0,
+            isSankeyVisible: false,
+            selectedTaxId: null,
+            filteredHitsTaxIds: [],
             tableMode: 0,
             menuActivator: null,
             menuItems: [],
@@ -363,7 +375,30 @@ export default {
                 this.menuItems = items;
                 this.menuActivator.click(event);
             }
-        }
+        },
+        handleSankeySelect({ nodeId, descendantIds }) {
+            this.selectedTaxId = nodeId;
+            this.filteredHitsTaxIds = descendantIds ? descendantIds.map(Number) : null; 
+        },
+        filteredAlignments(alignments) {
+            // Convert alignments to an array if it is an object
+            if (alignments && !Array.isArray(alignments)) {
+                alignments = Object.values(alignments);
+            }
+
+            if (!Array.isArray(alignments)) {
+                return []; // Return an empty array if conversion fails
+            }
+
+            if (!this.filteredHitsTaxIds || this.filteredHitsTaxIds.length === 0) {
+                return alignments; // Return all groups if no filteredAlignments
+            }
+
+            // Filter each group to only include items with taxId in filteredAlignments
+            return alignments
+                .map(group => group.filter(item => this.filteredHitsTaxIds.includes(Number(item.taxId))))
+                .filter(group => group.length > 0);
+        },
     }
 };
 </script>
@@ -423,7 +458,6 @@ src: url(assets/InconsolataClustal2.woff2),
         word-wrap: normal;
     }
 }
-
 
 .theme--dark {
     .result-table {
