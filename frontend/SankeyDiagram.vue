@@ -625,6 +625,13 @@ export default {
 </script>
 
 <style scoped>
+.theme--dark svg {
+	fill: white;
+}
+.theme--light svg  {
+	fill: black;
+}
+
 .sankey-container {
 	display: flex;
 	width: 100%;
