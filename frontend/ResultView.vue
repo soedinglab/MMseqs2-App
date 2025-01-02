@@ -112,7 +112,7 @@
                             </v-btn>
                         </v-btn-toggle>
                     </v-flex>
-                    <v-flex v-if="isSankeyVisible && entry.taxonomyreport">
+                    <v-flex v-if="isSankeyVisible && entry.taxonomyreport" class="mb-2">
                         <SankeyDiagram :rawData="entry.taxonomyreport" :currentSelectedNodeId="selectedTaxId" @selectTaxon="handleSankeySelect"></SankeyDiagram>
                     </v-flex>
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
