@@ -113,7 +113,7 @@
                         </v-btn-toggle>
                     </v-flex>
                     <v-flex v-if="isSankeyVisible[entry.db] && entry.taxonomyreport" class="mb-2">
-                        <SankeyDiagram :rawData="entry.taxonomyreport" :currentSelectedNodeId="selectedTaxId" @selectTaxon="handleSankeySelect"></SankeyDiagram>
+                        <SankeyDiagram :rawData="entry.taxonomyreport" :db="entry.db" :currentSelectedNodeId="selectedTaxId" :currentSelectedDb="filteredDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
                     </v-flex>
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <colgroup>
@@ -185,7 +185,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <template v-for="(group, groupidx) in filteredAlignments(entry.alignments)" >
+                            <template v-for="(group, groupidx) in filteredAlignments(entry.alignments, entry.db)" >
                                 <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active }]">
                                 <template v-if="index == 0 && isComplex">
                                 <td class="thin" data-label="Query TM-score" :rowspan="group.length">{{ group[0].complexqtm.toFixed(2) }}</td>
@@ -282,6 +282,7 @@ export default {
             alnBoxOffset: 0,
             selectedDatabases: 0,
             isSankeyVisible: {}, // Track visibility for each entry.db
+            filteredDb: null,
             selectedTaxId: null,
             filteredHitsTaxIds: [],
             tableMode: 0,
@@ -380,18 +381,24 @@ export default {
             // Toggle visibility for the specific entry.db
             this.$set(this.isSankeyVisible, db, !this.isSankeyVisible[db]);
         },
-        handleSankeySelect({ nodeId, descendantIds }) {
+        handleSankeySelect({ nodeId, descendantIds, db }) {
             this.selectedTaxId = nodeId;
             this.filteredHitsTaxIds = descendantIds ? descendantIds.map(Number) : null; 
+            this.filteredDb = db;
         },
-        filteredAlignments(alignments) {
+        filteredAlignments(alignments, db) {
             // Convert alignments to an array if it is an object
             if (alignments && !Array.isArray(alignments)) {
                 alignments = Object.values(alignments);
             }
-
+            
             if (!Array.isArray(alignments)) {
                 return []; // Return an empty array if conversion fails
+            }
+
+            if (db !== this.filteredDb) {
+                // Reset filteredHitsTaxIds if db changes
+                return alignments;
             }
 
             if (!this.filteredHitsTaxIds || this.filteredHitsTaxIds.length === 0) {

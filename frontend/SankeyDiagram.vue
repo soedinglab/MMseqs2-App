@@ -20,6 +20,14 @@ export default {
 			type: String,
 			default: null,
 		},
+		db: {
+			type: String,
+			required: true,
+		},
+		// currentSelectedDb: {
+		// 	type: String,
+		// 	default: null,
+		// }
 	},
     data: () => ({
 		currentSelectedNode: null, // Track the currently selected node
@@ -66,6 +74,13 @@ export default {
 				});
 			},
 		},
+		// currentSelectedNodeId(newValue) {
+		// 	if (newValue) {
+		// 		if (newValue !== this.db) {
+		// 			this.currentSelectedNode = null;
+		// 		}
+		// 	}
+		// }
     },
     methods: {
 		// Function for processing/parsing data
@@ -426,7 +441,7 @@ export default {
 					// If the same node is clicked again, deselect it
 					if (this.currentSelectedNode && this.currentSelectedNode.id === d.id) {
 						this.currentSelectedNode = null;
-						this.$emit("selectTaxon", { nodeId: null, descendantIds: null }); // Emit an empty array to show all IDs
+						this.$emit("selectTaxon", { nodeId: null, descendantIds: null, db: this.db }); // Emit an empty array to show all IDs
 						return;
 					}
 
@@ -453,7 +468,7 @@ export default {
         			this.currentSelectedNode = d;
 
 					// Emit the IDs array
-					this.$emit("selectTaxon", { nodeId: d.taxon_id, descendantIds: allNodeIds });
+					this.$emit("selectTaxon", { nodeId: d.taxon_id, descendantIds: allNodeIds, db: this.db });
 				});
 			;
 
