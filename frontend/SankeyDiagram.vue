@@ -1,6 +1,6 @@
 <template>
 	 <div class="sankey-container">
-        <svg ref="sankeyContainer"></svg>    
+        <svg ref="sankeyContainer" class="hide"></svg>    
         </div>
 </template>
 
@@ -89,7 +89,7 @@ export default {
 			});
 		},
 		// Function for processing/parsing data
-		parseData(data, isFullGraph = true) {
+		parseData(data, isFullGraph = false) {
 			const nodes = [];
 			const unclassifiedNodes = [];
 			const allNodes = [];
@@ -150,49 +150,6 @@ export default {
 						// Append current node to currentLineage array + store lineage data
 						currentLineage.push(node);
 						node.lineage = [...currentLineage];
-					}
-				} else if (this.isUnclassifiedTaxa(d)) {
-					// lineage tracking for unclassified taxa
-					let currentLineageCopy = [...currentLineage];
-					const parentName = d.name.replace("unclassified ", "");
-					let lastLineageNode = currentLineageCopy[currentLineageCopy.length - 1];
-
-					if (lastLineageNode) {
-						while (lastLineageNode && lastLineageNode.name !== parentName) {
-							currentLineageCopy.pop();
-							lastLineageNode = currentLineageCopy[currentLineageCopy.length - 1];
-						}
-					}
-
-					// Find the previous node in the lineage that is in rankOrder
-					const parentNode = currentLineageCopy.find((n) => n.name === parentName);
-					if (parentNode && parentNode === lastLineageNode) {
-						const lineage = currentLineageCopy;
-
-						let previousNode = null;
-						for (let i = lineage.length - 1; i >= 0; i--) {
-							// Start from the last item
-							if (this.rankOrder.includes(lineage[i].rank)) {
-								previousNode = lineage[i];
-								break;
-							}
-						}
-
-						// Determine the rank immediately to the right of this node
-						const parentRankIndex = this.rankOrder.indexOf(previousNode.rank);
-
-						// Edit properties for unclassified taxa
-						const nextRank = this.rankOrder[parentRankIndex + 1];
-
-						node.id = `dummy-${d.taxon_id}`;
-						node.rank = nextRank;
-						node.type = "unclassified";
-
-						// Add unclassified node to currentLineage and save lineage data
-						currentLineageCopy.push(node);
-						node.lineage = [...currentLineageCopy];
-
-						unclassifiedNodes.push(node);
 					}
 				}
 			});
@@ -290,7 +247,8 @@ export default {
 			const svg = d3.select(container)
 			.attr("viewBox", `0 0 ${width} ${height}`)
 			.attr("width", "100%")
-			.attr("height", height);
+			.attr("height", height)
+			.classed("hide", false);
 
 			const sankeyGenerator = sankey()
 				.nodeId((d) => d.id)
@@ -431,7 +389,7 @@ export default {
 						.style("opacity", 1)
 						.html(`
 							<div style="padding-top: 4px; padding-bottom: 4px; padding-left: 8px; padding-right: 8px;">
-								<p style="font-size: 0.6rem; margin-bottom: 0px;">#${d.id}</p>
+								<p style="font-size: 0.6rem; margin-bottom: 0px;">#${d.taxon_id}</p>
 								<div style="display: flex; justify-content: space-between; align-items: center;">
 									<div style="font-weight: bold; font-size: 0.875rem;">${d.name}</div>
 									<span style="background-color: rgba(255, 167, 38, 0.25); color: #ffa726; font-weight: bold; padding: 4px 8px; border-radius: 12px; font-size: 0.875rem; margin-left: 10px;">${d.rank}</span>
@@ -483,7 +441,7 @@ export default {
 
 					// Function to collect all IDs of the current node and its descendants
 					const collectIds = (node) => {
-						let childrenIds = [node.id];
+						let childrenIds = [node.taxon_id];
 						childrenIds = childrenIds.concat(this.findChildren(this.rawData, node));
 						return childrenIds;
 					};
@@ -495,7 +453,7 @@ export default {
         			this.currentSelectedNode = d;
 
 					// Emit the IDs array
-					this.$emit("selectTaxon", { nodeId: d.id, descendantIds: allNodeIds });
+					this.$emit("selectTaxon", { nodeId: d.taxon_id, descendantIds: allNodeIds });
 				});
 			;
 
@@ -574,7 +532,7 @@ export default {
 			for (let i = 0; i < rawData.length; i++) {
 				const d = rawData[i];
 
-				if (d.taxon_id === selectedNode.id) {
+				if (d.taxon_id === selectedNode.taxon_id) {
 					// Start adding child nodes from here
 					startAdding = true;
 					continue; // Move to the next iteration to skip the current node
