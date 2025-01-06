@@ -24,10 +24,10 @@ export default {
 			type: String,
 			required: true,
 		},
-		// currentSelectedDb: {
-		// 	type: String,
-		// 	default: null,
-		// }
+		currentSelectedDb: {
+			type: String,
+			default: null,
+		}
 	},
     data: () => ({
 		currentSelectedNode: null, // Track the currently selected node
@@ -74,13 +74,16 @@ export default {
 				});
 			},
 		},
-		// currentSelectedNodeId(newValue) {
-		// 	if (newValue) {
-		// 		if (newValue !== this.db) {
-		// 			this.currentSelectedNode = null;
-		// 		}
-		// 	}
-		// }
+		currentSelectedDb: {
+			immediate: true,
+			handler(newValue) {
+				if (newValue !== this.db) {
+					// Reset the selected node when switching databases
+					this.currentSelectedNode = null;
+					this.createSankey(this.rawData);
+				}
+			}
+		}
     },
     methods: {
 		// Function for processing/parsing data
@@ -249,6 +252,10 @@ export default {
 			}
 
 			const container = this.$refs.sankeyContainer;
+			if (!container || !container.parentElement) {
+				// Ensure the container and its parent are accessible
+				return;
+			}
 			d3.select(container).selectAll("*").remove(); // Clear the previous diagram
 
 			const nodeWidth = 30;
