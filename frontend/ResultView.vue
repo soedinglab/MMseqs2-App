@@ -98,8 +98,8 @@
                         </h2>
 
                         <!-- Button to toggle Sankey Diagram visibility -->
-                        <v-btn @click="isSankeyVisible = !isSankeyVisible" class="ml-auto mr-2" large>
-                            {{ isSankeyVisible ? 'Hide Sankey' : 'Show Sankey' }}
+                        <v-btn @click="toggleSankeyVisibility(entry.db)" class="ml-auto mr-2" large>
+                            {{ isSankeyVisible[entry.db] ? 'Hide Sankey' : 'Show Sankey' }}
                         </v-btn>
                         
                         <v-btn-toggle mandatory v-model="tableMode" >
@@ -112,7 +112,7 @@
                             </v-btn>
                         </v-btn-toggle>
                     </v-flex>
-                    <v-flex v-if="isSankeyVisible && entry.taxonomyreport" class="mb-2">
+                    <v-flex v-if="isSankeyVisible[entry.db] && entry.taxonomyreport" class="mb-2">
                         <SankeyDiagram :rawData="entry.taxonomyreport" :currentSelectedNodeId="selectedTaxId" @selectTaxon="handleSankeySelect"></SankeyDiagram>
                     </v-flex>
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
@@ -281,7 +281,7 @@ export default {
             activeTarget: null,
             alnBoxOffset: 0,
             selectedDatabases: 0,
-            isSankeyVisible: false,
+            isSankeyVisible: {}, // Track visibility for each entry.db
             selectedTaxId: null,
             filteredHitsTaxIds: [],
             tableMode: 0,
@@ -375,6 +375,10 @@ export default {
                 this.menuItems = items;
                 this.menuActivator.click(event);
             }
+        },
+        toggleSankeyVisibility(db) {
+            // Toggle visibility for the specific entry.db
+            this.$set(this.isSankeyVisible, db, !this.isSankeyVisible[db]);
         },
         handleSankeySelect({ nodeId, descendantIds }) {
             this.selectedTaxId = nodeId;
