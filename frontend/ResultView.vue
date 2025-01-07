@@ -281,7 +281,7 @@ export default {
             activeTarget: null,
             alnBoxOffset: 0,
             selectedDatabases: 0,
-            isSankeyVisible: {}, // Track visibility for each entry.db
+            isSankeyVisible: {}, // Track visibility for each db's Sankey Diagram
             selectedDb: null,
             selectedTaxId: null,
             filteredHitsTaxIds: [],
