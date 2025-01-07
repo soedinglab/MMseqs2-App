@@ -93,13 +93,13 @@
                     </v-tabs>
                     <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
                     <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null, 'align-items': 'center' }">
-                        <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;">
+                        <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
                             <span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
                         </h2>
 
                         <!-- Button to toggle Sankey Diagram visibility -->
-                        <v-btn @click="isSankeyVisible = !isSankeyVisible" class="ml-auto mr-2" large>
-                            {{ isSankeyVisible ? 'Hide Sankey' : 'Show Sankey' }}
+                        <v-btn v-if="entry.hasTaxonomy" @click="toggleSankeyVisibility(entry.db)" class="mr-2" large>
+                            {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
                         </v-btn>
                         
                         <v-btn-toggle mandatory v-model="tableMode" >
@@ -112,8 +112,8 @@
                             </v-btn>
                         </v-btn-toggle>
                     </v-flex>
-                    <v-flex v-if="isSankeyVisible && entry.taxonomyreport" class="mb-2">
-                        <SankeyDiagram :rawData="entry.taxonomyreport" :currentSelectedNodeId="selectedTaxId" @selectTaxon="handleSankeySelect"></SankeyDiagram>
+                    <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2">
+                        <SankeyDiagram :rawData="entry.taxonomyreport" :db="entry.db" :currentSelectedNodeId="selectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
                     </v-flex>
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <colgroup>
@@ -185,7 +185,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <template v-for="(group, groupidx) in filteredAlignments(entry.alignments)" >
+                            <template v-for="(group, groupidx) in filteredAlignments(entry.alignments, entry.db)" >
                                 <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active }]">
                                 <template v-if="index == 0 && isComplex">
                                 <td class="thin" data-label="Query TM-score" :rowspan="group.length">{{ group[0].complexqtm.toFixed(2) }}</td>
@@ -281,7 +281,8 @@ export default {
             activeTarget: null,
             alnBoxOffset: 0,
             selectedDatabases: 0,
-            isSankeyVisible: false,
+            isSankeyVisible: {}, // Track visibility for each entry.db
+            selectedDb: null,
             selectedTaxId: null,
             filteredHitsTaxIds: [],
             tableMode: 0,
@@ -376,18 +377,28 @@ export default {
                 this.menuActivator.click(event);
             }
         },
-        handleSankeySelect({ nodeId, descendantIds }) {
+        toggleSankeyVisibility(db) {
+            // Toggle visibility for the specific entry.db
+            this.$set(this.isSankeyVisible, db, !this.isSankeyVisible[db]);
+        },
+        handleSankeySelect({ nodeId, descendantIds, db }) {
             this.selectedTaxId = nodeId;
             this.filteredHitsTaxIds = descendantIds ? descendantIds.map(Number) : null; 
+            this.selectedDb = db;
         },
-        filteredAlignments(alignments) {
+        filteredAlignments(alignments, db) {
             // Convert alignments to an array if it is an object
             if (alignments && !Array.isArray(alignments)) {
                 alignments = Object.values(alignments);
             }
-
+            
             if (!Array.isArray(alignments)) {
                 return []; // Return an empty array if conversion fails
+            }
+
+            if (db !== this.selectedDb) {
+                // Reset filteredHitsTaxIds if db changes
+                return alignments;
             }
 
             if (!this.filteredHitsTaxIds || this.filteredHitsTaxIds.length === 0) {
