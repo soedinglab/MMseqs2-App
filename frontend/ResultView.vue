@@ -93,13 +93,13 @@
                     </v-tabs>
                     <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
                     <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null, 'align-items': 'center' }">
-                        <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;">
+                        <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
                             <span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
                         </h2>
 
                         <!-- Button to toggle Sankey Diagram visibility -->
-                        <v-btn @click="toggleSankeyVisibility(entry.db)" class="ml-auto mr-2" large>
-                            {{ isSankeyVisible[entry.db] ? 'Hide Sankey' : 'Show Sankey' }}
+                        <v-btn v-if="entry.hasTaxonomy" @click="toggleSankeyVisibility(entry.db)" class="mr-2" large>
+                            {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
                         </v-btn>
                         
                         <v-btn-toggle mandatory v-model="tableMode" >
@@ -112,7 +112,7 @@
                             </v-btn>
                         </v-btn-toggle>
                     </v-flex>
-                    <v-flex v-if="isSankeyVisible[entry.db] && entry.taxonomyreport" class="mb-2">
+                    <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2">
                         <SankeyDiagram :rawData="entry.taxonomyreport" :db="entry.db" :currentSelectedNodeId="selectedTaxId" :currentSelectedDb="filteredDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
                     </v-flex>
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
