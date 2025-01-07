@@ -113,7 +113,7 @@
                         </v-btn-toggle>
                     </v-flex>
                     <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2">
-                        <SankeyDiagram :rawData="entry.taxonomyreport" :db="entry.db" :currentSelectedNodeId="selectedTaxId" :currentSelectedDb="filteredDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
+                        <SankeyDiagram :rawData="entry.taxonomyreport" :db="entry.db" :currentSelectedNodeId="selectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
                     </v-flex>
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <colgroup>
@@ -282,7 +282,7 @@ export default {
             alnBoxOffset: 0,
             selectedDatabases: 0,
             isSankeyVisible: {}, // Track visibility for each entry.db
-            filteredDb: null,
+            selectedDb: null,
             selectedTaxId: null,
             filteredHitsTaxIds: [],
             tableMode: 0,
@@ -384,7 +384,7 @@ export default {
         handleSankeySelect({ nodeId, descendantIds, db }) {
             this.selectedTaxId = nodeId;
             this.filteredHitsTaxIds = descendantIds ? descendantIds.map(Number) : null; 
-            this.filteredDb = db;
+            this.selectedDb = db;
         },
         filteredAlignments(alignments, db) {
             // Convert alignments to an array if it is an object
@@ -396,7 +396,7 @@ export default {
                 return []; // Return an empty array if conversion fails
             }
 
-            if (db !== this.filteredDb) {
+            if (db !== this.selectedDb) {
                 // Reset filteredHitsTaxIds if db changes
                 return alignments;
             }
