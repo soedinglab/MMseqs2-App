@@ -333,7 +333,8 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 		reader.Delete()
 
 		// Read the taxonomy report
-        taxonomyReportPath := filepath.Join(base, "alis_" + db + "_report")
+        // taxonomyReportPath := filepath.Join(base, "alis_" + db + "_report")
+		taxonomyReportPath := filepath.Join(base, "alis_BFVD_report")
         taxonomyReport, _ := ReadTaxonomyReport(taxonomyReportPath)
 
 		base := filepath.Base(name)

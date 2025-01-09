@@ -151,7 +151,7 @@ export default {
 			this.sankeyRankColumns.forEach((rank) => {
 				if (nodesByRank[rank]) {
 					// Sort nodes by clade_reads in descending order and select the top nodes
-					const topNodes = nodesByRank[rank].sort((a, b) => b.clade_reads - a.clade_reads).slice(0, !isFullGraph ? nodesByRank[rank].length : 20); // Don't apply taxaLimit when parsing fullGraphData
+					const topNodes = nodesByRank[rank].sort((a, b) => b.clade_reads - a.clade_reads).slice(0, isFullGraph ? nodesByRank[rank].length : 10); // Don't apply taxaLimit when parsing fullGraphData
 					nodes.push(...topNodes);
 				}
 			});
@@ -181,7 +181,7 @@ export default {
 			});
 			return { nodes, links };
 		},
-		
+
         // Main function for rendering Sankey
 		createSankey(items) {
 			const { nodes, links } = this.parseData(items);
