@@ -198,6 +198,7 @@ type TaxonomyReport struct {
     CladeReads    int     `json:"clade_reads"`
     TaxonReads    int     `json:"taxon_reads"`
     Rank          string  `json:"rank"`
+	Depth         int     `json:"depth"`
     TaxonID       string  `json:"taxon_id"`
     ScientificName string `json:"name"`
 }
@@ -347,12 +348,25 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 }
 
 func ReadTaxonomyReport(filePath string) ([]TaxonomyReport, error) {
-    file, err := os.Open(filePath)
+   	file, err := os.Open(filePath)
     if err != nil {
         // Return an empty report for any error
         return []TaxonomyReport{}, nil
     }
     defer file.Close()
+
+	// Helper function to count leading spaces
+    countLeadingSpaces := func(s string) int {
+        count := 0
+        for _, char := range s {
+            if char == ' ' {
+                count++
+            } else {
+                break
+            }
+        }
+        return count
+    }
 
     var reports []TaxonomyReport
     scanner := bufio.NewScanner(file)
@@ -381,11 +395,16 @@ func ReadTaxonomyReport(filePath string) ([]TaxonomyReport, error) {
             continue
         }
 
+		// Calculate depth from leading spaces in ScientificName
+        indentCount := countLeadingSpaces(fields[5])
+        depth := indentCount / 2 // Assuming 2 spaces per level of hierarchy
+
         report := TaxonomyReport{
             Proportion:    proportion,
             CladeReads:    cladeReads,
             TaxonReads:    taxonReads,
             Rank:          fields[3],
+			Depth:         depth, 
             TaxonID:       fields[4],
             ScientificName: strings.TrimSpace(fields[5]),
         }

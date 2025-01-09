@@ -35,6 +35,7 @@ export default {
 		// Data for graph rendering
 		nonCladesRawData: null, // rawData with just clades filtered out
 		allNodesByRank: {},
+		sankeyRankColumns,
 		rankOrderFull, // Imported from rankUtils
 		rankOrder: [...sankeyRankColumns, "no rank"],
 		colors: [
@@ -87,26 +88,6 @@ export default {
     },
     methods: {
 		// Function for processing/parsing data
-		processRawData(data) {
-			if (!this.rawData || !Array.isArray(this.rawData)) {
-				console.warn("rawData is not an array or is undefined", this.rawData);
-				return;
-			}
-			this.allNodesByRank = {}; // Reset the nodes by rank
-
-			// Filter out clades from raw data
-			const nonClades = data.filter((entry) => this.rankOrderFull.includes(entry.rank) && entry.rank !== "clade");
-			this.nonCladesRawData = nonClades;
-
-			// Store nodes by rank from full data (for calculation of maxTaxaLimit)
-			nonClades.forEach((node) => {
-				if (!this.allNodesByRank[node.rank]) {
-					this.allNodesByRank[node.rank] = [];
-				}
-				this.allNodesByRank[node.rank].push(node);
-			});
-		},
-		// Function for processing/parsing data
 		parseData(data, isFullGraph = false) {
 			const nodes = [];
 			const unclassifiedNodes = [];
@@ -129,118 +110,78 @@ export default {
 					name: d.name,
 					rank: d.rank,
 					trueRank: d.rank,
+					depth: d.depth,
 					proportion: parseFloat(d.proportion),
 					clade_reads: parseFloat(d.clade_reads),
 					taxon_reads: d.taxon_reads,
-					lineage: [...currentLineage, { id: d.taxon_id, name: d.name, rank: d.rank }], // Copy current lineage
+					lineage: null, 
 					type: "",
 				};
 
-				if (d.rank !== "no rank" && !this.isUnclassifiedTaxa(d)) {
-					// Declare type as 'classified'
-					node.type = "classified";
+				// Add node to its corresponding rank collection
+				if (!nodesByRank[d.rank]) {
+					nodesByRank[d.rank] = [];
+				}
+				nodesByRank[d.rank].push(node);
 
-					// Add classified node to its corresponding rank collection
-					if (!nodesByRank[d.rank]) {
-						nodesByRank[d.rank] = [];
-					}
-					nodesByRank[d.rank].push(node);
+				// Store lineage for each node
+				let lastLineageNode = currentLineage[currentLineage.length - 1];
+				if (lastLineageNode) {
+					let currentRank = node.depth;
+					let lastRank = lastLineageNode.depth;
+					
+					while (lastLineageNode && currentRank <= lastRank) {
+						const poppedNode = currentLineage.pop();
 
-					// Include all ranks for lineage tracking
-					if (node.rank !== "clade") {
-						let lastLineageNode = currentLineage[currentLineage.length - 1];
-						if (lastLineageNode) {
-							let currentRank = rankHierarchyFull[node.rank] ?? Infinity;
-							let lastRank = rankHierarchyFull[lastLineageNode.rank] ?? Infinity;
-							
-							while (lastLineageNode && currentRank <= lastRank) {
-								const poppedNode = currentLineage.pop();
-								lastLineageNode = currentLineage[currentLineage.length - 1];
-
-								if (!lastLineageNode) {
-									break; // Exit the loop if no more nodes in the lineage
-								}
-
-								currentRank = rankHierarchyFull[node.rank] ?? Infinity;
-								lastRank = rankHierarchyFull[lastLineageNode.rank] ?? Infinity;
-							}
+						lastLineageNode = currentLineage[currentLineage.length - 1];
+						if (!lastLineageNode) {
+							break; // Exit the loop if no more nodes in the lineage
 						}
-						// Append current node to currentLineage array + store lineage data
-						currentLineage.push(node);
-						node.lineage = [...currentLineage];
+
+						lastRank = lastLineageNode.depth; // Update lastRank for the next iteration comparison
 					}
 				}
+				// Append current node to currentLineage array + store lineage data
+				currentLineage.push(node);
+				node.lineage = [...currentLineage];
 			});
 
-			// Step 2: Filter top 10 nodes by clade_reads for each rank in rankOrder
-			// + Add filtered rank nodes & unclassified nodes to sankey diagram
-			this.rankOrder.forEach((rank) => {
+			// Step 2: Filter top 10 nodes by clade_reads for each rank
+			// + Add filtered rank nodes to sankey data
+			this.sankeyRankColumns.forEach((rank) => {
 				if (nodesByRank[rank]) {
-					// Store all nodes
-					allNodes.push(...nodesByRank[rank]);
-
-					// Sort nodes by clade_reads in descending order and select the top nodes based on slider value
-					const topNodes = nodesByRank[rank].sort((a, b) => b.clade_reads - a.clade_reads).slice(0, isFullGraph ? nodesByRank[rank].length : 10); // Don't apply taxaLimit when parsing fullGraphData
+					// Sort nodes by clade_reads in descending order and select the top nodes
+					const topNodes = nodesByRank[rank].sort((a, b) => b.clade_reads - a.clade_reads).slice(0, !isFullGraph ? nodesByRank[rank].length : 20); // Don't apply taxaLimit when parsing fullGraphData
 					nodes.push(...topNodes);
 				}
-			});
-
-			unclassifiedNodes.forEach((node) => {
-				// Store in all nodes
-				allNodes.push(node);
-
-				// Add unclassified nodes to sankey
-				nodes.push(node);
 			});
 
 			// Step 3: Create links based on filtered nodes' lineage
 			nodes.forEach((node) => {
 				// Find the previous node in the lineage that is in rankOrder
 				const lineage = node.lineage;
-				let previousNode = null;
 
-				for (let i = lineage.length - 2; i >= 0; i--) {
-					// Start from the second last item
-					if (this.rankOrder.includes(lineage[i].rank) && nodes.includes(lineage[i])) {
-						previousNode = lineage[i];
-						break;
-					}
-				}
-
-				if (previousNode) {
-					links.push({
+				let previousNode = lineage[lineage.length - 2];
+				while (previousNode) {
+					const linkEntry = {
+						sourceName: previousNode.name,
 						source: previousNode.id,
+						targetName: node.name,
 						target: node.id,
 						value: node.clade_reads,
-					});
-				}
-			});
+					};
 
-			// Store links for all nodes
-			allNodes.forEach((node) => {
-				// Find the previous node in the lineage that is in rankOrder
-				const lineage = node.lineage;
-				let previousNode = null;
-
-				for (let i = lineage.length - 2; i >= 0; i--) {
-					// Start from the second last item
-					if (this.rankOrder.includes(lineage[i].rank) && allNodes.includes(lineage[i])) {
-						previousNode = lineage[i];
+					if (this.sankeyRankColumns.includes(previousNode.rank)) {
+						links.push(linkEntry);
 						break;
 					}
-				}
 
-				if (previousNode) {
-					allLinks.push({
-						source: previousNode.id,
-						target: node.id,
-						value: node.clade_reads,
-					});
+					previousNode = lineage[lineage.indexOf(previousNode) - 1];
 				}
 			});
-
 			return { nodes, links };
 		},
+		
         // Main function for rendering Sankey
 		createSankey(items) {
 			const { nodes, links } = this.parseData(items);
