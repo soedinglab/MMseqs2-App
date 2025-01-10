@@ -203,10 +203,10 @@ export default {
 			const marginRight = 70;
 
 			const width = container.parentElement.clientWidth; // Dynamically get parent width
-			const height = 360 + marginBottom; // Fixed height for now
+			const height = 450;
 			
 			const svg = d3.select(container)
-			.attr("viewBox", `0 0 ${width} ${height}`)
+			.attr("viewBox", `0 0 ${width} ${height+marginBottom}`)
 			.attr("width", "100%")
 			.attr("height", height)
 			.classed("hide", false);
