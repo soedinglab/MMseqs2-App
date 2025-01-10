@@ -406,9 +406,11 @@ export default {
             }
 
             // Filter each group to only include items with taxId in filteredAlignments
-            return alignments
+            const filteredAligments = alignments
                 .map(group => group.filter(item => this.filteredHitsTaxIds.includes(Number(item.taxId))))
                 .filter(group => group.length > 0);
+
+            return filteredAligments
         },
     }
 };

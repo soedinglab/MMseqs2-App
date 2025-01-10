@@ -95,14 +95,10 @@ export default {
 			const links = [];
 			const allLinks = [];
 
-			const rankHierarchyFull = this.rankOrderFull.reduce((acc, rank, index) => {
-				acc[rank] = index;
-				return acc;
-			}, {});
 			let currentLineage = [];
 			const nodesByRank = {}; // Store nodes by rank for filtering top 10
 
-			// Step 1: Create nodes and save lineage data for ALL NODES (excluding clade ranks)
+			// Step 1: Create nodes and save lineage data for ALL NODES
 			data.forEach((d) => {
 				let node = {
 					id: d.taxon_id,
@@ -110,7 +106,7 @@ export default {
 					name: d.name,
 					rank: d.rank,
 					trueRank: d.rank,
-					depth: d.depth,
+					hierarchy: d.depth,
 					proportion: parseFloat(d.proportion),
 					clade_reads: parseFloat(d.clade_reads),
 					taxon_reads: d.taxon_reads,
@@ -119,26 +115,28 @@ export default {
 				};
 
 				// Add node to its corresponding rank collection
-				if (!nodesByRank[d.rank]) {
-					nodesByRank[d.rank] = [];
+				if (this.sankeyRankColumns.includes(d.rank)) {
+					if (!nodesByRank[d.rank]) {
+						nodesByRank[d.rank] = [];
+					}
+					nodesByRank[d.rank].push(node);
 				}
-				nodesByRank[d.rank].push(node);
-
+				
 				// Store lineage for each node
 				let lastLineageNode = currentLineage[currentLineage.length - 1];
 				if (lastLineageNode) {
-					let currentRank = node.depth;
-					let lastRank = lastLineageNode.depth;
+					let currentRank = node.hierarchy;
+					let lastRank = lastLineageNode.hierarchy;
 					
 					while (lastLineageNode && currentRank <= lastRank) {
 						const poppedNode = currentLineage.pop();
-
+						
 						lastLineageNode = currentLineage[currentLineage.length - 1];
 						if (!lastLineageNode) {
 							break; // Exit the loop if no more nodes in the lineage
 						}
-
-						lastRank = lastLineageNode.depth; // Update lastRank for the next iteration comparison
+						
+						lastRank = lastLineageNode.hierarchy; // Update lastRank for the next iteration comparison
 					}
 				}
 				// Append current node to currentLineage array + store lineage data
@@ -171,7 +169,7 @@ export default {
 						value: node.clade_reads,
 					};
 
-					if (this.sankeyRankColumns.includes(previousNode.rank)) {
+					if (this.sankeyRankColumns.includes(previousNode.rank) && nodes.includes(previousNode)) {
 						links.push(linkEntry);
 						break;
 					}
@@ -185,7 +183,7 @@ export default {
         // Main function for rendering Sankey
 		createSankey(items) {
 			const { nodes, links } = this.parseData(items);
-			
+
 			// // Check if nodes and links are not empty
 			if (!nodes.length || !links.length) {
 				console.warn("No data to create Sankey diagram");
@@ -228,7 +226,6 @@ export default {
 				nodes: nodes.map((d) => Object.assign({}, d)),
 				links: links.map((d) => Object.assign({}, d)),
 			});
-
 			const color = d3.scaleOrdinal().range(this.colors);
 			const unclassifiedLabelColor = "#696B7E";
 
@@ -325,7 +322,7 @@ export default {
 				.attr("stroke", (d) => (d.target.type === "unclassified" ? unclassifiedLabelColor : color(d.source.color))) // Set link color to source node color with reduced opacity
 				.attr("stroke-width", (d) => Math.max(1, d.width));
 			// .attr("clip-path", (d, i) => `url(#clip-path-${this.instanceId}-${i})`);
-
+		
 			// Create node group (node + labels) and add mouse events
 			const nodeGroup = svg
 				.append("g")
@@ -360,7 +357,7 @@ export default {
 								<hr style="margin: 8px 0; border: none; border-top: 1px solid #fff; opacity: 0.2;">
 								<div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem;">
 									<div style="font-weight: bold;">Clade Reads</div>
-									<div style="margin-left: 10px;">${d.value}</div>
+									<div style="margin-left: 10px;">${d.clade_reads}</div>
 								</div>
 							</div>
 						`);
@@ -455,7 +452,7 @@ export default {
 				.attr("dy", "0.35em")
 				.attr("text-anchor", "middle")
 				.style("font-size", "9px")
-				.text((d) => this.formatCladeReads(d.value))
+				.text((d) => this.formatCladeReads(d.clade_reads))
 				.style("cursor", "pointer");
 		},
 
@@ -484,28 +481,24 @@ export default {
 			return true;
 		},
 		findChildren(rawData, selectedNode) {
-			const ids = [];
+			const filteredTaxIds = [];
 			let startAdding = false;
-
-			const rankIndex = sankeyRankColumns.reduce((acc, rank, index) => {
-			acc[rank] = index;
-			return acc;
-			}, {});
+			const selectedNodeRank = selectedNode.hierarchy; 
 
 			for (let i = 0; i < rawData.length; i++) {
-				const d = rawData[i];
 
-				if (d.taxon_id === selectedNode.taxon_id) {
+				const comparingNode = rawData[i];
+				if (comparingNode.taxon_id === selectedNode.taxon_id) {
 					// Start adding child nodes from here
 					startAdding = true;
 					continue; // Move to the next iteration to skip the current node
 				}
 
 				if (startAdding) {
-					const selectedNodeRank = rankIndex[selectedNode.trueRank] ?? -1; 
-  					const comparingNodeRank = rankIndex[d.rank] ?? Infinity;
-					if (comparingNodeRank > selectedNodeRank) {
-						ids.push(d.taxon_id);
+  					const comparingNodeDepth = comparingNode.depth;
+					//   console.log(selectedNode.name, selectedNode.hierarchy, "|", comparingNode.name, comparingNodeDepth);
+					  if (comparingNodeDepth > selectedNodeRank) {
+						filteredTaxIds.push(comparingNode.taxon_id);
 					} else {
 						// Stop when we encounter a node at the same or higher rank
 						break;
@@ -513,7 +506,7 @@ export default {
 				}
 			}
 
-			return ids;
+			return filteredTaxIds;
 		},
 
 		// Throttle function (used for improving performance during node hover)
