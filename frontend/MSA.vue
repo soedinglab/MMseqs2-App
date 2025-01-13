@@ -162,6 +162,10 @@ import Tree from './Tree.vue';
 import { debounce, makePositionMap, tryFixName } from './Utilities.js'
 import MDI from './MDI.js';
 
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
 function makeMatchRatioMask(entries, ratio) {
     const columnLength = entries[0].aa.length;
     const mask = new Array(columnLength).fill(0);
@@ -242,7 +246,7 @@ export default {
             blockIndex: 0,
             alphabet: 'aa',
             colorScheme: 'lddt',
-            matchRatio: 0.0,
+            matchRatioInner: 0.0,
             structureViewerSelection: [],
             structureViewerReference: 0,
             isLoadingStructure: false,
@@ -269,6 +273,15 @@ export default {
         window.removeEventListener("scroll", this.handleScroll);
     },
     computed: {
+        matchRatio: {
+            get() {
+                return this.matchRatioInner;
+            },
+            set(value) {
+                this.matchRatioInner = clamp(value, 0.0, 1.0);
+                this.$emit('input', this.matchRatioInner);
+            }
+        },
         alnLen() {
             if (this.entries.length > 0) {
                 return this.mask.reduce((count, value) => count + value, 0);
