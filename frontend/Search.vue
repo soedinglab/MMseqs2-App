@@ -65,7 +65,6 @@
                 @update:all-databases="databases = $event"
                 :hideEmail="hideEmail"
                 ></databases>
-
             <v-radio-group v-model="mode">
                 <v-tooltip open-delay="300" top>
                     <template v-slot:activator="{ on }">
@@ -82,6 +81,20 @@
             </v-radio-group>
 
             <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete>
+
+            <v-tooltip open-delay="300" top>
+                <template v-slot:activator="{ on }">
+                    <v-checkbox v-model="iterativeSearch">
+                        <template slot="label">
+                            <label v-on="on">
+                            Iterative search
+                            <v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
+                        </label>
+                        </template>
+                    </v-checkbox>
+                </template>
+                <span>Improve sensitivity of search by performing an iterative search (--num-iterations 3).</span>
+            </v-tooltip>
 
             <v-tooltip v-if="!$ELECTRON && !hideEmail" open-delay="300" top>
                 <template v-slot:activator="{ on }">
@@ -116,10 +129,12 @@
                     <template v-else>
                         databases
                     </template>
+                    <template v-if="database.length > 0">
                     ({{
                         databases.filter(db => database.includes(db.path)).map(db => db.name).sort().join(", ")
                     }})
-                </template> with {{ $STRINGS.APP_NAME }} in <strong>{{ modes[mode] }}</strong> mode.
+                    </template>
+                </template> with {{ $STRINGS.APP_NAME }} in <template v-if="iterativeSearch">iterative</template> <strong>{{ modes[mode] }}</strong> mode.
                 <div v-if="errorMessage != ''" class="v-alert v-alert--outlined warning--text mt-2">
                     <span>{{ errorMessage }}</span>
                 </div>
@@ -176,6 +191,7 @@ export default {
             query: "",
             database: JSON.parse(storage.getItem('database') || '[]'),
             databases: JSON.parse(storage.getItem('databases') || '[]'),
+            iterativeSearch: JSON.parse(storage.getItem('iterativeSearch') || false),
             taxFilter: JSON.parse(storage.getItem('taxFilter') || 'null'),
             predictable: false,
             accessionLoading: false,
@@ -235,6 +251,9 @@ export default {
         databases(value) {
             storage.setItem('databases', JSON.stringify(value));
         },
+        iterativeSearch(value) {
+            storage.setItem('iterativeSearch', JSON.stringify(value));
+        },
         taxFilter(value) {
             storage.setItem('taxFilter', JSON.stringify(value));
         },
@@ -264,6 +283,9 @@ export default {
             }
             if (this.taxFilter) {
                 request.taxfilter = this.taxFilter.value;
+            }
+            if (this.iterativeSearch) {
+                request.iterativesearch = this.iterativeSearch;
             }
             try {
                 this.inSearch = true;

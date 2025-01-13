@@ -14,8 +14,8 @@ ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-arm64.tar.gz  .
 FROM scratch AS foldseek_amd64_downloader
 WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-avx2.tar.gz  .
-#ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse41.tar.gz .
-ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse2.tar.gz  .
+ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse41.tar.gz .
+# ONBUILD ADD https://mmseqs.com/foldseek/foldseek-linux-sse2.tar.gz  .
 ONBUILD ADD https://mmseqs.com/foldmason/foldmason-linux-avx2.tar.gz .
 ONBUILD ADD https://mmseqs.com/foldmason/foldmason-linux-sse2.tar.gz .
 
@@ -35,7 +35,7 @@ ADD backend .
 RUN GOOS=linux GOARCH=$TARGETARCH go build -o mmseqs-web
 
 ADD https://raw.githubusercontent.com/soedinglab/MMseqs2/678c82ac44f1178bf9a3d49bfab9d7eed3f17fbc/util/mmseqs_wrapper.sh binaries/mmseqs
-ADD https://raw.githubusercontent.com/steineggerlab/foldseek/0a68e16214a6db745cee783128ccba8546ea5dc9/util/foldseek_wrapper.sh binaries/foldseek
+ADD https://raw.githubusercontent.com/steineggerlab/foldseek/2a7d682841e78deb511ada92fa5caa1f8f183f14/util/foldseek_wrapper.sh binaries/foldseek
 
 COPY --from=downloader /opt/build/* .
 RUN mkdir binaries; \
