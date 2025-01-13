@@ -497,7 +497,7 @@ export default {
 				.text((d) => d.name)
 				.style("font-size", "9px")
 				.style("cursor", "pointer")
-				.style("font-weight", (d) => (this.currentSelectedNodeId === d.id ? "bold" : "normal"));
+				.style("font-weight", (d) =>  "normal");
 
 			// Add label above node (proportion/clade reads)
 			nodeGroup
