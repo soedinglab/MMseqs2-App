@@ -31,6 +31,7 @@ export default {
 	},
     data: () => ({
 		currentSelectedNode: null, // Track the currently selected node
+		unclassifiedNodes: [], // Store unclassified nodes
 		
 		// Data for graph rendering
 		sankeyRankColumns,
@@ -92,6 +93,7 @@ export default {
 			const nodesByRank = {}; // Store nodes by rank
 
 			let rootNode = null;
+			this.unclassifiedNodes = [];
 
 			// Step 1: Create nodes and save lineage data for ALL NODES
 			data.forEach((d) => {
@@ -120,6 +122,8 @@ export default {
 					nodesByRank["root"] = [node];
 					node.rank = "root";
 					rootNode = node;
+				} else if (['12908', '28384'].includes(node.taxon_id)) {
+					this.unclassifiedNodes.push(node);
 				}
 
 				// Store lineage for each node
@@ -180,29 +184,27 @@ export default {
 
 			// Step 4: Add an unclassified node under the root
 			if (rootNode) {
-				let totalClassifiedCladeReads = 0;
-				let totalClassifiedProportion = 0;
+				let totalUnclassifiedCladeReads = 0;
+				let totalUnclassifiedProportion = 0;
 
-				// Count total classified clade reads and proportion
-				links.filter((link) => link.source === rootNode.id).forEach((link) => {
-					const targetNode = nodes.find((node) => node.id === link.target);
-					totalClassifiedCladeReads = totalClassifiedCladeReads + targetNode.clade_reads;
-					totalClassifiedProportion = totalClassifiedProportion + targetNode.proportion;
+				// Add clade reads and proportion to the total
+				this.unclassifiedNodes.forEach((node) => {
+					totalUnclassifiedCladeReads = totalUnclassifiedCladeReads + node.clade_reads;
+					totalUnclassifiedProportion = totalUnclassifiedProportion + node.proportion;
 				});
 
-				const unclassifiedCladeReads = rootNode.clade_reads - totalClassifiedCladeReads;
-				if (unclassifiedCladeReads > 0) {
+				if (totalUnclassifiedCladeReads > 0) {
 					const unclassifiedNode = {
-						id: "12908",
-						taxon_id: "12908",
+						id: "",
+						taxon_id: "",
 						name: "Unclassified Sequences",
 						rank: this.sankeyRankColumns[this.sankeyRankColumns.indexOf(rootNode.rank)+1],
 						trueRank: "unclassified",
 						hierarchy: rootNode.hierarchy + 1,
-						proportion: rootNode.proportion - totalClassifiedProportion,
-						clade_reads: unclassifiedCladeReads,
+						proportion: totalUnclassifiedProportion,
+						clade_reads: totalUnclassifiedCladeReads,
 						taxon_reads: 0,
-						lineage: [rootNode], // Lineage starts from the root
+						lineage: [rootNode],
 						type: "unclassified",
 					};
 					unclassifiedNode.lineage.push(unclassifiedNode);
@@ -213,7 +215,7 @@ export default {
 						source: rootNode.id,
 						targetName: unclassifiedNode.name,
 						target: unclassifiedNode.id,
-						value: unclassifiedCladeReads,
+						value: totalUnclassifiedCladeReads,
 					});
 				}
 			}
@@ -392,10 +394,12 @@ export default {
 						.style("opacity", 1)
 						.html(`
 							<div style="padding-top: 4px; padding-bottom: 4px; padding-left: 8px; padding-right: 8px;">
-								<p style="font-size: 0.6rem; margin-bottom: 0px;">#${d.taxon_id}</p>
+								${d.type !== "unclassified" ? `<p style="font-size: 0.6rem; margin-bottom: 0px;">#${d.taxon_id}</p>` : ""}
 								<div style="display: flex; justify-content: space-between; align-items: center;">
 									<div style="font-weight: bold; font-size: 0.875rem;">${d.name}</div>
-									<span style="background-color: rgba(255, 167, 38, 0.25); color: #ffa726; font-weight: bold; padding: 4px 8px; border-radius: 12px; font-size: 0.875rem; margin-left: 10px;">${d.trueRank}</span>
+									${d.type !== "unclassified" ? `<span style="background-color: rgba(255, 167, 38, 0.25); color: #ffa726; 
+																				font-weight: bold; padding: 4px 8px; border-radius: 12px; 
+																				font-size: 0.875rem; margin-left: 10px;">${d.trueRank}</span>` : ''}
 								</div>
 								<hr style="margin: 8px 0; border: none; border-top: 1px solid #fff; opacity: 0.2;">
 								<div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem;">
@@ -449,8 +453,18 @@ export default {
 						return childrenIds;
 					};
 
-					// Collect all IDs
-					const allNodeIds = collectIds(d);
+					// Collect all taxIds for children nodes
+					let allNodeIds = [];
+					if (d.type === "unclassified") {
+						// Handle unclassified nodes
+						allNodeIds.push('0');
+						this.unclassifiedNodes.forEach(node => {
+							allNodeIds.push(...collectIds(node));
+						});
+					} else {
+						// Collect IDs for other node types
+						allNodeIds = collectIds(d);
+					}
 
 					// Update the currently selected node
         			this.currentSelectedNode = d;
