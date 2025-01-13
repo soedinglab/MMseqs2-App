@@ -7,7 +7,7 @@
 <script>
 import * as d3 from "d3";
 import { sankey, sankeyLinkHorizontal, sankeyJustify } from "d3-sankey";
-import { rankOrderFull, sankeyRankColumns } from "./rankUtils";
+import { sankeyRankColumns } from "./rankUtils";
 
 export default {
 	name: "SankeyDiagram",
@@ -33,11 +33,7 @@ export default {
 		currentSelectedNode: null, // Track the currently selected node
 		
 		// Data for graph rendering
-		nonCladesRawData: null, // rawData with just clades filtered out
-		allNodesByRank: {},
 		sankeyRankColumns,
-		rankOrderFull, // Imported from rankUtils
-		rankOrder: [...sankeyRankColumns, "no rank"],
 		colors: [
 			"#57291F",
 			"#C0413B",
@@ -90,13 +86,12 @@ export default {
 		// Function for processing/parsing data
 		parseData(data, isFullGraph = false) {
 			const nodes = [];
-			const unclassifiedNodes = [];
-			const allNodes = [];
 			const links = [];
-			const allLinks = [];
 
-			let currentLineage = [];
-			const nodesByRank = {}; // Store nodes by rank for filtering top 10
+			let currentLineage = []; // Track the current lineage
+			const nodesByRank = {}; // Store nodes by rank
+
+			let rootNode = null;
 
 			// Step 1: Create nodes and save lineage data for ALL NODES
 			data.forEach((d) => {
@@ -111,17 +106,22 @@ export default {
 					clade_reads: parseFloat(d.clade_reads),
 					taxon_reads: d.taxon_reads,
 					lineage: null, 
-					type: "",
+					type: "", 
 				};
 
 				// Add node to its corresponding rank collection
+				// + Add root node to the "root" collection
 				if (this.sankeyRankColumns.includes(d.rank)) {
 					if (!nodesByRank[d.rank]) {
 						nodesByRank[d.rank] = [];
 					}
 					nodesByRank[d.rank].push(node);
+				} else if (this.isRootNode(node)) {
+					nodesByRank["root"] = [node];
+					node.rank = "root";
+					rootNode = node;
 				}
-				
+
 				// Store lineage for each node
 				let lastLineageNode = currentLineage[currentLineage.length - 1];
 				if (lastLineageNode) {
@@ -129,7 +129,7 @@ export default {
 					let lastRank = lastLineageNode.hierarchy;
 					
 					while (lastLineageNode && currentRank <= lastRank) {
-						const poppedNode = currentLineage.pop();
+						currentLineage.pop();
 						
 						lastLineageNode = currentLineage[currentLineage.length - 1];
 						if (!lastLineageNode) {
@@ -149,14 +149,14 @@ export default {
 			this.sankeyRankColumns.forEach((rank) => {
 				if (nodesByRank[rank]) {
 					// Sort nodes by clade_reads in descending order and select the top nodes
-					const topNodes = nodesByRank[rank].sort((a, b) => b.clade_reads - a.clade_reads).slice(0, isFullGraph ? nodesByRank[rank].length : 10); // Don't apply taxaLimit when parsing fullGraphData
+					const topNodes = nodesByRank[rank].sort((a, b) => b.clade_reads - a.clade_reads).slice(0, isFullGraph ? nodesByRank[rank].length : 10);
 					nodes.push(...topNodes);
 				}
 			});
 
 			// Step 3: Create links based on filtered nodes' lineage
 			nodes.forEach((node) => {
-				// Find the previous node in the lineage that is in rankOrder
+				// Find the previous node in the lineage that is in sankeyRankColumns
 				const lineage = node.lineage;
 
 				let previousNode = lineage[lineage.length - 2];
@@ -177,9 +177,53 @@ export default {
 					previousNode = lineage[lineage.indexOf(previousNode) - 1];
 				}
 			});
+
+			// Step 4: Add an unclassified node under the root
+			if (rootNode) {
+				let totalClassifiedCladeReads = 0;
+				let totalClassifiedProportion = 0;
+
+				// Count total classified clade reads and proportion
+				links.filter((link) => link.source === rootNode.id).forEach((link) => {
+					const targetNode = nodes.find((node) => node.id === link.target);
+					totalClassifiedCladeReads = totalClassifiedCladeReads + targetNode.clade_reads;
+					totalClassifiedProportion = totalClassifiedProportion + targetNode.proportion;
+				});
+
+				const unclassifiedCladeReads = rootNode.clade_reads - totalClassifiedCladeReads;
+				if (unclassifiedCladeReads > 0) {
+					const unclassifiedNode = {
+						id: "12908",
+						taxon_id: "12908",
+						name: "Unclassified Sequences",
+						rank: this.sankeyRankColumns[this.sankeyRankColumns.indexOf(rootNode.rank)+1],
+						trueRank: "unclassified",
+						hierarchy: rootNode.hierarchy + 1,
+						proportion: rootNode.proportion - totalClassifiedProportion,
+						clade_reads: unclassifiedCladeReads,
+						taxon_reads: 0,
+						lineage: [rootNode], // Lineage starts from the root
+						type: "unclassified",
+					};
+					unclassifiedNode.lineage.push(unclassifiedNode);
+					nodes.push(unclassifiedNode);
+
+					links.push({
+						sourceName: rootNode.name,
+						source: rootNode.id,
+						targetName: unclassifiedNode.name,
+						target: unclassifiedNode.id,
+						value: unclassifiedCladeReads,
+					});
+				}
+			}
+
 			return { nodes, links };
 		},
-
+		isRootNode(node) {
+			// Check if the node is the root node
+			return parseInt(node.taxon_id) === 1;
+		},
         // Main function for rendering Sankey
 		createSankey(items) {
 			const { nodes, links } = this.parseData(items);
@@ -230,8 +274,8 @@ export default {
 			const unclassifiedLabelColor = "#696B7E";
 
 			// Manually adjust nodes position to align by rank
-			const columnWidth = (width - marginRight) / this.rankOrder.length;
-			const columnMap = this.rankOrder.reduce((acc, rank, index) => {
+			const columnWidth = (width - marginRight) / this.sankeyRankColumns.length;
+			const columnMap = this.sankeyRankColumns.reduce((acc, rank, index) => {
 				const leftMargin = 10;
 				acc[rank] = index * columnWidth + leftMargin;
 				return acc;
@@ -252,12 +296,11 @@ export default {
 			sankeyGenerator.update(graph);
 
 			// Add rank column labels
-			const rankLabels = ["D", "K", "P", "C", "O", "F", "G", "S"];
+			const rankLabels = [" ", "D", "K", "P", "C", "O", "F", "G", "S"];
 			svg
 				.append("g")
 				.selectAll("text")
-				// .data(rankLabels)
-				.data(this.rankOrder)
+				.data(this.sankeyRankColumns)
 				.enter()
 				.append("text")
 				.attr("x", (rank) => columnMap[rank] + sankeyGenerator.nodeWidth() / 2)
@@ -319,7 +362,7 @@ export default {
 				.enter()
 				.append("path")
 				.attr("d", sankeyLinkHorizontal())
-				.attr("stroke", (d) => (d.target.type === "unclassified" ? unclassifiedLabelColor : color(d.source.color))) // Set link color to source node color with reduced opacity
+				.attr("stroke", (d) => (d.target.type === "unclassified" ? unclassifiedLabelColor : color(d.source.color)))
 				.attr("stroke-width", (d) => Math.max(1, d.width));
 			// .attr("clip-path", (d, i) => `url(#clip-path-${this.instanceId}-${i})`);
 		
@@ -352,7 +395,7 @@ export default {
 								<p style="font-size: 0.6rem; margin-bottom: 0px;">#${d.taxon_id}</p>
 								<div style="display: flex; justify-content: space-between; align-items: center;">
 									<div style="font-weight: bold; font-size: 0.875rem;">${d.name}</div>
-									<span style="background-color: rgba(255, 167, 38, 0.25); color: #ffa726; font-weight: bold; padding: 4px 8px; border-radius: 12px; font-size: 0.875rem; margin-left: 10px;">${d.rank}</span>
+									<span style="background-color: rgba(255, 167, 38, 0.25); color: #ffa726; font-weight: bold; padding: 4px 8px; border-radius: 12px; font-size: 0.875rem; margin-left: 10px;">${d.trueRank}</span>
 								</div>
 								<hr style="margin: 8px 0; border: none; border-top: 1px solid #fff; opacity: 0.2;">
 								<div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem;">
@@ -423,7 +466,7 @@ export default {
 				.attr("width", (d) => d.x1 - d.x0)
 				.attr("height", (d) => Math.max(1, d.y1 - d.y0))
 				.attr("fill", (d) => (d.type === "unclassified" ? unclassifiedLabelColor : d.color))
-				.attr("class", (d) => "node taxid-" + d.id) // Apply the CSS class for cursor
+				.attr("class", (d) => "node taxid-" + d.id)
 				.style("cursor", "pointer")
 				.style("stroke", (d) => this.currentSelectedNodeId === d.id ? "black" : null)
 				.style("stroke-width", (d) => this.currentSelectedNodeId === d.id ? "2px" : "0px");
@@ -462,24 +505,6 @@ export default {
 			}
 			return value.toString();
 		},
-
-		isUnclassifiedTaxa(d) {
-			const name = d.name;
-
-			// Check if the name starts with "unclassified"
-			if (!name.includes("unclassified")) {
-				return false;
-			}
-
-			// Split the name into words
-			const words = name.trim().split(/\s+/);
-
-			// Check if there are at least two words
-			if (words.length < 2) {
-				return false;
-			}
-			return true;
-		},
 		findChildren(rawData, selectedNode) {
 			const filteredTaxIds = [];
 			let startAdding = false;
@@ -496,7 +521,6 @@ export default {
 
 				if (startAdding) {
   					const comparingNodeDepth = comparingNode.depth;
-					//   console.log(selectedNode.name, selectedNode.hierarchy, "|", comparingNode.name, comparingNodeDepth);
 					  if (comparingNodeDepth > selectedNodeRank) {
 						filteredTaxIds.push(comparingNode.taxon_id);
 					} else {
