@@ -50,6 +50,7 @@
                             :entries="entries"
                             :selection="structureViewerSelection"
                             :reference="structureViewerReference"
+                            :mask="mask"
                             @loadingChange="handleStructureLoadingChange"
                         />
                     </div>

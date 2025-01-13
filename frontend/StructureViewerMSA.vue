@@ -26,7 +26,7 @@ import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerMixin from './StructureViewerMixin.vue';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import { mockPDB, makeSubPDB, makeMatrix4, interpolateMatrices, animateMatrix  } from './Utilities.js';
-import { download, PdbWriter, Matrix4, Quaternion, Vector3, concatStructures } from 'ngl';
+import { download, PdbWriter, Matrix4, Quaternion, Vector3, concatStructures, ColormakerRegistry } from 'ngl';
 import { pulchra } from 'pulchra-wasm';
 
 // Mock alignment object from two (MSA-derived) aligned strings
@@ -85,6 +85,21 @@ function mockAlignment(one, two) {
     return res;
 }
 
+
+function getMaskedPositions(seq, mask) {
+    const result = [];
+    let resno = 0;
+    for (let i = 0; i < seq.length; i++) {
+        if (seq[i] !== '-') {
+            if (mask[i] === 0) {
+                result.push(resno);
+            }
+            resno++;
+        }
+    }
+    return result;
+}
+
 export default {
     name: "StructureViewerMSA",
     components: {
@@ -96,22 +111,24 @@ export default {
     ],
     data: () => ({
         structures: [],  // { name, aa, 3di (ss), ca, NGL structure, alignment, map }
-        curReferenceIndex: -1,  // index in ALL sequences, not just visualised subset - used as key
+        curReferenceIndex: -1,  // index in ALL sequences, not just visualised subset - used as key,
+        schemeId: null, // NGL colorscheme
     }),
     props: {
         entries: { type: Array, required: true },
         selection: { type: Array, required: true },
+        mask: { type: Array, required: true },
         reference: { type: Number, required: true },
         bgColorLight: { type: String, default: "white" },
         bgColorDark: { type: String, default: "#1E1E1E" },
         representationStyle: { type: String, default: "cartoon" },
         referenceStyleParameters: {
             type: Object,
-            default: () => ({ color: '#1E88E5', opacity: 1.0 })
+            default: () => ({ color: 0x1E88E5, opacity: 1.0 })
         },
         regularStyleParameters: {
             type: Object,
-            default: () => ({ color: '#FFC107', opacity: 0.5, side: 'front' })
+            default: () => ({ color: 0xFFC107, opacity: 0.5, side: 'front' })
         },
     },
     methods: {
@@ -242,6 +259,25 @@ ENDMDL
                 return;
             }
 
+            // custom color scheme to hightlight gappy columns and reference/targets
+            if (this.schemeId == null) {
+                let that = this;
+                this.schemeId = ColormakerRegistry.addScheme(function(params) {
+                    let index = parseInt(params.structure.name.replace("key-", ""));
+                    let color = that.regularStyleParameters.color;
+                    if (index === that.reference) {
+                        color = that.referenceStyleParameters.color;
+                    }
+                    let residueMask = getMaskedPositions(that.entries[index].aa, that.mask);
+                    this.atomColor = (atom) => {
+                        if (residueMask.includes(atom.residueIndex)) {
+                            return 0x666666;
+                        }
+                        return color;
+                    };
+                });
+            }
+
             // Selections - structures to update/remove/add
             const newSet = new Set(newValues);
             const oldSet = new Set(oldValues);
@@ -283,11 +319,11 @@ ENDMDL
                 let ref;
                 if (isNewReference) {
                     ref = await this.addStructureToStage(this.reference, data.aa, data.ca);
-                    ref.addRepresentation(this.representationStyle, this.referenceStyleParameters);
+                    ref.addRepresentation(this.representationStyle, {...this.referenceStyleParameters, color: this.schemeId });
                 } else {
                     ref = this.getComponentByIndex(this.reference);
                     ref.reprList[0].setVisibility(false);
-                    ref.reprList[0].setParameters(this.referenceStyleParameters)
+                    ref.reprList[0].setParameters({...this.referenceStyleParameters, color: this.schemeId })
                     ref.setTransform(new Matrix4());
                     ref.reprList[0].setVisibility(true);
                 }
@@ -300,7 +336,7 @@ ENDMDL
                     const structure = await this.addStructureToStage(idx, data.aa, data.ca);
                     const { matrix } = await this.tmAlignToReference(idx);
                     structure.setTransform(matrix);
-                    structure.addRepresentation(this.representationStyle, this.regularStyleParameters);
+                    structure.addRepresentation(this.representationStyle, {...this.regularStyleParameters, color: this.schemeId });
                 })
             );
 
@@ -328,6 +364,11 @@ ENDMDL
                 })
             );
         },
+        async updateMask() {
+            this.stage.eachRepresentation((repr) => {
+                repr.build();
+            });
+        }
     },
     watch: {
         '$vuetify.theme.dark': function() {
@@ -336,6 +377,9 @@ ENDMDL
         selection: function(newV, oldV) {
             this.updateEntries(newV, oldV);
         },
+        mask: function(newM, oldM) {
+            this.updateMask();
+        }
     },
     computed: {
         bgColor() {
