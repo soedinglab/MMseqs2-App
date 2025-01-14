@@ -184,24 +184,26 @@ export default {
 
 			// Step 4: Add an unclassified node under the root
 			if (rootNode) {
-				let totalUnclassifiedCladeReads = 0;
-				let totalUnclassifiedProportion = 0;
+				let totalClassifiedCladeReads = 0;
+				let totalClassifiedProportion = 0;
 
-				// Add clade reads and proportion to the total
-				this.unclassifiedNodes.forEach((node) => {
-					totalUnclassifiedCladeReads = totalUnclassifiedCladeReads + node.clade_reads;
-					totalUnclassifiedProportion = totalUnclassifiedProportion + node.proportion;
+				// Count total classified clade reads and proportion
+				links.filter((link) => link.source === rootNode.id).forEach((link) => {
+					const targetNode = nodes.find((node) => node.id === link.target);
+					totalClassifiedCladeReads = totalClassifiedCladeReads + targetNode.clade_reads;
+					totalClassifiedProportion = totalClassifiedProportion + targetNode.proportion;
 				});
 
+				const totalUnclassifiedCladeReads = rootNode.clade_reads - totalClassifiedCladeReads;
 				if (totalUnclassifiedCladeReads > 0) {
 					const unclassifiedNode = {
 						id: "",
 						taxon_id: "",
-						name: "Unclassified Sequences",
+						name: "Unclassified sequences",
 						rank: this.sankeyRankColumns[this.sankeyRankColumns.indexOf(rootNode.rank)+1],
 						trueRank: "unclassified",
 						hierarchy: rootNode.hierarchy + 1,
-						proportion: totalUnclassifiedProportion,
+						proportion: rootNode.proportion - totalClassifiedProportion,
 						clade_reads: totalUnclassifiedCladeReads,
 						taxon_reads: 0,
 						lineage: [rootNode],
