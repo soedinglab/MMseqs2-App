@@ -122,7 +122,7 @@ export default {
 					nodesByRank["root"] = [node];
 					node.rank = "root";
 					rootNode = node;
-				} else if (['12908', '28384'].includes(node.taxon_id)) {
+				} else if ((node.id === '12908' && node.name === 'unclassified sequences') || (node.id === '28384' && node.name === 'other sequences')) {
 					this.unclassifiedNodes.push(node);
 				}
 
