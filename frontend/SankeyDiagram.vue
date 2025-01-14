@@ -31,6 +31,7 @@ export default {
 	},
     data: () => ({
 		currentSelectedNode: null, // Track the currently selected node
+		unclassifiedNodes: [], // Store unclassified nodes
 		
 		// Data for graph rendering
 		sankeyRankColumns,
@@ -92,6 +93,7 @@ export default {
 			const nodesByRank = {}; // Store nodes by rank
 
 			let rootNode = null;
+			this.unclassifiedNodes = [];
 
 			// Step 1: Create nodes and save lineage data for ALL NODES
 			data.forEach((d) => {
@@ -120,6 +122,8 @@ export default {
 					nodesByRank["root"] = [node];
 					node.rank = "root";
 					rootNode = node;
+				} else if ((node.id === '12908' && node.name === 'unclassified sequences') || (node.id === '28384' && node.name === 'other sequences')) {
+					this.unclassifiedNodes.push(node);
 				}
 
 				// Store lineage for each node
@@ -190,19 +194,19 @@ export default {
 					totalClassifiedProportion = totalClassifiedProportion + targetNode.proportion;
 				});
 
-				const unclassifiedCladeReads = rootNode.clade_reads - totalClassifiedCladeReads;
-				if (unclassifiedCladeReads > 0) {
+				const totalUnclassifiedCladeReads = rootNode.clade_reads - totalClassifiedCladeReads;
+				if (totalUnclassifiedCladeReads > 0) {
 					const unclassifiedNode = {
-						id: "12908",
-						taxon_id: "12908",
-						name: "Unclassified Sequences",
+						id: "",
+						taxon_id: "",
+						name: "Unclassified sequences",
 						rank: this.sankeyRankColumns[this.sankeyRankColumns.indexOf(rootNode.rank)+1],
 						trueRank: "unclassified",
 						hierarchy: rootNode.hierarchy + 1,
 						proportion: rootNode.proportion - totalClassifiedProportion,
-						clade_reads: unclassifiedCladeReads,
+						clade_reads: totalUnclassifiedCladeReads,
 						taxon_reads: 0,
-						lineage: [rootNode], // Lineage starts from the root
+						lineage: [rootNode],
 						type: "unclassified",
 					};
 					unclassifiedNode.lineage.push(unclassifiedNode);
@@ -213,7 +217,7 @@ export default {
 						source: rootNode.id,
 						targetName: unclassifiedNode.name,
 						target: unclassifiedNode.id,
-						value: unclassifiedCladeReads,
+						value: totalUnclassifiedCladeReads,
 					});
 				}
 			}
@@ -392,10 +396,12 @@ export default {
 						.style("opacity", 1)
 						.html(`
 							<div style="padding-top: 4px; padding-bottom: 4px; padding-left: 8px; padding-right: 8px;">
-								<p style="font-size: 0.6rem; margin-bottom: 0px;">#${d.taxon_id}</p>
+								${d.type !== "unclassified" ? `<p style="font-size: 0.6rem; margin-bottom: 0px;">#${d.taxon_id}</p>` : ""}
 								<div style="display: flex; justify-content: space-between; align-items: center;">
 									<div style="font-weight: bold; font-size: 0.875rem;">${d.name}</div>
-									<span style="background-color: rgba(255, 167, 38, 0.25); color: #ffa726; font-weight: bold; padding: 4px 8px; border-radius: 12px; font-size: 0.875rem; margin-left: 10px;">${d.trueRank}</span>
+									${d.type !== "unclassified" ? `<span style="background-color: rgba(255, 167, 38, 0.25); color: #ffa726; 
+																				font-weight: bold; padding: 4px 8px; border-radius: 12px; 
+																				font-size: 0.875rem; margin-left: 10px;">${d.trueRank}</span>` : ''}
 								</div>
 								<hr style="margin: 8px 0; border: none; border-top: 1px solid #fff; opacity: 0.2;">
 								<div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem;">
@@ -449,8 +455,18 @@ export default {
 						return childrenIds;
 					};
 
-					// Collect all IDs
-					const allNodeIds = collectIds(d);
+					// Collect all taxIds for children nodes
+					let allNodeIds = [];
+					if (d.type === "unclassified") {
+						// Handle unclassified nodes
+						allNodeIds.push('0');
+						this.unclassifiedNodes.forEach(node => {
+							allNodeIds.push(...collectIds(node));
+						});
+					} else {
+						// Collect IDs for other node types
+						allNodeIds = collectIds(d);
+					}
 
 					// Update the currently selected node
         			this.currentSelectedNode = d;
@@ -483,7 +499,7 @@ export default {
 				.text((d) => d.name)
 				.style("font-size", "9px")
 				.style("cursor", "pointer")
-				.style("font-weight", (d) => (this.currentSelectedNodeId === d.id ? "bold" : "normal"));
+				.style("font-weight", (d) =>  "normal");
 
 			// Add label above node (proportion/clade reads)
 			nodeGroup
