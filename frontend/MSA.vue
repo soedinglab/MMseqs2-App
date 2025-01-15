@@ -52,6 +52,7 @@
                             :reference="structureViewerReference"
                             :mask="mask"
                             @loadingChange="handleStructureLoadingChange"
+                            @columnSelected="selectedColumn = $event"
                         />
                     </div>
                     <v-card-text v-else>
@@ -144,6 +145,8 @@
                 :selectedStructures="structureViewerSelection"
                 :referenceStructure="structureViewerReference"
                 :matchRatio="parseFloat(matchRatio)"
+                :mask="mask"
+                :highlightColumn="selectedColumn"
                 @cssGradients="handleCSSGradient"
                 @lineLen="handleLineLen"
                 @newStructureSelection="handleNewStructureViewerSelection"
@@ -253,6 +256,7 @@ export default {
             isLoadingStructure: false,
             numMinimapGradients: 30,
             settingsPanelOpen: true,
+            selectedColumn: -1,
         }
     },    
     watch: {

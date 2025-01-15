@@ -15,7 +15,7 @@
             disableTargetButton
             style="position: absolute; bottom: 8px;"
         />
-        <div class="structure-viewer" ref="viewport" />
+        <div class="structure-viewer" ref="viewport"></div>
     </div>
 </div>
 </template>
@@ -100,6 +100,29 @@ function getMaskedPositions(seq, mask) {
     return result;
 }
 
+function getAlignmentPos(seq, residueIndex) {
+    let resno = -1;
+    for (let i = 0; i < seq.length; i++) {
+        if (seq[i] !== '-') {
+            resno++;
+        }
+        if (resno == residueIndex) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+function getResidueIndex(seq, alignmentPos) {
+    let residueIndex = -1;
+    for (let i = 0; i <= alignmentPos && i < seq.length; i++) {
+        if (seq[i] !== '-') {
+            residueIndex++;
+        }
+    }
+    return residueIndex;
+}
+
 export default {
     name: "StructureViewerMSA",
     components: {
@@ -112,11 +135,12 @@ export default {
     data: () => ({
         structures: [],  // { name, aa, 3di (ss), ca, NGL structure, alignment, map }
         curReferenceIndex: -1,  // index in ALL sequences, not just visualised subset - used as key,
-        schemeId: null, // NGL colorscheme
+        schemeId: null, // NGL colorscheme,
+        selectedColumn: -1,
     }),
     props: {
         entries: { type: Array, required: true },
-        selection: { type: Array, required: true },
+        selection: { type: Array, required: true, default: [0, 1] },
         mask: { type: Array, required: true },
         reference: { type: Number, required: true },
         bgColorLight: { type: String, default: "white" },
@@ -130,6 +154,31 @@ export default {
             type: Object,
             default: () => ({ color: 0xFFC107, opacity: 0.5, side: 'front' })
         },
+    },
+    mounted() {
+        this.updateEntries(this.selection, []);
+        this.stage.signals.clicked.add((pickingProxy) => {
+            if (!pickingProxy) {
+                this.selectedColumn = -1;
+                this.updateMask()
+                this.$emit('columnSelected', -1);
+                return;
+            }
+
+            let atom = pickingProxy.atom;
+            if (!atom) {
+                this.selectedColumn = -1;
+                this.updateMask()
+                this.$emit('columnSelected', -1);
+                return;
+            }
+            let index = parseInt(atom.structure.name.replace("key-", ""));
+            let alnPos = getAlignmentPos(this.entries[index].aa, atom.residueIndex);
+            // console.log(atom.residueIndex, alnPos);
+            this.selectedColumn = alnPos;
+            this.$emit('columnSelected', alnPos);
+            this.updateMask()
+        });
     },
     methods: {
         resetView() {
@@ -269,7 +318,11 @@ ENDMDL
                         color = that.referenceStyleParameters.color;
                     }
                     let residueMask = getMaskedPositions(that.entries[index].aa, that.mask);
+                    let highlightedIndex = getResidueIndex(that.entries[index].aa, that.selectedColumn);
                     this.atomColor = (atom) => {
+                        if (highlightedIndex == atom.residueIndex) {
+                            return 0x11FFEE;
+                        }
                         if (residueMask.includes(atom.residueIndex)) {
                             return 0x666666;
                         }
@@ -363,12 +416,13 @@ ENDMDL
                     representation.setVisibility(true);
                 })
             );
+            this.updateMask();
         },
         async updateMask() {
             this.stage.eachRepresentation((repr) => {
                 repr.build();
             });
-        }
+        },
     },
     watch: {
         '$vuetify.theme.dark': function() {
@@ -388,6 +442,20 @@ ENDMDL
         ambientIntensity() {
             this.$vuetify.theme.dark ? 0.4 : 0.2;
         },
+        stageParameters: function() {
+            return {
+                log: 'none',
+                backgroundColor: this.bgColor,
+                transparent: true,
+                ambientIntensity: this.ambientIntensity,
+                clipNear: -1000,
+                clipFar: 1000,
+                fogFar: 1000,
+                fogNear: -1000,
+                quality: 'high',
+                tooltip: false,
+            }
+        }
     },
 }
 </script>
