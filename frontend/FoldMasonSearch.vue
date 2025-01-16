@@ -100,8 +100,8 @@
                     <span><strong>Summary</strong></span><br>
                     Align <strong>{{ queries.length }}</strong> structures with FoldMason
                     <!-- </template> with {{ $STRINGS.APP_NAME }} in <strong>{{ modes[mode.replace('complex-', '')] }}</strong> mode. -->
-                    <div v-if="errorMessage != ''" class="v-alert v-alert--outlined warning--text mt-2">
-                        <span>{{ errorMessage }}</span>
+                    <div v-if="errorMessage.type" :class="['v-alert', 'v-alert--outlined', errorMessage.type + '--text', 'mt-2' ]">
+                        <span>{{ errorMessage.message }}</span>
                     </div>
                 </div>
                 </div>
@@ -154,7 +154,7 @@ export default {
     data() {
         return {
             inSearch: false,
-            errorMessage: "",
+            errorMessage: { type: null, message: "" },
             queries: [],   // [ { name: "file", text: "ATOM..." }, { name: "file", text: "ATOM..." } ...]
             params: structuredClone(defaultParams),
             inFileDrag: false
@@ -164,25 +164,36 @@ export default {
     },
     computed: {
         alignDisabled() {
-            return this.queries.length <= 1 || this.inSearch;
+            return this.queries.length <= 1 || this.inSearch || this.queries.length < 5000;
         },
         fileNameSet() {
             return new Set(this.queries.map(f => f.name)); 
         }
     },
     watch: {
+        'queries': function() {
+            let count = this.queries.length;
+            if (count >= 5000) {
+                this.errorMessage = { type: "error", message: "Please use a local Foldmason installation to align more than 5000 structures." };
+            } else if (count >= 1000) {
+                this.errorMessage = { type: "warning", message: "Foldmason result visualization might not work as expected with more than 1000 structures." };
+            } else {
+                this.errorMessage = { type: null, message: "" };
+            }
+        }
     },
     methods: {
         async handleLoadExample() {
             let response = null;
             try {
+                this.errorMessage = { type: null, message: "" };
                 const url = "https://search.foldseek.com/dl/foldmason_example.json";
                 response = await this.$axios.get(url);
                 if (!response) {
                     throw new Error(`Error fetching example: ${response.status}`);
                 }
             } catch (error) {
-                this.errorMessage = "Error loading example";
+                this.errorMessage = { type: "error", message: "Error loading example" };
                 throw error;
             }
             this.$root.userData = response.data;
@@ -202,7 +213,7 @@ export default {
                 const response = await this.$axios.post("api/ticket/foldmason", params, {
                     transformRequest: AxiosCompressRequest(this.$axios)
                 });
-                this.errorMessage = "";
+                this.errorMessage = { type: null, message: "" };
                 switch (response.data.status) {
                     case "PENDING":
                     case "RUNNING":
@@ -218,17 +229,17 @@ export default {
                         });
                         break;
                     case "RATELIMIT":
-                        this.errorMessage = "You have reached the rate limit. Please try again later.";
+                        this.errorMessage = { type: "error", message: "You have reached the rate limit. Please try again later." };
                         break;
                     case "MAINTENANCE":
-                        this.errorMessage = "The server is currently under maintenance. Please try again later.";
+                        this.errorMessage = { type: "error", message: "The server is currently under maintenance. Please try again later." };
                         break;
                     default:
-                        this.errorMessage = "Error loading search result";
+                        this.errorMessage = { type: "error", message: "Error loading search result." };
                         break;
                 }
             } catch (error) {
-                this.errorMessage = "Error loading search result";
+                this.errorMessage = { type: "error", message: "Error loading search result."};
                 throw error;
             } finally {
                 this.inSearch = false;
