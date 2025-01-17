@@ -164,7 +164,7 @@ export default {
     },
     computed: {
         alignDisabled() {
-            return this.queries.length <= 1 || this.inSearch || this.queries.length < 5000;
+            return this.queries.length <= 1 || this.inSearch || this.queries.length >= 5000;
         },
         fileNameSet() {
             return new Set(this.queries.map(f => f.name)); 
