@@ -8,7 +8,7 @@
                         <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
                         <small class="ticket">{{ ticket }}</small>
                     </template>
-                    <template v-else>
+                    <template v-else-if="hits">
                         <span  class="hidden-sm-and-down">Results:&nbsp;</span>
                         <small class="ticket">{{ hits.query.header }}</small>
                     </template>
