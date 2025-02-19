@@ -57,7 +57,7 @@
                 <template slot="content" v-if="resultState == 'RESULT' && hits && hits.results">
                     <!-- hack to get a menu that can be used from outside the list -->
                     <!-- we don't want to make potentially thousands of menus -->
-                    <v-menu offset-y ref="menuwrapper" absolute>
+                    <v-menu offset-y ref="menuwrapper" absolute style="z-index: 99999 !important;">
                         <template v-slot:activator="{ on: activation, attrs: attrs }">
                             <div style="display: none">{{ menuActivator = activation }}</div>
                         </template>
