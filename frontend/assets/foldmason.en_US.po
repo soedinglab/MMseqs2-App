@@ -22,30 +22,23 @@ msgstr ""
 
 msgid "CITATION"
 msgstr ""
-"van Kempen M, Kim S, Tumescheit C, Mirdita M, Lee J, Gilchrist CLM, Söding "
-"J, and Steinegger M. <a href=\"https://www.nature.com/articles/"
-"s41587-023-01773-0\" target=\"_blank\" rel=\"noopener\">"
-"Fast and accurate protein structure search with Foldseek</a>. Nature Biotechnology, 2023."
+"Gilchrist CLM, Mirdita M, Steinegger M. "
+"<a href=\"https://www.biorxiv.org/content/10.1101/2024.08.01.606130v3\" target=\"_blank\" rel=\"noopener\">"
+"Multiple Protein Structure Alignment at Scale with FoldMason</a>. bioRxiv, 2024."
 
 msgid "NAV_URL_COUNT"
-msgstr "3"
+msgstr "2"
 
 msgid "NAV_TITLE_1"
 msgstr "GitHub"
 
 msgid "NAV_URL_1"
-msgstr "https://foldseek.com"
+msgstr "https://foldmason.foldseek.com"
 
 msgid "NAV_TITLE_2"
-msgstr "Söding Lab"
-
-msgid "NAV_URL_2"
-msgstr "https://www.mpinat.mpg.de/soeding"
-
-msgid "NAV_TITLE_3"
 msgstr "Steinegger Lab"
 
-msgid "NAV_URL_3"
+msgid "NAV_URL_2"
 msgstr "https://steineggerlab.com/"
 
 msgid "QUERIES_HELP"

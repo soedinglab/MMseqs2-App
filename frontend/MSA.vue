@@ -50,7 +50,9 @@
                             :entries="entries"
                             :selection="structureViewerSelection"
                             :reference="structureViewerReference"
+                            :mask="mask"
                             @loadingChange="handleStructureLoadingChange"
+                            @columnSelected="selectedColumn = $event"
                         />
                     </div>
                     <v-card-text v-else>
@@ -143,6 +145,8 @@
                 :selectedStructures="structureViewerSelection"
                 :referenceStructure="structureViewerReference"
                 :matchRatio="parseFloat(matchRatio)"
+                :mask="mask"
+                :highlightColumn="selectedColumn"
                 @cssGradients="handleCSSGradient"
                 @lineLen="handleLineLen"
                 @newStructureSelection="handleNewStructureViewerSelection"
@@ -161,6 +165,10 @@ import StructureViewerMSA from './StructureViewerMSA.vue';
 import Tree from './Tree.vue';
 import { debounce, makePositionMap, tryFixName } from './Utilities.js'
 import MDI from './MDI.js';
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
 
 function makeMatchRatioMask(entries, ratio) {
     const columnLength = entries[0].aa.length;
@@ -242,12 +250,13 @@ export default {
             blockIndex: 0,
             alphabet: 'aa',
             colorScheme: 'lddt',
-            matchRatio: 0.0,
+            matchRatioInner: 0.0,
             structureViewerSelection: [],
             structureViewerReference: 0,
             isLoadingStructure: false,
             numMinimapGradients: 30,
             settingsPanelOpen: true,
+            selectedColumn: -1,
         }
     },    
     watch: {
@@ -269,6 +278,15 @@ export default {
         window.removeEventListener("scroll", this.handleScroll);
     },
     computed: {
+        matchRatio: {
+            get() {
+                return this.matchRatioInner;
+            },
+            set(value) {
+                this.matchRatioInner = clamp(value, 0.0, 1.0);
+                this.$emit('input', this.matchRatioInner);
+            }
+        },
         alnLen() {
             if (this.entries.length > 0) {
                 return this.mask.reduce((count, value) => count + value, 0);

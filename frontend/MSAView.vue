@@ -17,7 +17,7 @@
                 @click="handleClickHeader($event, j)"
             >{{ name }}</span>
             <div class="sequence-wrapper">
-                <span class="sequence" :style="css">{{ alphabet === 'aa' ? aa : ss }}</span>
+                <span class="sequence" :style="css" v-html="insertHighlight(alphabet === 'aa' ? aa : ss, start, end)"></span>
             </div>
             <span class="count">{{ countSequence(aa, seqStart).toString()  }}</span>
         </template>
@@ -86,7 +86,6 @@ export default {
     components: { SequenceLogo, SequenceLogo },
     data() {
         return {
-            mask: [],
             lineLen: 80,
             headerLen: null,
             countLen: null,
@@ -99,10 +98,12 @@ export default {
         scores: Array,
         alnLen: Number,
         alphabet: String,
+        mask: { type: Array },
         selectedStructures: { type: Array, required: false },
         referenceStructure: { type: Number },
         colorScheme: { type: String, default: 'lddt' },
-        maxHeaderWidth: { type: Number, default: 30 }
+        maxHeaderWidth: { type: Number, default: 30 },
+        highlightColumn: { type: Number, default: -1 },
     },
     mounted() {
         this.resizeObserver = new ResizeObserver(debounce(this.handleResize, 100)).observe(this.$refs.msaWrapper);
@@ -127,6 +128,18 @@ export default {
         },
     },
     computed: {
+        maskCumSum() {
+            if (!this.mask) {
+                return [];
+            }
+            const result = [];
+            let sum = 0;
+            for (let i = 0; i < this.mask.length; i++) {
+                sum += this.mask[i] == 0;
+                result.push(sum);
+            }
+            return result;
+        },
         firstSequenceWidth() {
             const container = document.querySelector(".msa-block");
             if (!container)
@@ -242,6 +255,18 @@ export default {
             }
             return result;
         },
+        insertHighlight(seq, start, end) {
+            if (this.highlightColumn == -1 || this.mask[this.highlightColumn] == 0) {
+                return seq;
+            }
+            let column = this.highlightColumn - this.maskCumSum[this.highlightColumn];
+            if (column >= start && column < end) {
+                let idx = column - start;
+                let newseq = seq.substring(0, idx) + '<strong>' + seq.substring(idx, idx + 1) + '</strong>' + seq.substring(idx + 1);
+                return newseq;
+            }
+            return seq;
+        },
         getEntryRanges(start, end, makeGradients=true) {
             return Array.from(this.entries, entry => this.getEntryRange(entry, start, end, makeGradients));
         },
@@ -325,9 +350,9 @@ export default {
     color: transparent;
     z-index: 0;
 }
-.msa-block .sequence::selection {
-    background: rgba(100, 100, 255, 1);
-    color: white;
+.msa-block .sequence::selection, .msa-block .sequence strong {
+    background: #11FFEE;
+    color: #111;
 }
 .msa-row {
     display: contents;

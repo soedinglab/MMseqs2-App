@@ -20,11 +20,21 @@
         </v-tooltip>
       </template>
       <v-list>
-        <v-list-item v-on:click="predictESM">
-          <v-list-item-title>Structure with ESMFold</v-list-item-title>
+        <v-list-item v-on:click="predictT5" :disabled="this.sequence.length >= 1200" :two-line="this.sequence.length >= 1200">
+            <v-list-item-content>
+                <v-list-item-title>3Di with ProstT5</v-list-item-title>
+                <v-list-item-subtitle v-if="this.sequence.length > 1200" class="v-alert v-alert--outlined warning--text">
+                    Sequence can be at most 1200 residues long
+                </v-list-item-subtitle>
+            </v-list-item-content>
         </v-list-item>
-        <v-list-item v-on:click="predictT5">
-          <v-list-item-title>3Di with ProstT5</v-list-item-title>
+        <v-list-item v-on:click="predictESM" :disabled="this.sequence.length > 400" :two-line="this.sequence.length > 400">
+            <v-list-item-content>
+                <v-list-item-title>Structure with ESMFold</v-list-item-title>
+                <v-list-item-subtitle v-if="this.sequence.length > 400" class="v-alert v-alert--outlined warning--text">
+                    Sequence can be at most 400 residues long
+                </v-list-item-subtitle>
+            </v-list-item-content>
         </v-list-item>
       </v-list>
     </v-menu>
@@ -70,7 +80,7 @@ export default {
                 start = start + 1;
                 seq = this.query.substring(start);
             }
-            if (seq.length < 1000 && /^[A-Za-z\n]+$/.test(seq)) {
+            if (seq.length < 3000 && /^[A-Za-z\n]+$/.test(seq)) {
                 seq = seq.replace(/\n/g, "");
                 seq = seq.toUpperCase();
                 return seq;
@@ -101,11 +111,11 @@ export default {
                     this.show = false;
                     this.error = "";
                     this.$emit('input', false);
-                } else if (this.sequence.length > 400) {
+                } else if (this.sequence.length >= 1200) {
                     this.disabled = true;
                     this.color = "error";
                     this.show = true;
-                    this.error = "Sequence can be at most 400 residues long";
+                    this.error = "Sequence can be at most 1200 residues long";
                     this.$emit('input', true);
                 } else {
                     this.disabled = false;

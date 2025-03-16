@@ -8,7 +8,7 @@
                         <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
                         <small class="ticket">{{ ticket }}</small>
                     </template>
-                    <template v-else>
+                    <template v-else-if="hits">
                         <span  class="hidden-sm-and-down">Results:&nbsp;</span>
                         <small class="ticket">{{ hits.query.header }}</small>
                     </template>
@@ -57,7 +57,7 @@
                 <template slot="content" v-if="resultState == 'RESULT' && hits && hits.results">
                     <!-- hack to get a menu that can be used from outside the list -->
                     <!-- we don't want to make potentially thousands of menus -->
-                    <v-menu offset-y ref="menuwrapper" absolute>
+                    <v-menu offset-y ref="menuwrapper" absolute style="z-index: 99999 !important;">
                         <template v-slot:activator="{ on: activation, attrs: attrs }">
                             <div style="display: none">{{ menuActivator = activation }}</div>
                         </template>
@@ -85,7 +85,7 @@
                         v-model="selectedDatabases"
                         style="margin-bottom: 2em"
                         show-arrows
-                        @change="closeAlignment()"
+                        @change="handleChangeDatabase()"
                         v-if="hits.results.length > 1"
                     >
                         <v-tab>All databases</v-tab>
@@ -185,8 +185,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <template v-for="(group, groupidx) in filteredAlignments(entry.alignments, entry.db)" >
-                                <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active }]">
+                            <template v-for="(group, groupidx) in entry.alignments" >
+                            <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active }]" v-if="isGroupVisible(group)">
                                 <template v-if="index == 0 && isComplex">
                                 <td class="thin" data-label="Query TM-score" :rowspan="group.length">{{ group[0].complexqtm.toFixed(2) }}</td>
                                 <td class="thin" data-label="Target TM-score" :rowspan="group.length">{{ group[0].complexttm.toFixed(2) }}</td>
@@ -382,35 +382,22 @@ export default {
             this.$set(this.isSankeyVisible, db, !this.isSankeyVisible[db]);
         },
         handleSankeySelect({ nodeId, descendantIds, db }) {
+            this.closeAlignment();
             this.selectedTaxId = nodeId;
             this.filteredHitsTaxIds = descendantIds ? descendantIds.map(Number) : null; 
             this.selectedDb = db;
         },
-        filteredAlignments(alignments, db) {
-            // Convert alignments to an array if it is an object
-            if (alignments && !Array.isArray(alignments)) {
-                alignments = Object.values(alignments);
-            }
-            
-            if (!Array.isArray(alignments)) {
-                return []; // Return an empty array if conversion fails
-            }
-
-            if (db !== this.selectedDb) {
-                // Reset filteredHitsTaxIds if db changes
-                return alignments;
-            }
-
+        handleChangeDatabase() {
+            this.closeAlignment();
+            this.selectedTaxId = null;
+            this.filteredHitsTaxIds = [];
+        },
+        isGroupVisible(group) {
             if (!this.filteredHitsTaxIds || this.filteredHitsTaxIds.length === 0) {
-                return alignments; // Return all groups if no filteredAlignments
+                return true;
             }
-
-            // Filter each group to only include items with taxId in filteredAlignments
-            const filteredAligments = alignments
-                .map(group => group.filter(item => this.filteredHitsTaxIds.includes(Number(item.taxId))))
-                .filter(group => group.length > 0);
-
-            return filteredAligments
+            let taxFiltered = group.filter(item => this.filteredHitsTaxIds.includes(Number(item.taxId)));
+            return taxFiltered.length > 0;
         },
     }
 };
