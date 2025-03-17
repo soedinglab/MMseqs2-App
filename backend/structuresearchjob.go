@@ -41,7 +41,11 @@ func (r StructureSearchJob) Hash() Id {
 }
 
 func (r StructureSearchJob) Rank() float64 {
-	return float64(r.Size * max(len(r.Database), 1))
+	modeFactor := 1
+	if r.Mode == "tmalign" {
+		modeFactor = 32
+	}
+	return float64(r.Size * max(len(r.Database), 1) * modeFactor)
 }
 
 func (r StructureSearchJob) WritePDB(path string) error {
