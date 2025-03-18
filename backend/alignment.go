@@ -14,6 +14,10 @@ import (
 	"strings"
 )
 
+type HaveTaxonomyReport interface {
+    SetTaxonomyReport([]TaxonomyReport)
+}
+
 type AlignmentEntry struct {
 	Query         string      `json:"query"`
 	Target        string      `json:"target"`
@@ -33,6 +37,10 @@ type AlignmentEntry struct {
 	DbAln         string      `json:"dbAln"`
 	TaxonId       json.Number `json:"taxId,omitempty"`
 	TaxonName     string      `json:"taxName,omitempty"`
+	TaxonomyReport []TaxonomyReport `json:"taxonomyreport,omitempty"`
+}
+func (entry *AlignmentEntry) SetTaxonomyReport(report []TaxonomyReport) {
+	entry.TaxonomyReport = report
 }
 
 type MarshalFormat int
@@ -66,6 +74,10 @@ type FoldseekAlignmentEntry struct {
 	TargetSeq     string        `json:"tSeq"`
 	TaxonId       json.Number   `json:"taxId,omitempty"`
 	TaxonName     string        `json:"taxName,omitempty"`
+	TaxonomyReport []TaxonomyReport `json:"taxonomyreport,omitempty"`
+}
+func (entry *FoldseekAlignmentEntry) SetTaxonomyReport(report []TaxonomyReport) {
+    entry.TaxonomyReport = report
 }
 
 func (entry FoldseekAlignmentEntry) MarshalJSON() ([]byte, error) {
@@ -137,6 +149,10 @@ type ComplexAlignmentEntry struct {
 	ComplexT        string        `json:"complext"`
 	TaxonId         json.Number   `json:"taxId,omitempty"`
 	TaxonName       string        `json:"taxName,omitempty"`
+	TaxonomyReport []TaxonomyReport `json:"taxonomyreport,omitempty"`
+}
+func (entry *ComplexAlignmentEntry) SetTaxonomyReport(report []TaxonomyReport) {
+    entry.TaxonomyReport = report
 }
 
 func (entry ComplexAlignmentEntry) MarshalJSON() ([]byte, error) {
@@ -287,6 +303,8 @@ func ReadQueryByKeys(id Id, keys []uint32, jobsbase string) ([]FastaEntry, error
 func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, databases []string, jobsbase string) ([]SearchResult, error) {
 	base := filepath.Join(jobsbase, string(id))
 	reader := Reader[uint32]{}
+	taxonomyReader := Reader[uint32]{}
+	
 	res := make([]SearchResult, 0)
 
 	var lookupByKey bool
@@ -305,8 +323,16 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 		if err != nil {
 			return res, err
 		}
+		err = taxonomyReader.Make(dbpaths(name + "_report"))
+		if err != nil {
+			reader.Delete()
+			return res, err
+		}
+		var taxBody string
+
 		all := make([][]T, 0)
 		for _, entry := range entries {
+			// Get alignment body
 			var body string
 			if lookupByKey {
 				alnKey := any(entry).(uint32)
@@ -319,6 +345,22 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 			} else {
 				body = reader.Data(any(entry).(int64))
 			}
+
+			// Per-query taxonomy data
+			if lookupByKey {
+				taxKey := any(entry).(uint32)
+				taxId, found := taxonomyReader.Id(taxKey)
+				if !found {
+					reader.Delete()
+					taxonomyReader.Delete()
+					return nil, fmt.Errorf("missing key: %T", taxKey)
+				}
+				taxBody = taxonomyReader.Data(taxId)
+			} else {
+				taxBody = taxonomyReader.Data(any(entry).(int64))
+			}
+
+			// Parse alignment
 			data := strings.NewReader(body)
 			results, err := ReadAlignment[T](data)
 			if err != nil {
@@ -328,33 +370,41 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 			if len(results) == 0 {
 				continue
 			}
+			
+			// Parse the single query’s taxonomy data
+			taxResult, err := ReadTaxonomyReport(taxBody)
+			if err != nil {
+				taxonomyReader.Delete()
+				return nil, err
+			}
+			for i := range results {
+				if taxAware, ok := any(&results[i]).(HaveTaxonomyReport); ok {
+					taxAware.SetTaxonomyReport(taxResult)
+				}
+			}
+
 			all = append(all, results)
 		}
+
+		taxonomyReader.Delete()
 		reader.Delete()
 
 		// Read the taxonomy report
-        taxonomyReportPath := filepath.Join(base, "alis_" + db + "_report")
-        taxonomyReport, _ := ReadTaxonomyReport(taxonomyReportPath)
+        taxonomyReport, _ := ReadTaxonomyReport(taxBody)
 
 		base := filepath.Base(name)
 		res = append(res, SearchResult{
 			strings.TrimPrefix(base, "alis_"), 
 			all,
-			taxonomyReport, // Include taxonomy report
+			taxonomyReport,
 			})
-	}
+	} 
+
 
 	return res, nil
 }
 
-func ReadTaxonomyReport(filePath string) ([]TaxonomyReport, error) {
-   	file, err := os.Open(filePath)
-    if err != nil {
-        // Return an empty report for any error
-        return []TaxonomyReport{}, nil
-    }
-    defer file.Close()
-
+func ReadTaxonomyReport(taxBody string) ([]TaxonomyReport, error) {
 	// Helper function to count leading spaces
     countLeadingSpaces := func(s string) int {
         count := 0
@@ -369,7 +419,7 @@ func ReadTaxonomyReport(filePath string) ([]TaxonomyReport, error) {
     }
 
     var reports []TaxonomyReport
-    scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(strings.NewReader(taxBody))
 
     for scanner.Scan() {
         line := scanner.Text()
