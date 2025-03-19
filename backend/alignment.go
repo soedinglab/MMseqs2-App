@@ -14,10 +14,6 @@ import (
 	"strings"
 )
 
-type HaveTaxonomyReport interface {
-    SetTaxonomyReport([]TaxonomyReport)
-}
-
 type AlignmentEntry struct {
 	Query         string      `json:"query"`
 	Target        string      `json:"target"`
@@ -37,10 +33,6 @@ type AlignmentEntry struct {
 	DbAln         string      `json:"dbAln"`
 	TaxonId       json.Number `json:"taxId,omitempty"`
 	TaxonName     string      `json:"taxName,omitempty"`
-	TaxonomyReport []TaxonomyReport `json:"taxonomyreport,omitempty"`
-}
-func (entry *AlignmentEntry) SetTaxonomyReport(report []TaxonomyReport) {
-	entry.TaxonomyReport = report
 }
 
 type MarshalFormat int
@@ -74,10 +66,6 @@ type FoldseekAlignmentEntry struct {
 	TargetSeq     string        `json:"tSeq"`
 	TaxonId       json.Number   `json:"taxId,omitempty"`
 	TaxonName     string        `json:"taxName,omitempty"`
-	TaxonomyReport []TaxonomyReport `json:"taxonomyreport,omitempty"`
-}
-func (entry *FoldseekAlignmentEntry) SetTaxonomyReport(report []TaxonomyReport) {
-    entry.TaxonomyReport = report
 }
 
 func (entry FoldseekAlignmentEntry) MarshalJSON() ([]byte, error) {
@@ -149,10 +137,6 @@ type ComplexAlignmentEntry struct {
 	ComplexT        string        `json:"complext"`
 	TaxonId         json.Number   `json:"taxId,omitempty"`
 	TaxonName       string        `json:"taxName,omitempty"`
-	TaxonomyReport []TaxonomyReport `json:"taxonomyreport,omitempty"`
-}
-func (entry *ComplexAlignmentEntry) SetTaxonomyReport(report []TaxonomyReport) {
-    entry.TaxonomyReport = report
 }
 
 func (entry ComplexAlignmentEntry) MarshalJSON() ([]byte, error) {
@@ -206,7 +190,7 @@ type FastaEntry struct {
 type SearchResult struct {
 	Database   string      `json:"db"`
 	Alignments interface{} `json:"alignments"`
-	TaxonomyReport interface{} `json:"taxonomyreport"`
+	TaxonomyReports interface{} `json:"taxonomyreports"`
 }
 
 type TaxonomyReport struct {
@@ -328,9 +312,9 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 			reader.Delete()
 			return res, err
 		}
-		var taxBody string
-
-		all := make([][]T, 0)
+		
+		allAlignments := make([][]T, 0)
+		allTaxonomyReports := make([][]TaxonomyReport, 0)
 		for _, entry := range entries {
 			// Get alignment body
 			var body string
@@ -342,11 +326,12 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 					return nil, fmt.Errorf("missing key: %T", alnKey)
 				}
 				body = reader.Data(alnId)
-			} else {
-				body = reader.Data(any(entry).(int64))
-			}
-
+				} else {
+					body = reader.Data(any(entry).(int64))
+				}
+				
 			// Per-query taxonomy data
+			var taxBody string
 			if lookupByKey {
 				taxKey := any(entry).(uint32)
 				taxId, found := taxonomyReader.Id(taxKey)
@@ -377,26 +362,19 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 				taxonomyReader.Delete()
 				return nil, err
 			}
-			for i := range results {
-				if taxAware, ok := any(&results[i]).(HaveTaxonomyReport); ok {
-					taxAware.SetTaxonomyReport(taxResult)
-				}
-			}
 
-			all = append(all, results)
+			allTaxonomyReports = append(allTaxonomyReports, taxResult)
+			allAlignments = append(allAlignments, results)
 		}
 
 		taxonomyReader.Delete()
 		reader.Delete()
 
-		// Read the taxonomy report
-        taxonomyReport, _ := ReadTaxonomyReport(taxBody)
-
 		base := filepath.Base(name)
 		res = append(res, SearchResult{
 			strings.TrimPrefix(base, "alis_"), 
-			all,
-			taxonomyReport,
+			allAlignments,
+			allTaxonomyReports,
 			})
 	} 
 
