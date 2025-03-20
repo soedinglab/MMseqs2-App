@@ -6,7 +6,7 @@ function tryLinkTargetToDB(target, db) {
         if (res.startsWith("pfam")) {
             return 'https://www.ebi.ac.uk/interpro/entry/pfam/' + target;
         } else if (res.startsWith("pdb")) {
-            return 'https://www.rcsb.org/pdb/explore.do?structureId=' + target.replaceAll(/-assembly[0-9]+/g, '').replaceAll(/\.(cif|pdb)(\.gz)?/g, '').split('_')[0];
+            return 'https://www.rcsb.org/structure/' + target.replaceAll(/-assembly[0-9]+/g, '').replaceAll(/\.(cif|pdb)(\.gz)?/g, '').split('_')[0];
         } else if (res.startsWith("uniclust") || res.startsWith("uniprot") || res.startsWith("sprot") || res.startsWith("swissprot")) {
             return 'https://www.uniprot.org/uniprot/' + target;
         } else if (res.startsWith("eggnog_")) {
