@@ -5,6 +5,7 @@
         :hits="hits"
         :selectedDatabases="selectedDatabases"
         :tableMode="tableMode"
+        :selectedTaxId="selectedTaxId"
     />
 </template>
 
@@ -46,6 +47,12 @@ export default {
     destroyed () {
         this.$root.$off('downloadJSON');
     },
+    data() {
+        return {
+            selectedTaxId: null,
+
+        }
+    },
     watch: {
         '$route': function(to, from) {
             if (from.path != to.path) {
@@ -63,6 +70,10 @@ export default {
             this.hits = null;
             this.selectedDatabases = 0;
             this.tableMode = 0;
+            this.selectedTaxId = 0;
+            this.$nextTick(() => {
+                this.selectedTaxId = null;
+            });
         },
         async fetchData() {
             this.resetProperties();

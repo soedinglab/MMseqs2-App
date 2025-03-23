@@ -98,7 +98,7 @@
                         </h2>
 
                         <!-- Button to toggle Sankey Diagram visibility -->
-                        <v-btn v-if="entry.hasTaxonomy" @click="toggleSankeyVisibility(entry.db)" class="mr-2" large>
+                        <v-btn v-if="entry.hasTaxonomy && !isComplex" @click="toggleSankeyVisibility(entry.db)" class="mr-2" large>
                             {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
                         </v-btn>
                         
@@ -113,7 +113,7 @@
                         </v-btn-toggle>
                     </v-flex>
                     <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2">
-                        <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="selectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
+                        <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
                     </v-flex>
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <colgroup>
@@ -283,7 +283,7 @@ export default {
             selectedDatabases: 0,
             isSankeyVisible: {}, // Track visibility for each db's Sankey Diagram
             selectedDb: null,
-            selectedTaxId: null,
+            localSelectedTaxId: null,
             filteredHitsTaxIds: [],
             tableMode: 0,
             menuActivator: null,
@@ -294,6 +294,7 @@ export default {
         ticket: "",
         error: "",
         hits: null,
+        selectedTaxId: null,
     },
     created() {
         window.addEventListener("resize", this.handleAlignmentBoxResize, { passive: true });
@@ -344,6 +345,12 @@ export default {
             return "ERROR";
         }
     },
+    watch: {
+        selectedTaxId(newVal) {
+            this.localSelectedTaxId = newVal;
+            this.handleSankeySelect({ nodeId: newVal, db: this.selectedDb });
+        }
+    },
     methods: {
         log(args) {
             console.log(args);
@@ -383,13 +390,13 @@ export default {
         },
         handleSankeySelect({ nodeId, descendantIds, db }) {
             this.closeAlignment();
-            this.selectedTaxId = nodeId;
+            this.localSelectedTaxId = nodeId;
             this.filteredHitsTaxIds = descendantIds ? descendantIds.map(Number) : null; 
             this.selectedDb = db;
         },
         handleChangeDatabase() {
             this.closeAlignment();
-            this.selectedTaxId = null;
+            this.localSelectedTaxId = null;
             this.filteredHitsTaxIds = [];
         },
         isGroupVisible(group) {

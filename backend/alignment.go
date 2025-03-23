@@ -307,14 +307,8 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 		if err != nil {
 			return res, err
 		}
-		err = taxonomyReader.Make(dbpaths(name + "_report"))
-		if err != nil {
-			reader.Delete()
-			return res, err
-		}
 		
 		allAlignments := make([][]T, 0)
-		allTaxonomyReports := make([][]TaxonomyReport, 0)
 		for _, entry := range entries {
 			// Get alignment body
 			var body string
@@ -326,24 +320,9 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 					return nil, fmt.Errorf("missing key: %T", alnKey)
 				}
 				body = reader.Data(alnId)
-				} else {
-					body = reader.Data(any(entry).(int64))
-				}
-				
-			// Per-query taxonomy data
-			var taxBody string
-			if lookupByKey {
-				taxKey := any(entry).(uint32)
-				taxId, found := taxonomyReader.Id(taxKey)
-				if !found {
-					reader.Delete()
-					taxonomyReader.Delete()
-					return nil, fmt.Errorf("missing key: %T", taxKey)
-				}
-				taxBody = taxonomyReader.Data(taxId)
 			} else {
-				taxBody = taxonomyReader.Data(any(entry).(int64))
-			}
+				body = reader.Data(any(entry).(int64))
+			}	
 
 			// Parse alignment
 			data := strings.NewReader(body)
@@ -355,29 +334,53 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 			if len(results) == 0 {
 				continue
 			}
-			
-			// Parse the single query’s taxonomy data
-			taxResult, err := ReadTaxonomyReport(taxBody)
-			if err != nil {
-				taxonomyReader.Delete()
-				return nil, err
-			}
 
-			allTaxonomyReports = append(allTaxonomyReports, taxResult)
 			allAlignments = append(allAlignments, results)
 		}
-
-		taxonomyReader.Delete()
 		reader.Delete()
+
+		allTaxonomyReports := make([][]TaxonomyReport, 0)	
+		if fileExists(name + "_report") {
+			err = taxonomyReader.Make(dbpaths(name + "_report"))
+			if err != nil {
+				reader.Delete()
+				return res, err
+			}
+			for _, entry := range entries {
+				// Per-query taxonomy data
+				var taxBody string
+				if lookupByKey {
+					taxKey := any(entry).(uint32)
+					taxId, found := taxonomyReader.Id(taxKey)
+					if !found {
+						reader.Delete()
+						taxonomyReader.Delete()
+						return nil, fmt.Errorf("missing key: %T", taxKey)
+					}
+					taxBody = taxonomyReader.Data(taxId)
+				} else {
+					taxBody = taxonomyReader.Data(any(entry).(int64))
+				}
+
+				// Parse single query’s taxonomy data
+				taxResult, err := ReadTaxonomyReport(taxBody)
+				if err != nil {
+					taxonomyReader.Delete()
+					return nil, err
+				}
+
+				allTaxonomyReports = append(allTaxonomyReports, taxResult)
+			}
+			taxonomyReader.Delete()
+		}
 
 		base := filepath.Base(name)
 		res = append(res, SearchResult{
 			strings.TrimPrefix(base, "alis_"), 
 			allAlignments,
 			allTaxonomyReports,
-			})
+		})
 	} 
-
 
 	return res, nil
 }
