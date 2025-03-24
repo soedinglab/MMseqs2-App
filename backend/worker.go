@@ -394,7 +394,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 
 				if params.Taxonomy {
 					parameters = append(parameters, "--report-mode")
-					parameters = append(parameters, "0")
+					parameters = append(parameters, "3") 
 				}
 
 				if params.Taxonomy && job.TaxFilter != "" {
