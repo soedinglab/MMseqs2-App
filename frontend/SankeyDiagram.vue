@@ -343,18 +343,18 @@ export default {
 			};
 
 			// // Define a clipping path for each link (crops out curve when links are too thick)
-			// svg
-			// 	.append("defs")
-			// 	.selectAll("clipPath")
-			// 	.data(graph.links)
-			// 	.enter()
-			// 	.append("clipPath")
-			// 	// .attr("id", (d, i) => `clip-path-${this.instanceId}-${i}`)
-			// 	.append("rect")
-			// 	.attr("x", (d) => d.source.x1)
-			// 	.attr("y", 0)
-			// 	.attr("width", (d) => d.target.x0 - d.source.x1)
-			// 	.attr("height", height);
+			svg
+				.append("defs")
+				.selectAll("clipPath")
+				.data(graph.links)
+				.enter()
+				.append("clipPath")
+				.attr("id", (d, i) => `clip-path-${this.instanceId}-${i}`)
+				.append("rect")
+				.attr("x", (d) => d.source.x1)
+				.attr("y", 0)
+				.attr("width", (d) => d.target.x0 - d.source.x1)
+				.attr("height", height);
 
 			// Add links
 			svg
@@ -367,8 +367,8 @@ export default {
 				.append("path")
 				.attr("d", sankeyLinkHorizontal())
 				.attr("stroke", (d) => (d.target.type === "unclassified" ? unclassifiedLabelColor : color(d.source.color)))
-				.attr("stroke-width", (d) => Math.max(1, d.width));
-			// .attr("clip-path", (d, i) => `url(#clip-path-${this.instanceId}-${i})`);
+				.attr("stroke-width", (d) => Math.max(1, d.width))
+				.attr("clip-path", (d, i) => `url(#clip-path-${this.instanceId}-${i})`);
 		
 			// Create node group (node + labels) and add mouse events
 			const nodeGroup = svg

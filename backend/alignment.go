@@ -190,7 +190,7 @@ type FastaEntry struct {
 type SearchResult struct {
 	Database   string      `json:"db"`
 	Alignments interface{} `json:"alignments"`
-	TaxonomyReport interface{} `json:"taxonomyreport"`
+	TaxonomyReports interface{} `json:"taxonomyreports"`
 }
 
 type TaxonomyReport struct {
@@ -287,6 +287,8 @@ func ReadQueryByKeys(id Id, keys []uint32, jobsbase string) ([]FastaEntry, error
 func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, databases []string, jobsbase string) ([]SearchResult, error) {
 	base := filepath.Join(jobsbase, string(id))
 	reader := Reader[uint32]{}
+	taxonomyReader := Reader[uint32]{}
+	
 	res := make([]SearchResult, 0)
 
 	var lookupByKey bool
@@ -305,8 +307,10 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 		if err != nil {
 			return res, err
 		}
-		all := make([][]T, 0)
+		
+		allAlignments := make([][]T, 0)
 		for _, entry := range entries {
+			// Get alignment body
 			var body string
 			if lookupByKey {
 				alnKey := any(entry).(uint32)
@@ -318,7 +322,9 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 				body = reader.Data(alnId)
 			} else {
 				body = reader.Data(any(entry).(int64))
-			}
+			}	
+
+			// Parse alignment
 			data := strings.NewReader(body)
 			results, err := ReadAlignment[T](data)
 			if err != nil {
@@ -328,33 +334,58 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 			if len(results) == 0 {
 				continue
 			}
-			all = append(all, results)
+
+			allAlignments = append(allAlignments, results)
 		}
 		reader.Delete()
 
-		// Read the taxonomy report
-        taxonomyReportPath := filepath.Join(base, "alis_" + db + "_report")
-        taxonomyReport, _ := ReadTaxonomyReport(taxonomyReportPath)
+		allTaxonomyReports := make([][]TaxonomyReport, 0)	
+		if fileExists(name + "_report") {
+			err = taxonomyReader.Make(dbpaths(name + "_report"))
+			if err != nil {
+				reader.Delete()
+				return res, err
+			}
+			for _, entry := range entries {
+				// Per-query taxonomy data
+				var taxBody string
+				if lookupByKey {
+					taxKey := any(entry).(uint32)
+					taxId, found := taxonomyReader.Id(taxKey)
+					if !found {
+						reader.Delete()
+						taxonomyReader.Delete()
+						return nil, fmt.Errorf("missing key: %T", taxKey)
+					}
+					taxBody = taxonomyReader.Data(taxId)
+				} else {
+					taxBody = taxonomyReader.Data(any(entry).(int64))
+				}
+
+				// Parse single query’s taxonomy data
+				taxResult, err := ReadTaxonomyReport(taxBody)
+				if err != nil {
+					taxonomyReader.Delete()
+					return nil, err
+				}
+
+				allTaxonomyReports = append(allTaxonomyReports, taxResult)
+			}
+			taxonomyReader.Delete()
+		}
 
 		base := filepath.Base(name)
 		res = append(res, SearchResult{
 			strings.TrimPrefix(base, "alis_"), 
-			all,
-			taxonomyReport, // Include taxonomy report
-			})
-	}
+			allAlignments,
+			allTaxonomyReports,
+		})
+	} 
 
 	return res, nil
 }
 
-func ReadTaxonomyReport(filePath string) ([]TaxonomyReport, error) {
-   	file, err := os.Open(filePath)
-    if err != nil {
-        // Return an empty report for any error
-        return []TaxonomyReport{}, nil
-    }
-    defer file.Close()
-
+func ReadTaxonomyReport(taxBody string) ([]TaxonomyReport, error) {
 	// Helper function to count leading spaces
     countLeadingSpaces := func(s string) int {
         count := 0
@@ -369,7 +400,7 @@ func ReadTaxonomyReport(filePath string) ([]TaxonomyReport, error) {
     }
 
     var reports []TaxonomyReport
-    scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(strings.NewReader(taxBody))
 
     for scanner.Scan() {
         line := scanner.Text()
