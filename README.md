@@ -60,4 +60,3 @@ npm install
 # build the app for all platforms, choose either mmseqs or foldseek
 FRONTEND_APP=mmseqs npm run electron:build
 ```
-
