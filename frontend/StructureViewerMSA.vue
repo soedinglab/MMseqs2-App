@@ -216,9 +216,19 @@ REMARK             if they are not present in the original PDB file.
                 PDB = PDB.split('\n').filter(line => line.startsWith("ATOM")).join('\n');
                 let index = parseInt(comp.structure.name.replace("key-", "")); 
                 let name = this.entries[index].name;
+                let remark = `REMARK    Name: ${name}`;
+                if (index !== this.reference) {
+                    const m = matrix.elements.map(e => e.toFixed(6).padStart(12));
+                    const u = `\
+REMARK      ${m[0]} ${m[4]} ${m[8]}
+REMARK      ${m[1]} ${m[5]} ${m[9]}
+REMARK      ${m[2]} ${m[6]} ${m[10]}`;
+                    const t = `REMARK      ${m[12]} ${m[13]} ${m[14]}`;
+                    remark += `\nREMARK    Rotation matrix (u)\n${u}\nREMARK    Translation matrix (t)\n${t}`;
+                }
                 result += `\
 MODEL     ${index}
-REMARK    Name: ${name}
+${remark}
 ${PDB}
 ENDMDL
 `;
