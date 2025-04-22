@@ -72,11 +72,14 @@ function parseNewick(newick, order) {
                     current_node.height = countLeaves(current_node);
                 }
                 break;
+            case ';':
+                break;
             default: // leaf or branch name
                 if (token.length > 0) {
                     current_node.name = tryFixName(token);
                     headers.push(current_node.name);
                 }
+                break;
         }
     }
     // sortTree(tree);
