@@ -135,6 +135,8 @@ export default {
         selection: { type: Array },
         reference: { type: Number },
         order: { type: Array },
+        labelWidth: { type: Number },
+        labelHeight: { type: Number },
         fontNormal: { type: String, default: "normal 12px sans-serif" },
         fontSelected: { type: String, default: "normal 600 12px sans-serif" },
         referenceColor: { type: String, default: "#1E88E5" },
@@ -248,6 +250,16 @@ export default {
 
             ctx.font = this.fontNormal;
             this.drawTree(ctx, this.tree, -5, this.headers.length * headerHeight, length, headerHeight, 0, 0, fullWidth);           
+            
+            // Reposition tree if there is a clash with the parent container label
+            const imageData = ctx.getImageData(0, 0, this.labelWidth * ratio, this.labelHeight * ratio);
+            let clashDetected = imageData.data.some(v => v > 0);
+            if (clashDetected) {
+                canvas.style.position = 'relative'
+                canvas.style.top = `${this.labelHeight}px`
+            } else {
+                canvas.style.top = "0px"
+            }
         },
         handleClick(event) {
             if (event.layerX > this.headerStartX) {

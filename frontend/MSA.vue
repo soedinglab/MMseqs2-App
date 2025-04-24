@@ -31,12 +31,16 @@
             </v-col>
             <v-col class="flex-col" v-if="tree">
                 <v-card class="fill-height" style="position: relative;">
-                    <v-card-title style="position: absolute; left: 0; top: 0; margin: 0; padding: 16px; z-index: 1;">Guide Tree</v-card-title>
+                    <v-card-title
+                        ref="treeLabel"
+                        style="position: absolute; left: 0; top: 0; margin: 0; padding: 16px; z-index: 1;">Guide Tree</v-card-title>
                     <Tree
                         :newick="tree"
                         :order="entries.map(e => e.name)"
                         :selection="structureViewerSelection.map(i => entries[i].name)"
                         :reference="structureViewerReference"
+                        :labelWidth="treeLabelWidth"
+                        :labelHeight="treeLabelHeight"
                         @newStructureSelection="handleNewStructureViewerSelection"
                         @newStructureReference="handleNewStructureViewerReference"
                     />
@@ -257,6 +261,8 @@ export default {
             numMinimapGradients: 30,
             settingsPanelOpen: true,
             selectedColumn: -1,
+            treeLabelWidth: 0,
+            treeLabelHeight: 0
         }
     },    
     watch: {
@@ -273,6 +279,8 @@ export default {
     mounted() {
         window.addEventListener("scroll", this.handleScroll);
         this.structureViewerSelection = [0, 1];
+        this.treeLabelWidth = this.$refs.treeLabel.clientWidth - 16;
+        this.treeLabelHeight = this.$refs.treeLabel.clientHeight - 32;
     },
     beforeDestroy() {
         window.removeEventListener("scroll", this.handleScroll);
