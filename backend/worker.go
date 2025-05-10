@@ -409,7 +409,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 
 				if job.IterativeSearch {
 					parameters = append(parameters, "--num-iterations")
-					parameters = append(parameters, "3")
+					parameters = append(parameters, "0")
 				}
 				cmd, done, err := execCommand(config.Verbose, parameters...)
 				if err != nil {
