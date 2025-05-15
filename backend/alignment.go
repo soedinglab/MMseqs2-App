@@ -188,19 +188,19 @@ type FastaEntry struct {
 }
 
 type SearchResult struct {
-	Database   string      `json:"db"`
-	Alignments interface{} `json:"alignments"`
+	Database        string      `json:"db"`
+	Alignments      interface{} `json:"alignments"`
 	TaxonomyReports interface{} `json:"taxonomyreports"`
 }
 
 type TaxonomyReport struct {
-    Proportion    float64 `json:"proportion"`
-    CladeReads    int     `json:"clade_reads"`
-    TaxonReads    int     `json:"taxon_reads"`
-    Rank          string  `json:"rank"`
-	Depth         int     `json:"depth"`
-    TaxonID       string  `json:"taxon_id"`
-    ScientificName string `json:"name"`
+	Proportion     float64 `json:"proportion"`
+	CladeReads     int     `json:"clade_reads"`
+	TaxonReads     int     `json:"taxon_reads"`
+	Rank           string  `json:"rank"`
+	Depth          int     `json:"depth"`
+	TaxonID        string  `json:"taxon_id"`
+	ScientificName string  `json:"name"`
 }
 
 func dbpaths(path string) (string, string) {
@@ -288,7 +288,7 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 	base := filepath.Join(jobsbase, string(id))
 	reader := Reader[uint32]{}
 	taxonomyReader := Reader[uint32]{}
-	
+
 	res := make([]SearchResult, 0)
 
 	var lookupByKey bool
@@ -307,7 +307,7 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 		if err != nil {
 			return res, err
 		}
-		
+
 		allAlignments := make([][]T, 0)
 		for _, entry := range entries {
 			// Get alignment body
@@ -322,7 +322,7 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 				body = reader.Data(alnId)
 			} else {
 				body = reader.Data(any(entry).(int64))
-			}	
+			}
 
 			// Parse alignment
 			data := strings.NewReader(body)
@@ -339,7 +339,7 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 		}
 		reader.Delete()
 
-		allTaxonomyReports := make([][]TaxonomyReport, 0)	
+		allTaxonomyReports := make([][]TaxonomyReport, 0)
 		if fileExists(name + "_report") {
 			err = taxonomyReader.Make(dbpaths(name + "_report"))
 			if err != nil {
@@ -376,73 +376,73 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 
 		base := filepath.Base(name)
 		res = append(res, SearchResult{
-			strings.TrimPrefix(base, "alis_"), 
+			strings.TrimPrefix(base, "alis_"),
 			allAlignments,
 			allTaxonomyReports,
 		})
-	} 
+	}
 
 	return res, nil
 }
 
 func ReadTaxonomyReport(taxBody string) ([]TaxonomyReport, error) {
 	// Helper function to count leading spaces
-    countLeadingSpaces := func(s string) int {
-        count := 0
-        for _, char := range s {
-            if char == ' ' {
-                count++
-            } else {
-                break
-            }
-        }
-        return count
-    }
+	countLeadingSpaces := func(s string) int {
+		count := 0
+		for _, char := range s {
+			if char == ' ' {
+				count++
+			} else {
+				break
+			}
+		}
+		return count
+	}
 
-    var reports []TaxonomyReport
+	var reports []TaxonomyReport
 	scanner := bufio.NewScanner(strings.NewReader(taxBody))
 
-    for scanner.Scan() {
-        line := scanner.Text()
-        fields := strings.Split(line, "\t")
-        if len(fields) < 6 {
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Split(line, "\t")
+		if len(fields) < 6 {
 			// Skip invalid lines
-            continue
-        }
+			continue
+		}
 
-        // Parse the fields
-        proportion, err := strconv.ParseFloat(fields[0], 64)
-        if err != nil {
-            continue
-        }
+		// Parse the fields
+		proportion, err := strconv.ParseFloat(fields[0], 64)
+		if err != nil {
+			continue
+		}
 
-        cladeReads, err := strconv.Atoi(fields[1])
-        if err != nil {
-            continue
-        }
+		cladeReads, err := strconv.Atoi(fields[1])
+		if err != nil {
+			continue
+		}
 
-        taxonReads, err := strconv.Atoi(fields[2])
-        if err != nil {
-            continue
-        }
+		taxonReads, err := strconv.Atoi(fields[2])
+		if err != nil {
+			continue
+		}
 
 		// Calculate depth from leading spaces in ScientificName
-        indentCount := countLeadingSpaces(fields[5])
-        depth := indentCount / 2 // Assuming 2 spaces per level of hierarchy
+		indentCount := countLeadingSpaces(fields[5])
+		depth := indentCount / 2 // Assuming 2 spaces per level of hierarchy
 
-        report := TaxonomyReport{
-            Proportion:    proportion,
-            CladeReads:    cladeReads,
-            TaxonReads:    taxonReads,
-            Rank:          fields[3],
-			Depth:         depth, 
-            TaxonID:       fields[4],
-            ScientificName: strings.TrimSpace(fields[5]),
-        }
-        reports = append(reports, report)
-    }
+		report := TaxonomyReport{
+			Proportion:     proportion,
+			CladeReads:     cladeReads,
+			TaxonReads:     taxonReads,
+			Rank:           fields[3],
+			Depth:          depth,
+			TaxonID:        fields[4],
+			ScientificName: strings.TrimSpace(fields[5]),
+		}
+		reports = append(reports, report)
+	}
 
-    return reports, nil
+	return reports, nil
 }
 
 func Alignments(id Id, entry []int64, databases []string, jobsbase string) ([]SearchResult, error) {
