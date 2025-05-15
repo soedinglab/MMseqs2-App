@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
@@ -528,6 +529,42 @@ func (j *BaseJobSystem) GetTicket(id Id) (Ticket, error) {
 	return t, err
 }
 
+// ParseMode splits and validates a mode string of the form <base>[-<opt1>[-<opt2>...]]
+func ParseMode(raw string, allowedBases, allowedOpts []string) (base string, opts []string, err error) {
+	baseSet := make(map[string]struct{}, len(allowedBases))
+	for _, b := range allowedBases {
+		baseSet[b] = struct{}{}
+	}
+	optSet := make(map[string]struct{}, len(allowedOpts))
+	for _, o := range allowedOpts {
+		optSet[o] = struct{}{}
+	}
+
+	parts := strings.Split(raw, "-")
+	if len(parts) == 0 {
+		return "", nil, errors.New("empty mode string")
+	}
+
+	b := parts[0]
+	if _, ok := baseSet[b]; !ok {
+		return "", nil, errors.New("invalid base mode: " + b)
+	}
+
+	if len(allowedOpts) == 0 && len(parts) > 1 {
+		return "", nil, errors.New("no suffixes allowed for mode " + b)
+	}
+
+	var parsedOpts []string
+	for _, tag := range parts[1:] {
+		if _, ok := optSet[tag]; !ok {
+			return "", nil, errors.New("invalid mode suffix: " + tag)
+		}
+		parsedOpts = append(parsedOpts, tag)
+	}
+
+	return b, parsedOpts, nil
+}
+
 func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubmit bool) (Ticket, error) {
 	id := request.Id
 	res, err := j.Status(id)
@@ -536,6 +573,23 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	}
 
 	validate := validator.New()
+
+	validate.RegisterValidation("mode", func(fl validator.FieldLevel) bool {
+		parts := strings.SplitN(fl.Param(), ";", 2)
+		if len(parts) != 2 {
+			return false
+		}
+
+		baseList := strings.Split(parts[0], " ")
+		optList := []string{}
+		if parts[1] != "" {
+			optList = strings.Split(parts[1], " ")
+		}
+
+		_, _, err := ParseMode(fl.Field().String(), baseList, optList)
+		return err == nil
+	})
+
 	if err := validate.Struct(request); err != nil {
 		return Ticket{id, StatusError}, err
 	}

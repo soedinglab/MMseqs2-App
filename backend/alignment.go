@@ -66,6 +66,8 @@ type FoldseekAlignmentEntry struct {
 	TargetSeq     string        `json:"tSeq"`
 	TaxonId       json.Number   `json:"taxId,omitempty"`
 	TaxonName     string        `json:"taxName,omitempty"`
+	Query3Di      string        `json:"q3di,omitempty"`
+	Target3Di     string        `json:"t3di,omitempty"`
 }
 
 func (entry FoldseekAlignmentEntry) MarshalJSON() ([]byte, error) {

@@ -337,10 +337,20 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					errChan <- &JobExecutionError{err}
 					return
 				}
+
+				allowedModes := []string{"3di", "tmalign", "3diaa"}
+				allowedTags := []string{"print3di"}
+
+				modeStr, tags, err := ParseMode(job.Mode, allowedModes, allowedTags)
+				if err != nil {
+					errChan <- &JobExecutionError{errors.New("invalid mode selected: " + err.Error())}
+					return
+				}
+
 				var mode2num = map[string]string{"3di": "0", "tmalign": "1", "3diaa": "2"}
-				mode, found := mode2num[job.Mode]
+				mode, found := mode2num[modeStr]
 				if !found {
-					errChan <- &JobExecutionError{errors.New("invalid mode selected")}
+					errChan <- &JobExecutionError{errors.New("invalid mode selected: " + modeStr)}
 					return
 				}
 
@@ -364,6 +374,12 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				columns += ",evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
 				if params.Taxonomy {
 					columns += ",taxid,taxname"
+				}
+				if isIn("print3di", tags) != -1 {
+					if !params.Taxonomy {
+						columns += ",empty,empty"
+					}
+					columns += ",q3di,t3di"
 				}
 				parameters := []string{
 					config.Paths.Foldseek,

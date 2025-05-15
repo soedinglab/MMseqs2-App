@@ -10,6 +10,7 @@ import (
 	"io"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/DisposaBoy/JsonConfigReader"
 	"github.com/go-playground/validator/v10"
@@ -97,7 +98,11 @@ func (p *Parser) Next() (eof bool, err error) {
 
 		switch field.Kind() {
 		case reflect.String:
-			field.SetString(record)
+			if record == "-" {
+				field.SetString("")
+			} else {
+				field.SetString(record)
+			}
 		case reflect.Bool:
 			if record == "" || record == "-" {
 				field.SetBool(false)
@@ -155,6 +160,23 @@ func DecodeJsonAndValidate(r io.Reader, target interface{}) error {
 	}
 
 	validate := validator.New()
+
+	validate.RegisterValidation("mode", func(fl validator.FieldLevel) bool {
+		parts := strings.SplitN(fl.Param(), ";", 2)
+		if len(parts) != 2 {
+			return false
+		}
+
+		baseList := strings.Split(parts[0], " ")
+		optList := []string{}
+		if parts[1] != "" {
+			optList = strings.Split(parts[1], " ")
+		}
+
+		_, _, err := ParseMode(fl.Field().String(), baseList, optList)
+		return err == nil
+	})
+
 	if err := validate.Struct(target); err != nil {
 		return err
 	}
