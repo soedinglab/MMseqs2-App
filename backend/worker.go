@@ -303,7 +303,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			parameters := []string{
 				"/bin/sh",
 				scriptPath,
-				config.Paths.FoldSeek,
+				config.Paths.Foldseek,
 				filepath.Join(resultBase, "job.3di"),
 				resultBase,
 			}
@@ -366,7 +366,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					columns += ",taxid,taxname"
 				}
 				parameters := []string{
-					config.Paths.FoldSeek,
+					config.Paths.Foldseek,
 					"easy-search",
 					inputFile,
 					filepath.Join(config.Paths.Databases, database),
@@ -445,7 +445,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		if !is3Di {
 			err = execCommandSync(
 				config.Verbose,
-				config.Paths.FoldSeek,
+				config.Paths.Foldseek,
 				"mvdb",
 				filepath.Join(resultBase, "tmp0", "latest", "query_h"),
 				filepath.Join(resultBase, "query_h"),
@@ -455,7 +455,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			}
 			err = execCommandSync(
 				config.Verbose,
-				config.Paths.FoldSeek,
+				config.Paths.Foldseek,
 				"mvdb",
 				filepath.Join(resultBase, "tmp0", "latest", "query"),
 				filepath.Join(resultBase, "query"),
@@ -549,7 +549,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					columns += ",taxid,taxname"
 				}
 				parameters := []string{
-					config.Paths.FoldSeek,
+					config.Paths.Foldseek,
 					"easy-complexsearch",
 					inputFile,
 					filepath.Join(config.Paths.Databases, database),
@@ -621,7 +621,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 
 		err = execCommandSync(
 			config.Verbose,
-			config.Paths.FoldSeek,
+			config.Paths.Foldseek,
 			"mvdb",
 			filepath.Join(resultBase, "tmp0", "latest", "query_h"),
 			filepath.Join(resultBase, "query_h"),
@@ -631,7 +631,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		}
 		err = execCommandSync(
 			config.Verbose,
-			config.Paths.FoldSeek,
+			config.Paths.Foldseek,
 			"mvdb",
 			filepath.Join(resultBase, "tmp0", "latest", "query"),
 			filepath.Join(resultBase, "query"),

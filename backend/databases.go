@@ -44,7 +44,7 @@ func (d paramsByOrder) Less(i, j int) bool {
 func CheckDatabase(basepath string, params Params, config ConfigRoot) error {
 	app := config.Paths.Mmseqs
 	if config.App == "foldseek" {
-		app = config.Paths.FoldSeek
+		app = config.Paths.Foldseek
 	}
 	verbose := config.Verbose
 	if fileExists(basepath + ".fasta") {

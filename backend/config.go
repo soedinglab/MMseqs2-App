@@ -170,7 +170,7 @@ type ConfigPaths struct {
 	Results   string                `json:"results"`
 	Temporary string                `json:"temporary"`
 	Mmseqs    string                `json:"mmseqs"`
-	FoldSeek  string                `json:"foldseek"`
+	Foldseek  string                `json:"foldseek"`
 	FoldMason string                `json:"foldmason"`
 	ColabFold *ConfigColabFoldPaths `json:"colabfold"`
 }
@@ -237,7 +237,7 @@ type ConfigApp string
 
 const (
 	AppMMseqs2        ConfigApp = "mmseqs"
-	AppFoldSeek       ConfigApp = "foldseek"
+	AppFoldseek       ConfigApp = "foldseek"
 	AppColabFold      ConfigApp = "colabfold"
 	AppPredictProtein ConfigApp = "predictprotein"
 	AppFoldMason      ConfigApp = "foldmason"
@@ -316,9 +316,9 @@ func (c *ConfigRoot) CheckPaths() error {
 		}
 	}
 
-	if c.App == AppFoldSeek {
-		if _, err := os.Stat(c.Paths.FoldSeek); err != nil {
-			return errors.New("FoldSeek binary was not found at " + c.Paths.FoldSeek)
+	if c.App == AppFoldseek {
+		if _, err := os.Stat(c.Paths.Foldseek); err != nil {
+			return errors.New("Foldseek binary was not found at " + c.Paths.Foldseek)
 		}
 		if _, err := os.Stat(c.Paths.FoldMason); err != nil {
 			return errors.New("FoldMason binary was not found at " + c.Paths.FoldMason)

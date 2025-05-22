@@ -311,7 +311,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		var request JobRequest
 		if config.App == AppMMseqs2 {
 			request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
-		} else if config.App == AppFoldSeek {
+		} else if config.App == AppFoldseek {
 			modes := strings.Split(mode, "-")
 			modeIdx := isIn("complex", modes)
 			if modeIdx != -1 {
@@ -557,7 +557,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		allowlistedCIDRs := parseCIDRs(config.Server.RateLimit.AllowList)
-		if config.App == AppMMseqs2 || config.App == AppFoldSeek {
+		if config.App == AppMMseqs2 || config.App == AppFoldseek {
 			r.Handle("/ticket", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketHandlerFunc)).Methods("POST")
 		}
 		if config.App == AppColabFold || config.App == AppPredictProtein {
@@ -566,11 +566,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if config.App == AppColabFold {
 			r.Handle("/ticket/pair", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketPairHandlerFunc)).Methods("POST")
 		}
-		if config.App == AppFoldSeek {
+		if config.App == AppFoldseek {
 			r.Handle("/ticket/foldmason", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketFoldMasonMSAHandlerFunc)).Methods("POST")
 		}
 	} else {
-		if config.App == AppMMseqs2 || config.App == AppFoldSeek {
+		if config.App == AppMMseqs2 || config.App == AppFoldseek {
 			r.HandleFunc("/ticket", ticketHandlerFunc).Methods("POST")
 		}
 		if config.App == AppColabFold || config.App == AppPredictProtein {
@@ -579,7 +579,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if config.App == AppColabFold {
 			r.HandleFunc("/ticket/pair", ticketPairHandlerFunc).Methods("POST")
 		}
-		if config.App == AppFoldSeek {
+		if config.App == AppFoldseek {
 			r.HandleFunc("/ticket/foldmason", ticketFoldMasonMSAHandlerFunc).Methods("POST")
 		}
 	}
