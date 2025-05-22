@@ -43,7 +43,7 @@ func (e *JobInvalidError) Error() string {
 	return "Invalid"
 }
 
-func execCommand(verbose bool, parameters ...string) (*exec.Cmd, chan error, error) {
+func execCommand(verbose bool, parameters []string, environ []string) (*exec.Cmd, chan error, error) {
 	cmd := exec.Command(
 		parameters[0],
 		parameters[1:]...,
@@ -53,6 +53,7 @@ func execCommand(verbose bool, parameters ...string) (*exec.Cmd, chan error, err
 
 	// Make sure MMseqs2's progress bar doesn't break
 	cmd.Env = append(os.Environ(), "TTY=0", "MMSEQS_CALL_DEPTH=1")
+	cmd.Env = append(cmd.Env, environ...)
 
 	if verbose {
 		cmd.Stdout = os.Stdout
@@ -72,8 +73,8 @@ func execCommand(verbose bool, parameters ...string) (*exec.Cmd, chan error, err
 	return cmd, done, err
 }
 
-func execCommandSync(verbose bool, parameters ...string) error {
-	cmd, done, err := execCommand(verbose, parameters...)
+func execCommandSync(verbose bool, parameters []string, environ []string) error {
+	cmd, done, err := execCommand(verbose, parameters, environ)
 	if err != nil {
 		return err
 	}
@@ -180,7 +181,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 					parameters = append(parameters, job.TaxFilter)
 				}
 
-				cmd, done, err := execCommand(config.Verbose, parameters...)
+				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
 				if err != nil {
 					errChan <- &JobExecutionError{err}
 					return
@@ -213,20 +214,26 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 
 		err = execCommandSync(
 			config.Verbose,
-			config.Paths.Mmseqs,
-			"mvdb",
-			filepath.Join(resultBase, "tmp0", "latest", "query_h"),
-			filepath.Join(resultBase, "query_h"),
+			[]string{
+				config.Paths.Mmseqs,
+				"mvdb",
+				filepath.Join(resultBase, "tmp0", "latest", "query_h"),
+				filepath.Join(resultBase, "query_h"),
+			},
+			[]string{},
 		)
 		if err != nil {
 			return &JobExecutionError{err}
 		}
 		err = execCommandSync(
 			config.Verbose,
-			config.Paths.Mmseqs,
-			"mvdb",
-			filepath.Join(resultBase, "tmp0", "latest", "query"),
-			filepath.Join(resultBase, "query"),
+			[]string{
+				config.Paths.Mmseqs,
+				"mvdb",
+				filepath.Join(resultBase, "tmp0", "latest", "query"),
+				filepath.Join(resultBase, "query"),
+			},
+			[]string{},
 		)
 		if err != nil {
 			return &JobExecutionError{err}
@@ -307,7 +314,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				filepath.Join(resultBase, "job.3di"),
 				resultBase,
 			}
-			err = execCommandSync(config.Verbose, parameters...)
+			err = execCommandSync(config.Verbose, parameters, []string{})
 			if err != nil {
 				return &JobExecutionError{err}
 			}
@@ -427,7 +434,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					parameters = append(parameters, "--num-iterations")
 					parameters = append(parameters, "0")
 				}
-				cmd, done, err := execCommand(config.Verbose, parameters...)
+				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
 				if err != nil {
 					errChan <- &JobExecutionError{err}
 					return
@@ -461,20 +468,26 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		if !is3Di {
 			err = execCommandSync(
 				config.Verbose,
-				config.Paths.Foldseek,
-				"mvdb",
-				filepath.Join(resultBase, "tmp0", "latest", "query_h"),
-				filepath.Join(resultBase, "query_h"),
+				[]string{
+					config.Paths.Foldseek,
+					"mvdb",
+					filepath.Join(resultBase, "tmp0", "latest", "query_h"),
+					filepath.Join(resultBase, "query_h"),
+				},
+				[]string{},
 			)
 			if err != nil {
 				return &JobExecutionError{err}
 			}
 			err = execCommandSync(
 				config.Verbose,
-				config.Paths.Foldseek,
-				"mvdb",
-				filepath.Join(resultBase, "tmp0", "latest", "query"),
-				filepath.Join(resultBase, "query"),
+				[]string{
+					config.Paths.Foldseek,
+					"mvdb",
+					filepath.Join(resultBase, "tmp0", "latest", "query"),
+					filepath.Join(resultBase, "query"),
+				},
+				[]string{},
 			)
 			if err != nil {
 				return &JobExecutionError{err}
@@ -604,7 +617,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					parameters = append(parameters, job.TaxFilter)
 				}
 
-				cmd, done, err := execCommand(config.Verbose, parameters...)
+				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
 				if err != nil {
 					errChan <- &JobExecutionError{err}
 					return
@@ -637,20 +650,26 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 
 		err = execCommandSync(
 			config.Verbose,
-			config.Paths.Foldseek,
-			"mvdb",
-			filepath.Join(resultBase, "tmp0", "latest", "query_h"),
-			filepath.Join(resultBase, "query_h"),
+			[]string{
+				config.Paths.Foldseek,
+				"mvdb",
+				filepath.Join(resultBase, "tmp0", "latest", "query_h"),
+				filepath.Join(resultBase, "query_h"),
+			},
+			[]string{},
 		)
 		if err != nil {
 			return &JobExecutionError{err}
 		}
 		err = execCommandSync(
 			config.Verbose,
-			config.Paths.Foldseek,
-			"mvdb",
-			filepath.Join(resultBase, "tmp0", "latest", "query"),
-			filepath.Join(resultBase, "query"),
+			[]string{
+				config.Paths.Foldseek,
+				"mvdb",
+				filepath.Join(resultBase, "tmp0", "latest", "query"),
+				filepath.Join(resultBase, "query"),
+			},
+			[]string{},
 		)
 		if err != nil {
 			return &JobExecutionError{err}
@@ -852,7 +871,7 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 			strconv.Itoa(b2i[m8out]),
 		}
 
-		cmd, done, err := execCommand(config.Verbose, parameters...)
+		cmd, done, err := execCommand(config.Verbose, parameters, []string{})
 		if err != nil {
 			return &JobExecutionError{err}
 		}
@@ -1075,7 +1094,7 @@ rm -rf -- "${BASE}/tmp"
 			pairingStrategy,
 		}
 
-		cmd, done, err := execCommand(config.Verbose, parameters...)
+		cmd, done, err := execCommand(config.Verbose, parameters, []string{})
 		if err != nil {
 			return &JobExecutionError{err}
 		}
@@ -1189,7 +1208,7 @@ rm -rf -- "${BASE}/tmp"
 			"--report-paths",
 			"0",
 		}
-		cmd, done, err := execCommand(config.Verbose, parameters...)
+		cmd, done, err := execCommand(config.Verbose, parameters, []string{})
 		if err != nil {
 			return &JobExecutionError{err}
 		}
