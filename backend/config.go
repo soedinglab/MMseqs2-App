@@ -240,7 +240,6 @@ const (
 	AppFoldseek       ConfigApp = "foldseek"
 	AppColabFold      ConfigApp = "colabfold"
 	AppPredictProtein ConfigApp = "predictprotein"
-	AppFoldMason      ConfigApp = "foldmason"
 )
 
 type ConfigRoot struct {
