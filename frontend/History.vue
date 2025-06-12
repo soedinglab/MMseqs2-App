@@ -149,6 +149,8 @@ export default {
                                 return '/result/' + element.id + '/0';
                             case "foldmasoneasymsa":
                                 return '/result/foldmason/' + element.id;
+                            case "folddisco":
+                                return '/result/folddisco/' + element.id;
                             default:
                                 return '/';
                         }

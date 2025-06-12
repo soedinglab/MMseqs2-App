@@ -56,6 +56,10 @@ export default {
         multimerOnly: {
             type: Boolean,
             default: false
+        },
+        motifOnly: {
+            type: Boolean,
+            default: false
         }
     },
     data() {
@@ -96,6 +100,12 @@ export default {
 
                 if (this.multimerOnly) {
                     this.availableDatabases = this.availableDatabases.filter(db => db.complex);
+                }
+
+                if (this.motifOnly) {
+                    this.availableDatabases = this.availableDatabases.filter(db => db.motif);
+                } else {
+                    this.availableDatabases = this.availableDatabases.filter(db => !db.motif);
                 }
 
                 const complete = this.availableDatabases.filter(db => db.status === "COMPLETE");

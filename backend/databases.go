@@ -22,6 +22,7 @@ type Params struct {
 	Order      int    `json:"order"`
 	Taxonomy   bool   `json:"taxonomy"`
 	Complex    bool   `json:"complex"`
+	Motif      bool   `json:"motif"`
 	FullHeader bool   `json:"full_header"`
 	Index      string `json:"index"`
 	Search     string `json:"search"`

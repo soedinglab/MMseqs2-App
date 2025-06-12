@@ -1227,7 +1227,101 @@ rm -rf -- "${BASE}/tmp"
 			log.Print("Process finished gracefully without error")
 		}
 		return nil
+	case FoldDiscoJob:
+		log.Print(config.Paths.FoldDisco)
+		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		var wg sync.WaitGroup
+		errChan := make(chan error, len(job.Database))
+		maxParallel := config.Worker.ParallelDatabases
+		semaphore := make(chan struct{}, max(1, maxParallel))
 
+		for index, database := range job.Database {
+			wg.Add(1)
+			semaphore <- struct{}{}
+			go func(index int, database string) {
+				defer wg.Done()
+				defer func() { <-semaphore }()
+				params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
+				if err != nil {
+					errChan <- &JobExecutionError{err}
+					return
+				}
+				if !params.Motif {
+					err := errors.New("database is not a folddisco database")
+					errChan <- &JobExecutionError{err}
+					return
+				}
+
+				parameters := []string{
+					config.Paths.FoldDisco,
+					"query",
+					"-p",
+					filepath.Join(resultBase, "job.pdb"),
+					"-i",
+					filepath.Join(config.Paths.Databases, database),
+					"-o",
+					filepath.Join(resultBase, "alis_"+database),
+					"--superpose",
+				}
+				// RACHEL: add custom motif
+				// if job.Motif != "" {
+				// 	parameters = append(parameters, "-q", job.Motif)
+				// }
+
+				parameters = append(parameters, strings.Fields(params.Search)...)
+
+				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+				if err != nil {
+					errChan <- &JobExecutionError{err}
+					return
+				}
+
+				select {
+				case <-time.After(1 * time.Hour):
+					if err := KillCommand(cmd); err != nil {
+						log.Printf("Failed to kill: %s\n", err)
+					}
+					errChan <- &JobTimeoutError{}
+				case err := <-done:
+					if err != nil {
+						errChan <- &JobExecutionError{err}
+					} else {
+						errChan <- nil
+					}
+				}
+			}(index, database)
+		}
+
+		wg.Wait()
+		close(errChan)
+
+		for err := range errChan {
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+		}
+
+		/*
+			path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+			file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+			err = ResultArchive(file, request.Id, path)
+			if err != nil {
+				file.Close()
+				return &JobExecutionError{err}
+			}
+			err = file.Close()
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+		*/
+
+		if config.Verbose {
+			log.Print("Process finished gracefully without error")
+		}
+		return nil
 	default:
 		return &JobInvalidError{}
 	}
