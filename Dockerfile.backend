@@ -53,7 +53,7 @@ RUN mkdir binaries; \
         for j in sse2 sse41 avx2 x86_64; do \
           if [ -e "${i}-linux-${j}.tar.gz" ]; then \
             cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}/bin/${i}; \
-            if [ i = "folddisco" ]; then \
+            if [ "$i" = "folddisco" ]; then \
               mv -f -- ${i}/bin/${i} binaries/${i}; \
             else \
               mv -f -- ${i}/bin/${i} binaries/${i}_${j}; \
