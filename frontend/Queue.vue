@@ -85,6 +85,9 @@ export default {
                                     case "foldmasoneasymsa":
                                         this.$router.replace({ name: 'foldmasonresult', params: { ticket: ticket } });
                                         break;
+                                    case "folddisco":
+                                        this.$router.replace({ name: 'folddiscoresult', params: { ticket: ticket } });
+                                        break;
                                     case "index":
                                         this.$router.replace({ name: 'preferences' });
                                         break;

@@ -12,9 +12,11 @@ import App from './App.vue';
 import Search from './Search.vue';
 import MultimerSearch from './MultimerSearch.vue';
 import FoldMasonSearch from './FoldMasonSearch.vue';
+import FoldDiscoSearch from './FoldDiscoSearch.vue';
 import Queue from './Queue.vue';
 import Queries from './Queries.vue';
 import ResultFoldMason from './ResultFoldMason.vue';
+import ResultFoldDisco from './ResultFoldDisco.vue';
 
 const appStrings = {
     mmseqs: require('./assets/mmseqs.en_US.po').default,
@@ -33,7 +35,9 @@ const router = __LOCAL__ ? null : new VueRouter({
         { path: '/complex', redirect: { name: 'multimer' } },
         { name: 'multimer', path: '/multimer', component: MultimerSearch },
         { name: 'foldmason', path: '/foldmason', component: FoldMasonSearch },
+        { name: 'folddisco', path: '/folddisco', component: FoldDiscoSearch },
         { name: 'foldmasonresult', path: '/result/foldmason/:ticket', component: ResultFoldMason },
+        { name: 'folddiscoresult', path: '/result/folddisco/:ticket', component: ResultFoldDisco },
         { name: 'queue', path: '/queue/:ticket', component: Queue },
         { 
             name: 'result',
