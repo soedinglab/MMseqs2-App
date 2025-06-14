@@ -41,6 +41,7 @@
                     <div class="input-buttons-left">
                         <!-- <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton> -->
                         <!-- <file-button id="localMSAFile" label="Upload MSA file" @upload="uploadMSA"></file-button> -->
+                        <load-acession-button v-if="$APP == 'foldseek'" @select="queries.push(...$event)" @loading="accessionLoading = $event" :preload-source="preloadSources" :preload-accession="preloadAccessions" multiple></load-acession-button>
                         <file-button id="localFile" label="Upload previous result (JSON)" @upload="uploadJSON"></file-button>
                         <v-btn
                             type="button"
@@ -157,10 +158,15 @@ export default {
             errorMessage: { type: null, message: "" },
             queries: [],   // [ { name: "file", text: "ATOM..." }, { name: "file", text: "ATOM..." } ...]
             params: structuredClone(defaultParams),
-            inFileDrag: false
+            inFileDrag: false,
+            accessionLoading: false,
         };
     },
     async mounted() {
+        if (this.preloadAccessions.length > 0) {
+            this.queries = [];
+            return;
+        }
     },
     computed: {
         alignDisabled() {
@@ -168,7 +174,13 @@ export default {
         },
         fileNameSet() {
             return new Set(this.queries.map(f => f.name)); 
-        }
+        },
+        preloadSources() {
+            return this.$route.query.sources || "";
+        },
+        preloadAccessions() {
+            return this.$route.query.accessions || "";
+        },
     },
     watch: {
         'queries': function() {
