@@ -1267,41 +1267,17 @@ rm -rf -- "${BASE}/tmp"
 					return
 				}
 
-				scriptPath := filepath.Join(resultBase, "run_"+database+".sh")
-				script, err := os.Create(scriptPath)
-				if err != nil {
-					errChan <- &JobExecutionError{err}
-					return
-				}
-
-				script.WriteString(`#!/bin/bash -e
-FOLDDISCO="$1"
-FOLDCOMP="$2"
-BASE="$3"
-DBPATH="$4"
-QUERY="$5"
-DBNAME=$(basename "${DBPATH}")
-FOLDCOMP_DB=$(grep '^foldcomp_db' "${DBPATH}.type" | sed -E 's/^foldcomp_db *= *"([^"]+)"$/\1/')
-
-$FOLDDISCO query -p "${QUERY}" -i "${DBPATH}" -o "${BASE}/alis_${DBNAME}" --web --top 1000
-mkdir -p "${BASE}/pdb_${DBNAME}"
-awk -F"\t" '{split($1,path,"/"); print path[length(path)]}' "${BASE}/alis_${DBNAME}" | sort | uniq > "${BASE}/target_${DBNAME}.list"
-$FOLDCOMP decompress --id-list "${BASE}/target_${DBNAME}".list "${FOLDCOMP_DB}" "${BASE}/pdb_${DBNAME}"
-`)
-				err = script.Close()
-				if err != nil {
-					errChan <- &JobExecutionError{err}
-					return
-				}
-
 				parameters := []string{
-					"/bin/sh",
-					scriptPath,
 					config.Paths.FoldDisco,
-					config.Paths.FoldComp,
-					resultBase,
-					filepath.Join(config.Paths.Databases, database),
+					"query",
+					"-p",
 					inputFile,
+					"-i",
+					filepath.Join(config.Paths.Databases, database),
+					"-o",
+					filepath.Join(resultBase, "alis_"+database),
+					"--superpose",
+					"--top", "1000",
 				}
 				// parameters = append(parameters, strings.Fields(params.Search)...)
 

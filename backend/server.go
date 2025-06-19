@@ -812,13 +812,12 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		var results []FoldDiscoResult
 		var motif string
 
+		request, err := getJobRequestFromFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.json"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if resId == "" { // If it is the result table
-
-			request, err := getJobRequestFromFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.json"))
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
 
 			switch job := request.Job.(type) {
 			case FoldDiscoJob:
@@ -884,7 +883,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		type FoldDiscoModeResponse struct {
-			// Queries []FastaEntry `json:"queries"`
 			// Mode    string            `json:"mode"`
 			Motif   string            `json:"motif"`
 			Results []FoldDiscoResult `json:"results"`
