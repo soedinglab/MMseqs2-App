@@ -33,7 +33,11 @@ import { create } from 'axios';
 
 export default {
     name: 'load-accession-button',
-    props: ['preload-accession', 'preload-source'],
+    props: {
+        preloadAccession: { default: '', type: String },
+        preloadSource: { default: '', type: String },
+        multiple: { default: false, type: Boolean }, 
+    },
     data() {
         return {
             loading: false,
@@ -50,7 +54,30 @@ export default {
     },
     mounted() {
         if (this.preloadAccession && this.preloadAccession.length > 0 && this.preloadSource && this.preloadSource.length > 0) {
-            if (this.sources.map((e) => e.value).includes(this.preloadSource)) {
+            if (this.multiple) {
+                const accessions = this.preloadAccession.split(/[,\s]+/)
+                    .filter(x => x.length)
+                    .map(x => x.replaceAll(/[^A-Za-z0-9_]/g, ''));
+                if (accessions.length === 0) {
+                    return;
+                }
+
+                let sources = this.preloadSource.split(/[,\s]+/).filter(x => x.length);
+                if (sources.length == 1) {
+                    sources = Array(accessions.length).fill(sources[0]);
+                }
+                if (sources.length != accessions.length) {
+                    return;
+                }
+                const valid = this.sources.map(e => e.value);
+                if (!sources.every(s => valid.includes(s))) {
+                    return;
+                }
+                let combined = sources.map(function(e, i) {
+                    return [accessions[i], e];
+                });
+                this.loadMany(combined);
+            } else if (this.sources.map((e) => e.value).includes(this.preloadSource)) {
                 this.accession = this.preloadAccession.replaceAll(/[^A-Za-z0-9_]/g, '');
                 this.source = this.preloadSource;
                 this.load(this.accession, this.preloadSource);
@@ -66,55 +93,85 @@ export default {
     },
     methods: {
         loadSelected() {
-            this.load(this.accession, this.source);
+            if (this.multiple) {
+                const list = this.accession.split(/[,\s]+/).filter(x => x.length);
+                if (list.length === 0) {
+                    return;
+                }
+                this.loadMany(list, this.source);
+            } else {
+                this.load(this.accession, this.source);
+            }
+        },
+        fetchData(accession, source) {
+            return new Promise((resolve, reject) => {
+                const axios = create();
+                const upper = accession.toUpperCase();
+
+                const fail = () => reject(accession);
+                if (source == "PDB") {
+                    axios.get("https://files.rcsb.org/download/" + upper + ".cif")
+                        .then(r => resolve({ name: upper + ".cif", text: r.data }))
+                        .catch(fail);
+                } else if (source == "BFVD") {
+                    axios.get("https://bfvd.steineggerlab.workers.dev/pdb/" + upper + ".pdb")
+                        .then(r => resolve({ name: upper + ".pdb", text: r.data }))
+                        .catch(fail);
+                } else if (source == "AlphaFoldDB") {
+                    axios.get("https://alphafold.ebi.ac.uk/api/search?q=(text:*" + accession + " OR text:" + accession + "*)&type=main&start=0&rows=1")
+                        .then(resp => {
+                            const docs = resp.data.docs;
+                            if (docs.length == 0) { 
+                                fail(); 
+                                return;
+                            }
+                            const cif = docs[0].entryId + "-model_v" + docs[0].latestVersion + ".pdb";
+                            axios.get("https://alphafold.ebi.ac.uk/files/" + cif)
+                                .then(r => resolve({ name: cif, text: r.data }))
+                                .catch(fail);
+                        })
+                        .catch(fail);
+                } else {
+                    fail();
+                }
+            });
+        },
+        loadMany(list) {
+            this.loading = true;
+            this.error   = "";
+            const jobs = list.map(a => this.fetchData(a[0].trim(), a[1].trim()));
+            Promise.allSettled(jobs).then(results => {
+                const ok  = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+                const bad = results.filter(r => r.status === 'rejected').map(r => r.reason);
+                console.log(ok);
+                if (ok.length) {
+                    this.$emit('select', ok);
+                    this.show = false;
+                }
+                if (bad.length) {
+                    this.error = `${bad.join(', ')} not found`;
+                }
+                this.loading = false;
+            });
         },
         load(accession, source) {
-            let url;
-            let fun;
-            // make a new axios instance to not leak the electron access token
-            // TODO separate non-component logic out so we can make this atomic
-            //      then can just give a list of accessions (comma separated),
-            //      and lookup pdbs in Promise list
-            const axios = create();
-            const simpleFetch = response => {
-                    this.$emit('select', response.data);
-                    this.show = false;
-                    this.loading = false;
-                };
-            if (source == "PDB") {
-                url = "https://files.rcsb.org/download/" + accession.toUpperCase() + ".cif";
-                fun = simpleFetch;
-            } else if (source == "BFVD") {
-                url = "https://bfvd.steineggerlab.workers.dev/pdb/" + accession.toUpperCase() + ".pdb"
-                fun = simpleFetch;
-            } else if (source == "AlphaFoldDB") {
-                url = "https://alphafold.ebi.ac.uk/api/search?q=(text:*" + accession + " OR text:" + accession + "*)&type=main&start=0&rows=1"
-                fun = response => {
-                    const data = response.data;
-                    const docs = data.docs;
-                    if (docs.length == 0) {
-                        this.error = "Accession not found";
-                        this.loading = false;
-                        return;
-                    }
-                    const cif = "https://alphafold.ebi.ac.uk/files/" + docs[0].entryId + "-model_v" + docs[0].latestVersion + ".pdb"
-                    axios.get(cif)
-                        .then(simpleFetch)
-                        .catch(() => {
-                            this.error = "Accession not found";
-                            this.loading = false;
-                        })
-                };
-            } else {
+            if (!accession) {
                 return;
             }
+
             this.loading = true;
-            axios.get(url)
-                .then(fun)
-                .catch(() => {
-                    this.error = "Accession not found";
+            this.error   = "";
+
+            this.fetchData(accession, source)
+                .then(r => {
+                    this.$emit('select', r.text);
+                    this.show    = false;
                     this.loading = false;
                 })
+                .catch(() => {
+                    this.error   = "Accession not found";
+                    this.loading = false;
+                });
         }
     }
 }

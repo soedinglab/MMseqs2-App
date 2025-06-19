@@ -15,7 +15,8 @@
         "temporary"    : "/tmp",
         "mmseqs"       : "/usr/local/bin/mmseqs",
         "foldseek"     : "/usr/local/bin/foldseek",
-        "foldmason"     : "/usr/local/bin/foldmason"
+        "foldmason"    : "/usr/local/bin/foldmason",
+        "folddisco"    : "/usr/local/bin/folddisco"
     },
     "redis" : {
         "network"  : "tcp",

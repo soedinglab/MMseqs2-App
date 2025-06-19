@@ -76,7 +76,7 @@
                                     ></v-radio>
                 </v-radio-group>
     
-                <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete>
+                <!-- <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete> -->
     
                 <v-tooltip v-if="!$ELECTRON && !hideEmail" open-delay="300" top>
                     <template v-slot:activator="{ on }">
@@ -174,7 +174,7 @@ export default {
             taxFilter: JSON.parse(storage.getItem('taxFilter') || 'null'),
             predictable: false,
             accessionLoading: false,
-            motif: "todo",
+            motif: "Input motif chain and residues (e.g. A12,A20,A43)",
         };
     },
     async mounted() {
@@ -188,6 +188,7 @@ export default {
         } else {
             this.query = this.$STRINGS.MOTIF_DEFAULT; // 1G2F: zinc finger
         }
+        // RACHEL: check if MOTIF specified
     },
     computed: {
         searchDisabled() {
@@ -245,7 +246,7 @@ export default {
             try {
                 this.inSearch = true;
                 const response = await this.$axios.post("api/ticket/folddisco", convertToQueryUrl(request), {
-                    transformRequest: AxiosCompressRequest(this.$axios)
+                    //transformRequest: AxiosCompressRequest(this.$axios)
                 });
                 this.errorMessage = "";
                 switch (response.data.status) {

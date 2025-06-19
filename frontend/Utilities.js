@@ -1,4 +1,4 @@
-import { Selection, Matrix4 } from 'ngl';
+import { Selection, Matrix4, PdbWriter } from 'ngl';
 
 function tryLinkTargetToDB(target, db) {
     try {
@@ -166,28 +166,26 @@ export function parseResultsFoldDisco(data) {
         total++;
         const grouped = {};
         for (let j in result.alignments) {
-            for (let k in result.alignments[j]) {
-                let item = result.alignments[j][k];
-                let split = item.target.split('/');
-                item.target = split[split.length-1];
-                item.idfscore = item.idfscore.toFixed(3);
-                item.rmsd = item.rmsd.toFixed(3);
-    
-                // item.description = split.slice(1).join(' ');
-                // if (item.description.length > 1) {
-                //     result.hasDescription = true;
-                // }
-                // item.href = tryLinkTargetToDB(item.target, db);
-                // item.target = tryFixTargetName(item.target, db);
-                // item.id = 'result-' + i + '-' + j;
-                // item.active = false;
-                let groupId = k;
-                // // console.log("Group ID: " + groupId + " complexid: " + item.complexid + " j: " + j)
-                if (!(grouped[groupId])) {
-                    grouped[groupId] = [];
-                }
-                grouped[k].push(item);
+            let item = result.alignments[j];
+            let split = item.target.split('/');
+            item.target = split[split.length-1];
+            item.idfscore = item.idfscore.toFixed(3);
+            item.rmsd = item.rmsd.toFixed(3);
+
+            // item.description = split.slice(1).join(' ');
+            // if (item.description.length > 1) {
+            //     result.hasDescription = true;
+            // }
+            // item.href = tryLinkTargetToDB(item.target, db);
+            // item.target = tryFixTargetName(item.target, db);
+            // item.id = 'result-' + i + '-' + j;
+            // item.active = false;
+            let groupId = j;
+            // // console.log("Group ID: " + groupId + " complexid: " + item.complexid + " j: " + j)
+            if (!(grouped[groupId])) {
+                grouped[groupId] = [];
             }
+            grouped[j].push(item);
         }
         result.alignments = grouped;
     }
@@ -478,4 +476,9 @@ export function checkMultimer(pdbString) {
         models['single model'] = chainSet;
     }
     return Object.values(models).some(model => model.size > 1);
+}
+
+export function getPdbText(comp) {
+    let pw = new PdbWriter(comp.structure, { renumberSerial: false });
+    return pw.getData().split('\n').filter(line => line.startsWith('ATOM')).join('\n');
 }
