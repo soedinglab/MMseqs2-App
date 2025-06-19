@@ -797,17 +797,76 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		database := req.URL.Query().Get("database")
-		format := req.URL.Query().Get("format")
-		tid := req.URL.Query().Get("id")
+		parId := req.URL.Query().Get("id")
 
-		if format == "pdb" { // handle structure viewer request
-			if tid == "" {
-				http.Error(w, "Target not specified", http.StatusBadRequest)
+		resId := ""
+		if parId != "" {
+			resId = parId // Rachel: parse the parId
+			// tmp, err := strconv.ParseInt(parId, 10, 32)
+			// if err != nil {
+			// 	http.Error(w, err.Error(), http.StatusBadRequest)
+			// 	return
+			// }
+			// resId = int(tmp)
+		}
+		var results []FoldDiscoResult
+		var motif string
+
+		if resId == "" { // If it is the result table
+
+			request, err := getJobRequestFromFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.json"))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			tid := strings.TrimSuffix(tid, ".gz") //Rachel: handle other suffices or as foldcomp db
-			pdbpath := filepath.Join(config.Paths.Databases, database+"_pdb/"+tid)
-			if !fileExists(pdbpath) {
+
+			switch job := request.Job.(type) {
+			case FoldDiscoJob:
+				databases := job.Database
+				if database != "" {
+					if isIn(database, job.Database) == -1 {
+						http.Error(w, "Database not found", http.StatusBadRequest)
+						return
+					}
+					databases = []string{database}
+				}
+
+				motif = job.Motif
+				// if motif != "" { // RACHEL: handle later
+
+				// }
+				results, err = FoldDiscoAlignments(ticket.Id, databases, config.Paths.Results)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+
+				for _, res := range results {
+					if res.Alignments == nil {
+						continue
+					}
+					cnt := 0
+					aln := res.Alignments
+					alnType, ok := aln.([]FoldDiscoAlignmentEntry)
+					if !ok {
+						http.Error(w, "Cannot parse FoldDisco Alignment entry", http.StatusBadRequest)
+						return
+					}
+					for i := range alnType {
+						idx := strconv.Itoa(cnt)
+						alnType[i].MarshalFormat = MarshalTargetNumeric
+						alnType[i].TargetCa = idx
+						cnt++
+					}
+				}
+			default:
+				http.Error(w, "Invalid job type", http.StatusBadRequest)
+				return
+			}
+		} else { // If it requests a target structure
+			pdbfile := strings.TrimSuffix(resId, ".gz") //Rachel: handle other suffices or as foldcomp db
+			pdbpath := filepath.Join(config.Paths.Results, string(ticket.Id), "pdb_"+database, pdbfile)
+			if !fileExists(pdbpath) { // DOING: run Foldcomp to
 				http.Error(w, "Target pdb file does not exist", http.StatusBadRequest)
 				return
 			}
@@ -819,45 +878,8 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 
 			w.Header().Set("Content-Type", "application/octet-stream")
-			// w.Header().Set("Cache-Control", "public, max-age=3600")
-			w.Header().Set("Cache-Control", "no-cache, no-store") //Rachel: recover later
+			w.Header().Set("Cache-Control", "public, max-age=3600")
 			w.Write(pdb)
-			return
-		}
-
-		// var fasta []FastaEntry
-		var results []FoldDiscoResult
-		var motif string
-
-		request, err := getJobRequestFromFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.json"))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		switch job := request.Job.(type) {
-		case FoldDiscoJob:
-			databases := job.Database
-			if database != "" {
-				if isIn(database, job.Database) == -1 {
-					http.Error(w, "Database not found", http.StatusBadRequest)
-					return
-				}
-				databases = []string{database}
-			}
-
-			motif = job.Motif
-			// if motif != "" { // RACHEL: handle later
-
-			// }
-			results, err = FoldDiscoAlignments(ticket.Id, databases, config.Paths.Results)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-		default:
-			http.Error(w, "Invalid job type", http.StatusBadRequest)
 			return
 		}
 
@@ -867,8 +889,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			Motif   string            `json:"motif"`
 			Results []FoldDiscoResult `json:"results"`
 		}
-		// w.Header().Set("Cache-Control", "public, max-age=3600")
-		w.Header().Set("Cache-Control", "no-cache, no-store") //Rachel: recover later
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 		err = json.NewEncoder(w).Encode(FoldDiscoModeResponse{motif, results})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

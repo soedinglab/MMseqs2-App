@@ -204,7 +204,23 @@ func (entry FoldDiscoAlignmentEntry) MarshalJSON() ([]byte, error) {
 		}{
 			Alias: (*Alias)(&entry),
 		})
-	} else { // TODO: MarshalTargetNumeric, MarshalTargetOnly?
+	} else if entry.MarshalFormat == MarshalTargetNumeric {
+		targetCaInt, err := strconv.Atoi(entry.TargetCa)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(&struct {
+			*Alias
+			TargetCa int `json:"tCa"`
+		}{
+			Alias:    (*Alias)(&entry),
+			TargetCa: targetCaInt,
+		})
+
+	} else if entry.MarshalFormat == MarshalTargetOnly {
+		// TODO
+		return nil, nil
+	} else {
 		return nil, nil
 	}
 }
@@ -419,11 +435,10 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 	return res, nil
 }
 
-func ReadFoldDisco[T any](id Id, databases []string, jobsbase string) ([]FoldDiscoResult, error) {
+func ReadFoldDisco(id Id, databases []string, jobsbase string) ([]FoldDiscoResult, error) {
 	base := filepath.Join(jobsbase, string(id))
-	// taxonomyReader := Reader[uint32]{}
 
-	var allAlignments []T
+	var allAlignments []FoldDiscoAlignmentEntry
 	res := make([]FoldDiscoResult, 0)
 
 	for _, db := range databases {
@@ -434,14 +449,7 @@ func ReadFoldDisco[T any](id Id, databases []string, jobsbase string) ([]FoldDis
 		}
 		defer file.Close()
 
-		// content, err := io.ReadAll(file)
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// body := string(content)
-		// data := strings.NewReader(body)
-		// allAlignments, err = ReadAlignment[T](data)
-		allAlignments, err = ReadAlignment[T](file)
+		allAlignments, err = ReadAlignment[FoldDiscoAlignmentEntry](file)
 		if err != nil {
 			return res, err
 		}
@@ -525,8 +533,7 @@ func ComplexAlignments(id Id, entry []uint32, databases []string, jobsbase strin
 }
 
 func FoldDiscoAlignments(id Id, databases []string, jobsbase string) ([]FoldDiscoResult, error) {
-	// return ReadAlignments[FoldDiscoAlignmentEntry, uint32](id, entry, databases, jobsbase)
-	return ReadFoldDisco[FoldDiscoAlignmentEntry](id, databases, jobsbase)
+	return ReadFoldDisco(id, databases, jobsbase)
 }
 
 func addFile(tw *tar.Writer, path string) error {

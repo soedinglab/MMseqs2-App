@@ -275,12 +275,8 @@ END
         try {
             const ticket = this.$route.params.ticket;
             const match = this.alignment;
-            const re = "api/result/folddisco/" + ticket + '?format=pdb&database=' + match.db +'&id=' + match.target;
-            const request = await this.$axios.get(re,
-                {headers: { // RACHEL: recover
-                    'Cache-Control': 'no-cache'
-                }}
-            );
+            const re = "api/result/folddisco/" + ticket + '?database=' + match.db +'&id=' + match.target;
+            const request = await this.$axios.get(re);
             targetPdb = request.data;
         } catch (e) {
             // throw e

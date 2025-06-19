@@ -1235,6 +1235,21 @@ rm -rf -- "${BASE}/tmp"
 		maxParallel := config.Worker.ParallelDatabases
 		semaphore := make(chan struct{}, max(1, maxParallel))
 
+		inputFile := filepath.Join(resultBase, "job.pdb")
+
+		isCif, err := ismmCIFFile(inputFile)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+
+		if isCif {
+			newFilePath := filepath.Join(resultBase, "job.cif")
+			if err := os.Rename(inputFile, newFilePath); err != nil {
+				return &JobExecutionError{err}
+			}
+			inputFile = newFilePath
+		}
+
 		for index, database := range job.Database {
 			wg.Add(1)
 			semaphore <- struct{}{}
@@ -1252,23 +1267,43 @@ rm -rf -- "${BASE}/tmp"
 					return
 				}
 
-				parameters := []string{
-					config.Paths.FoldDisco,
-					"query",
-					"-p",
-					filepath.Join(resultBase, "job.pdb"),
-					"-i",
-					filepath.Join(config.Paths.Databases, database),
-					"-o",
-					filepath.Join(resultBase, "alis_"+database),
-					"--superpose",
+				scriptPath := filepath.Join(resultBase, "run_"+database+".sh")
+				script, err := os.Create(scriptPath)
+				if err != nil {
+					errChan <- &JobExecutionError{err}
+					return
 				}
-				// RACHEL: add custom motif
-				// if job.Motif != "" {
-				// 	parameters = append(parameters, "-q", job.Motif)
-				// }
 
-				parameters = append(parameters, strings.Fields(params.Search)...)
+				script.WriteString(`#!/bin/bash -e
+FOLDDISCO="$1"
+FOLDCOMP="$2"
+BASE="$3"
+DBPATH="$4"
+QUERY="$5"
+DBNAME=$(basename "${DBPATH}")
+FOLDCOMP_DB=$(grep '^foldcomp_db' "${DBPATH}.type" | sed -E 's/^foldcomp_db *= *"([^"]+)"$/\1/')
+
+$FOLDDISCO query -p "${QUERY}" -i "${DBPATH}" -o "${BASE}/alis_${DBNAME}" --web --top 1000
+mkdir -p "${BASE}/pdb_${DBNAME}"
+awk -F"\t" '{split($1,path,"/"); print path[length(path)]}' "${BASE}/alis_${DBNAME}" | sort | uniq > "${BASE}/target_${DBNAME}.list"
+$FOLDCOMP decompress --id-list "${BASE}/target_${DBNAME}".list "${FOLDCOMP_DB}" "${BASE}/pdb_${DBNAME}"
+`)
+				err = script.Close()
+				if err != nil {
+					errChan <- &JobExecutionError{err}
+					return
+				}
+
+				parameters := []string{
+					"/bin/sh",
+					scriptPath,
+					config.Paths.FoldDisco,
+					config.Paths.FoldComp,
+					resultBase,
+					filepath.Join(config.Paths.Databases, database),
+					inputFile,
+				}
+				// parameters = append(parameters, strings.Fields(params.Search)...)
 
 				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
 				if err != nil {
@@ -1300,23 +1335,6 @@ rm -rf -- "${BASE}/tmp"
 				return &JobExecutionError{err}
 			}
 		}
-
-		/*
-			path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
-			file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
-			if err != nil {
-				return &JobExecutionError{err}
-			}
-			err = ResultArchive(file, request.Id, path)
-			if err != nil {
-				file.Close()
-				return &JobExecutionError{err}
-			}
-			err = file.Close()
-			if err != nil {
-				return &JobExecutionError{err}
-			}
-		*/
 
 		if config.Verbose {
 			log.Print("Process finished gracefully without error")

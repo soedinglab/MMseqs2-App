@@ -174,6 +174,7 @@ type ConfigPaths struct {
 	Foldseek  string                `json:"foldseek"`
 	FoldMason string                `json:"foldmason"`
 	FoldDisco string                `json:"folddisco"`
+	FoldComp  string                `json:"foldcomp"`
 	ColabFold *ConfigColabFoldPaths `json:"colabfold"`
 }
 
