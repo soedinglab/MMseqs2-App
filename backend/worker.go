@@ -1277,7 +1277,7 @@ rm -rf -- "${BASE}/tmp"
 					"-o",
 					filepath.Join(resultBase, "alis_"+database),
 					"--superpose",
-					"--top", "1000",
+					"--top 1000",
 				}
 				// parameters = append(parameters, strings.Fields(params.Search)...)
 
