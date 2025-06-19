@@ -864,10 +864,39 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 		} else { // If it requests a target structure
 			pdbfile := strings.TrimSuffix(resId, ".gz") //Rachel: handle other suffices or as foldcomp db
-			pdbpath := filepath.Join(config.Paths.Results, string(ticket.Id), "pdb_"+database, pdbfile)
-			if !fileExists(pdbpath) { // DOING: run Foldcomp to
-				http.Error(w, "Target pdb file does not exist", http.StatusBadRequest)
-				return
+			pdbpath := filepath.Join(resultBase, "pdb_"+database, pdbfile)
+
+			if !fileExists(pdbpath) { // Generate pdb file with foldcomp
+				idPath := filepath.Join(resultBase, "id.list")
+				idlist, err := os.Create(idPath)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				idlist.WriteString(pdbfile)
+				err = idlist.Close()
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+
+				db_prefix := strings.TrimSuffix(database, "_folddisco")
+				db_foldcomp := db_prefix + "_foldcomp"
+				err = execCommandSync(
+					config.Verbose,
+					[]string{
+						config.Paths.FoldComp,
+						"decompress",
+						"--id-list",
+						idPath,
+						filepath.Join(config.Paths.Databases, db_foldcomp),
+						filepath.Join(resultBase, "pdb_"+database),
+					},
+					[]string{},
+				)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+				}
 			}
 
 			pdb, err := os.ReadFile(pdbpath)

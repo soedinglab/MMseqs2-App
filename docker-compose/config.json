@@ -16,7 +16,8 @@
         "mmseqs"       : "/usr/local/bin/mmseqs",
         "foldseek"     : "/usr/local/bin/foldseek",
         "foldmason"    : "/usr/local/bin/foldmason",
-        "folddisco"    : "/usr/local/bin/folddisco"
+        "folddisco"    : "/usr/local/bin/folddisco",
+        "foldcomp"    : "/usr/local/bin/foldcomp"
     },
     "redis" : {
         "network"  : "tcp",
