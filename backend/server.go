@@ -811,8 +811,8 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 		var results []FoldDiscoResult
 		var motif string
-
-		request, err := getJobRequestFromFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.json"))
+		resultBase := filepath.Join(config.Paths.Results, string(ticket.Id))
+		request, err := getJobRequestFromFile(filepath.Join(resultBase, "job.json"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
