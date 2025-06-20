@@ -47,7 +47,11 @@ RUN mkdir binaries; \
       for i in mmseqs foldseek foldmason folddisco foldcomp; do \
         if [ -e "${i}-linux-arm64.tar.gz" ]; then \
           cat ${i}-linux-arm64.tar.gz | tar -xzvf- ${i}/bin/${i}; \
-          mv -f -- ${i}/bin/${i} binaries/${i}; \
+          if [ "$i" = "foldcomp" ] ; then \
+            mv -f -- ${i} binaries/${i}; \
+          else \
+            mv -f -- ${i}/bin/${i} binaries/${i}; \
+          fi; \
         fi; \
       done; \
     else \
