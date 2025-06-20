@@ -48,6 +48,7 @@ RUN mkdir binaries; \
         if [ -e "${i}-linux-arm64.tar.gz" ]; then \
           cat ${i}-linux-arm64.tar.gz | tar -xzvf- ${i}/bin/${i}; \
           if [ "$i" = "foldcomp" ] ; then \
+            cat ${i}-linux-arm64.tar.gz | tar -xzvf- ${i}; \
             mv -f -- ${i} binaries/${i}; \
           else \
             mv -f -- ${i}/bin/${i} binaries/${i}; \
@@ -62,6 +63,7 @@ RUN mkdir binaries; \
             if [ "$i" = "folddisco" ] ; then \
               mv -f -- ${i}/bin/${i} binaries/${i}; \
             elif [ "$i" = "foldcomp" ]; then \
+              cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}; \
               mv -f -- ${i} binaries/${i}; \
             else \
               mv -f -- ${i}/bin/${i} binaries/${i}_${j}; \
