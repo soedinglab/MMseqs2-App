@@ -57,7 +57,7 @@ RUN mkdir binaries; \
             cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}/bin/${i}; \
             if [ "$i" = "folddisco" ] ; then \
               mv -f -- ${i}/bin/${i} binaries/${i}; \
-            else if [ "$i" = "foldcomp" ]; then \
+            elif [ "$i" = "foldcomp" ]; then \
               mv -f -- ${i} binaries/${i}; \
             else \
               mv -f -- ${i}/bin/${i} binaries/${i}_${j}; \
