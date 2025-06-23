@@ -18,7 +18,7 @@
                     <template v-slot:activator="{ on }">
                         <v-icon v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon>
                     </template>
-                    <span>{{ $STRINGS.QUERIES_HELP }}</span>
+                    <span v-html="$STRINGS.MOTIF_HELP"></span>
                 </v-tooltip>
             </template>
             <template slot="content">
@@ -27,13 +27,11 @@
                     v-model="query">
                 </query-textarea>
 
-                <input v-model="motif" type="text"></input>
-    
                 <div class="actions input-buttons-panel">
                     <div class="input-buttons-left">
-                        <!-- <load-acession-button @select="query = $event" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button> -->
+                        <load-acession-button @select="query = $event" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
-                        <!-- <PredictStructureButton v-if="$APP == 'foldseek'" :query="query" v-model="predictable" v-on:predict="query = $event"></PredictStructureButton> -->
+                        <select-motif-button @select="motif = $event" @selecting="motifSelecting = $event" :query="query"></select-motif-button>
                         <!-- <file-button id="localFile" label="Upload previous results" @upload="uploadJSON"></file-button> -->
                     </div>
                 </div>
@@ -130,7 +128,8 @@
 <script>
 import Panel from "./Panel.vue";
 import FileButton from "./FileButton.vue";
-// import LoadAcessionButton from './LoadAcessionButton.vue';
+import SelectMotifButton from './SelectMotifButton.vue';
+import LoadAcessionButton from './LoadAcessionButton.vue';
 import Reference from "./Reference.vue";
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
@@ -151,7 +150,8 @@ export default {
     components: { 
         Panel,
         FileButton,
-        // LoadAcessionButton,
+        LoadAcessionButton,
+        SelectMotifButton,
         TaxonomyAutocomplete,
         // PredictStructureButton: () => __APP__ == "foldseek" ? import('./PredictStructureButton.vue') : null,
         Reference,
@@ -174,7 +174,8 @@ export default {
             taxFilter: JSON.parse(storage.getItem('taxFilter') || 'null'),
             predictable: false,
             accessionLoading: false,
-            motif: "Input motif chain and residues (e.g. A12,A20,A43)",
+            motifSelecting: false,
+            motif: "",
         };
     },
     async mounted() {
@@ -188,7 +189,6 @@ export default {
         } else {
             this.query = this.$STRINGS.MOTIF_DEFAULT; // 1G2F: zinc finger
         }
-        // RACHEL: check if MOTIF specified
     },
     computed: {
         searchDisabled() {
@@ -286,21 +286,6 @@ export default {
                 this.query = e.target.result;
             };
             reader.readAsText(files[0]);
-        },
-        uploadJSON(files) {
-            let file = files[0];
-            let hash = djb2(file.name);
-            let fr = new FileReader();
-            fr.addEventListener(
-                "load",
-                (e) => {
-                    // let data = parseResultsList(JSON.parse(e.target.result)); // RACHEL: Is parseResultsList compatible with FoldDisco?
-                    let data = JSON.parse(e.target.result);
-                    this.$root.userData = data;
-                    this.$router.push({ name: 'folddiscoresult', params: { ticket: `user-${hash}`, entry: 0 }}).catch(error => {});
-                }
-            );
-            fr.readAsText(file)
         },
     }
 };

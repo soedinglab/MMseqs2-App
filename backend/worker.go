@@ -1250,6 +1250,8 @@ rm -rf -- "${BASE}/tmp"
 			inputFile = newFilePath
 		}
 
+		motif := job.Motif
+
 		for index, database := range job.Database {
 			wg.Add(1)
 			semaphore <- struct{}{}
@@ -1279,6 +1281,10 @@ rm -rf -- "${BASE}/tmp"
 					"--top", "1000",
 					"--superpose",
 					// "-t", "16",
+				}
+
+				if motif != "" {
+					parameters = append(parameters, "-q", motif)
 				}
 				// parameters = append(parameters, strings.Fields(params.Search)...)
 

@@ -543,7 +543,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		//var mode string
 		var email string
 		//var iterativesearch bool
-		var taxfilter string
+		// var taxfilter string
 
 		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
 			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
@@ -565,8 +565,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			//mode = req.FormValue("mode")
 			email = req.FormValue("email")
 			motif = req.FormValue("motif")
-			//iterativesearch = req.FormValue("iterativesearch") == "true"
-			taxfilter = req.FormValue("taxfilter")
+			// taxfilter = req.FormValue("taxfilter")
 		} else {
 			err := req.ParseForm()
 			if err != nil {
@@ -578,8 +577,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			//mode = req.FormValue("mode")
 			email = req.FormValue("email")
 			motif = req.FormValue("motif")
-			//iterativesearch = req.FormValue("iterativesearch") == "true"
-			taxfilter = req.FormValue("taxfilter")
+			// taxfilter = req.FormValue("taxfilter")
 		}
 
 		databases, err := Databases(config.Paths.Databases, true)
@@ -588,7 +586,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		request, err := NewFoldDiscoJobRequest(query, motif, dbs, databases /*mode,*/, config.Paths.Results, email, taxfilter)
+		request, err := NewFoldDiscoJobRequest(query, motif, dbs, databases /*mode,*/, config.Paths.Results, email /*, taxfilter*/)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -830,10 +828,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 					databases = []string{database}
 				}
 
-				motif = job.Motif
-				// if motif != "" { // RACHEL: handle later
-
-				// }
+				// motif = job.Motif
 				results, err = FoldDiscoAlignments(ticket.Id, databases, config.Paths.Results)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusBadRequest)

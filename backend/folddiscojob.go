@@ -13,9 +13,9 @@ type FoldDiscoJob struct {
 	Size     int      `json:"size" validate:"required"`
 	Database []string `json:"database" validate:"required"`
 	// Mode      string   `json:"mode" validate:"oneof=3di tmalign 3diaa"`
-	TaxFilter string `json:"taxfilter"`
-	Motif     string `json:"motif"`
-	query     string
+	// TaxFilter string `json:"taxfilter"`
+	Motif string `json:"motif"`
+	query string
 }
 
 func (r FoldDiscoJob) Hash() Id {
@@ -24,9 +24,9 @@ func (r FoldDiscoJob) Hash() Id {
 	h.Write([]byte(r.query))
 	h.Write([]byte(r.Motif))
 	// h.Write([]byte(r.Mode))
-	if r.TaxFilter != "" {
-		h.Write([]byte(r.TaxFilter))
-	}
+	// if r.TaxFilter != "" {
+	// 	h.Write([]byte(r.TaxFilter))
+	// }
 
 	sort.Strings(r.Database)
 
@@ -50,12 +50,12 @@ func (r FoldDiscoJob) WritePDB(path string) error {
 	return nil
 }
 
-func NewFoldDiscoJobRequest(query string, motif string, dbs []string, validDbs []Params, resultPath string, email string, taxfilter string) (JobRequest, error) {
+func NewFoldDiscoJobRequest(query string, motif string, dbs []string, validDbs []Params, resultPath string, email string) (JobRequest, error) {
 	job := FoldDiscoJob{
 		max(strings.Count(query, "HEADER"), 1),
 		dbs,
 		// mode,
-		taxfilter,
+		// taxfilter,
 		motif,
 		query,
 	}
@@ -82,9 +82,9 @@ func NewFoldDiscoJobRequest(query string, motif string, dbs []string, validDbs [
 		}
 	}
 
-	if !validTaxonFilter(taxfilter) {
-		return request, errors.New("invalid taxon filter")
-	}
+	// if !validTaxonFilter(taxfilter) {
+	// 	return request, errors.New("invalid taxon filter")
+	// }
 
 	return request, nil
 }

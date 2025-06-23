@@ -68,6 +68,11 @@ msgstr "https://steineggerlab.com/"
 msgid "QUERIES_HELP"
 msgstr "Enter a protein structure in PDB or mmCIF format or upload a PDB or mmCIF file."
 
+msgid "MOTIF_HELP"
+msgstr ""
+"Enter a protein structure in PDB or mmCIF format or upload a PDB or mmCIF file.<br>\n"
+"To define a motif, use the <b>SELECT MOTIF</b> button to highlight specific residues."
+
 msgid "UPLOAD_LABEL"
 msgstr "Upload PDB"
 
