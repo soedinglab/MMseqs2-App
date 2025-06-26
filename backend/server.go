@@ -858,8 +858,8 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		} else { // If it requests a target structure
 			pdbfile := resId
 			var pdbpath string
-			if database == "pdb100_folddisco" {
-				pdbpath = filepath.Join(config.Paths.Pdb100, "pdb100", pdbfile)
+			if strings.HasPrefix(database, "pdb100") {
+				pdbpath = filepath.Join(config.Paths.Pdb100, pdbfile)
 			} else {
 				pdbpath = filepath.Join(resultBase, "pdb_"+database, pdbfile)
 			}
