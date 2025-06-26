@@ -189,10 +189,10 @@ type FoldDiscoAlignmentEntry struct {
 	IdfScore       float32       `json:"idfscore"`
 	Rmsd           float32       `json:"rmsd"`
 	TargetResidues string        `json:"targetresidues"`
-	// QueryResidues  string        `json:"queryresidues"`
-	UMatrix  string `json:"umat"`
-	TMatrix  string `json:"tmat"`
-	TargetCa string `json:"tCa"`
+	UMatrix        string        `json:"umat"`
+	TMatrix        string        `json:"tmat"`
+	TargetCa       string        `json:"tCa"`
+	QueryResidues  string        `json:"queryresidues"`
 }
 
 func (entry FoldDiscoAlignmentEntry) MarshalJSON() ([]byte, error) {

@@ -182,7 +182,7 @@
                                     <!-- <template v-if="isComplex">
                                         {{ item.query.lastIndexOf('_') != -1 ? item.query.substring(item.query.lastIndexOf('_')+1) : '' }} ➔ 
                                     </template> -->
-                                    <a style="text-decoration: underline; color: #2196f3;" v-if="Array.isArray(item.href)" @click="forwardDropdown($event, item.href)"rel="noopener" :title="item.target">{{item.target}}</a>
+                                    <a style="text-decoration: underline; color: #2196f3;" v-if="Array.isArray(item.href)" @click="forwardDropdown($event, item.href)"rel="noopener" :title="item.target">{{item.targetname}}</a>
                                     <a v-else :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.target}}</a>
                                 </td>
                                 <td class="thin" data-label="idf-score">{{ item.idfscore }}</td>

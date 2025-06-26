@@ -827,8 +827,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 					}
 					databases = []string{database}
 				}
-
-				// motif = job.Motif
 				results, err = FoldDiscoAlignments(ticket.Id, databases, config.Paths.Results)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusBadRequest)
@@ -858,8 +856,14 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				return
 			}
 		} else { // If it requests a target structure
-			pdbfile := strings.TrimSuffix(resId, ".gz") //Rachel: handle other suffices or as foldcomp db
-			pdbpath := filepath.Join(resultBase, "pdb_"+database, pdbfile)
+			pdbfile := resId
+			var pdbpath string
+			if database == "pdb100" {
+				pdbpath = filepath.Join(config.Paths.Pdb100, "pdb100", pdbfile)
+			} else {
+				pdbpath = filepath.Join(resultBase, "pdb_"+database, pdbfile)
+			}
+			log.Println(pdbpath)
 
 			if !fileExists(pdbpath) { // Generate pdb file with foldcomp
 				idPath := filepath.Join(resultBase, "id.list")

@@ -35,8 +35,6 @@
 <script>
 // import Alignment from './Alignment.vue'
 import StructureViewerMixin from './StructureViewerMixin.vue';
-// import { pulchra } from 'pulchra-wasm';
-// import StructureViewer from './StructureViewer.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerTooltip from './StructureViewerTooltip.vue';
 import { getPdbText, makePositionMap, transformStructure } from './Utilities.js'
@@ -47,7 +45,7 @@ const processPdb = (rawpdb) => {
     let data = '';
     let ext = 'pdb';
     outpdb = rawpdb.trimStart();
-    if (data[0] == "#" || data.startsWith("data_")) {
+    if (outpdb[0] == "#" || outpdb.startsWith("data_")) {
         ext = 'cif';
         // NGL doesn't like AF3's _chem_comp entries
         outpdb = outpdb.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
@@ -62,7 +60,21 @@ const processPdb = (rawpdb) => {
         }
         outpdb = data;
     }
-    return [data, ext]
+    return [outpdb, ext]
+}
+
+const retrieveMotif = (structure, motif) => {
+    const motifList = new Set(motif.split(','));
+    const selectedResidues = [];
+    structure.eachResidue(r => {
+        const chain = r.chainname;
+        const resno = r.resno;
+        const key = `${chain}${resno}`;
+        if (motifList.has(key)) {
+            selectedResidues.push(`${resno}:${chain}`);
+        }
+    });
+    return selectedResidues;
 }
 
 export default {
@@ -84,12 +96,12 @@ export default {
         lineLen: { type: Number, required: true, },
         queryPdb: {type: String, required: true, },
 
-        strRepr: { type: String, default: "cartoon" },
+        strRepr: { type: String, default: "ribbon" },
         motifRepr: {type: String, default: "licorice"},
-        qClr: {type: String, default: "white"},
-        tClr: {type: String, default: "#f7b3a6"},
-        qmClr: {type: String, default: "#717171"},
-        tmClr: {type: String, default: "#e94b8a"},
+        qClr: {type: String, default: "#A5CFF5"},
+        tClr: {type: String, default: "#FFE699"},
+        qmClr: {type: String, default: "#1E88E5"},
+        tmClr: {type: String, default: "#FFC107"}, // TODO: change to #FFC107
         bgColorLight: {type: String, default: "white"},
         bgColorDark: {type: String, default: "#1E1E1E"},
         autoViewTime: { type: Number, default: 100 },
@@ -136,6 +148,12 @@ export default {
                 fogNear: -1000,
             }
         },
+        cartoonDefault: function() {
+            return {
+                opacity: 0.5, smmothSheet: true,
+                metalness: 0, quality:"high", tension: 0,
+            }
+        }
     },
     methods: {
         handleResetView() {
@@ -296,34 +314,27 @@ END
             [u[6], u[7], u[8]],
         ];
         transformStructure(query.structure, t, u);
-        
-        const matchedResidues = new Set(this.alignment.targetresidues.split(','));
-        const selectedTarget = [];
-        target.structure.eachResidue(r => {
-            const chain = r.chainname;
-            const resno = r.resno;
-            const key = `${chain}${resno}`;
-            if (matchedResidues.has(key)) {
-                selectedTarget.push(`${resno}:${chain}`)
-            } 
-        });
+        const matchedQuery = retrieveMotif(query.structure, this.alignment.queryresidues);
+        const matchedTarget = retrieveMotif(target.structure, this.alignment.targetresidues);
 
-        this.querySchemeId = ColormakerRegistry.addSelectionScheme([ // TODO: change sele
-            [this.qmClr, "*"],
+        this.querySchemeId = ColormakerRegistry.addSelectionScheme([
+            [this.qmClr, matchedQuery.join(" or ")],
             [this.qClr, "*"]
         ], "_queryScheme")
 
         this.targetSchemeId = ColormakerRegistry.addSelectionScheme([
-            [this.tmClr, selectedTarget.join(" or ")],
+            [this.tmClr, matchedTarget.join(" or ")],
             [this.tClr, "*"]
         ], "_targetScheme")
 
-        query.addRepresentation(this.strRepr, {color: this.querySchemeId, name: "queryStructure"})
-        target.addRepresentation(this.strRepr, {color: this.targetSchemeId, smoothSheet: true, name: "targetStructure"})
-        query.addRepresentation(this.motifRepr, {sele: "all", color: this.qmClr, name: "queryMatched"}) // TODO: change sele
-        target.addRepresentation(this.motifRepr, {sele: selectedTarget.join(" or "), color: this.tmClr, name: "targetMatched"})
-        // query.addRepresentation(this.qRepr, {color: 'blue', name: "queryUnmatched"})
-
+        query.addRepresentation(this.strRepr, {
+            ...this.cartoonDefault, color: this.querySchemeId, name: "queryStructure",
+        })
+        target.addRepresentation(this.strRepr, {
+            color: this.targetSchemeId, name: "targetStructure", ...this.cartoonDefault,
+        })
+        query.addRepresentation(this.motifRepr, {sele: matchedQuery.join(" or "), color: this.qmClr, name: "queryMatched"})
+        target.addRepresentation(this.motifRepr, {sele: matchedTarget.join(" or "), color: this.tmClr, name: "targetMatched"})
         this.setQuerySelection();
         this.setTargetSelection();
         // query.autoView(this.querySele, this.autoViewTime);

@@ -176,8 +176,8 @@ export function parseResultsFoldDisco(data) {
             // if (item.description.length > 1) {
             //     result.hasDescription = true;
             // }
-            // item.href = tryLinkTargetToDB(item.target, db);
-            // item.target = tryFixTargetName(item.target, db);
+            item.href = tryLinkTargetToDB(item.target, db);
+            item.targetname = tryFixTargetName(item.target, db);
             // item.id = 'result-' + i + '-' + j;
             // item.active = false;
             let groupId = j;

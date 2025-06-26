@@ -80,6 +80,7 @@ var defaultFileContent = []byte(`{
         "foldseek"     : "~foldseek",
         "foldmason"     : "~foldmason",
 		"folddisco":     : "~folddisco",
+		"pdb100"        : "~pdb100",
         // path to mmseqs binary
         "mmseqs"       : "~mmseqs"
     },
@@ -175,6 +176,7 @@ type ConfigPaths struct {
 	FoldMason string                `json:"foldmason"`
 	FoldDisco string                `json:"folddisco"`
 	FoldComp  string                `json:"foldcomp"`
+	Pdb100    string                `json:"pdb100"`
 	ColabFold *ConfigColabFoldPaths `json:"colabfold"`
 }
 

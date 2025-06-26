@@ -12,7 +12,8 @@
                     :email="email"
                     :mode="mode"
                     :database="database"
-                    :taxfilter="taxFilter ? taxFilter.value : ''"></api-dialog>
+                    >
+                </api-dialog>
                 <v-icon v-if="query.length > 0" title="Clear" @click="query = ''" style="margin-right: 16px">{{ $MDI.Delete }}</v-icon>
                 <v-tooltip open-delay="300" top>
                     <template v-slot:activator="{ on }">
@@ -94,9 +95,10 @@
                 </v-item-group>
                 <div :style="!$vuetify.breakpoint.xsOnly ? 'margin-left: 1em;' : 'margin-top: 1em;'">
                     <span><strong>Summary</strong></span><br>
-                    Search <template v-if="taxFilter">
+                    Search 
+                    <!-- <template v-if="taxFilter">
                         <strong>{{ taxFilter.text }}</strong> in
-                    </template>
+                    </template> -->
                     <template v-if="database.length == databases.length">
                         <strong>all available</strong> databases
                     </template>
@@ -140,9 +142,30 @@ import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
+import {ParserRegistry, Structure, autoLoad, getDataInfo} from 'ngl';
+import * as NGL from 'ngl';
+// import ParserLoader, { ParserParams } from './parser-loader'
 
 const db = BlobDatabase();
 const storage = new StorageWrapper("folddisco");
+
+async function setDefaultMotif(pdb) {
+    var ext = 'pdb';
+    if (pdb[0] == "#" || pdb.startsWith("data_")) {
+        ext = 'cif';
+    }
+
+    var blob = new Blob([pdb], { type: 'text/plain' });
+    var promise = autoLoad(blob, {ext : ext, firstModelOnly: true, name: 'tmp', path: ''});     // Rachel: this logic works for pdb, but not for cif
+    
+    return promise.then(structure => {
+        var motifList = [];
+        structure.eachResidue(r => {
+            motifList.push(`${r.chainname}${r.resno}`);
+        });
+        return motifList.join(',');
+    });
+}
 
 export default {
     name: "folddisco",
@@ -171,7 +194,7 @@ export default {
             query: "",
             database: JSON.parse(storage.getItem('database') || '[]'),
             databases: JSON.parse(storage.getItem('databases') || '[]'),
-            taxFilter: JSON.parse(storage.getItem('taxFilter') || 'null'),
+            // taxFilter: JSON.parse(storage.getItem('taxFilter') || 'null'),
             predictable: false,
             accessionLoading: false,
             motifSelecting: false,
@@ -219,9 +242,9 @@ export default {
         databases(value) {
             storage.setItem('databases', JSON.stringify(value));
         },
-        taxFilter(value) {
-            storage.setItem('taxFilter', JSON.stringify(value));
-        },
+        // taxFilter(value) {
+        //     storage.setItem('taxFilter', JSON.stringify(value));
+        // },
     },
     methods: {
         async search() {
@@ -237,12 +260,15 @@ export default {
                     request.q += '\n';
                 }
             }
+            if (request.motif == '') {
+                request.motif = await setDefaultMotif(request.q)
+            } 
             if (__ELECTRON__) {
                 request.email = "";
             }
-            if (this.taxFilter) {
-                request.taxfilter = this.taxFilter.value;
-            }
+            // if (this.taxFilter) {
+            //     request.taxfilter = this.taxFilter.value;
+            // }
             try {
                 this.inSearch = true;
                 const response = await this.$axios.post("api/ticket/folddisco", convertToQueryUrl(request), {
