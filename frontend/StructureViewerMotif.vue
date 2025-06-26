@@ -33,12 +33,11 @@
 </template>
 
 <script>
-// import Alignment from './Alignment.vue'
 import StructureViewerMixin from './StructureViewerMixin.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerTooltip from './StructureViewerTooltip.vue';
-import { getPdbText, makePositionMap, transformStructure } from './Utilities.js'
-import {Stage, Shape, Selection, download, ColormakerRegistry, PdbWriter, Color, concatStructures, StructureComponent } from 'ngl'
+import { getPdbText, transformStructure } from './Utilities.js'
+import { download, ColormakerRegistry } from 'ngl'
 
 const processPdb = (rawpdb) => {
     let outpdb = '';
@@ -49,32 +48,39 @@ const processPdb = (rawpdb) => {
         ext = 'cif';
         // NGL doesn't like AF3's _chem_comp entries
         outpdb = outpdb.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
-        // RACHEL: Do ATOM selection
     } else {
         for (let line of outpdb.split('\n')) {
-            if (line.startsWith("ATOM")) {
-                let numCols = Math.max(0, 80 - line.length);
-                let newLine = line + ' '.repeat(numCols) + '\n';
-                data += newLine
-            }
+            let numCols = Math.max(0, 80 - line.length);
+            let newLine = line + ' '.repeat(numCols) + '\n';
+            data += newLine
         }
         outpdb = data;
     }
     return [outpdb, ext]
 }
 
-const retrieveMotif = (structure, motif) => {
+const getMotif = (motif) => {
     const motifList = new Set(motif.split(','));
-    const selectedResidues = [];
-    structure.eachResidue(r => {
-        const chain = r.chainname;
-        const resno = r.resno;
-        const key = `${chain}${resno}`;
-        if (motifList.has(key)) {
-            selectedResidues.push(`${resno}:${chain}`);
+    const motifSele = [];
+    for (let m of motifList) {
+        const chain = m[0];
+        const resno = m.slice(1);
+        motifSele.push(`${resno}:${chain}`);
+    }
+
+    return motifSele.join(" or ");
+}
+
+const getMatchedChain = (motif) => {
+    const motifList = new Set(motif.split(','));
+    const chainSele = new Set();
+    for (let m of motifList) {
+        const chain = m[0];
+        if (!chainSele.has(chain)) {
+            chainSele.add(`:${chain}`);
         }
-    });
-    return selectedResidues;
+    }
+    return Array.from(chainSele).join(" or ");
 }
 
 export default {
@@ -98,10 +104,14 @@ export default {
 
         strRepr: { type: String, default: "ribbon" },
         motifRepr: {type: String, default: "licorice"},
+
+        qmotifClr: {type: String, default: "#1E88E5"},
+        tmotifClr: {type: String, default: "#FFC107"},
         qClr: {type: String, default: "#A5CFF5"},
         tClr: {type: String, default: "#FFE699"},
-        qmClr: {type: String, default: "#1E88E5"},
-        tmClr: {type: String, default: "#FFC107"}, // TODO: change to #FFC107
+        qnullClr: {type: String, default: "#A5CFF5"},
+        tnullClr: {type: String, default: "#FFE699"},
+
         bgColorLight: {type: String, default: "white"},
         bgColorDark: {type: String, default: "#1E1E1E"},
         autoViewTime: { type: Number, default: 100 },
@@ -116,27 +126,28 @@ export default {
         tmPanelBindings: function() {
             return (this.isFullscreen) ? { 'style': 'margin-top: 10px; font-size: 2em; line-height: 2em' } : {  }
         },
-        // querySele: function() { // TODO
-        //     if (this.alignment === 0 || this.showQuery == 2) {
-        //         return '';
-        //     }
-        //     if (this.showQuery === 0) {
-        //     }
-        //     if (this.showQuery === 1 ) {
-        //     }
-        // },
-        // targetSele: function() { // TODO
-        //     if (this.alignment === 0 || this.showTarget === 2) {
-        //         return '';
-        //     }
-        //     if (this.showTarget === 0) {
-        //         // this.stage.getRepresentationsByName("targetStructure").setSelection(sele);
-        //         this.stage.getRepresentationsByName("targetStructure").setVisibility(true);
-        //     }
-        //     if (this.showTarget === 1 ) {
-        //     }
-
-        // },
+        querySele: function() {
+            if (this.alignment.length === 0 || this.showQuery === 2) {
+                return '';
+            }
+            if (this.showQuery === 0) {
+                return getMotif(this.alignment.queryresidues) 
+            }
+            if (this.showQuery === 1 ) {
+                return getMatchedChain(this.alignment.queryresidues) 
+            }
+        },
+        targetSele: function() {
+            if (this.alignment.length === 0 || this.showTarget === 2) {
+                return '';
+            }
+            if (this.showTarget === 0) {
+                return getMotif(this.alignment.targetresidues);
+            }
+            if (this.showTarget === 1) {
+                return getMatchedChain(this.alignment.targetresidues);
+            }
+        },
         stageParameters: function() {
             return {
                 log: 'folddisco',
@@ -148,12 +159,18 @@ export default {
                 fogNear: -1000,
             }
         },
-        cartoonDefault: function() {
+        cartoonMatched: function() {
             return {
-                opacity: 0.5, smmothSheet: true,
+                opacity: 0.8, smmothSheet: true,
                 metalness: 0, quality:"high", tension: 0,
             }
-        }
+        },
+        cartoonNull: function() {
+            return {
+                opacity: 0.3, smmothSheet: true,
+                metalness: 0, quality:"medium", tension: 0,
+            }
+        },
     },
     methods: {
         handleResetView() {
@@ -237,38 +254,43 @@ END
             }            
         },
         setQuerySelection() {
-            if (this.alignment.length === 0 || this.showQuery === 2) {
+            let repr = this.stage.getRepresentationsByName("queryStructure");
+            if (!repr) return;
+            let sele = this.querySele;
+            repr.setSelection(sele);
+            repr.list[0].parent.autoView(sele, this.autoViewTime);
+            if (this.alignment.length === 0) {
                 return
             }
-            // let motif = this.stage.getRepresentationsByName("queryMatched");
             if (this.showQuery === 0 ) {
+                this.stage.getRepresentationsByName("queryMatched").setVisibility(false);
                 this.stage.getRepresentationsByName("queryStructure").setVisibility(false);
-                this.stage.getRepresentationsByName("queryMatched").setVisibility(true);
             } else if (this.showQuery === 1) {
-                this.stage.getRepresentationsByName("queryStructure").setVisibility(true);
                 this.stage.getRepresentationsByName("queryMatched").setVisibility(true);
+                this.stage.getRepresentationsByName("queryStructure").setVisibility(false);
+            } else if (this.showQuery === 2) {
+                this.stage.getRepresentationsByName("queryMatched").setVisibility(true);
+                this.stage.getRepresentationsByName("queryStructure").setVisibility(true);
             }
-            
-            // let repr = this.stage.getRepresentationsByName("queryStructure");
-            // if (!repr) return;
-            // let sele = this.querySele;
-            // repr.list[0].parent.autoView(sele, this.autoViewTime); // TODO
         },
         setTargetSelection() {
-            if (this.alignment.length === 0 || this.showTarget === 2) {
+            let repr = this.stage.getRepresentationsByName("targetStructure");
+            if (!repr) return;
+            let sele = this.targetSele;
+            repr.setSelection(sele);
+            if (this.alignment.length === 0) {
                 return
             }
             if (this.showTarget === 0 ) {
+                this.stage.getRepresentationsByName("targetMatched").setVisibility(false);
                 this.stage.getRepresentationsByName("targetStructure").setVisibility(false);
-                this.stage.getRepresentationsByName("targetMatched").setVisibility(true);
             } else if (this.showTarget === 1) {
-                this.stage.getRepresentationsByName("targetStructure").setVisibility(true);
                 this.stage.getRepresentationsByName("targetMatched").setVisibility(true);
+                this.stage.getRepresentationsByName("targetStructure").setVisibility(false);
+            } else if (this.showTarget === 2) {
+                this.stage.getRepresentationsByName("targetMatched").setVisibility(true);
+                this.stage.getRepresentationsByName("targetStructure").setVisibility(true);
             }
-            // let repr = this.stage.getRepresentationsByName("targetStructure");
-            // if (!repr) return;
-            // let sele = this.targetSele;
-            // repr.setSelection(sele); // TODO
         },
     },
     watch: {
@@ -297,7 +319,6 @@ END
             const request = await this.$axios.get(re);
             targetPdb = request.data;
         } catch (e) {
-            // throw e
             alert("Error: " + (e.response?.data || e.message || "Unknown"));
             return
         }
@@ -314,31 +335,34 @@ END
             [u[6], u[7], u[8]],
         ];
         transformStructure(query.structure, t, u);
-        const matchedQuery = retrieveMotif(query.structure, this.alignment.queryresidues);
-        const matchedTarget = retrieveMotif(target.structure, this.alignment.targetresidues);
+        const matchedQuery = getMotif(this.alignment.queryresidues);
+        const matchedTarget = getMotif(this.alignment.targetresidues);
+        const matchedQchain = getMatchedChain(this.alignment.queryresidues);
+        const matchedTchain = getMatchedChain(this.alignment.targetresidues);
 
         this.querySchemeId = ColormakerRegistry.addSelectionScheme([
-            [this.qmClr, matchedQuery.join(" or ")],
-            [this.qClr, "*"]
+            [this.qmotifClr, matchedQuery],
+            [this.qClr, matchedQchain],
+            [this.qnullClr, "*"]
         ], "_queryScheme")
 
         this.targetSchemeId = ColormakerRegistry.addSelectionScheme([
-            [this.tmClr, matchedTarget.join(" or ")],
-            [this.tClr, "*"]
+            [this.tmotifClr, matchedTarget],
+            [this.tClr, matchedTchain],
+            [this.tnullClr, "*"]
         ], "_targetScheme")
 
-        query.addRepresentation(this.strRepr, {
-            ...this.cartoonDefault, color: this.querySchemeId, name: "queryStructure",
-        })
-        target.addRepresentation(this.strRepr, {
-            color: this.targetSchemeId, name: "targetStructure", ...this.cartoonDefault,
-        })
-        query.addRepresentation(this.motifRepr, {sele: matchedQuery.join(" or "), color: this.qmClr, name: "queryMatched"})
-        target.addRepresentation(this.motifRepr, {sele: matchedTarget.join(" or "), color: this.tmClr, name: "targetMatched"})
+        query.addRepresentation(this.strRepr, {sele: "not (" + matchedQchain + ")", color: this.querySchemeId, name: "queryStructure", ...this.cartoonNull})
+        target.addRepresentation(this.strRepr, {sele: "not (" + matchedTchain + ")", color: this.targetSchemeId, name: "targetStructure", ...this.cartoonNull})
+        
+        query.addRepresentation(this.strRepr, { sele: matchedQchain, color: this.querySchemeId, name: "queryMatched", ...this.cartoonMatched})
+        target.addRepresentation(this.strRepr, { sele: matchedTchain, color: this.targetSchemeId, name: "targetMatched", ...this.cartoonMatched})
+        
+        query.addRepresentation(this.motifRepr, {sele: matchedQuery, color: this.qmotifClr, name: "queryMotif"})
+        target.addRepresentation(this.motifRepr, {sele: matchedTarget, color: this.tmotifClr, name: "targetMotif"})
         this.setQuerySelection();
         this.setTargetSelection();
-        // query.autoView(this.querySele, this.autoViewTime);
-        // this.stage.autoView();
+        query.autoView(matchedQuery, this.autoViewTime);
     }
 }
 </script>
@@ -367,7 +391,7 @@ END
     border-radius: 2px;
 }
 
-/* @media screen and (max-width: 960px) {
+@media screen and (max-width: 960px) {
     .structure-panel  {
         display: flex;
     }
@@ -386,6 +410,6 @@ END
     .structure-wrapper {
         padding-left: 2em;
     }
-} */
+}
 
 </style>

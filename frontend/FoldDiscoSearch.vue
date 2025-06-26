@@ -32,8 +32,7 @@
                     <div class="input-buttons-left">
                         <load-acession-button @select="query = $event" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
-                        <select-motif-button @select="motif = $event" @selecting="motifSelecting = $event" :query="query"></select-motif-button>
-                        <!-- <file-button id="localFile" label="Upload previous results" @upload="uploadJSON"></file-button> -->
+                        <select-motif-button @select="motif = $event" @selecting="motifSelecting = $event" :structure="queryStructure"></select-motif-button>
                     </div>
                 </div>
             </template>
@@ -135,36 +134,35 @@ import LoadAcessionButton from './LoadAcessionButton.vue';
 import Reference from "./Reference.vue";
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
-import { djb2, parseResultsList } from './Utilities.js';
+import { extractCifAtom } from './Utilities.js';
 import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import ApiDialog from './ApiDialog.vue';
 import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
-import {ParserRegistry, Structure, autoLoad, getDataInfo} from 'ngl';
-import * as NGL from 'ngl';
-// import ParserLoader, { ParserParams } from './parser-loader'
+import {autoLoad} from 'ngl';
 
 const db = BlobDatabase();
 const storage = new StorageWrapper("folddisco");
 
-async function setDefaultMotif(pdb) {
+async function getStructure(data) {
     var ext = 'pdb';
-    if (pdb[0] == "#" || pdb.startsWith("data_")) {
+    if (data[0] == "#" || data.startsWith("data_")) {
         ext = 'cif';
+        data = extractCifAtom(data);
     }
+    var blob = new Blob([data], { type: 'text/plain' });
+    var promise = autoLoad(blob, {ext : ext, firstModelOnly: true});
+    return promise.then(structure => structure.getStructure());
+}
 
-    var blob = new Blob([pdb], { type: 'text/plain' });
-    var promise = autoLoad(blob, {ext : ext, firstModelOnly: true, name: 'tmp', path: ''});     // Rachel: this logic works for pdb, but not for cif
-    
-    return promise.then(structure => {
-        var motifList = [];
-        structure.eachResidue(r => {
-            motifList.push(`${r.chainname}${r.resno}`);
-        });
-        return motifList.join(',');
+function setDefaultMotif(structure) {
+    var motifList = []; 
+    structure.eachResidue(r => {
+        motifList.push(`${r.chainname}${r.resno}`);
     });
+    return motifList.join(',');
 }
 
 export default {
@@ -176,7 +174,6 @@ export default {
         LoadAcessionButton,
         SelectMotifButton,
         TaxonomyAutocomplete,
-        // PredictStructureButton: () => __APP__ == "foldseek" ? import('./PredictStructureButton.vue') : null,
         Reference,
         ApiDialog,
         Databases,
@@ -192,6 +189,7 @@ export default {
             email: storage.getItem('email') || "",
             hideEmail: true,
             query: "",
+            queryStructure: null,
             database: JSON.parse(storage.getItem('database') || '[]'),
             databases: JSON.parse(storage.getItem('databases') || '[]'),
             // taxFilter: JSON.parse(storage.getItem('taxFilter') || 'null'),
@@ -212,6 +210,7 @@ export default {
         } else {
             this.query = this.$STRINGS.MOTIF_DEFAULT; // 1G2F: zinc finger
         }
+        this.queryStructure = await getStructure(this.query);
     },
     computed: {
         searchDisabled() {
@@ -261,7 +260,7 @@ export default {
                 }
             }
             if (request.motif == '') {
-                request.motif = await setDefaultMotif(request.q)
+                request.motif = setDefaultMotif(this.queryStructure)
             } 
             if (__ELECTRON__) {
                 request.email = "";

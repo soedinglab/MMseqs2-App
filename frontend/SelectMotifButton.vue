@@ -1,7 +1,7 @@
 <template>
     <v-dialog v-model="show" absolute width="unset">
         <template v-slot:activator="{ on }">
-            <v-btn v-on="on" :disabled="selecting" :block="$vuetify.breakpoint.xsOnly" :color="error ? 'error' : null">
+            <v-btn v-on="on" :disabled="selecting" :block="$vuetify.breakpoint.xsOnly" :color="selected ? 'primary' : (error ? 'error' : null)">
                 <template v-if="selecting">
                     <v-icon>{{ $MDI.ProgressWrench }}</v-icon>&nbsp;
                 </template>
@@ -22,7 +22,7 @@
             </v-card-text>
             <v-card-actions>
                 <v-spacer></v-spacer>
-                <v-btn text @click.native="show = false; motif = ''">Cancel</v-btn>
+                <v-btn text @click.native="reset">Cancel</v-btn>
                 <v-btn type="submit" color="primary" text @click.native="select" :disabled="this.motif.length == 0 || selecting">Select</v-btn>
             </v-card-actions>
             </form>
@@ -35,20 +35,18 @@
 export default {
     name: 'select-motif-button',
     props: {
-        query: { default: '', type: String },
+        structure: { default: null, type: Object },
     },
     data() {
         return {
             selecting: false,
+            selected: false,
             error: "",
             show: false,
             motif: ''
-            // source: 'PDB',
-            // accession: ''
         };
     },
     mounted() {
-        // RACHEL: do we need it? what's the preloadAccession and preloadSource?
     },
     watch: {
         selecting: function (val, old) {
@@ -58,27 +56,44 @@ export default {
         },
     },
     methods: {
-        isValid(motif) {
-            // TODO: check motif in the structure file
-            return true;
+        isValid() {
+            if (!this.structure) {
+                return false;
+            }
+
+            var motifSet = new Set(this.motif.split(','));
+            this.structure.eachResidue(r => {
+                if (motifSet.has(`${r.chainname}${r.resno}`)) {
+                    motifSet.delete(`${r.chainname}${r.resno}`);
+                }
+            });
+            return motifSet.size == 0;
         },
         select() {
             if (!this.motif) {
                 return;
             }
-
             this.selecting = true;
             this.error   = "";
+            this.motif = this.motif.trim();
 
-            if (this.isValid(this.motif)) {
+            if (this.isValid()) {
                 this.$emit('select', this.motif);
                 this.show    = false;
                 this.selecting = false;
+                this.selected = true;
             } else {
                 this.error   = "Invalid motif";
-                this.motif = '';
                 this.selecting = false;
+                this.selected = false;
             }
+        },
+        reset() {
+            this.motif = '';
+            this.selecting = false;
+            this.selected = false;
+            this.error = '';
+            this.show = false;
         }
     }
 }

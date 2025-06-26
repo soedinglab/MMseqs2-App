@@ -105,7 +105,7 @@
                             <col style="width: 20%;" /> <!-- target -->
                             <col style="width: 10%;" /> <!-- idf-score --> 
                             <col style="width: 10%;" /> <!-- RMSD --> 
-                            <col style="width: 20%;" /> <!-- Matched residues --> 
+                            <col style="width: 10%;" /> <!-- Matched residues --> 
                             <col style="width: 20%;" /> <!-- Alignment --> 
                             <!-- <col v-if="entry.hasDescription" style="width: 30%;" />
                             <col v-if="entry.hasTaxonomy" style="width: 20%;" />
@@ -156,22 +156,6 @@
                                     </v-tooltip>
                                 </th>
                                 <th class="alignment-action thin">Alignment</th>
-
-                                <!-- <th class="thin">Seq. Id.</th> -->
-                                <!-- <th class="thin">{{ $APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value' }}</th> -->
-                                <!-- <th class="thin" v-if="tableMode == 1">Score</th> -->
-                                <!-- <th v-if="tableMode == 1">Query Pos.</th> -->
-                                <!-- <th v-if="tableMode == 1">Target Pos.</th> -->
-                                <!-- <th v-if="tableMode == 0">
-                                    Position in query
-                                    <v-tooltip open-delay="300" top>
-                                        <template v-slot:activator="{ on }">
-                                            <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
-                                        </template>
-                                        <span>The position of the aligned region of the target sequence in the query</span>
-                                    </v-tooltip>
-                                </th> -->
-                                <!-- <th class="alignment-action thin">Alignment</th> -->
                             </tr>
                         </thead>
                         <tbody>
@@ -183,11 +167,11 @@
                                         {{ item.query.lastIndexOf('_') != -1 ? item.query.substring(item.query.lastIndexOf('_')+1) : '' }} ➔ 
                                     </template> -->
                                     <a style="text-decoration: underline; color: #2196f3;" v-if="Array.isArray(item.href)" @click="forwardDropdown($event, item.href)"rel="noopener" :title="item.target">{{item.targetname}}</a>
-                                    <a v-else :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.target}}</a>
+                                    <a v-else :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.targetname}}</a>
                                 </td>
                                 <td class="thin" data-label="idf-score">{{ item.idfscore }}</td>
                                 <td class="thin" data-label="RMSD">{{ item.rmsd }}</td>
-                                <td class="graphical" data-label="Matched residues">
+                                <td class="thin" data-label="Matched residues">
                                     <!-- TODO -->
                                     <!-- <Ruler :length="item.qLen" :start="item.qStartPos" :end="item.qEndPos" :color="item.color" :label="index == 0"></Ruler> -->
                                     {{ item.targetresidues }}
@@ -420,7 +404,7 @@ export default {
             this.error = "";
             this.hits = null;
             this.queryPdb = null;
-            // this.selectedDatabases = 0;
+            this.selectedDatabases = 0;
             // this.tableMode = 0;
             // this.selectedTaxId = 0;
             // this.$nextTick(() => {

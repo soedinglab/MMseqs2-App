@@ -6,7 +6,7 @@ function tryLinkTargetToDB(target, db) {
         if (res.startsWith("pfam")) {
             return 'https://www.ebi.ac.uk/interpro/entry/pfam/' + target;
         } else if (res.startsWith("pdb")) {
-            return 'https://www.rcsb.org/structure/' + target.replaceAll(/-assembly[0-9]+/g, '').replaceAll(/\.(cif|pdb)(\.gz)?/g, '').split('_')[0];
+            return 'https://www.rcsb.org/structure/' + target.replaceAll(/-assembly[0-9]+/g, '').replaceAll(/\.(cif|pdb|ent)(\.gz)?/g, '').split('_')[0];
         } else if (res.startsWith("uniclust") || res.startsWith("uniprot") || res.startsWith("sprot") || res.startsWith("swissprot")) {
             return 'https://www.uniprot.org/uniprot/' + target;
         } else if (res.startsWith("eggnog_")) {
@@ -77,7 +77,7 @@ function tryFixTargetName(target, db) {
         if (target.startsWith("AF-")) {
             return target.replaceAll(/\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, '');
         } else if (res.startsWith("pdb") || res.startsWith("gmgc") || res.startsWith("mgyp") || res.startsWith("mgnify")) {
-            return target.replaceAll(/\.(cif|pdb)(\.gz)?/g, '');
+            return target.replaceAll(/\.(cif|pdb|ent)(\.gz)?/g, '');
         } else if (res.startsWith("bfvd")) {
             return target.replaceAll(/_unrelaxed.*/g, '');
         }
@@ -177,7 +177,7 @@ export function parseResultsFoldDisco(data) {
             //     result.hasDescription = true;
             // }
             item.href = tryLinkTargetToDB(item.target, db);
-            item.targetname = tryFixTargetName(item.target, db);
+            item.targetname = tryFixTargetName(item.target, db).toUpperCase();
             // item.id = 'result-' + i + '-' + j;
             // item.active = false;
             let groupId = j;
@@ -476,6 +476,12 @@ export function checkMultimer(pdbString) {
         models['single model'] = chainSet;
     }
     return Object.values(models).some(model => model.size > 1);
+}
+
+export function extractCifAtom(text) {
+    var data = text.split('\n').filter(line => line.startsWith('_atom_site.') || line.startsWith('ATOM')).join('\n');
+    data = "#\nloop_\n" + data;
+    return data;
 }
 
 export function getPdbText(comp) {
