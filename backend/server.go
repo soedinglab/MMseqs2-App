@@ -204,6 +204,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				req.FormValue("search"),
 				"",
 				StatusPending,
+				nil,
 			}
 
 			filename := filepath.Join(config.Paths.Databases, filepath.Base(path+".params"))

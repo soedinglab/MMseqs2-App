@@ -14,6 +14,12 @@ import (
 	"strconv"
 )
 
+type GpuConfig struct {
+	UseGpu    bool   `json:"gpu"`
+	UseServer bool   `json:"server"`
+	Devices   string `json:"devices,omitempty"`
+}
+
 type Params struct {
 	Name       string `json:"name" validate:"required"`
 	Version    string `json:"version"`
@@ -28,6 +34,8 @@ type Params struct {
 	Search     string `json:"search"`
 	Multimer   string `json:"multimer"`
 	Status     Status `json:"status"`
+
+	GpuConfig *GpuConfig `json:"gpu,omitempty"`
 }
 
 type paramsByOrder []Params

@@ -63,6 +63,22 @@ var defaultFileContent = []byte(`{
         /*
         // paths to colabfold templates
         "colabfold"    : {
+			// configure GPU support for colabfold
+			// GPU support for mmseqs and foldseek is configured in database .params files
+			/*
+			"gpu" : {
+				// enable/disable
+				"gpu": true,
+				// enable gpuserver, saves about 1.5s per request in overhead
+				"gpuserver": true,
+				// set cuda visible devices for all databases, can be empty/omitted
+				// "devices": "0,1,2",
+				// set/override devices per database for better VRAM managment
+				// "uniref_devices": "0",
+				// "pdb_devices": "1",
+				// "environmental_devices": "2"
+			},
+			*/
             // should stages be run in parallel
             "parallelstages": false,
             // paths for search databases
@@ -156,6 +172,13 @@ var defaultFileContent = []byte(`{
 }
 `)
 
+type ColabFoldGpuConfig struct {
+	GpuConfig
+	UnirefDevices        string `json:"uniref_devices,omitempty"`
+	PdbDevices           string `json:"pdb_devices,omitempty"`
+	EnvironmentalDevices string `json:"environmental_devices,omitempty"`
+}
+
 type ConfigColabFoldPaths struct {
 	ParallelStages    bool   `json:"parallelstages"`
 	Uniref            string `json:"uniref"`
@@ -165,6 +188,8 @@ type ConfigColabFoldPaths struct {
 	Pdb70             string `json:"pdb70"`
 	PdbDivided        string `json:"pdbdivided"`
 	PdbObsolete       string `json:"pdbobsolete"`
+
+	Gpu *ColabFoldGpuConfig `json:"gpu,omitempty"`
 }
 
 type ConfigPaths struct {

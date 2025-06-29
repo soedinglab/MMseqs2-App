@@ -43,6 +43,25 @@ func (e *JobInvalidError) Error() string {
 	return "Invalid"
 }
 
+func gpuParameters(config *GpuConfig) ([]string, []string) {
+	parameters := []string{}
+	environ := []string{}
+	if config != nil && config.UseGpu {
+		parameters = append(parameters, "--gpu")
+		parameters = append(parameters, "1")
+
+		if config.UseServer {
+			parameters = append(parameters, "--gpu-server")
+			parameters = append(parameters, "1")
+		}
+
+		if config.Devices != "" {
+			environ = append(environ, "CUDA_VISIBLE_DEVICES="+config.Devices)
+		}
+	}
+	return parameters, environ
+}
+
 func execCommand(verbose bool, parameters []string, environ []string) (*exec.Cmd, chan error, error) {
 	cmd := exec.Command(
 		parameters[0],
@@ -73,13 +92,15 @@ func execCommand(verbose bool, parameters []string, environ []string) (*exec.Cmd
 	return cmd, done, err
 }
 
-func execCommandSync(verbose bool, parameters []string, environ []string) error {
+const maxDuration time.Duration = 1<<63 - 1
+
+func execCommandSync(verbose bool, parameters []string, environ []string, timeout time.Duration) error {
 	cmd, done, err := execCommand(verbose, parameters, environ)
 	if err != nil {
 		return err
 	}
 	select {
-	case <-time.After(1 * time.Minute):
+	case <-time.After(timeout):
 		if err := KillCommand(cmd); err != nil {
 			log.Printf("Failed to kill: %s\n", err)
 		}
@@ -181,7 +202,10 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 					parameters = append(parameters, job.TaxFilter)
 				}
 
-				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+				gpupar, environ := gpuParameters(params.GpuConfig)
+				parameters = append(parameters, gpupar...)
+
+				cmd, done, err := execCommand(config.Verbose, parameters, environ)
 				if err != nil {
 					errChan <- &JobExecutionError{err}
 					return
@@ -221,6 +245,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				filepath.Join(resultBase, "query_h"),
 			},
 			[]string{},
+			1*time.Minute,
 		)
 		if err != nil {
 			return &JobExecutionError{err}
@@ -234,6 +259,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				filepath.Join(resultBase, "query"),
 			},
 			[]string{},
+			1*time.Minute,
 		)
 		if err != nil {
 			return &JobExecutionError{err}
@@ -314,7 +340,12 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				filepath.Join(resultBase, "job.3di"),
 				resultBase,
 			}
-			err = execCommandSync(config.Verbose, parameters, []string{})
+			err = execCommandSync(
+				config.Verbose,
+				parameters,
+				[]string{},
+				1*time.Minute,
+			)
 			if err != nil {
 				return &JobExecutionError{err}
 			}
@@ -434,7 +465,11 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					parameters = append(parameters, "--num-iterations")
 					parameters = append(parameters, "0")
 				}
-				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+
+				gpupar, environ := gpuParameters(params.GpuConfig)
+				parameters = append(parameters, gpupar...)
+
+				cmd, done, err := execCommand(config.Verbose, parameters, environ)
 				if err != nil {
 					errChan <- &JobExecutionError{err}
 					return
@@ -475,6 +510,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					filepath.Join(resultBase, "query_h"),
 				},
 				[]string{},
+				1*time.Minute,
 			)
 			if err != nil {
 				return &JobExecutionError{err}
@@ -488,6 +524,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					filepath.Join(resultBase, "query"),
 				},
 				[]string{},
+				1*time.Minute,
 			)
 			if err != nil {
 				return &JobExecutionError{err}
@@ -657,6 +694,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				filepath.Join(resultBase, "query_h"),
 			},
 			[]string{},
+			1*time.Minute,
 		)
 		if err != nil {
 			return &JobExecutionError{err}
@@ -670,6 +708,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				filepath.Join(resultBase, "query"),
 			},
 			[]string{},
+			1*time.Minute,
 		)
 		if err != nil {
 			return &JobExecutionError{err}
@@ -751,6 +790,8 @@ USE_TEMPLATES="$9"
 FILTER="${10}"
 TAXONOMY="${11}"
 M8OUT="${12}"
+GPU="${13}"
+GPUSERVER="${14}"
 EXPAND_EVAL=inf
 ALIGN_EVAL=10
 DIFF=3000
@@ -765,10 +806,23 @@ if [ "${FILTER}" = "1" ]; then
 fi
 export MMSEQS_CALL_DEPTH=1
 SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a --k-score 'seq:96,prof:80' -e 0.1 --max-seqs 10000"
+if [ "${GPU}" = "1" ]; then
+  GPU_PARAM="--gpu 1 --prefilter-mode 1"
+fi
+if [ "${GPUSERVER}" = "1" ]; then
+  GPU_PARAM="${GPU_PARAM} --gpu-server 1"
+fi
+if [ "${GPU_PARAM}" != "" ]; then
+	SEARCH_PARAM="${SEARCH_PARAM} ${GPU_PARAM}"
+fi
 FILTER_PARAM="--filter-min-enable 1000 --diff ${DIFF} --qid 0.0,0.2,0.4,0.6,0.8,1.0 --qsc 0 --max-seq-id 0.95"
 EXPAND_PARAM="--expansion-mode 0 -e ${EXPAND_EVAL} --expand-filter-clusters ${FILTER} --max-seq-id 0.95"
 mkdir -p "${BASE}"
 "${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb" --dbtype 1
+unset CUDA_VISIBLE_DEVICES
+if [ -n "$UNIREF_CUDA_VISIBLE_DEVICES" ]; then
+  export CUDA_VISIBLE_DEVICES="${UNIREF_CUDA_VISIBLE_DEVICES}"
+fi
 "${MMSEQS}" search "${BASE}/qdb" "${DB1}" "${BASE}/res" "${BASE}/tmp1" $SEARCH_PARAM
 "${MMSEQS}" mvdb "${BASE}/tmp1/latest/profile_1" "${BASE}/prof_res"
 "${MMSEQS}" lndb "${BASE}/qdb_h" "${BASE}/prof_res_h"
@@ -803,7 +857,11 @@ fi
 			}
 			script.WriteString(`
 if [ "${USE_TEMPLATES}" = "1" ]; then
-  "${MMSEQS}" search "${BASE}/prof_res" "${DB2}" "${BASE}/res_pdb" "${BASE}/tmp2" --db-load-mode 2 -s 7.5 -a -e 0.1
+  unset CUDA_VISIBLE_DEVICES
+  if [ -n "${PDB_CUDA_VISIBLE_DEVICES}" ]; then
+    export CUDA_VISIBLE_DEVICES="${PDB_CUDA_VISIBLE_DEVICES}"
+  fi
+  "${MMSEQS}" search "${BASE}/prof_res" "${DB2}" "${BASE}/res_pdb" "${BASE}/tmp2" --db-load-mode 2 -s 7.5 -a -e 0.1 ${GPU_PARAM}
   "${MMSEQS}" convertalis "${BASE}/prof_res" "${DB2}.idx" "${BASE}/res_pdb" "${BASE}/pdb70.m8" --format-output query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,cigar --db-load-mode 2
   "${MMSEQS}" rmdb "${BASE}/res_pdb"
 fi
@@ -813,6 +871,10 @@ fi
 			}
 			script.WriteString(`
 if [ "${USE_ENV}" = "1" ]; then
+  unset CUDA_VISIBLE_DEVICES
+  if [ -n "${ENV_CUDA_VISIBLE_DEVICES}" ]; then
+    export CUDA_VISIBLE_DEVICES="${ENV_CUDA_VISIBLE_DEVICES}"
+  fi
   "${MMSEQS}" search "${BASE}/prof_res" "${DB3}" "${BASE}/res_env" "${BASE}/tmp3" $SEARCH_PARAM
   "${MMSEQS}" expandaln "${BASE}/prof_res" "${DB3}.idx" "${BASE}/res_env" "${DB3}.idx" "${BASE}/res_env_exp" -e ${EXPAND_EVAL} --expansion-mode 0 --db-load-mode 2
   "${MMSEQS}" align "${BASE}/tmp3/latest/profile_1" "${DB3}.idx" "${BASE}/res_env_exp" "${BASE}/res_env_exp_realign" --db-load-mode 2 -e ${ALIGN_EVAL} --max-accept ${MAX_ACCEPT} --alt-ali 10 -a
@@ -869,9 +931,34 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 			strconv.Itoa(b2i[useFilter]),
 			strconv.Itoa(b2i[taxonomy]),
 			strconv.Itoa(b2i[m8out]),
+			strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseGpu]),
+			strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseServer]),
 		}
 
-		cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+		environ := []string{}
+		unirefDevices := config.Paths.ColabFold.Gpu.Devices
+		if config.Paths.ColabFold.Gpu.UnirefDevices != "" {
+			unirefDevices = config.Paths.ColabFold.Gpu.UnirefDevices
+		}
+		if unirefDevices != "" {
+			environ = append(environ, "UNIREF_CUDA_VISIBLE_DEVICES="+unirefDevices)
+		}
+		pdbDevices := config.Paths.ColabFold.Gpu.Devices
+		if config.Paths.ColabFold.Gpu.PdbDevices != "" {
+			pdbDevices = config.Paths.ColabFold.Gpu.PdbDevices
+		}
+		if pdbDevices != "" {
+			environ = append(environ, "PDB_CUDA_VISIBLE_DEVICES="+pdbDevices)
+		}
+		envDevices := config.Paths.ColabFold.Gpu.Devices
+		if config.Paths.ColabFold.Gpu.EnvironmentalDevices != "" {
+			envDevices = config.Paths.ColabFold.Gpu.EnvironmentalDevices
+		}
+		if envDevices != "" {
+			environ = append(environ, "ENV_CUDA_VISIBLE_DEVICES="+envDevices)
+		}
+
+		cmd, done, err := execCommand(config.Verbose, parameters, environ)
 		if err != nil {
 			return &JobExecutionError{err}
 		}
@@ -1005,11 +1092,23 @@ DB1="$5"
 DB2="$6"
 USE_ENV="$7"
 USE_PAIRWISE="$8"
+GPU="${9}"
+GPUSERVER="${10}"
 PAIRING_STRATEGY="$9"
 SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a --k-score 'seq:96,prof:80' -e 0.1 --max-seqs 10000"
 EXPAND_PARAM="--expansion-mode 0 -e inf --expand-filter-clusters 0 --max-seq-id 0.95"
+if [ "${GPU}" = "1" ]; then
+  SEARCH_PARAM="${SEARCH_PARAM} --gpu 1 --prefilter-mode 1"
+fi
+if [ "${GPUSERVER}" = "1" ]; then
+  SEARCH_PARAM="${SEARCH_PARAM} --gpu-server 1"
+fi
 export MMSEQS_CALL_DEPTH=1
 "${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb" --shuffle 0 --dbtype 1
+unset CUDA_VISIBLE_DEVICES
+if [ -n "$UNIREF_CUDA_VISIBLE_DEVICES" ]; then
+  export CUDA_VISIBLE_DEVICES="${UNIREF_CUDA_VISIBLE_DEVICES}"
+fi
 "${MMSEQS}" search "${BASE}/qdb" "${DB1}" "${BASE}/res" "${BASE}/tmp" $SEARCH_PARAM
 if [ "${USE_PAIRWISE}" = "1" ]; then
     for i in qdb res qdb_h; do
@@ -1035,6 +1134,10 @@ fi
 "${MMSEQS}" rmdb "${BASE}/res_final"
 
 if [ "${USE_ENV}" = "1" ]; then
+	unset CUDA_VISIBLE_DEVICES
+	if [ -n "${ENV_CUDA_VISIBLE_DEVICES}" ]; then
+		export CUDA_VISIBLE_DEVICES="${ENV_CUDA_VISIBLE_DEVICES}"
+	fi
 	"${MMSEQS}" search "${BASE}/qdb" "${DB2}" "${BASE}/res" "${BASE}/tmp" $SEARCH_PARAM
 	"${MMSEQS}" expandaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res" "${DB2}.idx" "${BASE}/res_exp" --db-load-mode 2 ${EXPAND_PARAM}
 	"${MMSEQS}" align   "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 -c 0.5 --cov-mode 1
@@ -1092,9 +1195,27 @@ rm -rf -- "${BASE}/tmp"
 			strconv.Itoa(b2i[useEnv]),
 			strconv.Itoa(b2i[usePairwise]),
 			pairingStrategy,
+			strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseGpu]),
+			strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseServer]),
 		}
 
-		cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+		environ := []string{}
+		unirefDevices := config.Paths.ColabFold.Gpu.Devices
+		if config.Paths.ColabFold.Gpu.UnirefDevices != "" {
+			unirefDevices = config.Paths.ColabFold.Gpu.UnirefDevices
+		}
+		if unirefDevices != "" {
+			environ = append(environ, "UNIREF_CUDA_VISIBLE_DEVICES="+unirefDevices)
+		}
+		envDevices := config.Paths.ColabFold.Gpu.Devices
+		if config.Paths.ColabFold.Gpu.EnvironmentalDevices != "" {
+			envDevices = config.Paths.ColabFold.Gpu.EnvironmentalDevices
+		}
+		if envDevices != "" {
+			environ = append(environ, "ENV_CUDA_VISIBLE_DEVICES="+envDevices)
+		}
+
+		cmd, done, err := execCommand(config.Verbose, parameters, environ)
 		if err != nil {
 			return &JobExecutionError{err}
 		}
@@ -1345,6 +1466,88 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 			<-sig
 			atomic.StoreInt32(&shouldExit, 1)
 		}()
+	}
+
+	if config.App == AppMMseqs2 || config.App == AppFoldseek {
+		go func() {
+			hasIncomplete := false
+			for hasIncomplete == true {
+				databases, err := Databases(config.Paths.Databases, false)
+				if err != nil {
+					panic(err)
+				}
+
+				for _, db := range databases {
+					if db.Status != StatusComplete {
+						hasIncomplete = true
+						continue
+					}
+				}
+
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			databases, err := Databases(config.Paths.Databases, false)
+			if err != nil {
+				panic(err)
+			}
+			for _, db := range databases {
+				if db.GpuConfig != nil && db.GpuConfig.UseServer {
+					go func(p Params) {
+						executable := config.Paths.Mmseqs
+						if config.App == AppFoldseek {
+							executable = config.Paths.Foldseek
+						}
+						parameters := []string{
+							executable,
+							"gpuserver",
+							p.Path,
+						}
+						searchParams := strings.Fields(p.Search)
+						for i := 0; i < len(searchParams); i++ {
+							if searchParams[i] == "--max-seqs" && i+1 < len(searchParams) {
+								parameters = append(parameters, searchParams[i], searchParams[i+1])
+							}
+						}
+						_, environ := gpuParameters(p.GpuConfig)
+						execCommandSync(
+							config.Verbose,
+							parameters,
+							environ,
+							maxDuration,
+						)
+					}(db)
+				}
+			}
+		}()
+	} else if config.App == AppColabFold {
+		if config.Paths.ColabFold.Gpu != nil && config.Paths.ColabFold.Gpu.UseGpu && config.Paths.ColabFold.Gpu.UseServer {
+			startserver := func(db string, deviceOverride string, maxSeqs string) {
+				parameters := []string{
+					config.Paths.Mmseqs,
+					"gpuserver",
+					db,
+					"--max-seqs",
+					maxSeqs,
+				}
+
+				environ := []string{}
+				if deviceOverride != "" {
+					environ = append(environ, "CUDA_VISIBLE_DEVICES="+deviceOverride)
+				} else if config.Paths.ColabFold.Gpu.Devices != "" {
+					environ = append(environ, "CUDA_VISIBLE_DEVICES="+config.Paths.ColabFold.Gpu.Devices)
+				}
+				execCommandSync(
+					config.Verbose,
+					parameters,
+					environ,
+					maxDuration,
+				)
+			}
+			go startserver(config.Paths.ColabFold.Uniref, config.Paths.ColabFold.Gpu.UnirefDevices, "10000")
+			go startserver(config.Paths.ColabFold.Pdb, config.Paths.ColabFold.Gpu.PdbDevices, "300")
+			go startserver(config.Paths.ColabFold.Environmental, config.Paths.ColabFold.Gpu.EnvironmentalDevices, "10000")
+		}
 	}
 
 	for {
