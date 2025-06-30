@@ -292,6 +292,42 @@ END
                 this.stage.getRepresentationsByName("targetStructure").setVisibility(true);
             }
         },
+        setHoverTooltip() {
+            var tooltip = document.createElement("div");
+            Object.assign(tooltip.style, {
+                display: "none",
+                position: "absolute",
+                zIndex: 10,
+                pointerEvents: "none",
+                backgroundColor: "rgba(0, 0, 0, 0)",
+                opacity: 0.7,
+                color: "black",
+                padding: "8px",
+                borderRadius: "5px",
+            });
+            this.stage.viewer.container.appendChild(tooltip);
+            this.stage.mouseControls.remove("hoverPick");
+            this.stage.signals.hovered.add(function (pickingProxy) {
+                if (pickingProxy && (pickingProxy.atom || pickingProxy.bond)) {
+                    var atom = pickingProxy.atom || pickingProxy.closestBondAtom
+                    var name = atom.structure.name;
+                    if (name === "queryStructure") {
+                        tooltip.style.backgroundColor = "#1E88E5";
+                    } else if (name === "targetStructure") {
+                        tooltip.style.backgroundColor = "#FFC107";
+                    } else {
+                        tooltip.backgroundColor = "rgba(0, 0, 0, 0.7)";
+                    }
+                    tooltip.innerText = `${atom.structure.name} ${atom.chainname} ${atom.resno} ${atom.resname}`;
+                    tooltip.style.top = "10px";
+                    tooltip.style.right = "0px";
+                    tooltip.style.display = "block";
+                } else {
+                    tooltip.innerText = "";
+                    tooltip.style.display = "none";
+                }
+            });
+        },
     },
     watch: {
         'showQuery': function() {
@@ -362,6 +398,7 @@ END
         target.addRepresentation(this.motifRepr, {sele: matchedTarget, color: this.tmotifClr, name: "targetMotif"})
         this.setQuerySelection();
         this.setTargetSelection();
+        this.setHoverTooltip();
         query.autoView(matchedQuery, this.autoViewTime);
     }
 }
