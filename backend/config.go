@@ -94,9 +94,9 @@ var defaultFileContent = []byte(`{
         */
         // path to foldseek binary
         "foldseek"     : "~foldseek",
-        "foldmason"     : "~foldmason",
-		"folddisco":     : "~folddisco",
-		"pdb100"        : "~pdb100",
+        "foldmason"    : "~foldmason",
+		"folddisco"    : "~folddisco",
+		"pdb100"       : "~pdb100",
         // path to mmseqs binary
         "mmseqs"       : "~mmseqs"
     },
@@ -131,7 +131,7 @@ var defaultFileContent = []byte(`{
                         // gmail user
                         "username" : "user@gmail.com",
                         "password" : "password",
-                        "host" : "smtp.gmail.com",
+                        "host" : "smtp.gmail.com"
                     }
                 }
             }
