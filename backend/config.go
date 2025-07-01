@@ -327,6 +327,18 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 	}
 
 	paths := []*string{&config.Paths.Databases, &config.Paths.Results, &config.Paths.Mmseqs}
+	if config.Paths.ColabFold != nil {
+		paths = append(
+			paths,
+			&config.Paths.ColabFold.Uniref,
+			&config.Paths.ColabFold.Pdb,
+			&config.Paths.ColabFold.Environmental,
+			&config.Paths.ColabFold.EnvironmentalPair,
+			&config.Paths.ColabFold.Pdb70,
+			&config.Paths.ColabFold.PdbDivided,
+			&config.Paths.ColabFold.PdbObsolete,
+		)
+	}
 	for _, path := range paths {
 		if strings.HasPrefix(*path, "~") {
 			*path = strings.TrimLeft(*path, "~")
