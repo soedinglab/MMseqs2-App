@@ -27,7 +27,7 @@ var defaultFileContent = []byte(`{
         /* enable HTTP Basic Auth (optional)
         "auth": {
             "username" : "",
-            "password" : ""
+            "password" : "",
         },
         // enable rate-limiting (optional)
         "ratelimit"  : {
@@ -40,19 +40,19 @@ var defaultFileContent = []byte(`{
             "ttl"    : 1,
             "reason" : "The foldseek server is a shared resource. Please be mindful about submitting many jobs.",
 			// CIDRs to allow without rate-limiting
-			"allowlist": []
+			"allowlist": [],
         },
         */
         // should CORS headers be set to allow requests from anywhere
         "cors"       : true,
 		// should old jobs be checked on startup
-		"checkold"   : true
+		"checkold"   : true,
     },
     "worker": {
         // should workers exit immediately after SIGINT/SIGTERM signal or gracefully wait for job completion
         "gracefulexit": false,
         // How many databases can be searched in parallel (used additional CPUs)
-        "paralleldatabases": 1
+        "paralleldatabases": 1,
     },
     // paths to workfolders and mmseqs, special character ~ is resolved relative to the binary location
     "paths" : {
@@ -76,7 +76,7 @@ var defaultFileContent = []byte(`{
 				// set/override devices per database for better VRAM managment
 				// "uniref_devices": "0",
 				// "pdb_devices": "1",
-				// "environmental_devices": "2"
+				// "environmental_devices": "2",
 			},
 			*/
             // should stages be run in parallel
@@ -89,7 +89,7 @@ var defaultFileContent = []byte(`{
             // paths for templates
             "pdb70"         : "~databases/pdb70",
             "pdbdivided"    : "~databases/pdbdivided",
-            "pdbobsolete"   : "~databases/pdbobsolete"
+            "pdbobsolete"   : "~databases/pdbobsolete",
         },
         */
         // path to foldseek binary
@@ -98,20 +98,20 @@ var defaultFileContent = []byte(`{
 		"folddisco"    : "~folddisco",
 		"pdb100"       : "~pdb100",
         // path to mmseqs binary
-        "mmseqs"       : "~mmseqs"
+        "mmseqs"       : "~mmseqs",
     },
     // connection details for redis database, not used in -local mode
     "redis" : {
         "network"  : "tcp",
         "address"  : "localhost:6379",
         "password" : "",
-        "index"    : 0
+        "index"    : 0,
     },
     // options for local/single-binary server
     "local" : {
         "workers"  : 1,
 		// should old jobs be checked on startup
-		"checkold" : true
+		"checkold" : true,
     },
     "mail" : {
         "mailer" : {
@@ -131,10 +131,10 @@ var defaultFileContent = []byte(`{
                         // gmail user
                         "username" : "user@gmail.com",
                         "password" : "password",
-                        "host" : "smtp.gmail.com"
-                    }
-                }
-            }
+                        "host" : "smtp.gmail.com",
+                    },
+                },
+            },
             */
             /* mailgun: Uses the mailgun API to send emails
             "type"      : "mailgun",
@@ -144,8 +144,8 @@ var defaultFileContent = []byte(`{
                 // mailgun API private key
                 "secretkey" : "key-XXXX",
                 // mailgun API public key
-                "publickey" : "pubkey-XXXX"
-            }
+                "publickey" : "pubkey-XXXX",
+            },
             */
         },
         // Email FROM field
@@ -157,15 +157,15 @@ var defaultFileContent = []byte(`{
         "templates" : {
             "success" : {
                 "subject" : "Done -- %s",
-                "body"    : "%s"
+                "body"    : "%s",
             },
             "timeout" : {
                 "subject" : "Timeout -- %s",
-                "body"    : "%s"
+                "body"    : "%s",
             },
             "error"   : {
                 "subject" : "Error -- %s",
-                "body"    : "%s"
+                "body"    : "%s",
             }
         }
     }
