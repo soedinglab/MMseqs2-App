@@ -1202,7 +1202,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 	}).Methods("GET")
 
-	if config.App == AppColabFold {
+	if config.App == AppColabFold && config.Paths.ColabFold.Pdb70 != "" {
 		a3mreader := Reader[string]{}
 		a3mbase := config.Paths.ColabFold.Pdb70 + "_a3m"
 		err := a3mreader.Make(a3mbase+".ffdata", a3mbase+".ffindex")
