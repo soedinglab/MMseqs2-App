@@ -70,8 +70,16 @@ func execCommand(verbose bool, parameters []string, environ []string) (*exec.Cmd
 
 	SetSysProcAttr(cmd)
 
+	baseEnv := os.Environ()
+	// CUDA_VISIBLE_DEVICES is managed by config
+	filtered := make([]string, 0, len(baseEnv))
+	for _, kv := range baseEnv {
+		if !strings.HasPrefix(kv, "CUDA_VISIBLE_DEVICES=") {
+			filtered = append(filtered, kv)
+		}
+	}
 	// Make sure MMseqs2's progress bar doesn't break
-	cmd.Env = append(os.Environ(), "TTY=0", "MMSEQS_CALL_DEPTH=1")
+	cmd.Env = append(filtered, "TTY=0", "MMSEQS_CALL_DEPTH=1")
 	cmd.Env = append(cmd.Env, environ...)
 
 	if verbose {
@@ -936,26 +944,28 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 		}
 
 		environ := []string{}
-		unirefDevices := config.Paths.ColabFold.Gpu.Devices
-		if config.Paths.ColabFold.Gpu.UnirefDevices != "" {
-			unirefDevices = config.Paths.ColabFold.Gpu.UnirefDevices
-		}
-		if unirefDevices != "" {
-			environ = append(environ, "UNIREF_CUDA_VISIBLE_DEVICES="+unirefDevices)
-		}
-		pdbDevices := config.Paths.ColabFold.Gpu.Devices
-		if config.Paths.ColabFold.Gpu.PdbDevices != "" {
-			pdbDevices = config.Paths.ColabFold.Gpu.PdbDevices
-		}
-		if pdbDevices != "" {
-			environ = append(environ, "PDB_CUDA_VISIBLE_DEVICES="+pdbDevices)
-		}
-		envDevices := config.Paths.ColabFold.Gpu.Devices
-		if config.Paths.ColabFold.Gpu.EnvironmentalDevices != "" {
-			envDevices = config.Paths.ColabFold.Gpu.EnvironmentalDevices
-		}
-		if envDevices != "" {
-			environ = append(environ, "ENV_CUDA_VISIBLE_DEVICES="+envDevices)
+		if config.Paths.ColabFold != nil {
+			unirefDevices := config.Paths.ColabFold.Gpu.Devices
+			if config.Paths.ColabFold.Gpu.UnirefDevices != "" {
+				unirefDevices = config.Paths.ColabFold.Gpu.UnirefDevices
+			}
+			if unirefDevices != "" {
+				environ = append(environ, "UNIREF_CUDA_VISIBLE_DEVICES="+unirefDevices)
+			}
+			pdbDevices := config.Paths.ColabFold.Gpu.Devices
+			if config.Paths.ColabFold.Gpu.PdbDevices != "" {
+				pdbDevices = config.Paths.ColabFold.Gpu.PdbDevices
+			}
+			if pdbDevices != "" {
+				environ = append(environ, "PDB_CUDA_VISIBLE_DEVICES="+pdbDevices)
+			}
+			envDevices := config.Paths.ColabFold.Gpu.Devices
+			if config.Paths.ColabFold.Gpu.EnvironmentalDevices != "" {
+				envDevices = config.Paths.ColabFold.Gpu.EnvironmentalDevices
+			}
+			if envDevices != "" {
+				environ = append(environ, "ENV_CUDA_VISIBLE_DEVICES="+envDevices)
+			}
 		}
 
 		cmd, done, err := execCommand(config.Verbose, parameters, environ)
@@ -1526,7 +1536,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 				parameters := []string{
 					config.Paths.Mmseqs,
 					"gpuserver",
-					db,
+					db + ".idx",
 					"--max-seqs",
 					maxSeqs,
 				}
@@ -1545,8 +1555,12 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 				)
 			}
 			go startserver(config.Paths.ColabFold.Uniref, config.Paths.ColabFold.Gpu.UnirefDevices, "10000")
-			go startserver(config.Paths.ColabFold.Pdb, config.Paths.ColabFold.Gpu.PdbDevices, "300")
-			go startserver(config.Paths.ColabFold.Environmental, config.Paths.ColabFold.Gpu.EnvironmentalDevices, "10000")
+			if config.Paths.ColabFold.Pdb != "" {
+				go startserver(config.Paths.ColabFold.Pdb, config.Paths.ColabFold.Gpu.PdbDevices, "300")
+			}
+			if config.Paths.ColabFold.Environmental != "" {
+				go startserver(config.Paths.ColabFold.Environmental, config.Paths.ColabFold.Gpu.EnvironmentalDevices, "10000")
+			}
 		}
 	}
 

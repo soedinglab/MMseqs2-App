@@ -70,7 +70,7 @@ var defaultFileContent = []byte(`{
 				// enable/disable
 				"gpu": true,
 				// enable gpuserver, saves about 1.5s per request in overhead
-				"gpuserver": true,
+				"server": true,
 				// set cuda visible devices for all databases, can be empty/omitted
 				// "devices": "0,1,2",
 				// set/override devices per database for better VRAM managment
