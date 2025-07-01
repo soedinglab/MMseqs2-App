@@ -371,6 +371,12 @@ func (c *ConfigRoot) CheckPaths() error {
 		return errors.New("MMseqs2 binary was not found at " + c.Paths.Mmseqs)
 	}
 
+	if c.App == AppColabFold {
+		if c.Paths.ColabFold == nil {
+			return errors.New("ColabFold paths are not set")
+		}
+	}
+
 	return nil
 }
 
