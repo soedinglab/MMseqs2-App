@@ -4,7 +4,6 @@ go 1.18
 
 require (
 	github.com/CAFxX/httpcompression v0.0.8
-	github.com/DisposaBoy/JsonConfigReader v0.0.0-20201129172854-99cf318d67e7
 	github.com/didip/tollbooth/v6 v6.1.2
 	github.com/go-playground/validator/v10 v10.11.2
 	github.com/go-redis/redis v6.15.9+incompatible
