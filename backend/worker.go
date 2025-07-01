@@ -1501,7 +1501,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 						parameters := []string{
 							executable,
 							"gpuserver",
-							p.Path,
+							filepath.Join(config.Paths.Databases, p.Path),
 						}
 						searchParams := strings.Fields(p.Search)
 						for i := 0; i < len(searchParams); i++ {
