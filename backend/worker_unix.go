@@ -9,7 +9,10 @@ import (
 )
 
 func SetSysProcAttr(cmd *exec.Cmd) {
-	cmd.SysProcAttr = &unix.SysProcAttr{Setpgid: true}
+	cmd.SysProcAttr = &unix.SysProcAttr{
+		Setpgid: true,
+		Pdeathsig: unix.SIGKILL,
+	}
 }
 
 func KillCommand(cmd *exec.Cmd) error {
