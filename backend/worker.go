@@ -1528,6 +1528,8 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 							executable,
 							"gpuserver",
 							filepath.Join(config.Paths.Databases, p.Path),
+							"--db-load-mode",
+							"0",
 						}
 						searchParams := strings.Fields(p.Search)
 						for i := 0; i < len(searchParams); i++ {
@@ -1553,6 +1555,8 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 					config.Paths.Mmseqs,
 					"gpuserver",
 					db + ".idx",
+					"--db-load-mode",
+					"0",
 					"--max-seqs",
 					maxSeqs,
 				}
