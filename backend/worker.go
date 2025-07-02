@@ -57,6 +57,14 @@ func gpuParameters(config *GpuConfig) ([]string, []string) {
 
 		if config.Devices != "" {
 			environ = append(environ, "CUDA_VISIBLE_DEVICES="+config.Devices)
+		} else {
+			// respect original CUDA_VISIBLE_DEVICES if we don't override it
+			for _, kv := range os.Environ() {
+				if strings.HasPrefix(kv, "CUDA_VISIBLE_DEVICES=") {
+					environ = append(environ, kv)
+					break
+				}
+			}
 		}
 	}
 	return parameters, environ
@@ -71,10 +79,12 @@ func execCommand(verbose bool, parameters []string, environ []string) (*exec.Cmd
 	SetSysProcAttr(cmd)
 
 	baseEnv := os.Environ()
-	// CUDA_VISIBLE_DEVICES is managed by config
+	// Save original CUDA_VISIBLE_DEVICES
 	filtered := make([]string, 0, len(baseEnv))
 	for _, kv := range baseEnv {
-		if !strings.HasPrefix(kv, "CUDA_VISIBLE_DEVICES=") {
+		if strings.HasPrefix(kv, "CUDA_VISIBLE_DEVICES=") {
+			filtered = append(filtered, "ORIG_" + kv)
+		} else {
 			filtered = append(filtered, kv)
 		}
 	}
@@ -827,7 +837,9 @@ FILTER_PARAM="--filter-min-enable 1000 --diff ${DIFF} --qid 0.0,0.2,0.4,0.6,0.8,
 EXPAND_PARAM="--expansion-mode 0 -e ${EXPAND_EVAL} --expand-filter-clusters ${FILTER} --max-seq-id 0.95"
 mkdir -p "${BASE}"
 "${MMSEQS}" createdb "${QUERY}" "${BASE}/qdb" --dbtype 1
-unset CUDA_VISIBLE_DEVICES
+if [ -n "${ORIG_CUDA_VISIBLE_DEVICES}" ]; then
+	export CUDA_VISIBLE_DEVICES="${ORIG_CUDA_VISIBLE_DEVICES}"
+fi
 if [ -n "$UNIREF_CUDA_VISIBLE_DEVICES" ]; then
   export CUDA_VISIBLE_DEVICES="${UNIREF_CUDA_VISIBLE_DEVICES}"
 fi
@@ -865,7 +877,9 @@ fi
 			}
 			script.WriteString(`
 if [ "${USE_TEMPLATES}" = "1" ]; then
-  unset CUDA_VISIBLE_DEVICES
+  if [ -n "${ORIG_CUDA_VISIBLE_DEVICES}" ]; then
+    export CUDA_VISIBLE_DEVICES="${ORIG_CUDA_VISIBLE_DEVICES}"a
+  fi
   if [ -n "${PDB_CUDA_VISIBLE_DEVICES}" ]; then
     export CUDA_VISIBLE_DEVICES="${PDB_CUDA_VISIBLE_DEVICES}"
   fi
@@ -879,7 +893,9 @@ fi
 			}
 			script.WriteString(`
 if [ "${USE_ENV}" = "1" ]; then
-  unset CUDA_VISIBLE_DEVICES
+  if [ -n "${ORIG_CUDA_VISIBLE_DEVICES}" ]; then
+    export CUDA_VISIBLE_DEVICES="${ORIG_CUDA_VISIBLE_DEVICES}"a
+  fi
   if [ -n "${ENV_CUDA_VISIBLE_DEVICES}" ]; then
     export CUDA_VISIBLE_DEVICES="${ENV_CUDA_VISIBLE_DEVICES}"
   fi
@@ -1546,6 +1562,14 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 					environ = append(environ, "CUDA_VISIBLE_DEVICES="+deviceOverride)
 				} else if config.Paths.ColabFold.Gpu.Devices != "" {
 					environ = append(environ, "CUDA_VISIBLE_DEVICES="+config.Paths.ColabFold.Gpu.Devices)
+				} else {
+					// respect original CUDA_VISIBLE_DEVICES if we don't override it
+					for _, kv := range os.Environ() {
+						if strings.HasPrefix(kv, "CUDA_VISIBLE_DEVICES=") {
+							environ = append(environ, kv)
+							break
+						}
+					}
 				}
 				execCommandSync(
 					config.Verbose,
