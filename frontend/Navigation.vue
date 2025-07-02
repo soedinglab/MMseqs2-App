@@ -113,7 +113,7 @@
             </v-list-item>
             </template>
         </v-list-group>
-        <v-list-group v-else-if="$route.name === 'folddiscoresult'" v-model="expanded">
+        <!-- <v-list-group v-else-if="$route.name === 'folddiscoresult'" v-model="expanded">
             <template slot="activator">
                 <v-list-item-action>
                     <v-icon>{{ $MDI.FileDownloadOutline }}</v-icon>
@@ -151,7 +151,7 @@
                 </v-list-item-content>
             </v-list-item>
             </template>
-        </v-list-group>
+        </v-list-group> -->
 
         <v-divider></v-divider>
 
