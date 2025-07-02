@@ -252,7 +252,7 @@ export default {
     name: 'ResultFoldDisco',
     components: { Panel, StructureViewerMotif },
     // components: { ResultView },
-    // mixins: [ResultMixin],
+    mixins: [ResultMixin],
     data() {
         return {
             ticket: "",
@@ -341,9 +341,9 @@ export default {
                 this.fetchData();
             }
         },
-        // hits: function() {
-        //     // this.setColorScheme();
-        // },
+        hits: function() {
+            this.setColorScheme();
+        },
         // selectedTaxId(newVal) {
         //     this.localSelectedTaxId = newVal;
         //     this.handleSankeySelect({ nodeId: newVal, db: this.selectedDb });

@@ -37,6 +37,7 @@ export default {
                 let colorHsl = rgb2hsl(result.color);
                 let max = {
                     score: Number.MIN_VALUE,
+                    idfscore: Number.MIN_VALUE,
                     // eval: Number.MIN_VALUE,
                     // prob: Number.MIN_VALUE,
                     // seqId: Number.MIN_VALUE,
@@ -49,6 +50,7 @@ export default {
                 }
                 let min = {
                     score: Number.MAX_VALUE,
+                    idfscore: Number.MAX_VALUE,
                     // eval: Number.MAX_VALUE,
                     // prob: Number.MAX_VALUE,
                     // seqId: Number.MAX_VALUE,
@@ -62,8 +64,10 @@ export default {
                 for (let entry of Object.values(result.alignments)) {
                     for (let alignment of entry) {
                         for (const key in min) {
-                            min[key] = alignment[key] < min[key] ? alignment[key] : min[key];
-                            max[key] = alignment[key] > max[key] ? alignment[key] : max[key];
+                            if (key in alignment) {
+                                min[key] = alignment[key] < min[key] ? alignment[key] : min[key];
+                                max[key] = alignment[key] > max[key] ? alignment[key] : max[key];
+                            }
                         }
                     }
                 }
