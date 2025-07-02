@@ -28,7 +28,7 @@
         </v-list-item>
         <v-list-item to="/folddisco" v-if="$APP == 'foldseek'">
             <v-list-item-action>
-                <v-icon>{{ $MDI.Multimer }}</v-icon>
+                <v-icon>{{ $MDI.Motif }}</v-icon>
             </v-list-item-action>
             <v-list-item-content>
                 <v-list-item-title>FoldDisco search</v-list-item-title>
