@@ -893,6 +893,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 						filepath.Join(resultBase, "pdb_"+database),
 					},
 					[]string{},
+					1*time.Minute,
 				)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusBadRequest)
