@@ -83,7 +83,7 @@ func execCommand(verbose bool, parameters []string, environ []string) (*exec.Cmd
 	filtered := make([]string, 0, len(baseEnv))
 	for _, kv := range baseEnv {
 		if strings.HasPrefix(kv, "CUDA_VISIBLE_DEVICES=") {
-			filtered = append(filtered, "ORIG_" + kv)
+			filtered = append(filtered, "ORIG_"+kv)
 		} else {
 			filtered = append(filtered, kv)
 		}
