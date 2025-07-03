@@ -305,10 +305,11 @@ export default {
                 this.inSearch = false;
             }
         },
-        upload(files) {
+        async upload(files) {
             var reader = new FileReader();
-            reader.onload = e => {
+            reader.onload = async e => {
                 this.query = e.target.result;
+                this.queryStructure = await getStructure(this.query);
             };
             reader.readAsText(files[0]);
         },

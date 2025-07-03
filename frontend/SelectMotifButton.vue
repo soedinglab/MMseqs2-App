@@ -61,10 +61,14 @@ export default {
                 return false;
             }
 
-            var motifSet = new Set(this.motif.split(','));
+            var motifSet = new Set(this.motif.split(',').map(m => m.trim()));
             this.structure.eachResidue(r => {
-                if (motifSet.has(`${r.chainname}${r.resno}`)) {
-                    motifSet.delete(`${r.chainname}${r.resno}`);
+                const onlyResno = `${r.resno}`;
+                const chainResno = `${r.chainname}${r.resno}`;
+                if (motifSet.has(chainResno)) {
+                    motifSet.delete(chainResno);
+                } else if (motifSet.has(onlyResno)) {
+                    motifSet.delete(onlyResno);
                 }
             });
             return motifSet.size == 0;

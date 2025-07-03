@@ -206,11 +206,12 @@
             </v-flex>
         </v-layout>
         <portal>
-            <panel v-if="alignment != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px;'">
+            <panel v-if="alignment != null && targetPdb != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px;'">
                 <StructureViewerMotif
                     slot="content"
                     :alignment="alignment"
                     :queryPdb="queryPdb"
+                    :targetPdb="targetPdb"
                     :lineLen="fluidLineLen"
                 />
                 <!-- <StructureViewerMotif
@@ -255,6 +256,7 @@ export default {
             error: "",
             hits: null,
             queryPdb: null,
+            targetPdb: null,
 
             alignment: null,
             activeTarget: null,
@@ -354,12 +356,24 @@ export default {
                 this.closeAlignment();
             } else {
                 this.alignment = null;
-                this.$nextTick(() => {
+                this.targetPdb = null;
+                this.$nextTick(async () => {
                     item.db = db;
                     this.alignment = item;
+                    this.targetPdb = await this.getTargetPdb(item.target, db);
                     this.activeTarget = event.target.closest('.alignment-action');
                     this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight;
                 });
+            }
+        },
+        async getTargetPdb(target, db) {
+            try {
+                const re = "api/result/folddisco/" + this.$route.params.ticket + '?database=' + db +'&id=' + target;
+                const request = await this.$axios.get(re);
+                return request.data;
+            } catch (e) {
+                // throw new Error("Failed to get target structure: " + e.message);
+                alert("Error: Failed to get target structure" + e.message);
             }
         },
         closeAlignment() {

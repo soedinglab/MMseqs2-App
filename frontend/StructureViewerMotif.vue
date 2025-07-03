@@ -101,6 +101,7 @@ export default {
         alignment: { type: Object, required: true, },
         lineLen: { type: Number, required: true, },
         queryPdb: {type: String, required: true, },
+        targetPdb: {type: String, required: true, },
 
         strRepr: { type: String, default: "ribbon" },
         motifRepr: {type: String, default: "licorice"},
@@ -345,21 +346,11 @@ END
     //     // this.setEmptyStructureHighlight();
     // },
     async mounted() {
-        if (typeof(this.alignment.tCa) == "undefined" || typeof(this.queryPdb) == "undefined")
+        if (typeof(this.alignment.tCa) == "undefined" || typeof(this.queryPdb) == "undefined" || typeof(this.targetPdb) == "undefined")
             return;
 
-        try {
-            const ticket = this.$route.params.ticket;
-            const match = this.alignment;
-            const re = "api/result/folddisco/" + ticket + '?database=' + match.db +'&id=' + match.target;
-            const request = await this.$axios.get(re);
-            targetPdb = request.data;
-        } catch (e) {
-            alert("Error: " + (e.response?.data || e.message || "Unknown"));
-            return
-        }
         let [queryPdb, qext] = processPdb(this.queryPdb);
-        let [targetPdb, text] = processPdb(targetPdb);
+        let [targetPdb, text] = processPdb(this.targetPdb);
         const query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), { ext: qext, firstModelOnly: true, name: 'queryStructure'});
         const target = await this.stage.loadFile(new Blob([targetPdb], { type: 'text/plain' }), { ext: text, firstModelOnly: true, name: 'targetStructure'});
 
