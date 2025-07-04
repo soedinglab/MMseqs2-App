@@ -22,17 +22,35 @@
                     <span v-html="$STRINGS.MOTIF_HELP"></span>
                 </v-tooltip>
             </template>
+
             <template slot="content">
-                <query-textarea
-                    :loading="accessionLoading"
-                    v-model="query">
-                </query-textarea>
+                <div class="query-textarea-wrapper">
+                    <query-textarea
+                        :loading="accessionLoading"
+                        v-model="query">
+                    </query-textarea>
+                </div>
+
+                <div class="motif-select-wrapper">
+                    <v-text-field 
+                        v-model="motif"
+                        @input="resetMotif"
+                        :color="isMotifValid(motif) && getMotifLen(motif) <= 32 ? 'primary' : 'error'"
+                        :error-messages="!isMotifValid(motif) ? 'Invalid motif' 
+                                        : motifLen > 32? `Motif too long (${motifLen} / 32 residues)`
+                                        : ''"
+                    >
+                        <template v-slot:label>
+                            <span style="font-size: 1.3em;">Selected Motif</span>
+                        </template>
+                    </v-text-field>
+                </div>
 
                 <div class="actions input-buttons-panel">
                     <div class="input-buttons-left">
-                        <load-acession-button @select="query = $event" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
+                        <load-acession-button @select="resetQuery($event)" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
-                        <select-motif-button @select="motif = $event" @selecting="motifSelecting = $event" :structure="queryStructure"></select-motif-button>
+                        <v-btn v-if="motifLen > 32" color="error" :block="false" v-on:click="goToFoldseek"><v-icon>{{ $MDI.Monomer }}</v-icon>&nbsp;Go to Foldseek</v-btn>
                     </div>
                 </div>
             </template>
@@ -90,7 +108,7 @@
             <template slot="content">
                 <div class="actions" :style="!$vuetify.breakpoint.xsOnly ?'display:flex; align-items: center;' : null">
                 <v-item-group class="v-btn-toggle">
-                    <v-btn color="primary" :block="false" x-large v-on:click="search" :disabled="searchDisabled"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Search</v-btn>
+                    <v-btn color="primary" :block="false" x-large v-on:click="search" :disabled="searchDisabled":loading="inSearch"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Search</v-btn>
                 </v-item-group>
                 <div :style="!$vuetify.breakpoint.xsOnly ? 'margin-left: 1em;' : 'margin-top: 1em;'">
                     <span><strong>Summary</strong></span><br>
@@ -129,13 +147,11 @@
 <script>
 import Panel from "./Panel.vue";
 import FileButton from "./FileButton.vue";
-import SelectMotifButton from './SelectMotifButton.vue';
 import LoadAcessionButton from './LoadAcessionButton.vue';
 import Reference from "./Reference.vue";
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
 import { extractCifAtom } from './Utilities.js';
-import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import ApiDialog from './ApiDialog.vue';
 import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
@@ -158,11 +174,11 @@ async function getStructure(data) {
 }
 
 function setDefaultMotif(structure) {
-    var motifList = []; 
+    var motifList = new Set(); 
     structure.eachResidue(r => {
-        motifList.push(`${r.chainname}${r.resno}`);
+        motifList.add(`${r.chainname}${r.resno}`);
     });
-    return motifList.join(',');
+    return Array.from(motifList).join(',');
 }
 
 export default {
@@ -172,7 +188,6 @@ export default {
         Panel,
         FileButton,
         LoadAcessionButton,
-        SelectMotifButton,
         TaxonomyAutocomplete,
         Reference,
         ApiDialog,
@@ -195,8 +210,8 @@ export default {
             // taxFilter: JSON.parse(storage.getItem('taxFilter') || 'null'),
             predictable: false,
             accessionLoading: false,
-            motifSelecting: false,
             motif: "",
+            motifLen: 0,
         };
     },
     async mounted() {
@@ -211,11 +226,16 @@ export default {
             this.query = this.$STRINGS.MOTIF_DEFAULT; // 1G2F: zinc finger
         }
         this.queryStructure = await getStructure(this.query);
+
+        if (this.motif == '') {
+            this.motif = setDefaultMotif(this.queryStructure)
+            this.motifLen = this.getMotifLen(this.motif);
+        }
     },
     computed: {
         searchDisabled() {
             return (
-                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0 || this.predictable 
+                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0 || this.predictable || !this.isMotifValid(this.motif) || this.motifLen > 32
             );
         },
         preloadSource() {
@@ -259,9 +279,7 @@ export default {
                     request.q += '\n';
                 }
             }
-            if (request.motif == '') {
-                request.motif = setDefaultMotif(this.queryStructure)
-            } 
+
             if (__ELECTRON__) {
                 request.email = "";
             }
@@ -308,11 +326,47 @@ export default {
         async upload(files) {
             var reader = new FileReader();
             reader.onload = async e => {
-                this.query = e.target.result;
-                this.queryStructure = await getStructure(this.query);
+                this.resetQuery(e.target.result);
             };
             reader.readAsText(files[0]);
         },
+        async resetQuery(value) {
+            this.query = value;
+            this.queryStructure = await getStructure(this.query);
+            this.motif = setDefaultMotif(this.queryStructure)
+            this.motifLen = this.getMotifLen(this.motif);
+        },
+        resetMotif(value) {
+            if (value == '') {
+                this.motif = setDefaultMotif(this.queryStructure)
+                this.motifLen = this.getMotifLen(this.motif);
+            } else {
+                this.motifLen = this.getMotifLen(this.motif);
+            }
+        },
+        isMotifValid(value) {
+            if (!this.queryStructure) {
+                return false;
+            }
+            var motifSet = new Set(value.split(',').map(m => m.trim()));
+            this.queryStructure.eachResidue(r => {
+                const onlyResno = `${r.resno}`;
+                const chainResno = `${r.chainname}${r.resno}`;
+                if (motifSet.has(chainResno)) {
+                    motifSet.delete(chainResno);
+                } else if (motifSet.has(onlyResno)) {
+                    motifSet.delete(onlyResno);
+                }
+            });
+            return motifSet.size == 0;
+        },
+        getMotifLen(value) {
+            return new Set(value.split(',').filter(m => m.trim() != '')).size;
+        },
+        goToFoldseek() {
+            this.$router.replace('/search');
+
+        }
     }
 };
 </script>

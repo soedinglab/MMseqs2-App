@@ -218,17 +218,12 @@
             <panel v-if="alignment != null && targetPdb != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px;'">
                 <StructureViewerMotif
                     slot="content"
+                    :key="`ap-${alignment.dbkey}`"
                     :alignment="alignment"
                     :queryPdb="queryPdb"
                     :targetPdb="targetPdb"
                     :lineLen="fluidLineLen"
                 />
-                <!-- <StructureViewerMotif
-                    slot="content"
-                    :key="`ap-${alignment.id}`"
-                    :alignments="alignment"
-                    :lineLen="fluidLineLen"
-                /> -->
             </panel>
         </portal>
     </v-container>
