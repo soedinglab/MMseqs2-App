@@ -831,19 +831,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 					if res.Alignments == nil {
 						continue
 					}
-					cnt := 0
-					aln := res.Alignments
-					alnType, ok := aln.([]FoldDiscoAlignmentEntry)
-					if !ok {
-						http.Error(w, "Cannot parse FoldDisco Alignment entry", http.StatusBadRequest)
-						return
-					}
-					for i := range alnType {
-						idx := strconv.Itoa(cnt)
-						alnType[i].MarshalFormat = MarshalTargetNumeric
-						alnType[i].TargetCa = idx
-						cnt++
-					}
 				}
 			default:
 				http.Error(w, "Invalid job type", http.StatusBadRequest)

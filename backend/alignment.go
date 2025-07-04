@@ -205,22 +205,6 @@ func (entry FoldDiscoAlignmentEntry) MarshalJSON() ([]byte, error) {
 		}{
 			Alias: (*Alias)(&entry),
 		})
-	} else if entry.MarshalFormat == MarshalTargetNumeric {
-		targetCaInt, err := strconv.Atoi(entry.TargetCa)
-		if err != nil {
-			return nil, err
-		}
-		return json.Marshal(&struct {
-			*Alias
-			TargetCa int `json:"tCa"`
-		}{
-			Alias:    (*Alias)(&entry),
-			TargetCa: targetCaInt,
-		})
-
-	} else if entry.MarshalFormat == MarshalTargetOnly {
-		// TODO
-		return nil, nil
 	} else {
 		return nil, nil
 	}

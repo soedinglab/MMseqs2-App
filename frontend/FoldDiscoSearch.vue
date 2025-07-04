@@ -10,9 +10,9 @@
                 <api-dialog
                     :disabled="searchDisabled"
                     :email="email"
-                    :mode="mode"
                     :database="database"
                     >
+                    <!-- :mode="mode" -->
                 </api-dialog>
                 <v-icon v-if="query.length > 0" title="Clear" @click="query = ''" style="margin-right: 16px">{{ $MDI.Delete }}</v-icon>
                 <v-tooltip open-delay="300" top>
@@ -59,7 +59,7 @@
                     :motif-only="true"
                     ></databases>
     
-                <v-radio-group v-model="mode">
+                <!-- <v-radio-group v-model="mode"> // TODO: add mode
                     <v-tooltip open-delay="300" top>
                         <template v-slot:activator="{ on }">
                             <label v-on="on">Mode&nbsp;<v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon></label>
@@ -72,7 +72,7 @@
                                     :value="$STRINGS['MODE_KEY_FOLDDISCO_' + i]"
                                     :label="$STRINGS['MODE_TITLE_FOLDDISCO_' + i]"
                                     ></v-radio>
-                </v-radio-group>
+                </v-radio-group> -->
     
                 <!-- <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete> -->
     
@@ -226,9 +226,9 @@ export default {
         },
     },
     watch: {
-        mode(value) {
-            storage.setItem('mode', value);
-        },
+        // mode(value) {
+        //     storage.setItem('mode', value);
+        // },
         email(value) {
             storage.setItem('email', value);
         },
@@ -250,7 +250,7 @@ export default {
             var request = {
                 q: this.query,
                 database: this.database,
-                mode: this.mode,
+                // mode: this.mode,
                 email: this.email,
                 motif: this.motif
             };
