@@ -177,7 +177,7 @@
                                 <td class="thin" data-label="Matched residues">
                                     <!-- TODO -->
                                     <!-- <Ruler :length="item.qLen" :start="item.qStartPos" :end="item.qEndPos" :color="item.color" :label="index == 0"></Ruler> -->
-                                    {{ item.targetresidues }}
+                                    <span class="matched-residues-text" title="Scroll to see the full list of matched residues">{{ item.targetresidues }}</span>
                                 </td> 
                                 <td class="alignment-action" :rowspan="1">
                                     <!-- performance issue with thousands of v-btns, hardcode the minimal button instead -->
@@ -532,6 +532,14 @@ src: url(assets/InconsolataClustal2.woff2),
     }
 }
 
+.matched-residues-text {
+    display: inline-block;
+    max-width: 100%;
+    overflow: scroll;
+    scrollbar-width: none;
+}
+
+
 .theme--dark {
     .result-table {
         a:not([href])  {
@@ -649,6 +657,12 @@ src: url(assets/InconsolataClustal2.woff2),
             text-align: right;
             word-wrap: anywhere;
         }
+    }
+
+    .matched-residues-text {
+        white-space: normal;
+        word-break: break-all;
+        max-width: none;
     }
 }
 
