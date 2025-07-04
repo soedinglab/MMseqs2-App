@@ -798,15 +798,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		database := req.URL.Query().Get("database")
 		parId := req.URL.Query().Get("id")
 
-		resId := ""
+		tarId := ""
 		if parId != "" {
-			resId = parId // Rachel: parse the parId
-			// tmp, err := strconv.ParseInt(parId, 10, 32)
-			// if err != nil {
-			// 	http.Error(w, err.Error(), http.StatusBadRequest)
-			// 	return
-			// }
-			// resId = int(tmp)
+			tarId = parId
 		}
 		var results []FoldDiscoResult
 		var motif string
@@ -816,8 +810,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if resId == "" { // If it is the result table
-
+		if tarId == "" { // If it is the result table
 			switch job := request.Job.(type) {
 			case FoldDiscoJob:
 				databases := job.Database
@@ -857,14 +850,12 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				return
 			}
 		} else { // If it requests a target structure
-			pdbfile := resId
 			var pdbpath string
 			if strings.HasPrefix(database, "pdb100") {
-				pdbpath = filepath.Join(config.Paths.Pdb100, pdbfile)
+				pdbpath = filepath.Join(config.Paths.Pdb100, tarId)
 			} else {
-				pdbpath = filepath.Join(resultBase, "pdb_"+database, pdbfile)
+				pdbpath = filepath.Join(resultBase, "pdb_"+database, tarId+".pdb")
 			}
-			log.Println(pdbpath)
 
 			if !fileExists(pdbpath) { // Generate pdb file with foldcomp
 				idPath := filepath.Join(resultBase, "id.list")
@@ -873,7 +864,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
-				idlist.WriteString(pdbfile)
+				idlist.WriteString(tarId)
 				err = idlist.Close()
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusBadRequest)
@@ -891,6 +882,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 						idPath,
 						filepath.Join(config.Paths.Databases, db_foldcomp),
 						filepath.Join(resultBase, "pdb_"+database),
+						"--id-mode", "0", "--use-cache",
 					},
 					[]string{},
 					1*time.Minute,

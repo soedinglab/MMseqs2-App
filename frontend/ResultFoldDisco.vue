@@ -103,10 +103,11 @@
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <colgroup>
                             <col style="width: 20%;" /> <!-- target -->
+                            <col style="width: 10%;" /> <!-- nodecount -->
                             <col style="width: 10%;" /> <!-- idf-score --> 
                             <col style="width: 10%;" /> <!-- RMSD --> 
-                            <col style="width: 10%;" /> <!-- Matched residues --> 
-                            <col style="width: 20%;" /> <!-- Alignment --> 
+                            <col style="width: 20%;" /> <!-- Matched residues --> 
+                            <col style="width: 10%;" /> <!-- Alignment --> 
                             <!-- <col v-if="entry.hasDescription" style="width: 30%;" />
                             <col v-if="entry.hasTaxonomy" style="width: 20%;" />
                             <col style="width: 6.5%;" />
@@ -144,6 +145,7 @@
                                     </v-tooltip>
                                 </th> -->
                                 <!-- <th v-if="entry.hasTaxonomy">Scientific Name</th> -->
+                                <th class="thin">Node count</th>
                                 <th class="thin">idf-score</th>
                                 <th class="thin">RMSD</th>
                                 <th>
@@ -155,7 +157,7 @@
                                         <span>The position of the aligned motif residues in the target</span>
                                     </v-tooltip>
                                 </th>
-                                <th class="alignment-action thin">Alignment</th>
+                                <th class="alignment-action thin">Structure</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -169,6 +171,7 @@
                                     <a style="text-decoration: underline; color: #2196f3;" v-if="Array.isArray(item.href)" @click="forwardDropdown($event, item.href)"rel="noopener" :title="item.target">{{item.targetname}}</a>
                                     <a v-else :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.targetname}}</a>
                                 </td>
+                                <td class="thin" data-label="Node count">{{ item.nodecount }}</td>
                                 <td class="thin" data-label="idf-score">{{ item.idfscore }}</td>
                                 <td class="thin" data-label="RMSD">{{ item.rmsd }}</td>
                                 <td class="thin" data-label="Matched residues">
@@ -360,13 +363,17 @@ export default {
                 this.$nextTick(async () => {
                     item.db = db;
                     this.alignment = item;
-                    this.targetPdb = await this.getTargetPdb(item.target, db);
+                    this.targetPdb = await this.getTargetPdb(item, db);
                     this.activeTarget = event.target.closest('.alignment-action');
                     this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight;
                 });
             }
         },
-        async getTargetPdb(target, db) {
+        async getTargetPdb(item, db) {
+            let target = item.dbkey;
+            if (db.startsWith("pdb100")) {
+                target = item.target;
+            }
             try {
                 const re = "api/result/folddisco/" + this.$route.params.ticket + '?database=' + db +'&id=' + target;
                 const request = await this.$axios.get(re);

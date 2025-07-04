@@ -1421,6 +1421,7 @@ rm -rf -- "${BASE}/tmp"
 					"query",
 					"-p",
 					inputFile,
+					"-q", motif,
 					"-i",
 					filepath.Join(config.Paths.Databases, database),
 					"-o",
@@ -1429,11 +1430,6 @@ rm -rf -- "${BASE}/tmp"
 					"--superpose",
 					// "-t", "16",
 				}
-
-				if motif != "" {
-					parameters = append(parameters, "-q", motif)
-				}
-				// parameters = append(parameters, strings.Fields(params.Search)...)
 
 				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
 				if err != nil {

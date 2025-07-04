@@ -192,6 +192,7 @@ type FoldDiscoAlignmentEntry struct {
 	UMatrix        string        `json:"umat"`
 	TMatrix        string        `json:"tmat"`
 	TargetCa       string        `json:"tCa"`
+	DbKey          int           `json:"dbkey"`
 	QueryResidues  string        `json:"queryresidues"`
 }
 
