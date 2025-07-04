@@ -1,14 +1,14 @@
 <template>
     <div
-        class="v-multi-slider"
-        :class="{'v-input--disabled': disabled}"
-        :style="{
-            '--multi-slider-background-color': backgroundColor,
-            '--multi-slider-contrast-color':
-                'lch(from var(--multi-slider-background-color) calc((49.44 - l) * infinity) 0 0)'
-        }"
+    class="v-multi-slider"
+    :class="{'v-input--disabled': disabled}"
+    :style="{
+        '--multi-slider-background-color': backgroundColor,
+        '--multi-slider-contrast-color':
+        'lch(from var(--multi-slider-background-color) calc((49.44 - l) * infinity) 0 0)'
+    }"
     >
-        <div class="v-multi-slider__track-container" ref="track">
+        <div class="v-multi-slider__track-container" ref="track" aria-hidden="true">
             <div
             v-for="(segment, idx) in segments"
             :key="idx"
@@ -16,17 +16,16 @@
             :style="getTrackStyle(segment.start, segment.end)"
             ></div>
         </div>
-
         <div
-        class="v-multi-slider__thumb"
-        v-for="(val, idx) in normalized"
-        :key="idx"
-        :class="{ active: selectedIndices.includes(idx) }"
-        :style="thumbStyle(val)"
-        @click="toggleSelection(idx)">
-        <span class="v-multi-slider__thumb-label">{{ values[idx] }}</span>
-    </div>
-</div>
+            class="v-multi-slider__thumb"
+            v-for="(val, idx) in normalized"
+            :key="idx"
+            :class="{ active: selectedIndices.includes(idx) }"
+            :style="thumbStyle(val)"
+            @click="toggleSelection(idx)">
+            <span class="v-multi-slider__thumb-label">{{ flat_chain[idx] + flat_pos[idx] }}</span>
+        </div>
+        </div>
 </template>
 
 <script>
@@ -35,7 +34,7 @@ export default {
     props: {
         // array of numeric positions (0-100)
         values: {
-            type: Array,
+            type: Object,
             default: () => []
         },
         disabled: {
@@ -59,21 +58,90 @@ export default {
         };
     },
     computed: {
-        // compute segments between thumbs to color track
         segments() {
-            const sorted = [...this.normalized].sort((a, b) => a - b);
-            const bounds = [0, ...sorted, 100];
-            return bounds.slice(0, -1).map((start, i) => ({
-                start,
-                end: bounds[i + 1]
-            }));
+            const items = this.normalized
+                .map((val, idx) => ({ val, chain: this.flat_chain[idx] }))
+                .sort((a, b) => a.val - b.val);
+            
+            // Group by chain
+            const groups = [];
+            items.forEach(item => {
+                const last = groups[groups.length - 1];
+                if (last && last.chain === item.chain) {
+                    last.vals.push(item.val);
+                } else {
+                    groups.push({ chain: item.chain, vals: [item.val] });
+                }
+            });
+            
+            const segments = [];
+            
+            // Leading segment
+            const firstGroupFirst = groups[0].vals[0];
+            const firstMid = (0 + firstGroupFirst) / 2;
+            if (firstMid > 0) {
+                segments.push({ start: 0, end: firstMid });
+            }
+            
+            // Segments for each group
+            groups.forEach((grp, i) => {
+                const gap = 1;
+                const firstVal = grp.vals[0];
+                const lastVal = grp.vals[grp.vals.length - 1];
+                
+                // midpoint with previous group
+                const prevVal = i > 0 ? groups[i - 1].vals.slice(-1)[0] : 0;
+                const startMid = (prevVal + firstVal) / 2;
+                
+                // midpoint with next group
+                const nextVal = i < groups.length - 1 ? groups[i + 1].vals[0] : 100;
+                const endMid = (lastVal + nextVal) / 2;
+                
+                segments.push({
+                    start: startMid + gap,
+                    end: endMid - gap
+                });
+            });
+            
+            // Trailing segment
+            const lastGroupLast = groups[groups.length - 1].vals.slice(-1)[0];
+            const lastMid = (lastGroupLast + 100) / 2;
+            if (lastMid < 100) {
+                segments.push({ start: lastMid, end: 100 });
+            }
+            
+            return segments;
+        },
+        flat_chain() {
+            let flat = []
+            for (let chain in this.values) {
+                flat.push(...Array(this.values[chain].length).fill(chain))
+            }
+            return flat;
+        },
+        flat_pos() {
+            let flat = []
+            for (let chain in this.values) {
+                flat.push(...this.values[chain].map(x => x));
+            }
+            return flat;
+        },
+        flat_cum() {
+            let flat = []
+            let cummax = 0;
+            for (let chain in this.values) {
+                const max = Math.max(...this.values[chain]);
+                cummax += max;
+                flat.push(...this.values[chain].map(x => x + cummax));
+            }
+            return flat;
         },
         // normalized values [0..100] with spacing
         normalized() {
             // normalization to 100
-            const max = Math.max(...this.values) + 10;
-            const min = Math.min(...this.values) - 10;
-            let arr = this.values.map((v, idx) => ({
+            const max = Math.max(...this.flat_cum) + 10;
+            const min = Math.min(...this.flat_cum) - 10;
+            let arr = this.flat_cum.map((v, idx) => ({
                 val: ((v - min) / (max - min)) * 100,
                 idx
             }));
@@ -137,7 +205,7 @@ export default {
                 this.selectedIndices.splice(i, 1);
             }
 
-            const bits = this.values
+            const bits = this.flat_cum
                 .map((_, i) => (this.selectedIndices.includes(i) ? '1' : '0'))
                 .join('');
 
@@ -151,48 +219,48 @@ export default {
 
 <style scoped>
 .v-multi-slider {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  position: relative;
-  height: 48px;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    position: relative;
+    height: 48px;
 }
 
 .v-multi-slider__track-container {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: var(--multi-slider-background-color);
-  transform: translateY(-50%);
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 4px;
+    /* background: var(--multi-slider-background-color); */
+    transform: translateY(-50%);
 }
 
 .v-multi-slider__track-segment {
-  position: absolute;
-  height: 100%;
-  background: var(--multi-slider-background-color);
+    position: absolute;
+    height: 100%;
+    background: var(--multi-slider-background-color);
 }
 
 .v-multi-slider__thumb {
-  position: absolute;
-  top: 50%;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #fff;
-  background: var(--multi-slider-contrast-color);
-  border: 2px solid var(--multi-slider-background-color);
-  transform: translate(-50%, -50%);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+    position: absolute;
+    top: 50%;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #fff;
+    background: var(--multi-slider-contrast-color);
+    border: 2px solid var(--multi-slider-background-color);
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .v-multi-slider__thumb.active {
-  background: var(--multi-slider-background-color);
-  border-color: var(--multi-slider-background-color);
+    background: var(--multi-slider-background-color);
+    border-color: var(--multi-slider-background-color);
 }
 
 .v-multi-slider__thumb.active .v-multi-slider__thumb-label {
@@ -201,8 +269,8 @@ export default {
 }
 
 .v-multi-slider__thumb-label {
-  font-size: 12px;
-  color: var(--multi-slider-background-color);
-  user-select: none;
+    font-size: 12px;
+    color: var(--multi-slider-background-color);
+    user-select: none;
 }
 </style>

@@ -103,7 +103,7 @@
                         <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
                             <span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
                         </h2>
-                        <multi-slider style="flex: 1; margin: 0 20px; width: 100%;" :values="entry.queryresidues['A']" @change="gapFilter = $event" :background-color="entry.color"></multi-slider>
+                        <multi-slider style="flex: 1; margin: 0 20px; width: 100%;" :values="entry.queryresidues" @change="gapFilter = $event" :background-color="entry.color"></multi-slider>
                     </v-flex>
                     <!-- <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2">
                         <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
