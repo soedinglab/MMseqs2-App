@@ -78,9 +78,8 @@ export default {
             
             // Leading segment
             const firstGroupFirst = groups[0].vals[0];
-            const firstMid = (0 + firstGroupFirst) / 2;
-            if (firstMid > 0) {
-                segments.push({ start: 0, end: firstMid });
+            if (firstGroupFirst > 0) {
+                segments.push({ start: 0, end: firstGroupFirst });
             }
             
             // Segments for each group
@@ -105,9 +104,8 @@ export default {
             
             // Trailing segment
             const lastGroupLast = groups[groups.length - 1].vals.slice(-1)[0];
-            const lastMid = (lastGroupLast + 100) / 2;
-            if (lastMid < 100) {
-                segments.push({ start: lastMid, end: 100 });
+            if (lastGroupLast < 100) {
+                segments.push({ start: lastGroupLast, end: 100 });
             }
             
             return segments;
@@ -232,7 +230,6 @@ export default {
     left: 0;
     right: 0;
     height: 4px;
-    /* background: var(--multi-slider-background-color); */
     transform: translateY(-50%);
 }
 
@@ -249,13 +246,14 @@ export default {
     height: 32px;
     border-radius: 50%;
     background: #fff;
-    background: var(--multi-slider-contrast-color);
-    border: 2px solid var(--multi-slider-background-color);
+    /* background: var(--multi-slider-contrast-color); */
+    outline: 2px solid var(--multi-slider-background-color);
     transform: translate(-50%, -50%);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-weight: bold;
 }
 
 .v-multi-slider__thumb.active {
@@ -265,12 +263,19 @@ export default {
 
 .v-multi-slider__thumb.active .v-multi-slider__thumb-label {
     color: #fff;
-    color: var(--multi-slider-contrast-color);
+    /* color: var(--multi-slider-contrast-color); */
 }
 
 .v-multi-slider__thumb-label {
     font-size: 12px;
     color: var(--multi-slider-background-color);
     user-select: none;
+}
+
+.theme--dark .v-multi-slider__thumb {
+    background-color: #1E1E1E;
+}
+.theme--dark .v-multi-slider__thumb.active .v-multi-slider__thumb-label {
+    color: #fff;
 }
 </style>
