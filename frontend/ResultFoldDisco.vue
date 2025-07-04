@@ -92,10 +92,18 @@
                         <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
                     </v-tabs>
                     <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
-                    <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null, 'align-items': 'center' }">
+                    <v-flex
+                        class="d-flex"
+                        :style="{
+                            'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : 'row',
+                            'align-items': 'center',
+                            'flex': '0',
+                            'white-space': 'nowrap',
+                        }">
                         <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
                             <span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
                         </h2>
+                        <multi-slider style="flex: 1; margin: 0 20px; width: 100%;" :values="entry.queryresidues['A']" @change="gapFilter = $event" :background-color="entry.color"></multi-slider>
                     </v-flex>
                     <!-- <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2">
                         <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
@@ -162,7 +170,7 @@
                         </thead>
                         <tbody>
                             <template v-for="(group, groupidx) in entry.alignments" >
-                            <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active }]" v-if="isGroupVisible(group)">
+                            <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active }]" v-if="isGroupVisible(group) && isItemVisible(item)">
                                 <td class="db long" data-label="Target" :style="{ 'border-width' : null, 'border-color' : entry.color }">
                                     <a :id="item.id" class="anchor" style="position: absolute; top: 0"></a>
                                     <!-- <template v-if="isComplex">
@@ -174,12 +182,10 @@
                                 <td class="thin" data-label="Node count">{{ item.nodecount }}</td>
                                 <td class="thin" data-label="idf-score">{{ item.idfscore }}</td>
                                 <td class="thin" data-label="RMSD">{{ item.rmsd }}</td>
-                                <td class="thin" data-label="Matched residues">
-                                    <!-- TODO -->
-                                    <!-- <Ruler :length="item.qLen" :start="item.qStartPos" :end="item.qEndPos" :color="item.color" :label="index == 0"></Ruler> -->
-                                    <span class="matched-residues-text" title="Scroll to see the full list of matched residues">{{ item.targetresidues }}</span>
+                                <td data-label="Matched residues">
+                                    <span class="matched-residues-text" :title="item.targetresidues">{{ item.targetresidues }}</span>
                                 </td> 
-                                <td class="alignment-action" :rowspan="1">
+                                <td class="alignment-action thin" :rowspan="1">
                                     <!-- performance issue with thousands of v-btns, hardcode the minimal button instead -->
                                     <!-- <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
                                         <v-icon v-once>{{ $MDI.NotificationClearAll }}</v-icon>
@@ -238,6 +244,8 @@ import StructureViewerMotif from './StructureViewerMotif.vue';
 // import makeZip from './lib/zip.js'
 // import SankeyDiagram from './SankeyDiagram.vue';
 import { debounce } from './lib/debounce.js';
+// import { thresholdScott } from 'd3';
+import MultiSlider from './MultiSlider.vue';
 
 function getAbsOffsetTop($el) {
     var sum = 0;
@@ -250,7 +258,7 @@ function getAbsOffsetTop($el) {
 
 export default {
     name: 'ResultFoldDisco',
-    components: { Panel, StructureViewerMotif },
+    components: { Panel, StructureViewerMotif, MultiSlider },
     // components: { ResultView },
     mixins: [ResultMixin],
     data() {
@@ -272,6 +280,8 @@ export default {
             filteredHitsTaxIds: [],
             menuActivator: null,
             menuItems: [],
+            queryResidues: null,
+            gapFilter: '',
         }
     },
     created() {
@@ -419,6 +429,9 @@ export default {
             }
             let taxFiltered = group.filter(item => this.filteredHitsTaxIds.includes(Number(item.taxId)));
             return taxFiltered.length > 0;
+        },
+        isItemVisible(item) {
+            return this.gapFilter == '' || item.gaps == this.gapFilter;
         },
         resetProperties() {
             this.ticket = this.$route.params.ticket;

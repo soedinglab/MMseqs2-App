@@ -152,6 +152,19 @@ export function parseResults(data) {
     return (total != 0 && empty / total == 1) ? ({ results: [], mode : data.mode }) : data;
 }
 
+export function splitAlphaNum(str) {
+    const len = str.length;
+    let i = 0;
+    while (i < len) {
+        const cc = str.charCodeAt(i);
+        if (cc >= 48 && cc <= 57) {
+            break;
+        }
+        i++;
+    }
+    return [ str.slice(0, i), str.slice(i) ];
+}
+
 export function parseResultsFoldDisco(data) {
     let empty = 0;
     let total = 0;
@@ -164,13 +177,29 @@ export function parseResultsFoldDisco(data) {
             empty++;
         }
         total++;
+        result.queryresidues = {};
         const grouped = {};
         for (let j in result.alignments) {
             let item = result.alignments[j];
             let split = item.target.split('/');
             item.target = split[split.length-1];
+            item.gaps = item.targetresidues
+                .split(',')
+                .reduce((acc, s) => {
+                    return acc + ((s == '_') ? '0' : '1');
+                }, '');
             item.idfscore = item.idfscore.toFixed(3);
             item.rmsd = item.rmsd.toFixed(3);
+
+            item.queryresidues
+                .split(',')
+                .map(r => {
+                    let [chain, pos] = splitAlphaNum(r);
+                    if (!(chain in result.queryresidues)) {
+                        result.queryresidues[chain] = new Set();
+                    }
+                    result.queryresidues[chain].add(pos - 0);
+                });
 
             // item.description = split.slice(1).join(' ');
             // if (item.description.length > 1) {
@@ -188,6 +217,9 @@ export function parseResultsFoldDisco(data) {
             grouped[j].push(item);
         }
         result.alignments = grouped;
+        Object.keys(result.queryresidues).forEach(function(key, _) {
+            result.queryresidues[key] = Array.from(result.queryresidues[key]);
+        });
     }
     return (total != 0 && empty / total == 1) ? ({ results: [], mode : data.mode }) : data;
 }
