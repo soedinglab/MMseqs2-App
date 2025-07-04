@@ -31,8 +31,17 @@
 <script>
 export default {
     name: 'MultiSlider',
+    model: {
+        prop: 'value',
+        event: 'input'
+    },
     props: {
-        // array of numeric positions (0-100)
+        // bits string
+        value: {
+            type: String,
+            default: ''
+        },
+        // object of chains with numeric positions
         values: {
             type: Object,
             default: () => []
@@ -56,6 +65,25 @@ export default {
         return {
             selectedIndices: [] //[...Array(this.values.length).keys()]
         };
+    },
+    watch: {
+        value: {
+            immediate: true,
+            handler(bits) {
+                this.selectedIndices = [];
+                if (bits && typeof bits === 'string') {
+                    bits.split('').forEach((b, i) => {
+                        if (b === '1') this.selectedIndices.push(i);
+                    });
+                }
+            }
+        },
+        selectedIndices(newIndices) {
+            const total = this.flat_cum.length;
+            let bits = Array(total).fill('0');
+            newIndices.forEach(i => { bits[i] = '1'; });
+            this.$emit('input', bits.join(''));
+        }
     },
     computed: {
         segments() {
@@ -202,14 +230,6 @@ export default {
             } else {
                 this.selectedIndices.splice(i, 1);
             }
-
-            const bits = this.flat_cum
-                .map((_, i) => (this.selectedIndices.includes(i) ? '1' : '0'))
-                .join('');
-
-            const gaps = bits.includes('1') ? bits : '';
-            this.$emit('update:active', gaps);
-            this.$emit('change', gaps);
         },
     }
 };
