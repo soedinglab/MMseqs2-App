@@ -129,11 +129,11 @@ import DragUploadBox from "./DragUploadBox.vue";
 
 const defaultParams = {
     wg: true,
-    filterMsa: true,
-    compBias: true,
-    matchRatio: 0.51,
-    gapOpen: 10,
-    gapExtend: 1,
+    filterMsa: false,
+    compBias: false,
+    matchRatio: 0.52,
+    gapOpen: 20,
+    gapExtend: 2,
     refineIters: 0
 };
 
