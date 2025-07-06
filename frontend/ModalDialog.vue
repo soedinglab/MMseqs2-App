@@ -7,8 +7,10 @@
     </template>
     <v-card>
       <v-card-title>
-        <div class="text-h5">
+        <div class="text-h5 d-flex" style="width: 100%">
             <slot name="title"></slot>
+            <v-spacer></v-spacer>
+            <slot name="toolbar-extra"></slot>
         </div>
       </v-card-title>
       <v-card-text>

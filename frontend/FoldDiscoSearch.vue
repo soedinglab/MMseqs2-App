@@ -34,12 +34,18 @@
                 <div class="motif-select-wrapper">
                     <v-text-field 
                         v-model="motif"
-                        @input="resetMotif"
-                        :color="isMotifValid(motif) && getMotifLen(motif) <= 32 ? 'primary' : 'error'"
-                        :error-messages="!isMotifValid(motif) ? 'Invalid motif' 
-                                        : motifLen > 32? `Motif too long (${motifLen} / 32 residues)`
-                                        : ''"
+                        :color="isMotifValid && motifLen <= 32 ? 'primary' : 'error'"
+                        :error-messages="motifError"
+                        clearable
                     >
+                        <template v-slot:append-outer>
+                            <motif-selection
+                                :chain-map="chainMap"
+                                :error="motifError"
+                                v-model="motif"
+                            >
+                            </motif-selection>
+                        </template>
                         <template v-slot:label>
                             <span style="font-size: 1.3em;">Selected Motif</span>
                         </template>
@@ -48,9 +54,8 @@
 
                 <div class="actions input-buttons-panel">
                     <div class="input-buttons-left">
-                        <load-acession-button @select="resetQuery($event)" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
+                        <load-acession-button @select="query = $event" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
-                        <v-btn v-if="motifLen > 32" color="error" :block="false" v-on:click="goToFoldseek"><v-icon>{{ $MDI.Monomer }}</v-icon>&nbsp;Go to Foldseek</v-btn>
                     </div>
                 </div>
             </template>
@@ -108,7 +113,8 @@
             <template slot="content">
                 <div class="actions" :style="!$vuetify.breakpoint.xsOnly ?'display:flex; align-items: center;' : null">
                 <v-item-group class="v-btn-toggle">
-                    <v-btn color="primary" :block="false" x-large v-on:click="search" :disabled="searchDisabled":loading="inSearch"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Search</v-btn>
+                    <v-btn color="primary" :block="false" x-large v-on:click="search" :disabled="searchDisabled" :loading="inSearch"><v-icon>{{ $MDI.Magnify }}</v-icon>&nbsp;Search</v-btn>
+                    <v-btn color="warning" v-if="motifLen > 32" :block="false" x-large v-on:click="goToFoldseek"><v-icon>{{ $MDI.Monomer }}</v-icon>&nbsp;Go to Foldseek</v-btn>
                 </v-item-group>
                 <div :style="!$vuetify.breakpoint.xsOnly ? 'margin-left: 1em;' : 'margin-top: 1em;'">
                     <span><strong>Summary</strong></span><br>
@@ -151,13 +157,14 @@ import LoadAcessionButton from './LoadAcessionButton.vue';
 import Reference from "./Reference.vue";
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
-import { extractCifAtom } from './Utilities.js';
+import { threeToOne } from './Utilities.js';
 import ApiDialog from './ApiDialog.vue';
 import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
 import {autoLoad} from 'ngl';
+import MotifSelection from "./MotifSelection.vue";
 
 const db = BlobDatabase();
 const storage = new StorageWrapper("folddisco");
@@ -166,18 +173,23 @@ async function getStructure(data) {
     var ext = 'pdb';
     if (data[0] == "#" || data.startsWith("data_")) {
         ext = 'cif';
-        data = extractCifAtom(data);
+        data = data.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
     }
     var blob = new Blob([data], { type: 'text/plain' });
-    var promise = autoLoad(blob, {ext : ext, firstModelOnly: true});
+    var promise = autoLoad(blob, {ext : ext, name: 'query', firstModelOnly: true});
     return promise.then(structure => structure.getStructure());
 }
 
 function setDefaultMotif(structure) {
+    if (!structure) {
+        return;
+    }
+
     var motifList = new Set(); 
     structure.eachResidue(r => {
         motifList.add(`${r.chainname}${r.resno}`);
     });
+    console.log(motifList);
     return Array.from(motifList).join(',');
 }
 
@@ -192,7 +204,8 @@ export default {
         Reference,
         ApiDialog,
         Databases,
-        QueryTextarea
+        QueryTextarea,
+        MotifSelection,
     },
     data() {
         return {
@@ -211,7 +224,6 @@ export default {
             predictable: false,
             accessionLoading: false,
             motif: "",
-            motifLen: 0,
         };
     },
     async mounted() {
@@ -225,17 +237,11 @@ export default {
         } else {
             this.query = this.$STRINGS.MOTIF_DEFAULT; // 1G2F: zinc finger
         }
-        this.queryStructure = await getStructure(this.query);
-
-        if (this.motif == '') {
-            this.motif = setDefaultMotif(this.queryStructure)
-            this.motifLen = this.getMotifLen(this.motif);
-        }
     },
     computed: {
         searchDisabled() {
             return (
-                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0 || this.predictable || !this.isMotifValid(this.motif) || this.motifLen > 32
+                this.inSearch || this.database.length == 0 || this.databases.length == 0 || this.query.length == 0 || this.predictable || !this.isMotifValid || this.motifLen > 32
             );
         },
         preloadSource() {
@@ -243,6 +249,57 @@ export default {
         },
         preloadAccession() {
             return this.$route.query.accession || "";
+        },
+        motifLen() {
+            if (!this.motif) {
+                return 0;
+            }
+            return new Set(this.motif.split(',').filter(m => m.trim() != '')).size;
+        },
+        isMotifValid() {
+            if (!this.queryStructure || !this.motif) {
+                return false;
+            }
+            var motifSet = new Set(this.motif.split(',').map(m => m.trim()));
+            this.queryStructure.eachResidue(r => {
+                const onlyResno = `${r.resno}`;
+                const chainResno = `${r.chainname}${r.resno}`;
+                if (motifSet.has(chainResno)) {
+                    motifSet.delete(chainResno);
+                } else if (motifSet.has(onlyResno)) {
+                    motifSet.delete(onlyResno);
+                }
+            });
+            return motifSet.size == 0;
+        },
+        motifError() {
+            if (this.motif == null || this.motif == '') {
+                return;
+            }
+            if (!this.isMotifValid) {
+                return 'Invalid motif';
+            }
+            if (this.motifLen > 32) {
+                return `Motif too long (${this.motifLen} / 32 residues)`;
+            }
+        },
+        chainMap() {
+            if (!this.queryStructure) {
+                return {};
+            }
+
+            let chains = {}
+            this.queryStructure.eachResidue(r => {
+                if (r.hetero != 1 && r.isProtein()) {
+                    let res = [r.chainname, r.resno, threeToOne[r.resname], r.sstruc];
+                    if (!(r.chainname in chains)) {
+                        chains[r.chainname] = [res];
+                    } else {
+                        chains[r.chainname].push(res);
+                    }
+                }
+            });
+            return chains;
         },
     },
     watch: {
@@ -252,8 +309,10 @@ export default {
         email(value) {
             storage.setItem('email', value);
         },
-        query(value) {
+        async query(value) {
             db.setItem('folddisco.query', value);
+            this.queryStructure = await getStructure(this.query);
+            this.motif = setDefaultMotif(this.queryStructure);
         },
         database(value) {
             storage.setItem('database', JSON.stringify(value));
@@ -323,49 +382,16 @@ export default {
                 this.inSearch = false;
             }
         },
-        async upload(files) {
+        upload(files) {
             var reader = new FileReader();
             reader.onload = async e => {
-                this.resetQuery(e.target.result);
+                this.query = e.target.result;
             };
             reader.readAsText(files[0]);
         },
-        async resetQuery(value) {
-            this.query = value;
-            this.queryStructure = await getStructure(this.query);
-            this.motif = setDefaultMotif(this.queryStructure)
-            this.motifLen = this.getMotifLen(this.motif);
-        },
-        resetMotif(value) {
-            if (value == '') {
-                this.motif = setDefaultMotif(this.queryStructure)
-                this.motifLen = this.getMotifLen(this.motif);
-            } else {
-                this.motifLen = this.getMotifLen(this.motif);
-            }
-        },
-        isMotifValid(value) {
-            if (!this.queryStructure) {
-                return false;
-            }
-            var motifSet = new Set(value.split(',').map(m => m.trim()));
-            this.queryStructure.eachResidue(r => {
-                const onlyResno = `${r.resno}`;
-                const chainResno = `${r.chainname}${r.resno}`;
-                if (motifSet.has(chainResno)) {
-                    motifSet.delete(chainResno);
-                } else if (motifSet.has(onlyResno)) {
-                    motifSet.delete(onlyResno);
-                }
-            });
-            return motifSet.size == 0;
-        },
-        getMotifLen(value) {
-            return new Set(value.split(',').filter(m => m.trim() != '')).size;
-        },
-        goToFoldseek() {
+        async goToFoldseek() {
+            await db.setItem('query', this.query);
             this.$router.replace('/search');
-
         }
     }
 };

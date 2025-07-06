@@ -281,7 +281,7 @@ export function makePositionMap(realStart, alnString) {
     return map
 }
 
-const oneToThree = {
+export const oneToThree = {
     "A":"ALA", "R":"ARG", "N":"ASN", "D":"ASP",
     "C":"CYS", "E":"GLU", "Q":"GLN", "G":"GLY",
     "H":"HIS", "I":"ILE", "L":"LEU", "K":"LYS",
@@ -289,8 +289,16 @@ const oneToThree = {
     "T":"THR", "W":"TRP", "Y":"TYR", "V":"VAL",
     "U":"SEC", "O":"PHL", "X":"XAA"
   };
-  
- 
+
+export const threeToOne = {
+    "ALA":"A", "ARG":"R", "ASN":"N", "ASP":"D",
+    "CYS":"C", "GLU":"E", "GLN":"Q", "GLY":"G",
+    "HIS":"H", "ILE":"I", "LEU":"L", "LYS":"K",
+    "MET":"M", "PHE":"F", "PRO":"P", "SER":"S",
+    "THR":"T", "TRP":"W", "TYR":"Y", "VAL":"V",
+    "SEC":"U", "PHL":"O", "XAA":"X"
+};
+
 export function xyz(structure, resIndex) {
     var rp = structure.getResidueProxy()
     var ap = structure.getAtomProxy()
@@ -508,12 +516,6 @@ export function checkMultimer(pdbString) {
         models['single model'] = chainSet;
     }
     return Object.values(models).some(model => model.size > 1);
-}
-
-export function extractCifAtom(text) {
-    var data = text.split('\n').filter(line => line.startsWith('_atom_site.') || line.startsWith('ATOM')).join('\n');
-    data = "#\nloop_\n" + data;
-    return data;
 }
 
 export function getPdbText(comp) {
