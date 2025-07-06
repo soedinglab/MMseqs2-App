@@ -189,7 +189,6 @@ function setDefaultMotif(structure) {
     structure.eachResidue(r => {
         motifList.add(`${r.chainname}${r.resno}`);
     });
-    console.log(motifList);
     return Array.from(motifList).join(',');
 }
 
