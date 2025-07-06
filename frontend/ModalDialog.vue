@@ -1,5 +1,5 @@
 <template>
-  <v-dialog v-model="show" absolute :disabled="disabled">
+  <v-dialog v-model="show" absolute :disabled="disabled" ref="dlg">
     <template v-slot:activator="{ on }">
       <v-btn v-on="on" plain :disabled="disabled">
         <v-icon v-if="icon">{{ icon }}</v-icon> {{ label }}
@@ -24,6 +24,8 @@
 </template>
 
 <script>
+import { debounce } from './lib/debounce';
+
 export default {
   name: 'ModalDialog',
   props: {
@@ -57,6 +59,15 @@ export default {
   methods: {
     close() {
       this.show = false;
+    }
+  },
+  mounted () {
+    // HACK: workaround scroll performance issue in vuetify2, might be fixed in 3
+    const dlg = this.$refs.dlg
+    if (dlg) {
+      let origListener = dlg.scrollListener;
+      let debounced = debounce(origListener, 30, true);
+      dlg.scrollListener = debounced;
     }
   }
 };
