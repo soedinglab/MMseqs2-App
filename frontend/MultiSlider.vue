@@ -79,10 +79,10 @@ export default {
             }
         },
         selectedIndices(newIndices) {
-            const total = this.flat_cum.length;
-            let bits = Array(total).fill('0');
-            newIndices.forEach(i => { bits[i] = '1'; });
-            this.$emit('input', bits.join(''));
+            let bits = Array(this.flat_cum.length).fill('0');
+            let total = 0;
+            newIndices.forEach(i => { bits[i] = '1'; total++; });
+            this.$emit('input', total ? bits.join('') : '');
         }
     },
     computed: {
