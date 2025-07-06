@@ -9,6 +9,7 @@
     
     <template v-slot:toolbar-extra>
         <v-icon v-if="motif.length > 0" title="Clear" @click="motif = ''" style="margin-right: 16px">{{ $MDI.Delete }}</v-icon>
+        <v-icon @click="inSelection = false">{{ $MDI.CloseCircle }}</v-icon>
     </template>
     
     <template v-slot:text>
