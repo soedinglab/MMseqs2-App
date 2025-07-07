@@ -21,6 +21,9 @@
                 {{ error }}
             </div>
         </div>
+        <div class="mb-2" v-else>
+            To choose a motif, click residues one at a time or click-and-drag to select a range.
+        </div>
         <div
             v-for="(chain, key) in chainMap"
             style="margin-bottom:1em"
