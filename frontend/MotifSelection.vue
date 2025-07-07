@@ -2,6 +2,7 @@
     <modal-dialog
         v-model="inSelection"
         :icon="$MDI.Pencil"
+        :disabled="disabled"
     >
     <template v-slot:title>
         Edit Motif
@@ -49,14 +50,15 @@
                 @click="toggleResidue(key, res[1])"
                 @selectstart="toggleSpanStart(key, res[1])"
                 @pointerenter="spanEnter(key, res[1])"
+                @pointerleave="spanLeave(key, res[1])"
             >
             <span
                 class="position"
-                >{{ res[1] % 10 == 0 ? res[1] : '' }}</span>
+                >{{ ((highlight && highlight.chain == key && highlight.pos == res[1]) || res[1] % 10 == 0) ? res[1] : '' }}</span>
                 <br>
                 <span class="aa">{{ res[2] }}</span>
                 <br>
-                <span class="ss">{{ res[3] }}</span>
+                <span class="ss">{{ res[3] ? res[3] : '&nbsp;' }}</span>
             </span>
         </div>
     </div>
@@ -78,6 +80,10 @@ export default {
             type: String,
             default: '',
         },
+        disabled: {
+            type: Boolean,
+            default: false,
+        },
         error: {
             type: String,
             default: '',
@@ -92,6 +98,7 @@ export default {
             inSelection: false,
             spanStart: null,
             spanLast:  null,
+            highlight: null,
         };
     },
     computed: {
@@ -158,6 +165,10 @@ export default {
         },
         spanEnter(chain, pos) {
             this.spanLast = { chain, pos };
+            this.highlight = { chain, pos };
+        },
+        spanLeave(chain, pos) {
+            this.highlight = null;
         },
         onSpanPointerUp(e) {
             if (!this.spanStart) {
@@ -227,8 +238,9 @@ src: url(assets/InconsolataClustal2.woff2),
 
 .residue {
     display: inline-block;
-    margin-right: 5px;
-    margin-bottom: 15px;
+    padding-right: 5px;
+    padding-bottom: 5px;
+    margin-bottom: 10px;
     position: relative;
     vertical-align: top;
 }
@@ -252,7 +264,11 @@ src: url(assets/InconsolataClustal2.woff2),
 }
 
 .active {
-    font-weight:900;
+    font-weight: 900;
+    background-color: rgba(128, 128, 0, 0.5);
+}
+
+.active .aa {
     text-decoration: underline;
 }
 </style>

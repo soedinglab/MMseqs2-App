@@ -40,6 +40,7 @@
                     >
                         <template v-slot:append-outer>
                             <motif-selection
+                                :disabled="!query"
                                 :chain-map="chainMap"
                                 :error="motifError"
                                 v-model="motif"
