@@ -1428,7 +1428,7 @@ rm -rf -- "${BASE}/tmp"
 					filepath.Join(resultBase, "alis_"+database),
 					"--top", "1000",
 					"--superpose",
-					// "-t", "16",
+					"-t", "16",
 				}
 
 				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
