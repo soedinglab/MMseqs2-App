@@ -42,7 +42,9 @@ msgstr ""
 
 msgid "CITATION_FOLDDISCO"
 msgstr ""
-"TODO"
+"Kim H, Kim RS, Mirdita M, Steinegger M."
+" <a href=\"https://www.biorxiv.org/content/10.1101/2025.07.06.663357v1\" target=\"_blank\" rel=\"noopener\">"
+"Structural motif search across the protein-universe with Folddisco</a>. bioRxiv, 2025."
 
 msgid "NAV_URL_COUNT"
 msgstr "3"
