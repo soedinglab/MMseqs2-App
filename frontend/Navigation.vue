@@ -31,7 +31,7 @@
                 <v-icon>{{ $MDI.Motif }}</v-icon>
             </v-list-item-action>
             <v-list-item-content>
-                <v-list-item-title>FoldDisco search</v-list-item-title>
+                <v-list-item-title>Folddisco Search</v-list-item-title>
             </v-list-item-content>
         </v-list-item> 
       

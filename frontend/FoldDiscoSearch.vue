@@ -142,7 +142,7 @@
                         ({{
                             databases.filter(db => database.includes(db.path)).map(db => db.name).sort().join(", ")
                         }})
-                    </template> with FoldDisco.
+                    </template> with Folddisco.
                     <div v-if="errorMessage != ''" class="v-alert v-alert--outlined warning--text mt-2">
                         <span>{{ errorMessage }}</span>
                     </div>
