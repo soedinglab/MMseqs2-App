@@ -223,7 +223,7 @@ export default {
             // taxFilter: JSON.parse(storage.getItem('taxFilter') || 'null'),
             predictable: false,
             accessionLoading: false,
-            motif: "",
+            motif: storage.getItem('motif') || "",
         };
     },
     async mounted() {
@@ -309,9 +309,16 @@ export default {
         email(value) {
             storage.setItem('email', value);
         },
+        motif(value) {
+            storage.setItem('motif', value);
+        },
         async query(value) {
+            let prev = await db.getItem('folddisco.query')
             db.setItem('folddisco.query', value);
             this.queryStructure = await getStructure(this.query);
+            if (prev && prev == value) {
+                return;
+            }
             this.motif = setDefaultMotif(this.queryStructure);
         },
         database(value) {
