@@ -299,7 +299,13 @@ export default {
                     }
                 }
             });
-            return chains;
+
+            const sortedKeys = Object.keys(chains).sort();
+            const sortedChains = {};
+            for (const key of sortedKeys) {
+                sortedChains[key] = chains[key];
+            }
+            return sortedChains;
         },
     },
     watch: {
