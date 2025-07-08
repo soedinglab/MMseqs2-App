@@ -165,8 +165,12 @@ export default {
         // normalized values [0..100] with spacing
         normalized() {
             // normalization to 100
-            const max = Math.max(...this.flat_cum) + 10;
-            const min = Math.min(...this.flat_cum) - 10;
+            let max = Math.max(...this.flat_cum);
+            let min = Math.min(...this.flat_cum);
+            const len = max - min;
+            const padding = Math.sqrt(len);
+            max += padding;
+            min -= padding;
             let arr = this.flat_cum.map((v, idx) => ({
                 val: ((v - min) / (max - min)) * 100,
                 idx
