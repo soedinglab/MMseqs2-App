@@ -161,6 +161,7 @@ import Panel from "./Panel.vue";
 import FileButton from "./FileButton.vue";
 import LoadAcessionButton from './LoadAcessionButton.vue';
 import Reference from "./Reference.vue";
+import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
 import { threeToOne } from './Utilities.js';
@@ -368,7 +369,7 @@ export default {
             try {
                 this.inSearch = true;
                 const response = await this.$axios.post("api/ticket/folddisco", convertToQueryUrl(request), {
-                    //transformRequest: AxiosCompressRequest(this.$axios)
+                    transformRequest: AxiosCompressRequest(this.$axios)
                 });
                 this.errorMessage = "";
                 switch (response.data.status) {
