@@ -46,6 +46,11 @@
                                 v-model="motif"
                             >
                             </motif-selection>
+                            <ligand-motif-selection
+                                :disabled="!query"
+                                :query-structure="queryStructure"
+                                v-model="motif"
+                            ></ligand-motif-selection>
                         </template>
                         <template v-slot:label>
                             <span style="font-size: 1.3em;">Selected Motif</span>
@@ -166,6 +171,7 @@ import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
 import {autoLoad} from 'ngl';
 import MotifSelection from "./MotifSelection.vue";
+import LigandMotifSelection from "./LigandMotifSelection.vue";
 
 const db = BlobDatabase();
 const storage = new StorageWrapper("folddisco");
@@ -206,6 +212,7 @@ export default {
         Databases,
         QueryTextarea,
         MotifSelection,
+        LigandMotifSelection,
     },
     data() {
         return {
