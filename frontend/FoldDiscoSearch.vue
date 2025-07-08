@@ -60,7 +60,13 @@
 
                 <div class="actions input-buttons-panel">
                     <div class="input-buttons-left">
-                        <load-acession-button @select="query = $event" @loading="accessionLoading = $event" :preload-source="preloadSource" :preload-accession="preloadAccession"></load-acession-button>
+                        <load-acession-button
+                            @select="query = $event"
+                            @loading="accessionLoading = $event"
+                            :preload-source="preloadSource"
+                            :preload-accession="preloadAccession"
+                            :extra-enabled="['AlphaFill']"
+                        ></load-acession-button>
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
                     </div>
                 </div>
@@ -182,6 +188,8 @@ async function getStructure(data) {
     if (data[0] == "#" || data.startsWith("data_")) {
         ext = 'cif';
         data = data.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
+        data = data.replaceAll("_struct_conf.", "_struct_conf_SKIP_HACK.");
+        data = data.replaceAll("_struct_conn.", "_struct_conn_SKIP_HACK.");
     }
     var blob = new Blob([data], { type: 'text/plain' });
     var promise = autoLoad(blob, {ext : ext, name: 'query', firstModelOnly: true});

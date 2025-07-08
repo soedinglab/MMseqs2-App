@@ -36,7 +36,8 @@ export default {
     props: {
         preloadAccession: { default: '', type: String },
         preloadSource: { default: '', type: String },
-        multiple: { default: false, type: Boolean }, 
+        multiple: { default: false, type: Boolean },
+        extraEnabled: { default: [], type: Array },
     },
     data() {
         return {
@@ -49,10 +50,20 @@ export default {
                 { text: 'PDB (rcsb.org)', value: 'PDB' },
                 { text: 'AlphaFoldDB (ebi.ac.uk)', value: 'AlphaFoldDB' },
                 { text: 'BFVD (bfvd.foldseek.com)', value: 'BFVD' },
-            ]
+            ],
+            extraSources: {
+                'AlphaFill' : { text: 'AlphaFill (alphafill.eu)', value: 'AlphaFill' },
+            }
         };
     },
     mounted() {
+        for (let i in this.extraEnabled) {
+            let s = this.extraEnabled[i];
+            console.log(s, this.extraSources)
+            if (s in this.extraSources) {
+                this.sources.push(this.extraSources[s])
+            }
+        }
         if (this.preloadAccession && this.preloadAccession.length > 0 && this.preloadSource && this.preloadSource.length > 0) {
             if (this.multiple) {
                 const accessions = this.preloadAccession.split(/[,\s]+/)
@@ -117,6 +128,10 @@ export default {
                     axios.get("https://bfvd.steineggerlab.workers.dev/pdb/" + upper + ".pdb")
                         .then(r => resolve({ name: upper + ".pdb", text: r.data }))
                         .catch(fail);
+                } else if (source == "AlphaFill") {
+                    axios.get("https://alphafill.eu/v1/aff/" + upper)
+                        .then(r => resolve({ name: upper + ".cif", text: r.data }))
+                        .catch(fail);
                 } else if (source == "AlphaFoldDB") {
                     axios.get("https://alphafold.ebi.ac.uk/api/search?q=(text:*" + accession + " OR text:" + accession + "*)&type=main&start=0&rows=1")
                         .then(resp => {
@@ -143,7 +158,7 @@ export default {
             Promise.allSettled(jobs).then(results => {
                 const ok  = results.filter(r => r.status === 'fulfilled').map(r => r.value);
                 const bad = results.filter(r => r.status === 'rejected').map(r => r.reason);
-                console.log(ok);
+                // console.log(ok);
                 if (ok.length) {
                     this.$emit('select', ok);
                     this.show = false;
