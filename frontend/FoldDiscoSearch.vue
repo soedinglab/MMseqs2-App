@@ -65,7 +65,7 @@
                             @loading="accessionLoading = $event"
                             :preload-source="preloadSource"
                             :preload-accession="preloadAccession"
-                            :extra-enabled="['AlphaFill']"
+                            :extra-enabled="[/*'AlphaFill'*/]"
                         ></load-acession-button>
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
                     </div>
