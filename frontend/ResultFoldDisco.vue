@@ -484,62 +484,7 @@ export default {
 </script>
 
 
-<style lang="scss">
-@font-face {
-font-family: InconsolataClustal;
-src: url(assets/InconsolataClustal2.woff2),
-     url(assets/InconsolataClustal2.woff);
-}
-
-.hide {
-    display: none;
-}
-
-.db {
-    border-left: 5px solid black;
-}
-
-@media print, screen and (max-width: 599px) {
-    small.ticket {
-        display: inline-block;
-        line-height: 0.9;
-    }
-}
-
-.result-table {
-    a.anchor {
-        display: block;
-        position: relative;
-        top: -125px;
-        visibility: hidden;
-    }
-
-    a:not([href]) {
-        color: #333;
-        &:not([href]):hover {
-            text-decoration: none;
-        }
-    }
-
-    td, th {
-        padding: 0 6px;
-        text-align: left;
-    }
-
-    .hit.active {
-        background: #f9f9f9;
-    }
-
-    // tbody:hover td[rowspan], tbody tr:hover {
-    //     background: #eee;
-    // }
-
-    .alignment-action {
-        text-align: center;
-        word-wrap: normal;
-    }
-}
-
+<style lang="scss" scoped>
 .matched-residues-text {
     display: inline-block;
     max-width: 100%;
@@ -547,150 +492,15 @@ src: url(assets/InconsolataClustal2.woff2),
     scrollbar-width: none;
 }
 
-
-.theme--dark {
-    .result-table {
-        a:not([href])  {
-            color: #eee;
-        }
-
-        .hit.active {
-            background: #333;
-        }
-
-        // tbody:hover td[rowspan], tbody tr:hover {
-        //     background: #333;
-        // }
-    }
-}
-
-@media print, screen and (min-width: 961px) {
-    .result-table {
-        table-layout: fixed;
-        border-collapse: collapse;
-        width: 100%;
-        th.thin, td.thin {
-            white-space: nowrap;
-        }
-        .long {
-            overflow: hidden;
-            word-break: keep-all;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-    }
-}
-
-@media print {
-    .result-table .alignment-action {
-        display: none;
-    }
-}
-
 @media screen and (max-width: 960px) {
-    .result-table {
-        width: 100%;
-        col {
-            width: auto !important;
-        }
-        .long {
-            height: 100% !important;
-            white-space: normal !important;
-            min-height: 48px;
-        }
-        .hits {
-            min-width: 300px;
-        }
-        tbody td a {
-            min-width: 100px;
-        }
-        tbody td.graphical div.ruler {
-            margin: 10px 0;
-        }
-        thead {
-            display: none;
-        }
-        tfoot th {
-            border: 0;
-            display: inherit;
-        }
-        tr {
-            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.1);
-            max-width: 100%;
-            position: relative;
-            display: block;
-            padding: 0.5em;
-        }
-        tr td {
-            border: 0;
-            display: inherit;
-        }
-        tr td:last-child {
-            border-bottom: 0;
-        }
-        tr:not(:last-child) {
-            margin-bottom: 1rem;
-        }
-        tr:not(.is-selected) {
-            background: inherit;
-        }
-        tr:not(.is-selected):hover {
-            background-color: inherit;
-        }
-        tr.detail {
-            margin-top: -1rem;
-        }
-        tr:not(.detail):not(.is-empty):not(.table-footer) td {
-            display: flex;
-            border-bottom: 1px solid #eee;
-            flex-direction: row;
-
-            &:last-child {
-                border-bottom: 0;
-            }
-        }
-        tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
-            content: attr(data-label);
-            font-weight: 600;
-            margin-right: auto;
-            padding-right: 0.5em;
-            word-break: keep-all;
-            flex: 1;
-            white-space: nowrap;
-        }
-
-        tbody td a, tbody td span {
-            flex: 2;
-            margin-left: auto;
-            text-align: right;
-            word-wrap: anywhere;
-        }
-    }
-
     .matched-residues-text {
         white-space: normal;
         word-break: break-all;
         max-width: none;
     }
 }
-
 .alignment {
-    position:absolute;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 999;
-    box-shadow: 0 3px 5px -1px rgba(0,0,0,.2),0 6px 10px 0 rgba(0,0,0,.14),0 1px 18px 0 rgba(0,0,0,.12) !important;
-
-    .residues {
-        font-family: InconsolataClustal, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
-        white-space: pre;
-    }
-
-    .theme--dark & {
-        .residues {
-            color: #fff;
-        }
-    }
 }
-
 </style>
