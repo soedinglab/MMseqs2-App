@@ -4,7 +4,12 @@
         <v-flex xs12>
             <panel class="query-panel d-flex fill-height" fill-height>
             <template slot="header">
-                Input protein structures (PDB/CIF) for MSTA
+                <template v-if="$vuetify.breakpoint.smAndDown">
+                    MSTA proteins
+                </template>
+                <template v-else>
+                    Input protein structures (PDB/CIF) for MSTA
+                </template>
             </template>
             <template slot="toolbar-extra">
                 <v-icon v-if="queries.length > 0" title="Clear" @click="queries = []" style="margin-right: 16px">{{ $MDI.Delete }}</v-icon>
