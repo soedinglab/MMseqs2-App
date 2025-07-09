@@ -37,7 +37,7 @@ export default {
         preloadAccession: { default: '', type: String },
         preloadSource: { default: '', type: String },
         multiple: { default: false, type: Boolean },
-        extraEnabled: { default: [], type: Array },
+        extraEnabled: { default: () => [], type: Array },
     },
     data() {
         return {
