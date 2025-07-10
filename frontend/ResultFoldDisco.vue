@@ -253,6 +253,7 @@ function getAbsOffsetTop($el) {
 
 export default {
     name: 'ResultFoldDisco',
+    tool: 'folddisco',
     components: { Panel, StructureViewerMotif, MultiSlider },
     // components: { ResultView },
     mixins: [ResultMixin],

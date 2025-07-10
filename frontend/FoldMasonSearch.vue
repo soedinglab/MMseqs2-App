@@ -143,7 +143,8 @@ const defaultParams = {
 };
 
 export default {
-    name: "foldmason",
+    name: "FoldMasonSearch",
+    tool: "foldmason",
     mixins: [ HistoryMixin ],
     components: { 
         Panel,

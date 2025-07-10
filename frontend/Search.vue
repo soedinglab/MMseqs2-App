@@ -167,6 +167,7 @@ const db = BlobDatabase();
 
 export default {
     name: "search",
+    tool: __APP__,
     mixins: [ HistoryMixin ],
     components: { 
         Panel,

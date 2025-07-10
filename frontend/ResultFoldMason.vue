@@ -80,6 +80,7 @@ import Panel from './Panel.vue';
 
 export default {
     name: 'ResultFoldMason',
+    tool: 'foldmason',
     components: { MSA, MSAView, Panel },
     data() {
         return {

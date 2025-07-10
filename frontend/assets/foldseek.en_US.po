@@ -67,6 +67,57 @@ msgstr "Steinegger Lab"
 msgid "NAV_URL_3"
 msgstr "https://steineggerlab.com/"
 
+msgid "FOLDSEEK_MULTIMER_NAV_URL_COUNT"
+msgstr "3"
+
+msgid "FOLDSEEK_MULTIMER_NAV_TITLE_1"
+msgstr "GitHub"
+
+msgid "FOLDSEEK_MULTIMER_NAV_URL_1"
+msgstr "https://foldseek.com"
+
+msgid "FOLDSEEK_MULTIMER_NAV_TITLE_2"
+msgstr "Levy Lab"
+
+msgid "FOLDSEEK_MULTIMER_NAV_URL_2"
+msgstr "https://mocel.unige.ch/research-groups/emmanuel-levy/overview"
+
+msgid "FOLDSEEK_MULTIMER_NAV_TITLE_3"
+msgstr "Steinegger Lab"
+
+msgid "FOLDSEEK_MULTIMER_NAV_URL_3"
+msgstr "https://steineggerlab.com/"
+
+msgid "FOLDMASON_NAV_URL_COUNT"
+msgstr "2"
+
+msgid "FOLDMASON_NAV_TITLE_1"
+msgstr "GitHub"
+
+msgid "FOLDMASON_NAV_URL_1"
+msgstr "https://github.com/steineggerlab/foldmason"
+
+msgid "FOLDMASON_NAV_TITLE_2"
+msgstr "Steinegger Lab"
+
+msgid "FOLDMASON_NAV_URL_2"
+msgstr "https://steineggerlab.com/"
+
+msgid "FOLDDISCO_NAV_URL_COUNT"
+msgstr "2"
+
+msgid "FOLDDISCO_NAV_TITLE_1"
+msgstr "GitHub"
+
+msgid "FOLDDISCO_NAV_URL_1"
+msgstr "https://github.com/steineggerlab/folddisco"
+
+msgid "FOLDDISCO_NAV_TITLE_2"
+msgstr "Steinegger Lab"
+
+msgid "FOLDDISCO_NAV_URL_2"
+msgstr "https://steineggerlab.com/"
+
 msgid "QUERIES_HELP"
 msgstr "Enter a protein structure in PDB or mmCIF format or upload a PDB or mmCIF file."
 

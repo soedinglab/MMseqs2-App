@@ -31,7 +31,7 @@
                 <v-icon>{{ $MDI.Motif }}</v-icon>
             </v-list-item-action>
             <v-list-item-content>
-                <v-list-item-title>Folddisco Search</v-list-item-title>
+                <v-list-item-title>Folddisco search</v-list-item-title>
             </v-list-item-content>
         </v-list-item> 
       
@@ -171,8 +171,8 @@
 <v-app-bar v-on:dblclick.native="electronHandleTitleBarDoubleClick()" app :height="$ELECTRON ? '72px' : '48px'" fixed clipped-left :class="['ml-0', 'pl-3', $ELECTRON ? 'pt-2' : null]" :style="{'-webkit-app-region': $ELECTRON ? 'drag' : null, '-webkit-user-select': $ELECTRON ? 'none' : null}">
     <v-app-bar-nav-icon v-if="!$LOCAL" :input-value="!mini ? 'activated' : undefined" @click.stop="toggleMini"></v-app-bar-nav-icon>
     <v-app-bar-title>
-        <router-link v-if="!$LOCAL" to="/" style="color: inherit; text-decoration: none">{{ $STRINGS.APP_NAME }} Search</router-link>
-        <span v-if="$LOCAL">{{ $STRINGS.APP_NAME }} Search</span>
+        <router-link v-if="!$LOCAL" :to="activeTool ? '/' + activeTool : '/'" style="color: inherit; text-decoration: none">{{ appName }}</router-link>
+        <span v-if="$LOCAL">{{ appName }}</span>
     </v-app-bar-title>
     <object style="margin-left:8px; display: inline-block; width: 38px;height: 38px;vertical-align: middle"
             v-if="$APP == 'mmseqs'"
@@ -184,9 +184,9 @@
     <img v-if="$APP == 'foldseek'" src="./assets/marv-foldseek-small.png" style="margin-left:8px; display: inline-block; width: 48px;height: 48px;vertical-align: middle" aria-hidden="true" />
 
     <v-spacer></v-spacer>
-    <v-toolbar-items v-once v-if="!$ELECTRON" class="hidden-sm-and-down">
+    <v-toolbar-items v-if="!$ELECTRON" class="hidden-sm-and-down">
         <v-btn text rel="external noopener" target="_blank"
-               v-for="i in ($STRINGS.NAV_URL_COUNT - 0)" :key="i" :href="$STRINGS['NAV_URL_' + i]">{{ $STRINGS["NAV_TITLE_" + i]}}</v-btn>
+               v-for="{title, url} in toolbarLinks" :key="title" :href="url">{{ title }}</v-btn>
     </v-toolbar-items>
 </v-app-bar>
 
@@ -198,11 +198,32 @@ import buildFullPath from 'axios/lib/core/buildFullPath.js'
 import { parseResultsList, download, djb2 } from './Utilities';
 import History from './History.vue';
 
+function getLinks(strings, prefix) {
+    if (prefix) {
+        prefix = prefix.replaceAll('-', '_');
+        prefix = prefix.toUpperCase() + "_";
+    }
+
+    if (!((prefix + 'NAV_URL_COUNT') in strings)) {
+        return [];
+    }
+
+    const count = strings[prefix + 'NAV_URL_COUNT'];
+    let arr = [];
+    for (let i = 1; i <= count; i++) {
+        const title = strings[prefix + "NAV_TITLE_" + i];
+        const url = strings[prefix + 'NAV_URL_' + i];
+        arr.push({ title, url });
+    }
+    return arr;
+}
+
 export default {
     components : { History, },
     data: () => ({
         mini: true,
-        expanded: false
+        expanded: false,
+        activeTool: '',
     }),
     created() {
         this.$root.$on('multi', this.shouldExpand);
@@ -210,6 +231,7 @@ export default {
     mounted() {
         // defeat https://github.com/vuetifyjs/vuetify/pull/14523
         if (!__LOCAL__) Object.defineProperty(this.$refs.drawer._data, 'isMouseover', { get: () => { false } });
+        this.updateTool();
     },
     beforeDestroy() {
         this.$root.$off('multi', this.shouldExpand);
@@ -217,9 +239,46 @@ export default {
     watch: {
         expanded: function(event) {
             this.$root.$emit('multi', event);
+        },
+        $route: function() {
+            this.updateTool();
         }
     },
+    computed: {
+        appName() {
+            if (__APP__ == "foldseek") {
+                switch (this.activeTool) {
+                    case "foldseek":
+                        return "Foldseek Search";
+                    case "foldseek-multimer":
+                        return "Foldseek-Multimer Search";
+                    case "foldmason":
+                        return "FoldMason MSA";
+                    case "folddisco":
+                        return "Folddisco Search";
+                }
+            }
+            return this.$STRINGS.APP_NAME + " Search";
+        },
+        toolbarLinks() {
+            let toolLinks = getLinks(this.$STRINGS, this.activeTool);
+            if (toolLinks.length == 0) {
+                return getLinks(this.$STRINGS, '');
+            }
+            return toolLinks;
+        },
+    },
     methods: {
+        updateTool() {
+            const comps = this.$router.getMatchedComponents()
+            if (Array.isArray(comps) && comps.length > 0) {
+                if ("tool" in comps[0]) {
+                    this.activeTool  = comps[0].tool;
+                }
+            } else {
+                this.activeTool = '';
+            }
+        },
         url(url) {
             // workaround was fixed in axios git, remove when axios is updated
             const fullUrl = buildFullPath(this.$axios.defaults.baseURL, url);
@@ -269,6 +328,7 @@ export default {
 <style scoped>
 ::v-deep .v-app-bar-title__content {
     text-overflow: revert !important;
+    width: auto !important;
 }
 ::v-deep .theme--light.v-navigation-drawer {
     background-color: #f5f5f5;

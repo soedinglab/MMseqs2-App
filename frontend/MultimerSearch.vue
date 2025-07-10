@@ -151,6 +151,7 @@ const storage = new StorageWrapper("complex");
 
 export default {
     name: "multimer",
+    tool: "foldseek-multimer",
     mixins: [ HistoryMixin ],
     components: { 
         Panel,

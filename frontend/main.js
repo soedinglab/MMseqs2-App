@@ -31,7 +31,9 @@ const router = __LOCAL__ ? null : new VueRouter({
     mode: __ELECTRON__ ? 'hash' : 'history',
     routes: [
         { path: '/', redirect: { name: 'search' } },
+        { path: '/foldseek', redirect: { name: 'search' } },
         { name: 'search', path: '/search', component: Search },
+        { path: '/foldseek-multimer', redirect: { name: 'multimer' } },
         { path: '/complex', redirect: { name: 'multimer' } },
         { name: 'multimer', path: '/multimer', component: MultimerSearch },
         { name: 'foldmason', path: '/foldmason', component: FoldMasonSearch },

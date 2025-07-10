@@ -214,7 +214,8 @@ function setDefaultMotif(structure) {
 }
 
 export default {
-    name: "folddisco",
+    name: "FolddiscoSearch",
+    tool: "folddisco",
     mixins: [ HistoryMixin ],
     components: { 
         Panel,
