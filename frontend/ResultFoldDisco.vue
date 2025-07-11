@@ -89,7 +89,7 @@
                         v-if="hits.results.length > 1"
                     >
                         <v-tab>All databases</v-tab>
-                        <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
+                        <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db.replaceAll(/_folddisco$/g, '') }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
                     </v-tabs>
                     <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
                     <v-flex
@@ -101,7 +101,7 @@
                             'white-space': 'nowrap',
                         }">
                         <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
-                            <span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
+                            <span style="text-transform: uppercase;">{{ entry.db.replaceAll(/_folddisco$/g, '') }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
                         </h2>
                         <multi-slider style="flex: 1; margin: 0 20px; width: 100%;" :values="entry.queryresidues" v-model="gapFilter" :background-color="entry.color"></multi-slider>
                     </v-flex>
