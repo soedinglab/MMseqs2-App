@@ -360,7 +360,7 @@ END
             [u[3], u[4], u[5]],
             [u[6], u[7], u[8]],
         ];
-        transformStructure(query.structure, t, u);
+        transformStructure(target.structure, t, u);
         const matchedQuery = getMotif(this.alignment.queryresidues);
         const matchedTarget = getMotif(this.alignment.targetresidues);
         const matchedQchain = getMatchedChain(this.alignment.queryresidues);
