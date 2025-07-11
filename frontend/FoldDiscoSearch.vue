@@ -16,6 +16,8 @@
                     :disabled="searchDisabled"
                     :email="email"
                     :database="database"
+                    :motif="motif"
+                    suffix="folddisco"
                     >
                     <!-- :mode="mode" -->
                 </api-dialog>
