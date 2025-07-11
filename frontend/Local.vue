@@ -100,6 +100,9 @@ export default {
 ::v-deep .v-app-bar-title__content {
     text-overflow: revert !important;
 }
+.text-subtitle-2 {
+    word-wrap: break-word;
+}
 </style>
 <style>
 .theme--light .panel-root .v-toolbar {
