@@ -50,6 +50,10 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				continue
 			}
 
+			if db.Motif {
+				continue
+			}
+
 			request, err := NewIndexJobRequest(db.Path, "")
 			if err != nil {
 				panic(err)
