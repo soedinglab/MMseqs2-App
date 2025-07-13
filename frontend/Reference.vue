@@ -24,3 +24,9 @@ export default {
     },
 }
 </script>
+
+<style scoped>
+.text-subtitle-2 {
+    word-break: break-word;
+}
+</style>
