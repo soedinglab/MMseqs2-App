@@ -258,12 +258,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-font-family: InconsolataClustal;
-src: url(assets/InconsolataClustal2.woff2),
-     url(assets/InconsolataClustal2.woff);
-}
-
 .residue {
     display: inline-block;
     padding-right: 5px;
@@ -274,7 +268,7 @@ src: url(assets/InconsolataClustal2.woff2),
 }
 
 .residue .aa {
-    font-family: InconsolataClustal, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
+    font-family: Protsolata, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
 }
 
 .residue .position {

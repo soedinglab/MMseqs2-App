@@ -1,0 +1,485 @@
+/* Protsolata palettes */
+@font-face {
+  font-family: 'Protsolata';
+  src: url('Protsolata.woff2') format('woff2'), url('Protsolata.woff') format('woff');
+}
+
+@font-palette-values --clustal2 {
+  font-family: 'Protsolata';
+  base-palette: 0;
+}
+
+@font-palette-values --clustal2-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #80A0F0,
+    1 #FFFFFF,
+    2 #F08080,
+    3 #C048C0,
+    4 #C048C0,
+    5 #80A0F0,
+    6 #F09048,
+    7 #15A4A4,
+    8 #80A0F0,
+    9 #000000,
+    10 #F01505,
+    11 #80A0F0,
+    12 #80A0F0,
+    13 #00FF00,
+    14 #000000,
+    15 #FFD700,
+    16 #00FF00,
+    17 #F01505,
+    18 #00FF00,
+    19 #00FF00,
+    20 #000000,
+    21 #80A0F0,
+    22 #80A0F0,
+    23 #FFFFFF,
+    24 #15A4A4,
+    25 #FFFFFF;
+}
+
+.clustal2              { font-family:'Protsolata'; font-palette: --clustal2; }
+.clustal2-override     { font-family:'Protsolata'; font-palette: --clustal2-override; }
+
+@font-palette-values --buried {
+  font-family: 'Protsolata';
+  base-palette: 1;
+}
+
+@font-palette-values --buried-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #00A35C,
+    1 #00EB14,
+    2 #2555D9,
+    3 #00EB14,
+    4 #00F10E,
+    5 #008778,
+    6 #009D62,
+    7 #00D52A,
+    8 #0054AB,
+    9 #000000,
+    10 #00FF00,
+    11 #007B84,
+    12 #009768,
+    13 #00EB14,
+    14 #000000,
+    15 #00E01F,
+    16 #00F10E,
+    17 #00FC03,
+    18 #00D52A,
+    19 #00DB24,
+    20 #000000,
+    21 #005FA0,
+    22 #00A857,
+    23 #00B649,
+    24 #00E619,
+    25 #00F10E;
+}
+
+.buried              { font-family:'Protsolata'; font-palette: --buried; }
+.buried-override     { font-family:'Protsolata'; font-palette: --buried-override; }
+
+@font-palette-values --cinema {
+  font-family: 'Protsolata';
+  base-palette: 2;
+}
+
+@font-palette-values --cinema-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #BBBBBB,
+    1 #808080,
+    2 #FFD700,
+    3 #FF0000,
+    4 #FF0000,
+    5 #FF00FF,
+    6 #A52A2A,
+    7 #00FFFF,
+    8 #BBBBBB,
+    9 #FFFFFF,
+    10 #00FFFF,
+    11 #BBBBBB,
+    12 #BBBBBB,
+    13 #008000,
+    14 #FFFFFF,
+    15 #A52A2A,
+    16 #008000,
+    17 #00FFFF,
+    18 #008000,
+    19 #008000,
+    20 #FFFFFF,
+    21 #BBBBBB,
+    22 #FF00FF,
+    23 #808080,
+    24 #FF00FF,
+    25 #808080;
+}
+
+.cinema              { font-family:'Protsolata'; font-palette: --cinema; }
+.cinema-override     { font-family:'Protsolata'; font-palette: --cinema-override; }
+
+@font-palette-values --clustal {
+  font-family: 'Protsolata';
+  base-palette: 3;
+}
+
+@font-palette-values --clustal-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #FFA500,
+    1 #FFFFFF,
+    2 #008000,
+    3 #FF0000,
+    4 #FF0000,
+    5 #2555D9,
+    6 #FFA500,
+    7 #FF0000,
+    8 #008000,
+    9 #FFFFFF,
+    10 #FF0000,
+    11 #008000,
+    12 #008000,
+    13 #FFFFFF,
+    14 #FFFFFF,
+    15 #FFA500,
+    16 #FFFFFF,
+    17 #FF0000,
+    18 #FFA500,
+    19 #FFA500,
+    20 #FFFFFF,
+    21 #008000,
+    22 #2555D9,
+    23 #FFFFFF,
+    24 #2555D9,
+    25 #FFFFFF;
+}
+
+.clustal              { font-family:'Protsolata'; font-palette: --clustal; }
+.clustal-override     { font-family:'Protsolata'; font-palette: --clustal-override; }
+
+@font-palette-values --helix {
+  font-family: 'Protsolata';
+  base-palette: 4;
+}
+
+@font-palette-values --helix-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #E718E7,
+    1 #49B649,
+    2 #23DC23,
+    3 #778877,
+    4 #FF00FF,
+    5 #986798,
+    6 #00FF00,
+    7 #758A75,
+    8 #8A758A,
+    9 #000000,
+    10 #A05FA0,
+    11 #AE51AE,
+    12 #EF10EF,
+    13 #1BE41B,
+    14 #000000,
+    15 #00FF00,
+    16 #926D92,
+    17 #6F906F,
+    18 #36C936,
+    19 #47B847,
+    20 #000000,
+    21 #857A85,
+    22 #8A758A,
+    23 #758A75,
+    24 #21DE21,
+    25 #C936C9;
+}
+
+.helix              { font-family:'Protsolata'; font-palette: --helix; }
+.helix-override     { font-family:'Protsolata'; font-palette: --helix-override; }
+
+@font-palette-values --hydrophobicity {
+  font-family: 'Protsolata';
+  base-palette: 5;
+}
+
+@font-palette-values --hydrophobicity-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #AD0052,
+    1 #0C00F3,
+    2 #C2003D,
+    3 #0C00F3,
+    4 #0C00F3,
+    5 #CB0034,
+    6 #6A0095,
+    7 #1500EA,
+    8 #FF0000,
+    9 #FFFFFF,
+    10 #2555D9,
+    11 #EA0015,
+    12 #B0004F,
+    13 #0C00F3,
+    14 #FFFFFF,
+    15 #4600B9,
+    16 #0C00F3,
+    17 #2555D9,
+    18 #5E00A1,
+    19 #61009E,
+    20 #FFFFFF,
+    21 #F60009,
+    22 #5B00A4,
+    23 #680097,
+    24 #4F00B0,
+    25 #0C00F3;
+}
+
+.hydrophobicity              { font-family:'Protsolata'; font-palette: --hydrophobicity; }
+.hydrophobicity-override     { font-family:'Protsolata'; font-palette: --hydrophobicity-override; }
+
+@font-palette-values --lesk {
+  font-family: 'Protsolata';
+  base-palette: 6;
+}
+
+@font-palette-values --lesk-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #FFA500,
+    1 #FFFFFF,
+    2 #008000,
+    3 #FF0000,
+    4 #FF0000,
+    5 #008000,
+    6 #FFA500,
+    7 #FF00FF,
+    8 #008000,
+    9 #FFFFFF,
+    10 #FF0000,
+    11 #008000,
+    12 #008000,
+    13 #FF00FF,
+    14 #FFFFFF,
+    15 #008000,
+    16 #FF00FF,
+    17 #FF0000,
+    18 #FFA500,
+    19 #FFA500,
+    20 #FFFFFF,
+    21 #008000,
+    22 #008000,
+    23 #FFFFFF,
+    24 #008000,
+    25 #FFFFFF;
+}
+
+.lesk              { font-family:'Protsolata'; font-palette: --lesk; }
+.lesk-override     { font-family:'Protsolata'; font-palette: --lesk-override; }
+
+@font-palette-values --mae {
+  font-family: 'Protsolata';
+  base-palette: 7;
+}
+
+@font-palette-values --mae-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #77DD88,
+    1 #FFFFFF,
+    2 #99EE66,
+    3 #55BB33,
+    4 #55BB33,
+    5 #9999FF,
+    6 #77DD88,
+    7 #5555FF,
+    8 #66BBFF,
+    9 #FFFFFF,
+    10 #FFCC77,
+    11 #66BBFF,
+    12 #66BBFF,
+    13 #55BB33,
+    14 #FFFFFF,
+    15 #EEAAAA,
+    16 #55BB33,
+    17 #FFCC77,
+    18 #FF4455,
+    19 #FF4455,
+    20 #FFFFFF,
+    21 #66BBFF,
+    22 #9999FF,
+    23 #FFFFFF,
+    24 #9999FF,
+    25 #FFFFFF;
+}
+
+.mae              { font-family:'Protsolata'; font-palette: --mae; }
+.mae-override     { font-family:'Protsolata'; font-palette: --mae-override; }
+
+@font-palette-values --strand {
+  font-family: 'Protsolata';
+  base-palette: 8;
+}
+
+@font-palette-values --strand-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #5858A7,
+    1 #4343BC,
+    2 #9D9D62,
+    3 #2121DE,
+    4 #2555D9,
+    5 #C2C23D,
+    6 #4949B6,
+    7 #60609F,
+    8 #ECEC13,
+    9 #000000,
+    10 #4747B8,
+    11 #B2B24D,
+    12 #82827D,
+    13 #64649B,
+    14 #000000,
+    15 #2323DC,
+    16 #8C8C73,
+    17 #6B6B94,
+    18 #4949B6,
+    19 #9D9D62,
+    20 #000000,
+    21 #FFD700,
+    22 #C0C03F,
+    23 #797986,
+    24 #D3D32C,
+    25 #4747B8;
+}
+
+.strand              { font-family:'Protsolata'; font-palette: --strand; }
+.strand-override     { font-family:'Protsolata'; font-palette: --strand-override; }
+
+@font-palette-values --taylor {
+  font-family: 'Protsolata';
+  base-palette: 9;
+}
+
+@font-palette-values --taylor-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #CCFF00,
+    1 #FFFFFF,
+    2 #FFD700,
+    3 #FF0000,
+    4 #FF0066,
+    5 #00FF66,
+    6 #FF9900,
+    7 #7d98e8,
+    8 #66FF00,
+    9 #000000,
+    10 #6600FF,
+    11 #33FF00,
+    12 #00FF00,
+    13 #CC00FF,
+    14 #000000,
+    15 #FFCC00,
+    16 #FF00CC,
+    17 #2555d9,
+    18 #FF3300,
+    19 #FF6600,
+    20 #000000,
+    21 #99FF00,
+    22 #00CCFF,
+    23 #FFFFFF,
+    24 #00FFCC,
+    25 #FFFFFF;
+}
+
+.taylor              { font-family:'Protsolata'; font-palette: --taylor; }
+.taylor-override     { font-family:'Protsolata'; font-palette: --taylor-override; }
+
+@font-palette-values --turn {
+  font-family: 'Protsolata';
+  base-palette: 10;
+}
+
+@font-palette-values --turn-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #2CD3D3,
+    1 #F30C0C,
+    2 #A85757,
+    3 #E81717,
+    4 #778888,
+    5 #1EE1E1,
+    6 #FF0000,
+    7 #708F8F,
+    8 #00FFFF,
+    9 #000000,
+    10 #7E8181,
+    11 #1CE3E3,
+    12 #1EE1E1,
+    13 #FF0000,
+    14 #000000,
+    15 #F60909,
+    16 #3FC0C0,
+    17 #708F8F,
+    18 #E11E1E,
+    19 #738C8C,
+    20 #000000,
+    21 #07F8F8,
+    22 #738C8C,
+    23 #7C8383,
+    24 #9D6262,
+    25 #5BA4A4;
+}
+
+.turn              { font-family:'Protsolata'; font-palette: --turn; }
+.turn-override     { font-family:'Protsolata'; font-palette: --turn-override; }
+
+@font-palette-values --zappo {
+  font-family: 'Protsolata';
+  base-palette: 11;
+}
+
+@font-palette-values --zappo-override {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0 #FFAFAF,
+    1 #FFFFFF,
+    2 #FFD700,
+    3 #FF0000,
+    4 #FF0000,
+    5 #FFC800,
+    6 #FF00FF,
+    7 #6464FF,
+    8 #FFAFAF,
+    9 #000000,
+    10 #6464FF,
+    11 #FFAFAF,
+    12 #FFAFAF,
+    13 #00FF00,
+    14 #000000,
+    15 #FF00FF,
+    16 #00FF00,
+    17 #6464FF,
+    18 #00FF00,
+    19 #00FF00,
+    20 #000000,
+    21 #FFAFAF,
+    22 #FFC800,
+    23 #FFFFFF,
+    24 #FFC800,
+    25 #FFFFFF;
+}
+
+.zappo              { font-family:'Protsolata'; font-palette: --zappo; }
+.zappo-override     { font-family:'Protsolata'; font-palette: --zappo-override; }

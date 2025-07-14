@@ -123,3 +123,4 @@ const app = new Vue({
 
 // make sure our CSS is load last
 import './assets/style.css';
+import './assets/Protsolata_palettes.css';
