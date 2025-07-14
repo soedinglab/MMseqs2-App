@@ -103,11 +103,47 @@
                         <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
                             <span style="text-transform: uppercase;">{{ entry.db.replaceAll(/_folddisco$/g, '') }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
                         </h2>
-                        <multi-slider style="flex: 1; margin: 0 20px; width: 100%;" :values="entry.queryresidues" v-model="gapFilter" :background-color="entry.color"></multi-slider>
+                        <!-- <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2"> -->
+                        <!-- <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram> -->
                     </v-flex>
-                    <!-- <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2">
-                        <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
-                    </v-flex> -->
+
+                    <v-flex class="d-flex flex-row" style="gap: 24px">
+                        <div style="flex-basis: 100%;">
+                            <h3>Filter</h3>
+                            <v-select
+                                    :items="dbGaps[entry.db]"
+                                    clearable
+                                    @change="$set(gapFilter, entry.db, $event)"
+                                    @click:clear="$set(gapFilter, entry.db, '')"
+                                    label="Query residues"
+                                    persistent-hint
+                                >
+                                    <template v-slot:selection="{ item }">
+                                        <multi-slider
+                                            style="flex: 1 1 100%; width: 100%;"
+                                            :values="entry.queryresidues"
+                                            :value="item"
+                                            disabled
+                                            :background-color="entry.color">
+                                        </multi-slider>
+                                    </template>
+                                    <template v-slot:item="{ item }">
+                                        <multi-slider
+                                        style="flex: 1 1 100%; width: 100%;"
+                                        :values="entry.queryresidues"
+                                        :value="item"
+                                        disabled
+                                        :background-color="entry.color">
+                                    </multi-slider>
+                                </template>
+                            </v-select>
+                        </div>
+                        <div style="flex-basis: 100%;">
+                            <h3>Group</h3>
+                            <folddisco-hit-cluster :hits="entry" v-on:cluster="$set(clusters, entry.db, $event)"></folddisco-hit-cluster>
+                        </div>
+                    </v-flex>
+
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <colgroup>
                             <col style="width: 20%;" /> <!-- target -->
@@ -168,9 +204,15 @@
                                 <th class="alignment-action thin">Structure</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <template v-for="(group, groupidx) in entry.alignments" >
-                            <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active }]" v-if="isGroupVisible(group) && isItemVisible(item)">
+                        <tbody v-for="(clu, key) in clusters[entry.db]">
+                            {{ void(clusterShown = false) }}
+                            <template v-for="(group, groupidx) in clu.map(x => entry.alignments[x])">
+                            <template v-for="(item, index) in group" v-if="isGroupVisible(group) && isItemVisible(entry.db, item)">
+                            <tr v-if="Object.keys(clu).length != Object.keys(entry.alignments).length && clusterShown == false">
+                                <td colspan="6"><strong>Cluster: {{ key == -1 ? "Noise" : key }}</strong></td>
+                            </tr>
+                            {{ void(clusterShown = true) }}
+                            <tr :class="['hit', { 'active' : item.active }]">
                                 <td class="db long" data-label="Target" :style="{ 'border-width' : null, 'border-color' : entry.color }">
                                     <a :id="item.id" class="anchor" style="position: absolute; top: 0"></a>
                                     <!-- <template v-if="isComplex">
@@ -207,6 +249,7 @@
                             </tr>
                             <!-- <tr aria-hidden="true" v-if="isComplex" style="height: 15px"></tr> -->
                             </template>
+                            </template>
                         </tbody>
                     </table>
                     </div>
@@ -230,7 +273,7 @@
 </template>
 
 <script>
-import { download, parseResultsFoldDisco, dateTime} from './Utilities.js';
+import { download, parseResultsFoldDisco, dateTime } from './Utilities.js';
 import ResultMixin from './ResultMixin.vue';
 import Panel from './Panel.vue';
 // import AlignmentPanel from './AlignmentPanel.vue';
@@ -241,6 +284,7 @@ import StructureViewerMotif from './StructureViewerMotif.vue';
 import { debounce } from './lib/debounce.js';
 // import { thresholdScott } from 'd3';
 import MultiSlider from './MultiSlider.vue';
+import FolddiscoHitCluster from './FolddiscoHitCluster.vue';
 
 function getAbsOffsetTop($el) {
     var sum = 0;
@@ -251,10 +295,11 @@ function getAbsOffsetTop($el) {
     return sum;
 }
 
+
 export default {
     name: 'ResultFoldDisco',
     tool: 'folddisco',
-    components: { Panel, StructureViewerMotif, MultiSlider },
+    components: { Panel, StructureViewerMotif, MultiSlider, FolddiscoHitCluster },
     // components: { ResultView },
     mixins: [ResultMixin],
     data() {
@@ -277,7 +322,8 @@ export default {
             menuActivator: null,
             menuItems: [],
             queryResidues: null,
-            gapFilter: '',
+            gapFilter: {},
+            clusters: {},
         }
     },
     created() {
@@ -321,7 +367,21 @@ export default {
                 }
             }
             return "ERROR";
-        }
+        },
+        dbGaps() {
+            if (!this.hits) {
+                return {};
+            }
+            let dbGaps = {};
+            for (let dbs of this.hits.results) {
+                let uniqueGaps = new Set();
+                for (let hit of Object.keys(dbs.alignments)) {
+                    uniqueGaps.add(dbs.alignments[hit][0].gaps);
+                }
+                dbGaps[dbs.db] = [...uniqueGaps];
+            }
+            return dbGaps;
+        },
     },
     mounted() {
         this.$root.$on('downloadJSON', () => {
@@ -426,8 +486,14 @@ export default {
             let taxFiltered = group.filter(item => this.filteredHitsTaxIds.includes(Number(item.taxId)));
             return taxFiltered.length > 0;
         },
-        isItemVisible(item) {
-            return this.gapFilter == '' || item.gaps == this.gapFilter;
+        isItemVisible(db, item) {
+            if (!(db in this.gapFilter)) {
+                return true;
+            }
+            if (this.gapFilter[db] == null) {
+                return true;
+            }
+            return this.gapFilter[db] == '' || item.gaps == this.gapFilter[db];
         },
         resetProperties() {
             this.ticket = this.$route.params.ticket;
@@ -693,5 +759,10 @@ src: url(assets/InconsolataClustal2.woff2),
         }
     }
 }
+</style>
 
+<style scoped>
+>>> .v-input__append-inner {
+    align-self: center !important;
+}
 </style>
