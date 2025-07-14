@@ -65,8 +65,8 @@ import { Selection } from 'ngl';
 import { splitAlphaNum } from "./Utilities";
 
 function sortResidueStrings(a, b) {
-    const [chainA, posA] = splitAlphaNum(a);
-    const [chainB, posB] = splitAlphaNum(b);
+    const [chainA, posA, _] = splitAlphaNum(a);
+    const [chainB, posB, _1] = splitAlphaNum(b);
     if (chainA < chainB) return -1;
     if (chainA > chainB) return 1;
     return (posA - 0) - (posB - 0);

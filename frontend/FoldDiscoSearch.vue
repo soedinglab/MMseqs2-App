@@ -48,7 +48,7 @@
                         <template v-slot:append-outer>
                             <motif-selection
                                 :disabled="!query"
-                                :chain-map="chainMap"
+                                :query-structure="queryStructure"
                                 :error="motifError"
                                 v-model="motif"
                             >
@@ -177,7 +177,6 @@ import Reference from "./Reference.vue";
 import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
-import { threeToOne } from './Utilities.js';
 import ApiDialog from './ApiDialog.vue';
 import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
@@ -284,7 +283,26 @@ export default {
             if (!this.queryStructure || !this.motif) {
                 return false;
             }
-            var motifSet = new Set(this.motif.split(',').map(m => m.trim()));
+            let valid = true;
+            let validSubstitution = /[A-Za-z]/;
+            let motifs = this.motif.split(',')
+                .map(m => {
+                    let chunks = m.trim().split(':');
+                    if (chunks.length > 2) {
+                        valid = false;
+                        return false;
+                    }
+                    if (chunks.length > 1 && !validSubstitution.test(chunks[1])) {
+                        valid = false;
+                        return false; 
+                    }
+                    return chunks[0];
+                });
+            if (!valid) {
+                return false;
+            }
+
+            let motifSet = new Set(motifs);
             this.queryStructure.eachResidue(r => {
                 const onlyResno = `${r.resno}`;
                 const chainResno = `${r.chainname}${r.resno}`;
@@ -306,30 +324,6 @@ export default {
             if (this.motifLen > 32) {
                 return `Motif too long (${this.motifLen} / 32 residues)`;
             }
-        },
-        chainMap() {
-            if (!this.queryStructure) {
-                return {};
-            }
-
-            let chains = {}
-            this.queryStructure.eachResidue(r => {
-                if (r.hetero != 1 && r.isProtein()) {
-                    let res = [r.chainname, r.resno, threeToOne[r.resname], r.sstruc];
-                    if (!(r.chainname in chains)) {
-                        chains[r.chainname] = [res];
-                    } else {
-                        chains[r.chainname].push(res);
-                    }
-                }
-            });
-
-            const sortedKeys = Object.keys(chains).sort();
-            const sortedChains = {};
-            for (const key of sortedKeys) {
-                sortedChains[key] = chains[key];
-            }
-            return sortedChains;
         },
     },
     watch: {

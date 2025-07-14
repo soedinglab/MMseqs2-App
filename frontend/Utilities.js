@@ -155,14 +155,32 @@ export function parseResults(data) {
 export function splitAlphaNum(str) {
     const len = str.length;
     let i = 0;
+
     while (i < len) {
-        const cc = str.charCodeAt(i);
-        if (cc >= 48 && cc <= 57) {
-            break;
-        }
-        i++;
+      const cc = str.charCodeAt(i);
+      if (cc >= 48 && cc <= 57) {
+        break;
+      }
+      i++;
     }
-    return [ str.slice(0, i), str.slice(i) ];
+    const alpha = str.slice(0, i);
+
+    let j = i;
+    while (j < len) {
+      const cc = str.charCodeAt(j);
+      if (cc < 48 || cc > 57) {
+        break;
+      }
+      j++;
+    }
+    const numeric = str.slice(i, j);
+
+    let substitution = "";
+    if (j < len && str.charCodeAt(j) === 58 /* ':' */) {
+        substitution = str.slice(j);
+    }
+
+    return [alpha, numeric, substitution];
 }
 
 export function parseResultsFoldDisco(data) {
@@ -194,7 +212,7 @@ export function parseResultsFoldDisco(data) {
             item.queryresidues
                 .split(',')
                 .map(r => {
-                    let [chain, pos] = splitAlphaNum(r);
+                    let [chain, pos, _] = splitAlphaNum(r);
                     if (!(chain in result.queryresidues)) {
                         result.queryresidues[chain] = new Set();
                     }

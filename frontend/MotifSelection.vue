@@ -72,6 +72,7 @@
 <script>
 import ModalDialog from "./ModalDialog.vue";
 import { splitAlphaNum } from "./Utilities";
+import { threeToOne } from './Utilities.js';
 
 export default {
     name: "MotifSelection",
@@ -91,10 +92,10 @@ export default {
             type: String,
             default: '',
         },
-        chainMap: {
+        queryStructure: {
             type: Object,
-            default: false
-        }
+            required: false,
+        },
     },
     data() {
         return {
@@ -128,15 +129,39 @@ export default {
             this.motif
                 .split(',')
                 .map(x => {
-                    let [chain, pos] = splitAlphaNum(x.trim());
+                    let [chain, pos, _] = splitAlphaNum(x.trim());
                     if (chain in map) {
                         map[chain].push(pos - 0);
                     } else {
-                        map[chain] = [ pos - 0];
+                        map[chain] = [ pos - 0 ];
                     }
                 });
             return map;
-        }
+        },
+        chainMap() {
+            if (!this.queryStructure) {
+                return {};
+            }
+
+            let chains = {}
+            this.queryStructure.eachResidue(r => {
+                if (r.hetero != 1 && r.isProtein()) {
+                    let res = [r.chainname, r.resno, threeToOne[r.resname], r.sstruc];
+                    if (!(r.chainname in chains)) {
+                        chains[r.chainname] = [res];
+                    } else {
+                        chains[r.chainname].push(res);
+                    }
+                }
+            });
+
+            const sortedKeys = Object.keys(chains).sort();
+            const sortedChains = {};
+            for (const key of sortedKeys) {
+                sortedChains[key] = chains[key];
+            }
+            return sortedChains;
+        },
     },
     methods: {
         log(message) {
@@ -151,7 +176,7 @@ export default {
             
             const key = `${chain}${pos}`;
             const idx = entries.findIndex(entry => {
-                const [c, p] = splitAlphaNum(entry);
+                const [c, p, _] = splitAlphaNum(entry);
                 return c === chain && Number(p) === pos;
             });
             
