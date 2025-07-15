@@ -183,6 +183,48 @@ export function splitAlphaNum(str) {
     return [alpha, numeric, substitution];
 }
 
+function computeInterresidueDist(splitTarget) {
+    const dist = [];
+    let lastChain = null;
+    let lastPos = null;
+
+    for (let i = 1; i < splitTarget.length; ++i) {
+        const curr = splitTarget[i];
+
+        if (curr === '_') {
+            dist.push(null);
+            continue;
+        }
+
+        let [currChain, currPos] = splitAlphaNum(curr);
+        currPos = currPos | 0;
+
+        // Find last valid residue before current
+        let j = i - 1;
+        while (j >= 0 && splitTarget[j] === '_') {
+            j--;
+        }
+        if (j < 0) {
+            dist.push(null);
+            lastChain = currChain;
+            lastPos = currPos;
+            continue;
+        }
+
+        let [prevChain, prevPos] = splitAlphaNum(splitTarget[j]);
+        prevPos = prevPos | 0;
+
+        const delta = (currChain === prevChain) ? (currPos - prevPos) : currPos;
+        dist.push(delta);
+
+        // Update last valid residue
+        lastChain = currChain;
+        lastPos = currPos;
+    }
+
+    return dist;
+}
+
 export function parseResultsFoldDisco(data) {
     let empty = 0;
     let total = 0;
@@ -201,11 +243,13 @@ export function parseResultsFoldDisco(data) {
             let item = result.alignments[j];
             let split = item.target.split('/');
             item.target = split[split.length-1];
-            item.gaps = item.targetresidues
-                .split(',')
+
+            const splitTarget = item.targetresidues.split(',');
+            item.gaps = splitTarget
                 .reduce((acc, s) => {
                     return acc + ((s == '_') ? '0' : '1');
                 }, '');
+            item.interresiduedist = computeInterresidueDist(splitTarget);
             item.idfscore = item.idfscore.toFixed(3);
             item.rmsd = item.rmsd.toFixed(3);
 

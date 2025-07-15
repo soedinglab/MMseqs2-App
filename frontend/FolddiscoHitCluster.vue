@@ -14,6 +14,7 @@
         <v-text-field
             label="Clustering Min Points"
             v-model="dbScanMinPts"
+            :disabled="dbScan == 'None'"
             persistent-hint
             type="number"
             min="0"
@@ -22,6 +23,7 @@
         <v-text-field
             label="Clustering Epsilion"
             v-model="dbScanEpsilion"
+            :disabled="dbScan == 'None'"
             persistent-hint
             type="number"
             min="0"
@@ -245,37 +247,22 @@ export default {
 
             let distances = [];
             for (let hit of Object.keys(hits.alignments)) {
-                const splitTarget = hits.alignments[hit][0].targetresidues.split(',');
-                let [ c, pos, sub ] = splitAlphaNum(splitTarget[0]);
-                let lastChain = c;
-                let lastPos = pos | 0;
-                let dist = [];
-                let acc = 0;
-                splitTarget.slice(1).map(curr => {
-                    if (curr == '_') {
-                        dist.push(null);
-                        return;
-                    }
-                    let [ c, pos, sub ] = splitAlphaNum(curr);
-                    if (c != lastChain) {
-                        acc += lastPos;
-                    }
-                    pos = (pos | 0) + acc;
-                    dist.push(pos - lastPos);
-                    lastChain = c;
-                    lastPos = pos;
-                });
-                distances.push(dist);
+                const gaps = hits.alignments[hit][0].gaps;
+                const dist = hits.alignments[hit][0].interresiduedist;
+                distances.push([gaps, dist]);
             }
             let clust;
             if (algorithm == "DBSCAN") {
                 clust = dbscan(
                     distances, epsilon * epsilon, minPoints,
                     (x, y) => {
+                        if (x[0] != y[0]) {
+                            return 10000;
+                        }
                         let sum = 0;
-                        for (let i = 0; i < Math.min(x.length, y.length); i++) {
-                            let a = x[i] ?? 10000;
-                            let b = y[i] ?? 10000;
+                        for (let i = 0; i < Math.min(x[1].length, y[1].length); i++) {
+                            let a = x[1][i] ?? 10000;
+                            let b = y[1][i] ?? 10000;
                             const d = a - b;
                             sum += d * d;
                         }
@@ -286,10 +273,13 @@ export default {
                 const { ordering, reachability, extractClusters } = optics(
                     distances, Infinity, minPoints, 
                     (x, y) => {
+                        if (x[0] != y[0]) {
+                            return 10000;
+                        }
                         let sum = 0;
-                        for (let i = 0; i < Math.min(x.length, y.length); i++) {
-                            let a = x[i] ?? 10000;
-                            let b = y[i] ?? 10000;
+                        for (let i = 0; i < Math.min(x[1].length, y[1].length); i++) {
+                            let a = x[1][i] ?? 10000;
+                            let b = y[1][i] ?? 10000;
                             const d = a - b;
                             sum += d * d;
                         }
