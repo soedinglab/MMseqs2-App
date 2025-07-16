@@ -110,33 +110,15 @@
                     <v-flex class="d-flex flex-row" style="gap: 24px">
                         <div style="flex-basis: 100%;">
                             <h3>Filter</h3>
-                            <v-select
-                                    :items="dbGaps[entry.db]"
-                                    clearable
-                                    @change="$set(gapFilter, entry.db, $event)"
-                                    @click:clear="$set(gapFilter, entry.db, '')"
-                                    label="Query residues"
-                                    persistent-hint
-                                >
-                                    <template v-slot:selection="{ item }">
-                                        <multi-slider
-                                            style="flex: 1 1 100%; width: 100%;"
-                                            :values="entry.queryresidues"
-                                            :value="item"
-                                            disabled
-                                            :background-color="entry.color">
-                                        </multi-slider>
-                                    </template>
-                                    <template v-slot:item="{ item }">
-                                        <multi-slider
-                                        style="flex: 1 1 100%; width: 100%;"
-                                        :values="entry.queryresidues"
-                                        :value="item"
-                                        disabled
-                                        :background-color="entry.color">
-                                    </multi-slider>
-                                </template>
-                            </v-select>
+                            <motif-filter
+                                :items="dbGaps[entry.db]"
+                                :value="gapFilter[entry.db] ? gapFilter[entry.db] : ''"
+                                @input="$set(gapFilter, entry.db, $event)"
+                                @click:clear="$set(gapFilter, entry.db, '')"
+                                :queryresidues="entry.queryresidues"
+                                :color="entry.color"
+                            >
+                            </motif-filter>
                         </div>
                         <div style="flex-basis: 100%;">
                             <h3>Cluster</h3>
@@ -283,8 +265,8 @@ import StructureViewerMotif from './StructureViewerMotif.vue';
 // import SankeyDiagram from './SankeyDiagram.vue';
 import { debounce } from './lib/debounce.js';
 // import { thresholdScott } from 'd3';
-import MultiSlider from './MultiSlider.vue';
 import FolddiscoHitCluster from './FolddiscoHitCluster.vue';
+import MotifFilter from './MotifFilter.vue';
 
 function getAbsOffsetTop($el) {
     var sum = 0;
@@ -299,7 +281,7 @@ function getAbsOffsetTop($el) {
 export default {
     name: 'ResultFoldDisco',
     tool: 'folddisco',
-    components: { Panel, StructureViewerMotif, MultiSlider, FolddiscoHitCluster },
+    components: { Panel, StructureViewerMotif, FolddiscoHitCluster, MotifFilter },
     // components: { ResultView },
     mixins: [ResultMixin],
     data() {
@@ -378,7 +360,7 @@ export default {
                 for (let hit of Object.keys(dbs.alignments)) {
                     uniqueGaps.add(dbs.alignments[hit][0].gaps);
                 }
-                dbGaps[dbs.db] = [...uniqueGaps];
+                dbGaps[dbs.db] = [...uniqueGaps, ''];
             }
             return dbGaps;
         },

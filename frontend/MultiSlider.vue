@@ -1,7 +1,10 @@
 <template>
     <div
     class="v-multi-slider"
-    :class="{'v-input--disabled': disabled}"
+    :class="{
+        'v-input--disabled': disabled,
+        'empty' : value == ''
+    }"
     :style="{
         '--multi-slider-background-color': backgroundColor,
         '--multi-slider-contrast-color':
@@ -278,6 +281,10 @@ export default {
     align-items: center;
     justify-content: center;
     font-weight: bold;
+}
+
+.empty .v-multi-slider__thumb {
+    outline-style: dashed;
 }
 
 .v-multi-slider__thumb.active {
