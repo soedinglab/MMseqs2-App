@@ -1,16 +1,19 @@
 <template>
     <v-flex class="d-flex flex-row" style="gap: 24px">
-        <!-- <v-checkbox
+        <v-checkbox
             label="Cluster"
             persistent-hint
             v-model="dbScan"
-        ></v-checkbox> -->
-        <v-select
+            true-value="DBSCAN"
+            false-value="None"
+            false-
+        ></v-checkbox>
+        <!-- <v-select
             label="Algorithm"
             persistent-hint
             :items="['None', 'DBSCAN', 'OPTICS']"
             v-model="dbScan"
-        ></v-select>
+        ></v-select> -->
         <v-text-field
             label="Clustering Min Points"
             v-model="dbScanMinPts"
@@ -215,7 +218,7 @@ export default {
         return {
             dbScan: "None",
             dbScanEpsilion: 8,
-            dbScanMinPts: 3,
+            dbScanMinPts: 2,
         }
     },
     computed: {

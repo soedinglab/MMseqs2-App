@@ -139,7 +139,7 @@
                             </v-select>
                         </div>
                         <div style="flex-basis: 100%;">
-                            <h3>Group</h3>
+                            <h3>Cluster</h3>
                             <folddisco-hit-cluster :hits="entry" v-on:cluster="$set(clusters, entry.db, $event)"></folddisco-hit-cluster>
                         </div>
                     </v-flex>
