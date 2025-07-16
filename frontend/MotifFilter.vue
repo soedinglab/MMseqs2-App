@@ -4,6 +4,7 @@
         label="Query residues"
         persistent-hint
         v-bind="$attrs"
+        v-on="$listeners"
     >
         <template v-slot:selection="{ item }">
             <multi-slider
