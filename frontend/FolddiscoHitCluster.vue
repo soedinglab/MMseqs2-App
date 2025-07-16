@@ -6,7 +6,6 @@
             v-model="dbScan"
             true-value="DBSCAN"
             false-value="None"
-            false-
         ></v-checkbox>
         <!-- <v-select
             label="Algorithm"
