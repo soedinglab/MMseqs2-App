@@ -103,8 +103,9 @@
                         <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
                             <span style="text-transform: uppercase;">{{ entry.db.replaceAll(/_folddisco$/g, '') }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
                         </h2>
-                        <!-- <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2"> -->
-                        <!-- <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram> -->
+                        <v-btn v-if="entry.hasTaxonomy" @click="toggleSankeyVisibility(entry.db)" large>
+                            {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
+                        </v-btn>
                     </v-flex>
 
                     <v-flex class="d-flex flex-row" style="gap: 24px">
@@ -125,43 +126,28 @@
                             <folddisco-hit-cluster :hits="entry" v-on:cluster="$set(clusters, entry.db, $event)"></folddisco-hit-cluster>
                         </div>
                     </v-flex>
+                    <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]">
+                        <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
+                    </v-flex>
 
                     <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
                         <colgroup>
                             <col style="width: 20%;" /> <!-- target -->
-                            <col style="width: 10%;" /> <!-- nodecount -->
+                            <col v-if="entry.hasDescription" style="width: 30%;" /> 
+                            <col v-if="entry.hasTaxonomy" style="width: 20%;" />
                             <col style="width: 10%;" /> <!-- idf-score --> 
                             <col style="width: 10%;" /> <!-- RMSD --> 
+                            <col style="width: 6.5%;" /> <!-- nodecount -->
                             <col style="width: 20%;" /> <!-- Matched residues --> 
-                            <col style="width: 10%;" /> <!-- Alignment --> 
-                            <!-- <col v-if="entry.hasDescription" style="width: 30%;" />
-                            <col v-if="entry.hasTaxonomy" style="width: 20%;" />
-                            <col style="width: 6.5%;" />
-                            <col style="width: 6.5%;" />
-                            <col style="width: 8.5%;" /> -->
-                            <!-- <template>
-                                <col style="width: 6.5%;" />
-                                <col style="width: 10%;" />
-                                <col style="width: 10%;" />
-                            </template> -->
-                            <!-- <template v-if="tableMode == 0">
-                                <col style="width: 26.5%;" />
-                            </template>
-                            <template v-else>
-                                <col style="width: 6.5%;" />
-                                <col style="width: 10%;" />
-                                <col style="width: 10%;" />
-                            </template> -->
-                            <!-- <col style="width: 10%;" /> -->
+                            <!-- <col style="width: 20%;" /> Interresidue --> 
+                            <col style="width: 6.5%;" /> <!-- action -->
                         </colgroup>
                         <thead>
                             <tr>
                                 <th :class="'wide-' + (3 - entry.hasDescription - entry.hasTaxonomy)">
-                                    <template>
-                                        Target
-                                    </template>
+                                    Target
                                 </th>
-                                <!-- <th v-if="entry.hasDescription">
+                                <th v-if="entry.hasDescription">
                                     Description
                                     <v-tooltip open-delay="300" top>
                                         <template v-slot:activator="{ on }">
@@ -169,11 +155,11 @@
                                         </template>
                                         <span>Triple click to select whole cell (for very long identifiers)</span>
                                     </v-tooltip>
-                                </th> -->
-                                <!-- <th v-if="entry.hasTaxonomy">Scientific Name</th> -->
-                                <th class="thin">Node count</th>
+                                </th>
+                                <th v-if="entry.hasTaxonomy">Scientific Name</th>
                                 <th class="thin">idf-score</th>
                                 <th class="thin">RMSD</th>
+                                <th class="thin">Nodes</th>
                                 <th>
                                     Matched residues
                                     <v-tooltip open-delay="300" top>
@@ -183,6 +169,7 @@
                                         <span>The position of the aligned motif residues in the target</span>
                                     </v-tooltip>
                                 </th>
+                                <!-- <th>Interresidue Dist</th> -->
                                 <th class="alignment-action thin">Structure</th>
                             </tr>
                         </thead>
@@ -195,7 +182,7 @@
                             </tr>
                             {{ void(clusterShown = true) }}
                             <tr :class="['hit', { 'active' : item.active }]">
-                                <td class="db long" data-label="Target" :style="{ 'border-width' : null, 'border-color' : entry.color }">
+                                <td class="db long" data-label="Target" :style="{ 'border-color' : entry.color }">
                                     <a :id="item.id" class="anchor" style="position: absolute; top: 0"></a>
                                     <!-- <template v-if="isComplex">
                                         {{ item.query.lastIndexOf('_') != -1 ? item.query.substring(item.query.lastIndexOf('_')+1) : '' }} ➔ 
@@ -203,12 +190,21 @@
                                     <a style="text-decoration: underline; color: #2196f3;" v-if="Array.isArray(item.href)" @click="forwardDropdown($event, item.href)"rel="noopener" :title="item.target">{{item.targetname}}</a>
                                     <a v-else :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.targetname}}</a>
                                 </td>
-                                <td class="thin" data-label="Node count">{{ item.nodecount }}</td>
+                                <td class="long" data-label="Description" v-if="entry.hasDescription">
+                                    <span :title="item.description">{{ item.description }}</span>
+                                </td>
+                                <td class="long" v-if="entry.hasTaxonomy" data-label="Taxonomy">
+                                    <a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" target="_blank" rel="noopener" :title="item.taxName">{{ item.taxName }}</a>
+                                </td>
                                 <td class="thin" data-label="idf-score">{{ item.idfscore }}</td>
                                 <td class="thin" data-label="RMSD">{{ item.rmsd }}</td>
+                                <td class="thin" data-label="Node count">{{ item.nodecount }}</td>
                                 <td data-label="Matched residues">
                                     <span class="matched-residues-text" :title="item.targetresidues">{{ item.targetresidues }}</span>
                                 </td> 
+                                <!-- <td data-label="Matched residues">
+                                    <span class="matched-residues-text" :title="item.interresiduedist">{{ item.interresiduedist }}</span>
+                                </td> -->
                                 <td class="alignment-action thin" :rowspan="1">
                                     <!-- performance issue with thousands of v-btns, hardcode the minimal button instead -->
                                     <!-- <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
@@ -267,6 +263,7 @@ import { debounce } from './lib/debounce.js';
 // import { thresholdScott } from 'd3';
 import FolddiscoHitCluster from './FolddiscoHitCluster.vue';
 import MotifFilter from './MotifFilter.vue';
+import ResultSankeyMixin from './ResultSankeyMixin.vue';
 
 function getAbsOffsetTop($el) {
     var sum = 0;
@@ -283,7 +280,7 @@ export default {
     tool: 'folddisco',
     components: { Panel, StructureViewerMotif, FolddiscoHitCluster, MotifFilter },
     // components: { ResultView },
-    mixins: [ResultMixin],
+    mixins: [ ResultMixin, ResultSankeyMixin ],
     data() {
         return {
             ticket: "",
@@ -291,21 +288,17 @@ export default {
             hits: null,
             queryPdb: null,
             targetPdb: null,
-
             alignment: null,
             activeTarget: null,
             alnBoxOffset: 0,
             selectedDatabases: 0,
-            // selectedTaxId: null,
-            // isSankeyVisible: {}, // Track visibility for each db's Sankey Diagram
             selectedDb: null,
-            localSelectedTaxId: null,
-            filteredHitsTaxIds: [],
             menuActivator: null,
             menuItems: [],
             queryResidues: null,
             gapFilter: {},
             clusters: {},
+            selectedTaxId: null,
         }
     },
     created() {
@@ -392,10 +385,6 @@ export default {
         hits: function() {
             this.setColorScheme();
         },
-        // selectedTaxId(newVal) {
-        //     this.localSelectedTaxId = newVal;
-        //     this.handleSankeySelect({ nodeId: newVal, db: this.selectedDb });
-        // }
     },
     methods: {
         log(args) {
@@ -446,16 +435,6 @@ export default {
                 this.menuActivator.click(event);
             }
         },
-        // toggleSankeyVisibility(db) {
-        //     // Toggle visibility for the specific entry.db
-        //     this.$set(this.isSankeyVisible, db, !this.isSankeyVisible[db]);
-        // },
-        // handleSankeySelect({ nodeId, descendantIds, db }) {
-        //     this.closeAlignment();
-        //     this.localSelectedTaxId = nodeId;
-        //     this.filteredHitsTaxIds = descendantIds ? descendantIds.map(Number) : null; 
-        //     this.selectedDb = db;
-        // },
         handleChangeDatabase() {
             this.closeAlignment();
             this.localSelectedTaxId = null;

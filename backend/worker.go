@@ -1447,6 +1447,87 @@ rm -rf -- "${BASE}/tmp"
 					if err != nil {
 						errChan <- &JobExecutionError{err}
 					} else {
+						if params.FullHeader || params.Taxonomy {
+							foldseekDb := strings.Replace(database, "_folddisco", "", 1)
+							if fileExists(filepath.Join(config.Paths.Databases, foldseekDb+".dbtype")) {
+								columns := "bits"
+								if params.FullHeader {
+									columns += ",theader"
+								} else {
+									columns += ",empty"
+								}
+								if params.Taxonomy {
+									columns += ",taxid,taxname"
+								}
+								// make fake foldseek dbs so we can call convertalis for description and taxonomy
+								parameters = []string{
+									"awk",
+									"-v",
+									"db=" + filepath.Join(resultBase, "alis_"+database+"_db"),
+									`BEGIN { printf("") > db; printf("") > db"_seq"; printf("") > db"_seq_h"; }
+!($9 in f) { entry = $9"\t"$9"\t0.00\t0\t0\t0\t0\t0\t0\t0\t0"; print(entry) >> db; len += length(entry) + 1; f[$9] = 1; }
+END { printf("%c", 0) >> db; printf("%c", 0) >> db"_seq"; printf("%c", 0) >> db"_seq_h";
+print "0\t0\t"(len + 1) > db".index"; print "0\t0\t0" > db"_seq.index"; print "0\t0\t0" > db"_seq_h.index";
+printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.dbtype"; printf("%c%c%c%c",11,0,0,0) > db"_seq_h.dbtype"
+}`,
+									filepath.Join(resultBase, "alis_"+database),
+								}
+								err = execCommandSync(
+									config.Verbose,
+									parameters,
+									[]string{},
+									1*time.Minute,
+								)
+								if err != nil {
+									errChan <- &JobExecutionError{err}
+									return
+								}
+								err = execCommandSync(
+									config.Verbose,
+									[]string{
+										config.Paths.Foldseek,
+										"convertalis",
+										filepath.Join(resultBase, "alis_"+database+"_db_seq"),
+										filepath.Join(config.Paths.Databases, foldseekDb),
+										filepath.Join(resultBase, "alis_"+database+"_db"),
+										filepath.Join(resultBase, "alis_"+database+".tsv"),
+										"--format-output",
+										columns,
+										"--db-load-mode",
+										"2",
+										"--db-output",
+										"0",
+									},
+									[]string{},
+									1*time.Minute,
+								)
+								if err != nil {
+									errChan <- &JobExecutionError{err}
+									return
+								}
+								if params.Taxonomy {
+									err = execCommandSync(
+										config.Verbose,
+										[]string{
+											config.Paths.Foldseek,
+											"taxonomyreport",
+											filepath.Join(config.Paths.Databases, foldseekDb),
+											filepath.Join(resultBase, "alis_"+database+"_db"),
+											filepath.Join(resultBase, "alis_"+database+"_report"),
+											"--report-mode",
+											"3",
+										},
+										[]string{},
+										1*time.Minute,
+									)
+									if err != nil {
+										errChan <- &JobExecutionError{err}
+										return
+									}
+								}
+							}
+						}
+
 						errChan <- nil
 					}
 				}

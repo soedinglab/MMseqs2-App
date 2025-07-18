@@ -239,6 +239,15 @@ export function parseResultsFoldDisco(data) {
         total++;
         result.queryresidues = {};
         const grouped = {};
+        let meta = null;
+        if ("meta" in result) {
+            meta = {};
+            for (let j in result.meta) {
+                let entry = result.meta[j];
+                meta[entry.key] = entry;
+            }
+        }
+        result.meta = null;
         for (let j in result.alignments) {
             let item = result.alignments[j];
             let split = item.target.split('/');
@@ -263,16 +272,23 @@ export function parseResultsFoldDisco(data) {
                     result.queryresidues[chain].add(pos - 0);
                 });
 
-            // item.description = split.slice(1).join(' ');
-            // if (item.description.length > 1) {
-            //     result.hasDescription = true;
-            // }
             item.href = tryLinkTargetToDB(item.target, db);
             item.targetname = tryFixTargetName(item.target, db).toUpperCase();
-            // item.id = 'result-' + i + '-' + j;
-            // item.active = false;
+            item.id = 'result-' + i + '-' + j;
+            if (meta != null) {
+                let header = meta[item.dbkey].header;
+                let split = header.split(' ');
+                item.description = split.slice(1).join(' ');
+                if (item.description.length > 1) {
+                    result.hasDescription = true;
+                }
+                if ("taxId" in meta[item.dbkey]) {
+                    item.taxId = meta[item.dbkey].taxId;
+                    item.taxName = meta[item.dbkey].taxName;
+                    result.hasTaxonomy = true;
+                }
+            }
             let groupId = j;
-            // // console.log("Group ID: " + groupId + " complexid: " + item.complexid + " j: " + j)
             if (!(grouped[groupId])) {
                 grouped[groupId] = [];
             }

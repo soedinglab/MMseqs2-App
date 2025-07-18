@@ -259,7 +259,7 @@
 import Panel from './Panel.vue';
 import AlignmentPanel from './AlignmentPanel.vue';
 import Ruler from './Ruler.vue';
-import SankeyDiagram from './SankeyDiagram.vue';
+import ResultSankeyMixin from './ResultSankeyMixin.vue';
 
 import { debounce } from './lib/debounce';
 
@@ -274,17 +274,15 @@ function getAbsOffsetTop($el) {
 
 export default {
     name: 'ResultView',
-    components: { Panel, AlignmentPanel, Ruler, SankeyDiagram },
+    mixins: [ ResultSankeyMixin ],
+    components: { Panel, AlignmentPanel, Ruler },
     data() {
         return {
             alignment: null,
             activeTarget: null,
             alnBoxOffset: 0,
             selectedDatabases: 0,
-            isSankeyVisible: {}, // Track visibility for each db's Sankey Diagram
             selectedDb: null,
-            localSelectedTaxId: null,
-            filteredHitsTaxIds: [],
             tableMode: 0,
             menuActivator: null,
             menuItems: [],
@@ -345,12 +343,6 @@ export default {
             return "ERROR";
         }
     },
-    watch: {
-        selectedTaxId(newVal) {
-            this.localSelectedTaxId = newVal;
-            this.handleSankeySelect({ nodeId: newVal, db: this.selectedDb });
-        }
-    },
     methods: {
         log(args) {
             console.log(args);
@@ -383,16 +375,6 @@ export default {
                 this.menuItems = items;
                 this.menuActivator.click(event);
             }
-        },
-        toggleSankeyVisibility(db) {
-            // Toggle visibility for the specific entry.db
-            this.$set(this.isSankeyVisible, db, !this.isSankeyVisible[db]);
-        },
-        handleSankeySelect({ nodeId, descendantIds, db }) {
-            this.closeAlignment();
-            this.localSelectedTaxId = nodeId;
-            this.filteredHitsTaxIds = descendantIds ? descendantIds.map(Number) : null; 
-            this.selectedDb = db;
         },
         handleChangeDatabase() {
             this.closeAlignment();

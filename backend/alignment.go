@@ -210,9 +210,19 @@ func (entry FoldDiscoAlignmentEntry) MarshalJSON() ([]byte, error) {
 	}
 }
 
+type FolddiscoMeta struct {
+	MarshalFormat MarshalFormat `json:"-"`
+	TargetKey     uint32        `json:"key"`
+	Header        string        `json:"header"`
+	TaxonId       json.Number   `json:"taxId,omitempty"`
+	TaxonName     string        `json:"taxName,omitempty"`
+}
+
 type FoldDiscoResult struct {
-	Database   string      `json:"db"`
-	Alignments interface{} `json:"alignments"`
+	Database        string                    `json:"db"`
+	Alignments      []FoldDiscoAlignmentEntry `json:"alignments"`
+	Meta            []FolddiscoMeta           `json:"meta,omitempty"`
+	TaxonomyReports interface{}               `json:"taxonomyreports"`
 }
 
 type EmptyEntry struct{}
@@ -422,6 +432,7 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 
 func ReadFoldDisco(id Id, databases []string, jobsbase string) ([]FoldDiscoResult, error) {
 	base := filepath.Join(jobsbase, string(id))
+	taxonomyReader := Reader[uint32]{}
 
 	var allAlignments []FoldDiscoAlignmentEntry
 	res := make([]FoldDiscoResult, 0)
@@ -439,7 +450,41 @@ func ReadFoldDisco(id Id, databases []string, jobsbase string) ([]FoldDiscoResul
 			return res, err
 		}
 
-		res = append(res, FoldDiscoResult{db, allAlignments})
+		var meta []FolddiscoMeta
+		metafile := path + ".tsv"
+		if fileExists(metafile) {
+			file, err := os.Open(metafile)
+			if err != nil {
+				return nil, fmt.Errorf("result file not found")
+			}
+			defer file.Close()
+
+			meta, err = ReadAlignment[FolddiscoMeta](file)
+			if err != nil {
+				return res, err
+			}
+		}
+
+		allTaxonomyReports := make([][]TaxonomyReport, 0)
+		if fileExists(path + "_report") {
+			err = taxonomyReader.Make(dbpaths(path + "_report"))
+			if err != nil {
+				return res, err
+			}
+			taxBody := taxonomyReader.Data(0)
+
+			// Parse single query’s taxonomy data
+			taxResult, err := ReadTaxonomyReport(taxBody)
+			if err != nil {
+				taxonomyReader.Delete()
+				return nil, err
+			}
+
+			allTaxonomyReports = append(allTaxonomyReports, taxResult)
+			taxonomyReader.Delete()
+		}
+
+		res = append(res, FoldDiscoResult{db, allAlignments, meta, allTaxonomyReports})
 	}
 
 	return res, nil
