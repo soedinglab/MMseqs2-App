@@ -61,7 +61,7 @@ var defaultFileContent = []byte(`{
         // path to job results and scratch directory, has to be shared between server/workers
         "results"      : "~jobs",
         // temporary files for index building
-        "temporary"      : "~tmp",
+        "temporary"    : "~tmp",
         /*
         // paths to colabfold templates
         "colabfold"    : {
