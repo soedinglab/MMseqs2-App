@@ -60,6 +60,8 @@ var defaultFileContent = []byte(`{
         "databases"    : "~databases",
         // path to job results and scratch directory, has to be shared between server/workers
         "results"      : "~jobs",
+        // temporary files for index building
+        "temporary"      : "~tmp",
         /*
         // paths to colabfold templates
         "colabfold"    : {
@@ -96,6 +98,7 @@ var defaultFileContent = []byte(`{
         "foldseek"     : "~foldseek",
         "foldmason"    : "~foldmason",
 		"folddisco"    : "~folddisco",
+		"foldcomp"     : "~foldcomp",
 		"pdb100"       : "~pdb100",
         // path to mmseqs binary
         "mmseqs"       : "~mmseqs",
@@ -326,8 +329,23 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 		return config, fmt.Errorf("fatal error for config file: %s", err)
 	}
 
-	paths := []*string{&config.Paths.Databases, &config.Paths.Results, &config.Paths.Mmseqs}
-	if config.Paths.ColabFold != nil {
+	paths := []*string{&config.Paths.Databases, &config.Paths.Results, &config.Paths.Temporary}
+
+	if config.App == AppMMseqs2 || config.App == AppColabFold || config.App == AppPredictProtein {
+		paths = append(paths, &config.Paths.Mmseqs)
+	}
+
+	if config.App == AppFoldseek {
+		paths = append(
+			paths,
+			&config.Paths.Foldseek,
+			&config.Paths.FoldMason,
+			&config.Paths.FoldDisco,
+			&config.Paths.FoldComp,
+		)
+	}
+
+	if config.App == AppColabFold && config.Paths.ColabFold != nil {
 		paths = append(
 			paths,
 			&config.Paths.ColabFold.Uniref,
