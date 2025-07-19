@@ -394,7 +394,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					return
 				}
 
-				allowedModes := []string{"3di", "tmalign", "3diaa"}
+				allowedModes := []string{"3di", "tmalign", "3diaa", "lolalign"}
 				allowedTags := []string{"print3di"}
 
 				modeStr, tags, err := ParseMode(job.Mode, allowedModes, allowedTags)
@@ -403,7 +403,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					return
 				}
 
-				var mode2num = map[string]string{"3di": "0", "tmalign": "1", "3diaa": "2"}
+				var mode2num = map[string]string{"3di": "0", "tmalign": "1", "3diaa": "2", "lolalign": "3"}
 				mode, found := mode2num[modeStr]
 				if !found {
 					errChan <- &JobExecutionError{errors.New("invalid mode selected: " + modeStr)}
@@ -411,7 +411,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				}
 
 				// overwrite tmalign mode with 3diaa if 3di input
-				if is3Di && mode == "1" {
+				if is3Di && (mode == "1" || mode == "3") {
 					mode = "2"
 				}
 
@@ -614,7 +614,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					return
 				}
 
-				var mode2num = map[string]string{"3di": "0", "tmalign": "1", "3diaa": "2"}
+				var mode2num = map[string]string{"3di": "0", "tmalign": "1", "3diaa": "2", "lolalign": "3"}
 				mode, found := mode2num[job.Mode]
 				if !found {
 					errChan <- &JobExecutionError{errors.New("invalid mode selected")}

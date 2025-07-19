@@ -12,7 +12,7 @@ import (
 type ComplexSearchJob struct {
 	Size      int      `json:"size" validate:"required"`
 	Database  []string `json:"database" validate:"required"`
-	Mode      string   `json:"mode" validate:"oneof=3di tmalign 3diaa"`
+	Mode      string   `json:"mode" validate:"oneof=3di tmalign 3diaa lolalign"`
 	TaxFilter string   `json:"taxfilter"`
 	query     string
 }

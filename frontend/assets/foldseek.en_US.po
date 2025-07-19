@@ -139,10 +139,12 @@ msgstr ""
 "<strong>3Di/AA:</strong> fast prefilter using the 3Di alphabet and alignment "
 "using the 3Di alphabet+BLOSUM62 based Smith-Waterman-Gotoh (local alignment)<br>\n"
 "<strong>TM-align:</strong> fast prefilter using the 3Di alphabet and "
-"alignment using TM-align (global-alignment)"
+"alignment using TM-align (global-alignment)<br>\n"
+"<strong>LoLAlign:</strong> fast prefilter using the 3Di alphabet and "
+"alignment using LoL-align (probabilistic multi-domain structure alignment)"
 
 msgid "MODE_COUNT"
-msgstr "2"
+msgstr "3"
 
 msgid "MODE_DEFAULT_KEY"
 msgstr "3diaa"
@@ -158,6 +160,12 @@ msgstr "tmalign"
 
 msgid "MODE_TITLE_2"
 msgstr "TM-align"
+
+msgid "MODE_KEY_3"
+msgstr "lolalign"
+
+msgid "MODE_TITLE_3"
+msgstr "LoL-align"
 
 msgid "MODE_HELP_FOLDDISCO"
 msgstr ""

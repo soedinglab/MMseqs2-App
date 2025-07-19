@@ -12,7 +12,7 @@ import (
 type StructureSearchJob struct {
 	Size            int      `json:"size" validate:"required"`
 	Database        []string `json:"database" validate:"required"`
-	Mode            string   `json:"mode" validate:"required,mode=3di tmalign 3diaa;print3di"`
+	Mode            string   `json:"mode" validate:"required,mode=3di tmalign 3diaa lolalign;print3di"`
 	IterativeSearch bool     `json:"iterativesearch"`
 	TaxFilter       string   `json:"taxfilter"`
 	query           string
