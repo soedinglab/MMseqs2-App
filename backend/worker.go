@@ -1119,8 +1119,10 @@ DB2="$6"
 USE_ENV="$7"
 USE_PAIRWISE="$8"
 PAIRING_STRATEGY="$9"
-GPU="${10}"
-GPUSERVER="${11}"
+PAIRING_FILTER="${10}"
+PAIRING_FILTER_PROX="${11}"
+GPU="${12}"
+GPUSERVER="${13}"
 SEARCH_PARAM="--num-iterations 3 --db-load-mode 2 -a --k-score 'seq:96,prof:80' -e 0.1 --max-seqs 10000"
 EXPAND_PARAM="--expansion-mode 0 -e inf --expand-filter-clusters 0 --max-seq-id 0.95"
 if [ "${GPU}" = "1" ]; then
@@ -1147,9 +1149,9 @@ if [ "${USE_PAIRWISE}" = "1" ]; then
 fi
 "${MMSEQS}" expandaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res" "${DB1}.idx" "${BASE}/res_exp" --db-load-mode 2 ${EXPAND_PARAM}
 "${MMSEQS}" align   "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 -c 0.5 --cov-mode 1
-"${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-dummy-mode 0
+"${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-filter "${PAIRING_FILTER}" --pairing-prox-dist "${PAIRING_FILTER_PROX}" --pairing-dummy-mode 0
 "${MMSEQS}" align   "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_pair" "${BASE}/res_exp_realign_pair_bt" --db-load-mode 2 -e inf -a
-"${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-dummy-mode 1
+"${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-filter "${PAIRING_FILTER}" --pairing-prox-dist "${PAIRING_FILTER_PROX}" --pairing-dummy-mode 1
 "${MMSEQS}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_final" "${BASE}/pair.a3m" --db-load-mode 2 --msa-format-mode 5
 
 "${MMSEQS}" rmdb "${BASE}/res"
@@ -1167,9 +1169,9 @@ if [ "${USE_ENV}" = "1" ]; then
 	"${MMSEQS}" search "${BASE}/qdb" "${DB2}" "${BASE}/res" "${BASE}/tmp" $SEARCH_PARAM
 	"${MMSEQS}" expandaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res" "${DB2}.idx" "${BASE}/res_exp" --db-load-mode 2 ${EXPAND_PARAM}
 	"${MMSEQS}" align   "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 -c 0.5 --cov-mode 1
-	"${MMSEQS}" pairaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-dummy-mode 0
+	"${MMSEQS}" pairaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-filter 0 --pairing-dummy-mode 0
 	"${MMSEQS}" align   "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp_realign_pair" "${BASE}/res_exp_realign_pair_bt" --db-load-mode 2 -e inf -a
-	"${MMSEQS}" pairaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-dummy-mode 1
+	"${MMSEQS}" pairaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-filter 0 --pairing-dummy-mode 1
 	"${MMSEQS}" result2msa "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_final" "${BASE}/pair.env.a3m" --db-load-mode 2 --msa-format-mode 5
 	cat "${BASE}/pair.a3m" "${BASE}/pair.env.a3m" > "${BASE}/pair.a3m_tmp"
 	mv -f -- "${BASE}/pair.a3m_tmp" "${BASE}/pair.a3m"
@@ -1202,6 +1204,7 @@ rm -rf -- "${BASE}/tmp"
 		if pairGreedy && pairComplete {
 			return &JobInvalidError{}
 		}
+
 		pairingStrategy := "0"
 		if pairGreedy {
 			pairingStrategy = "0"
@@ -1209,18 +1212,51 @@ rm -rf -- "${BASE}/tmp"
 			pairingStrategy = "1"
 		}
 
+
+		pairFilterBest := isIn("pairfilterbest", modes) != -1
+		pairFilterProx := false
+		pairFilterProxThreshold := "20"
+		for _, mode := range modes {
+			if mode == "pairfilterprox" {
+				pairFilterProx = true          
+				break                          
+			}
+			// set distance through "pairfilterprox" parameter
+			if strings.HasPrefix(mode, "pairfilterprox_") {
+				parts := strings.SplitN(mode, "_", 2)
+				if len(parts) == 2 && parts[1] != "" {
+					pairFilterProx = true             
+					pairFilterProxThreshold = parts[1] 
+					break                              
+				}
+			}
+		}
+
+		if pairFilterBest && pairFilterProx {
+			return &JobInvalidError{}
+		}
+
+		pairFilter := "0"
+		if pairFilterBest {
+			pairFilter = "0"
+		} else if pairFilterProx { 
+			pairFilter = "1"
+		}
+
 		parameters := []string{
 			"/bin/sh",
 			scriptPath,
 			config.Paths.Mmseqs,
 			filepath.Join(resultBase, "job.fasta"),
-			config.Paths.Databases,
+			"",
 			resultBase,
 			config.Paths.ColabFold.Uniref,
 			config.Paths.ColabFold.EnvironmentalPair,
 			strconv.Itoa(b2i[useEnv]),
 			strconv.Itoa(b2i[usePairwise]),
 			pairingStrategy,
+			pairFilter,
+			pairFilterProxThreshold,
 			strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseGpu]),
 			strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseServer]),
 		}
