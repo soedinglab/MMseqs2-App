@@ -967,7 +967,7 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 		}
 
 		environ := []string{}
-		if config.Paths.ColabFold != nil {
+		if config.Paths.ColabFold.Gpu != nil {
 			unirefDevices := config.Paths.ColabFold.Gpu.Devices
 			if config.Paths.ColabFold.Gpu.UnirefDevices != "" {
 				unirefDevices = config.Paths.ColabFold.Gpu.UnirefDevices
