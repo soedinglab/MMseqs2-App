@@ -940,6 +940,13 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 		m8out := isIn("m8output", modes) == 1
 		var b2i = map[bool]int{false: 0, true: 1}
 
+		gpuEnabled := "0"
+		gpuServerEnabled := "0"
+		if config.Paths.ColabFold.Gpu != nil {
+			gpuEnabled = strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseGpu])
+			gpuServerEnabled = strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseServer])
+		}
+
 		parameters := []string{
 			"/bin/sh",
 			scriptPath,
@@ -955,8 +962,8 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 			strconv.Itoa(b2i[useFilter]),
 			strconv.Itoa(b2i[taxonomy]),
 			strconv.Itoa(b2i[m8out]),
-			strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseGpu]),
-			strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseServer]),
+			gpuEnabled,
+			gpuServerEnabled,
 		}
 
 		environ := []string{}
@@ -1243,6 +1250,14 @@ rm -rf -- "${BASE}/tmp"
 			pairFilter = "1"
 		}
 
+
+		gpuEnabled := "0"
+		gpuServerEnabled := "0"
+		if config.Paths.ColabFold.Gpu != nil {
+			gpuEnabled = strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseGpu])
+			gpuServerEnabled = strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseServer])
+		}
+
 		parameters := []string{
 			"/bin/sh",
 			scriptPath,
@@ -1257,24 +1272,26 @@ rm -rf -- "${BASE}/tmp"
 			pairingStrategy,
 			pairFilter,
 			pairFilterProxThreshold,
-			strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseGpu]),
-			strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseServer]),
+			gpuEnabled,
+			gpuServerEnabled,
 		}
-
+		
 		environ := []string{}
-		unirefDevices := config.Paths.ColabFold.Gpu.Devices
-		if config.Paths.ColabFold.Gpu.UnirefDevices != "" {
-			unirefDevices = config.Paths.ColabFold.Gpu.UnirefDevices
-		}
-		if unirefDevices != "" {
-			environ = append(environ, "UNIREF_CUDA_VISIBLE_DEVICES="+unirefDevices)
-		}
-		envDevices := config.Paths.ColabFold.Gpu.Devices
-		if config.Paths.ColabFold.Gpu.EnvironmentalDevices != "" {
-			envDevices = config.Paths.ColabFold.Gpu.EnvironmentalDevices
-		}
-		if envDevices != "" {
-			environ = append(environ, "ENV_CUDA_VISIBLE_DEVICES="+envDevices)
+		if config.Paths.ColabFold.Gpu != nil {
+			unirefDevices := config.Paths.ColabFold.Gpu.Devices
+			if config.Paths.ColabFold.Gpu.UnirefDevices != "" {
+				unirefDevices = config.Paths.ColabFold.Gpu.UnirefDevices
+			}
+			if unirefDevices != "" {
+				environ = append(environ, "UNIREF_CUDA_VISIBLE_DEVICES="+unirefDevices)
+			}
+			envDevices := config.Paths.ColabFold.Gpu.Devices
+			if config.Paths.ColabFold.Gpu.EnvironmentalDevices != "" {
+				envDevices = config.Paths.ColabFold.Gpu.EnvironmentalDevices
+			}
+			if envDevices != "" {
+				environ = append(environ, "ENV_CUDA_VISIBLE_DEVICES="+envDevices)
+			}
 		}
 
 		cmd, done, err := execCommand(config.Verbose, parameters, environ)
