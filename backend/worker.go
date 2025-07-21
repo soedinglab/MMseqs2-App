@@ -1157,11 +1157,11 @@ if [ "${USE_PAIRWISE}" = "1" ]; then
 	mv -f -- "${BASE}/qdb.lookup_tmp" "${BASE}/qdb.lookup"
 fi
 "${MMSEQS}" expandaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res" "${DB1}.idx" "${BASE}/res_exp" --db-load-mode 2 ${EXPAND_PARAM}
-"${MMSEQS}" align   "${BASE}/prof_res" "${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 -c 0.5 --cov-mode 1
+"${MMSEQS}" align   "${BASE}/prof_res" "${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000
 "${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-filter "${PAIRING_FILTER}" --pairing-prox-dist "${PAIRING_FILTER_PROX}" --pairing-dummy-mode 0
 "${MMSEQS}" align   "${BASE}/prof_res" "${DB1}.idx" "${BASE}/res_exp_realign_pair" "${BASE}/res_exp_realign_pair_bt" --db-load-mode 2 -e inf -a
 "${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-filter "${PAIRING_FILTER}" --pairing-prox-dist "${PAIRING_FILTER_PROX}" --pairing-dummy-mode 1
-"${MMSEQS}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_final" "${BASE}/pair.a3m" --db-load-mode 2 --msa-format-mode 5
+"${MMSEQS}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_final" "${BASE}/pair.a3m" --db-load-mode 2 --msa-format-mode 6
 
 "${MMSEQS}" rmdb "${BASE}/res"
 "${MMSEQS}" rmdb "${BASE}/res_exp"
