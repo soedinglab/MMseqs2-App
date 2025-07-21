@@ -1145,6 +1145,8 @@ if [ -n "$UNIREF_CUDA_VISIBLE_DEVICES" ]; then
   export CUDA_VISIBLE_DEVICES="${UNIREF_CUDA_VISIBLE_DEVICES}"
 fi
 "${MMSEQS}" search "${BASE}/qdb" "${DB1}" "${BASE}/res" "${BASE}/tmp" $SEARCH_PARAM
+"${MMSEQS}" mvdb "${BASE}/tmp/latest/profile_1" "${BASE}/prof_res"
+"${MMSEQS}" lndb "${BASE}/qdb_h" "${BASE}/prof_res_h"
 if [ "${USE_PAIRWISE}" = "1" ]; then
     for i in qdb res qdb_h; do
 		awk 'BEGIN { OFS="\t"; cnt = 0; } NR == 1 { off = $2; len = $3; next; } { print (2*cnt),off,len; print (2*cnt)+1,$2,$3; cnt+=1; }' "${BASE}/${i}.index" > "${BASE}/${i}.index_tmp"
@@ -1155,9 +1157,9 @@ if [ "${USE_PAIRWISE}" = "1" ]; then
 	mv -f -- "${BASE}/qdb.lookup_tmp" "${BASE}/qdb.lookup"
 fi
 "${MMSEQS}" expandaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res" "${DB1}.idx" "${BASE}/res_exp" --db-load-mode 2 ${EXPAND_PARAM}
-"${MMSEQS}" align   "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 -c 0.5 --cov-mode 1
+"${MMSEQS}" align   "${BASE}/prof_res" "${DB1}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 -c 0.5 --cov-mode 1
 "${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-filter "${PAIRING_FILTER}" --pairing-prox-dist "${PAIRING_FILTER_PROX}" --pairing-dummy-mode 0
-"${MMSEQS}" align   "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_pair" "${BASE}/res_exp_realign_pair_bt" --db-load-mode 2 -e inf -a
+"${MMSEQS}" align   "${BASE}/prof_res" "${DB1}.idx" "${BASE}/res_exp_realign_pair" "${BASE}/res_exp_realign_pair_bt" --db-load-mode 2 -e inf -a
 "${MMSEQS}" pairaln "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-filter "${PAIRING_FILTER}" --pairing-prox-dist "${PAIRING_FILTER_PROX}" --pairing-dummy-mode 1
 "${MMSEQS}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res_final" "${BASE}/pair.a3m" --db-load-mode 2 --msa-format-mode 5
 
@@ -1167,6 +1169,9 @@ fi
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign_pair"
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign_pair_bt"
 "${MMSEQS}" rmdb "${BASE}/res_final"
+"${MMSEQS}" rmdb "${BASE}/prof_res"
+"${MMSEQS}" rmdb "${BASE}/prof_res_h"
+
 
 if [ "${USE_ENV}" = "1" ]; then
 	unset CUDA_VISIBLE_DEVICES
@@ -1174,10 +1179,12 @@ if [ "${USE_ENV}" = "1" ]; then
 		export CUDA_VISIBLE_DEVICES="${ENV_CUDA_VISIBLE_DEVICES}"
 	fi
 	"${MMSEQS}" search "${BASE}/qdb" "${DB2}" "${BASE}/res" "${BASE}/tmp" $SEARCH_PARAM
+	"${MMSEQS}" mvdb "${BASE}/tmp/latest/profile_1" "${BASE}/prof_res"
+    "${MMSEQS}" lndb "${BASE}/qdb_h" "${BASE}/prof_res_h"
 	"${MMSEQS}" expandaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res" "${DB2}.idx" "${BASE}/res_exp" --db-load-mode 2 ${EXPAND_PARAM}
-	"${MMSEQS}" align   "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 -c 0.5 --cov-mode 1
+	"${MMSEQS}" align   "${BASE}/prof_res" "${DB2}.idx" "${BASE}/res_exp" "${BASE}/res_exp_realign" --db-load-mode 2 -e 0.001 --max-accept 1000000 -c 0.5 --cov-mode 1
 	"${MMSEQS}" pairaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp_realign" "${BASE}/res_exp_realign_pair" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-filter 0 --pairing-dummy-mode 0
-	"${MMSEQS}" align   "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp_realign_pair" "${BASE}/res_exp_realign_pair_bt" --db-load-mode 2 -e inf -a
+	"${MMSEQS}" align   "${BASE}/prof_res" "${DB2}.idx" "${BASE}/res_exp_realign_pair" "${BASE}/res_exp_realign_pair_bt" --db-load-mode 2 -e inf -a
 	"${MMSEQS}" pairaln "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_exp_realign_pair_bt" "${BASE}/res_final" --db-load-mode 2 --pairing-mode "${PAIRING_STRATEGY}" --pairing-filter 0 --pairing-dummy-mode 1
 	"${MMSEQS}" result2msa "${BASE}/qdb" "${DB2}.idx" "${BASE}/res_final" "${BASE}/pair.env.a3m" --db-load-mode 2 --msa-format-mode 5
 	cat "${BASE}/pair.a3m" "${BASE}/pair.env.a3m" > "${BASE}/pair.a3m_tmp"
@@ -1190,7 +1197,8 @@ fi
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign_pair"
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign_pair_bt"
 "${MMSEQS}" rmdb "${BASE}/res_final"
-
+"${MMSEQS}" rmdb "${BASE}/prof_res"
+"${MMSEQS}" rmdb "${BASE}/prof_res_h"
 "${MMSEQS}" rmdb "${BASE}/qdb"
 "${MMSEQS}" rmdb "${BASE}/qdb_h"
 
