@@ -134,6 +134,9 @@ export function parseResults(data) {
                     item.prob = (typeof(item.prob) === "string") ? item.prob : item.prob.toFixed(2);
                     if (data.mode == "tmalign") {
                         item.eval = (typeof(item.eval) === "string") ? item.eval : item.eval.toFixed(3);
+                    } else if (data.mode == "lolalign") {
+                        item.eval = item.eval * 100;
+                        item.eval = parseFloat(item.eval.toFixed(2)).toString()
                     }
                 }
                 if ("taxId" in item) {

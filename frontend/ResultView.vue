@@ -168,7 +168,7 @@
                                 <th v-if="entry.hasTaxonomy">Scientific Name</th>
                                 <th class="thin">Prob.</th>
                                 <th class="thin">Seq. Id.</th>
-                                <th class="thin">{{ $APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value' }}</th>
+                                <th class="thin">{{ scoreColumnName }}</th>
                                 <th class="thin" v-if="tableMode == 1">Score</th>
                                 <th v-if="tableMode == 1">Query Pos.</th>
                                 <th v-if="tableMode == 1">Target Pos.</th>
@@ -205,7 +205,7 @@
                                 <td class="long" v-if="entry.hasTaxonomy" data-label="Taxonomy"><a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" target="_blank" rel="noopener" :title="item.taxName">{{ item.taxName }}</a></td>
                                 <td class="thin" data-label="Probability">{{ item.prob }}</td>
                                 <td class="thin" data-label="Sequence Identity">{{ item.seqId }}</td>
-                                <td class="thin" :data-label="$APP == 'foldseek' && mode == 'tmalign' ? 'TM-score' : 'E-Value'">{{ item.eval }}</td>
+                                <td class="thin" :data-label="scoreColumnName">{{ item.eval }}</td>
                                 <td class="thin" v-if="tableMode == 1" data-label="Score">{{ item.score }}</td>
                                 <td v-if="tableMode == 1" data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
                                 <td v-if="tableMode == 1" data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
@@ -341,7 +341,19 @@ export default {
             }
 
             return "ERROR";
-        }
+        },
+        scoreColumnName() {
+            console.log(this.mode)
+            if (__APP__ == 'foldseek') {
+                switch (this.mode) {
+                    case 'tmalign':
+                        return 'TM-score';
+                    case 'lolalign':
+                        return 'LoL-score';
+                }
+            }
+            return 'E-Value';
+        },
     },
     methods: {
         log(args) {
