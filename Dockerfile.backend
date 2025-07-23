@@ -17,8 +17,9 @@ ARG FOLDSEEK_HASH=foldseek
 ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-avx2.tar.gz  .
 ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-sse41.tar.gz .
 # ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-sse2.tar.gz  .
-ONBUILD ADD https://mmseqs.com/foldmason/foldmason-linux-avx2.tar.gz .
-ONBUILD ADD https://mmseqs.com/foldmason/foldmason-linux-sse2.tar.gz .
+ARG FOLDMASON_HASH=foldmason
+ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-avx2.tar.gz .
+ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-sse2.tar.gz .
 ARG FOLDDISCO_HASH=folddisco
 # ARG FOLDDISCO_HASH=archive/de0174aee028b8fb774d865cab882c8829afb69a
 ONBUILD ADD https://mmseqs.com/${FOLDDISCO_HASH}/folddisco-linux-x86_64.tar.gz .
@@ -28,7 +29,8 @@ FROM scratch AS foldseek_arm64_downloader
 WORKDIR /opt/build
 ARG FOLDSEEK_HASH=foldseek
 ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-arm64.tar.gz  .
-ONBUILD ADD https://mmseqs.com/foldmason/foldmason-linux-arm64.tar.gz .
+ARG FOLDMASON_HASH=foldmason
+ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-arm64.tar.gz .
 ARG FOLDDISCO_HASH=folddisco
 # ARG FOLDDISCO_HASH=archive/de0174aee028b8fb774d865cab882c8829afb69a
 ONBUILD ADD https://mmseqs.com/${FOLDDISCO_HASH}/folddisco-linux-arm64.tar.gz .
