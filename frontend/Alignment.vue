@@ -3,11 +3,14 @@
         <span class="monospace" v-for="i in Math.max(1, Math.ceil(alignment.alnLength / lineLen))" :key="i">
             <span :id="i" class="line" ref="lines">
                 <span class="protsolata-auto">Q&nbsp;{{padNumber(getQueryRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;</span><!--
-                --><ResidueSpan sequenceType="query"><!--
+                --><ResidueSpan
+                    sequenceType="query"
+                    :class="colorscheme ? colorscheme : null"
+                ><!--
                     -->{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}<!--
                 --></ResidueSpan><br><!--
                 --><span class="protsolata-auto">{{'&nbsp;'.repeat(3+(Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length)}}</span><!--
-                --><span class="residues diff">{{formatAlnDiff(alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen), alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen))}}</span><br><!--
+                --><span class="residues diff" :class="colorscheme ? colorscheme : null">{{formatAlnDiff(alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen), alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen))}}</span><br><!--
                 --><span class="protsolata-auto">T&nbsp;{{padNumber(getTargetRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;</span><!--
                 --><ResidueSpan
                     sequenceType="target"
@@ -15,6 +18,7 @@
                     :selectionEnd="getSelectionEnd(i)"
                     @selectstart="onSelectStart($event, alnIndex, i)"
                     @pointerup="onPointerUp($event, alnIndex, i)"
+                    :class="colorscheme ? colorscheme : null"
                 >{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}<!--
                 --></ResidueSpan>
             </span><br>
@@ -44,7 +48,15 @@ const blosum62Sim = [
 ]
 
 export default {
-    props: ['alignment', 'lineLen', 'queryMap', 'targetMap', 'showhelp', 'alnIndex', 'highlights'],
+    props: [
+        'alignment',
+        'lineLen',
+        'queryMap',
+        'targetMap',
+        'alnIndex',
+        'highlights',
+        'colorscheme'
+    ],
     components: { ResidueSpan },
     methods: {
         getSelectionStart(i) {

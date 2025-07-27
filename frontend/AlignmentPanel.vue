@@ -1,20 +1,37 @@
 <template>
     <div class="alignment-panel" slot="content">
-        <div class="alignment-wrapper-outer">
-            <div style="line-height: 1.2em; display: flex; flex-direction: row; width: 100%; justify-content: space-between; margin-bottom: 1em;">
+        <div class="alignment-wrapper-outer" style="width: 100%;">
+            <div style="line-height: 1.2em; display: flex; flex-direction: column; width: 100%; justify-content: space-between; margin-bottom: 1em;">
+                <div style="display: flex; flex-direction: row; align-items: center; gap: 24px">
+                    <v-select
+                        persistent-hint
+                        label="Colorscheme"
+                        v-model="colorscheme"
+                        :items="schemes"
+                    >
+                    <template v-slot:item="{ item, on, attrs }">
+                        <v-list-item two-line v-on="on" v-bind="attrs">
+                            <v-list-item-content>
+                               <v-list-item-title>{{ item.text }}</v-list-item-title>
+                               <v-list-item-subtitle :class="item.value" v-if="alignments && alignments.length > 0">{{ alignments[0].qAln.substring(0, 25) }}&hellip;</v-list-item-subtitle>
+                            </v-list-item-content>
+                        </v-list-item>
+                    </template>
+                    </v-select>
+                    <v-btn
+                        small
+                        title="Clear sequence selection"
+                        @click="clearAllSelection"
+                        :disabled="hasSelection"
+                    >
+                        {{ (alignments[0].hasOwnProperty("complexu")) ? "Clear all selections" : "Clear selection" }}&nbsp;
+                        <v-icon style="width: 16px;">{{ $MDI.CloseCircle }}</v-icon>
+                    </v-btn>
+                </div>
                 <small v-if="$APP == 'foldseek'">
                     Select target residues to highlight their structure.<br style="height: 0.2em">
                     Click on highlighted sequences to dehighlight the corresponding chain.
                 </small>
-                <v-btn
-                    small
-                    title="Clear sequence selection"
-                    @click="clearAllSelection"
-                    :disabled="hasSelection"
-                >
-                    {{ (alignments[0].hasOwnProperty("complexu")) ? "Clear all selections" : "Clear selection" }}&nbsp;
-                    <v-icon style="width: 16px;">{{ $MDI.CloseCircle }}</v-icon>
-                </v-btn>
             </div>
 
             <template v-for="(alignment, index) in alignments">
@@ -26,8 +43,8 @@
                     :lineLen="lineLen"
                     :queryMap="queryMaps[index]"
                     :targetMap="targetMaps[index]"
-                    :showhelp="index == alignments.length - 1"
                     :highlights="highlights[index]"
+                    :colorscheme="colorscheme"
                     ref="alignments"
                     @residueSelectStart="onResidueSelectStart"
                     @residuePointerUp="onResiduePointerUp"
@@ -90,6 +107,20 @@ export default {
         highlights: [],
         structureHighlights: [],
         isSelecting: false,
+        colorscheme: 'clustal2',
+        schemes: [
+            { text: "Clustal2", value: "clustal2" },
+            { text: "Buried", value: "buried" },
+            { text: "Cinema", value: "cinema" },
+            { text: "Helix", value: "helix" },
+            { text: "Hydrophobicity", value: "hydrophobicity" },
+            { text: "Lesk", value: "lesk" },
+            { text: "MAE", value: "mae" },
+            { text: "Strand", value: "strand" },
+            { text: "Taylor", value: "taylor" },
+            { text: "Turn", value: "turn" },
+            { text: "Zappo", value: "zappo" },
+        ],
     }),
     props: {
         alignments: { type: Array, required: true, },
