@@ -668,7 +668,7 @@ func ResultFolddiscoArchive(w io.Writer, id Id, base string, databases []string)
 	}()
 
 	for _, name := range databases {
-		if err = addFile(tw, name+".m8"); err != nil {
+		if err = addFile(tw, name); err != nil {
 			return err
 		}
 	}
