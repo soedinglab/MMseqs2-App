@@ -1227,22 +1227,21 @@ rm -rf -- "${BASE}/tmp"
 			pairingStrategy = "1"
 		}
 
-
 		pairFilterBest := isIn("pairfilterbest", modes) != -1
 		pairFilterProx := false
 		pairFilterProxThreshold := "20"
 		for _, mode := range modes {
 			if mode == "pairfilterprox" {
-				pairFilterProx = true          
-				break                          
+				pairFilterProx = true
+				break
 			}
 			// set distance through "pairfilterprox" parameter
 			if strings.HasPrefix(mode, "pairfilterprox_") {
 				parts := strings.SplitN(mode, "_", 2)
 				if len(parts) == 2 && parts[1] != "" {
-					pairFilterProx = true             
-					pairFilterProxThreshold = parts[1] 
-					break                              
+					pairFilterProx = true
+					pairFilterProxThreshold = parts[1]
+					break
 				}
 			}
 		}
@@ -1254,10 +1253,9 @@ rm -rf -- "${BASE}/tmp"
 		pairFilter := "0"
 		if pairFilterBest {
 			pairFilter = "0"
-		} else if pairFilterProx { 
+		} else if pairFilterProx {
 			pairFilter = "1"
 		}
-
 
 		gpuEnabled := "0"
 		gpuServerEnabled := "0"
@@ -1283,7 +1281,7 @@ rm -rf -- "${BASE}/tmp"
 			gpuEnabled,
 			gpuServerEnabled,
 		}
-		
+
 		environ := []string{}
 		if config.Paths.ColabFold.Gpu != nil {
 			unirefDevices := config.Paths.ColabFold.Gpu.Devices
