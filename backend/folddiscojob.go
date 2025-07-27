@@ -18,8 +18,11 @@ type FoldDiscoJob struct {
 	query string
 }
 
+const FolddiscoCacheVersion string = "v1"
+
 func (r FoldDiscoJob) Hash() Id {
 	h := sha256.New224()
+	h.Write([]byte(FolddiscoCacheVersion))
 	h.Write(([]byte)(JobFoldDisco))
 	h.Write([]byte(r.query))
 	h.Write([]byte(r.Motif))
