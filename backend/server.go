@@ -753,6 +753,39 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		io.Copy(w, bufio.NewReader(file))
 	}).Methods("GET")
 
+	r.HandleFunc("/result/folddisco/download/{ticket}", func(w http.ResponseWriter, req *http.Request) {
+		vars := mux.Vars(req)
+		ticket, err := jobsystem.GetTicket(Id(vars["ticket"]))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		status, err := jobsystem.Status(ticket.Id)
+		if err != nil || status != StatusComplete {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		name := "folddisco_results_" + string(ticket.Id) + ".tar.gz"
+		path := filepath.Join(filepath.Clean(config.Paths.Results), string(ticket.Id), name)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		io.Copy(w, bufio.NewReader(file))
+	}).Methods("GET")
+
 	r.HandleFunc("/result/foldmason/{ticket}", func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
 		ticket, err := jobsystem.GetTicket(Id(vars["ticket"]))

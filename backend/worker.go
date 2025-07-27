@@ -1604,6 +1604,21 @@ printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.d
 			}
 		}
 
+		path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+		file, err := os.Create(filepath.Join(path, "folddisco_results_"+string(request.Id)+".tar.gz"))
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		err = ResultFolddiscoArchive(file, request.Id, path, job.Database)
+		if err != nil {
+			file.Close()
+			return &JobExecutionError{err}
+		}
+		err = file.Close()
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+
 		if config.Verbose {
 			log.Print("Process finished gracefully without error")
 		}

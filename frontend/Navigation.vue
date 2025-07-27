@@ -113,7 +113,7 @@
             </v-list-item>
             </template>
         </v-list-group>
-        <!-- <v-list-group v-else-if="$route.name === 'folddiscoresult'" v-model="expanded">
+        <v-list-group v-else-if="$route.name === 'folddiscoresult'" v-model="expanded">
             <template slot="activator">
                 <v-list-item-action>
                     <v-icon>{{ $MDI.FileDownloadOutline }}</v-icon>
@@ -125,7 +125,7 @@
             <template v-if="!this.mini">
             <v-list-item
                 @click="$ELECTRON ? electronDownload($route.params.ticket) : null"
-                :href="$ELECTRON ? null : url('api/result/download/' + $route.params.ticket)"
+                :href="$ELECTRON ? null : url('api/result/folddisco/download/' + $route.params.ticket)"
                 :target="$ELECTRON ? null : '_blank'"
                 title="TODO"
             >
@@ -133,11 +133,11 @@
                     <v-icon>{{ $ELECTRON ? $MDI.FileDownloadOutline : $MDI.TableLarge }}</v-icon>
                 </v-list-item-action>
                 <v-list-item-content>
-                    <v-list-item-title>TODO</v-list-item-title>
-                    <v-list-item-subtitle>TODO</v-list-item-subtitle>
+                    <v-list-item-title>Hit tables</v-list-item-title>
+                    <v-list-item-subtitle>Archive of M8 files</v-list-item-subtitle>
                 </v-list-item-content>
             </v-list-item>
-            <v-list-item
+            <!-- <v-list-item
                 @click="downloadJSON"
                 style="padding-left: 16px;"
                 title="Download all result data (JSON file)"
@@ -149,9 +149,9 @@
                     <v-list-item-title>All data</v-list-item-title>
                     <v-list-item-subtitle>Reloadable JSON file</v-list-item-subtitle>
                 </v-list-item-content>
-            </v-list-item>
+            </v-list-item> -->
             </template>
-        </v-list-group> -->
+        </v-list-group>
 
         <v-divider></v-divider>
 

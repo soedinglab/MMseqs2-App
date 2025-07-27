@@ -650,3 +650,27 @@ func ResultArchive(w io.Writer, id Id, base string) (err error) {
 	}
 	return nil
 }
+
+func ResultFolddiscoArchive(w io.Writer, id Id, base string, databases []string) (err error) {
+	gw := gzip.NewWriter(w)
+	defer func() {
+		cerr := gw.Close()
+		if err == nil {
+			err = cerr
+		}
+	}()
+	tw := tar.NewWriter(gw)
+	defer func() {
+		cerr := tw.Close()
+		if err == nil {
+			err = cerr
+		}
+	}()
+
+	for _, name := range databases {
+		if err = addFile(tw, name+".m8"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
