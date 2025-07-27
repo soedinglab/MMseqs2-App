@@ -4,6 +4,76 @@
   src: url('Protsolata.woff2') format('woff2'), url('Protsolata.woff') format('woff');
 }
 
+@font-palette-values --light {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+  0  rgba(0, 0, 0, 0.6),
+  1  rgba(0, 0, 0, 0.6),
+  2  rgba(0, 0, 0, 0.6),
+  3  rgba(0, 0, 0, 0.6),
+  4  rgba(0, 0, 0, 0.6),
+  5  rgba(0, 0, 0, 0.6),
+  6  rgba(0, 0, 0, 0.6),
+  7  rgba(0, 0, 0, 0.6),
+  8  rgba(0, 0, 0, 0.6),
+  9  rgba(0, 0, 0, 0.6),
+  10 rgba(0, 0, 0, 0.6),
+  11 rgba(0, 0, 0, 0.6),
+  12 rgba(0, 0, 0, 0.6),
+  13 rgba(0, 0, 0, 0.6),
+  14 rgba(0, 0, 0, 0.6),
+  15 rgba(0, 0, 0, 0.6),
+  16 rgba(0, 0, 0, 0.6),
+  17 rgba(0, 0, 0, 0.6),
+  18 rgba(0, 0, 0, 0.6),
+  19 rgba(0, 0, 0, 0.6),
+  20 rgba(0, 0, 0, 0.6),
+  21 rgba(0, 0, 0, 0.6),
+  22 rgba(0, 0, 0, 0.6),
+  23 rgba(0, 0, 0, 0.6),
+  24 rgba(0, 0, 0, 0.6),
+  25 rgba(0, 0, 0, 0.6);
+}
+
+@font-palette-values --dark {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+  0  rgba(255, 255, 255, 0.7),
+  1  rgba(255, 255, 255, 0.7),
+  2  rgba(255, 255, 255, 0.7),
+  3  rgba(255, 255, 255, 0.7),
+  4  rgba(255, 255, 255, 0.7),
+  5  rgba(255, 255, 255, 0.7),
+  6  rgba(255, 255, 255, 0.7),
+  7  rgba(255, 255, 255, 0.7),
+  8  rgba(255, 255, 255, 0.7),
+  9  rgba(255, 255, 255, 0.7),
+  10 rgba(255, 255, 255, 0.7),
+  11 rgba(255, 255, 255, 0.7),
+  12 rgba(255, 255, 255, 0.7),
+  13 rgba(255, 255, 255, 0.7),
+  14 rgba(255, 255, 255, 0.7),
+  15 rgba(255, 255, 255, 0.7),
+  16 rgba(255, 255, 255, 0.7),
+  17 rgba(255, 255, 255, 0.7),
+  18 rgba(255, 255, 255, 0.7),
+  19 rgba(255, 255, 255, 0.7),
+  20 rgba(255, 255, 255, 0.7),
+  21 rgba(255, 255, 255, 0.7),
+  22 rgba(255, 255, 255, 0.7),
+  23 rgba(255, 255, 255, 0.7),
+  24 rgba(255, 255, 255, 0.7),
+  25 rgba(255, 255, 255, 0.7);
+}
+
+.protsolata-dark                    { font-family:'Protsolata'; font-palette: --dark; }
+.protsolata-light, .protsolata-auto { font-family:'Protsolata'; font-palette: --light; }
+@media (prefers-color-scheme: dark) {
+  .protsolata-auto                  { font-family:'Protsolata'; font-palette: --dark; }
+}
+
 @font-palette-values --clustal2 {
   font-family: 'Protsolata';
   base-palette: 0;

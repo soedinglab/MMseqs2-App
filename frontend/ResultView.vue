@@ -580,17 +580,6 @@ export default {
     right:4px;
     z-index: 999;
     box-shadow: 0 3px 5px -1px rgba(0,0,0,.2),0 6px 10px 0 rgba(0,0,0,.14),0 1px 18px 0 rgba(0,0,0,.12) !important;
-
-    .residues {
-        font-family: Protsolata, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
-        white-space: pre;
-    }
-
-    .theme--dark & {
-        .residues {
-            color: #fff;
-        }
-    }
 }
 
 </style>
