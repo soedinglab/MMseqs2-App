@@ -291,7 +291,7 @@ export default {
 }
 </script>
 
-<style>
+<style scoped>
 canvas {
     image-rendering: pixelated;
     cursor: auto;
