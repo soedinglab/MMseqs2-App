@@ -265,6 +265,7 @@ export default {
     margin-bottom: 10px;
     position: relative;
     vertical-align: top;
+    font-size: 1rem;
 }
 
 .residue .aa {
@@ -274,7 +275,7 @@ export default {
 .residue .position {
     position: absolute;
     font-weight: normal;
-    font-size: 0.8em;
+    font-size: 0.7em;
 }
 
 .position, .ss, .filler {
