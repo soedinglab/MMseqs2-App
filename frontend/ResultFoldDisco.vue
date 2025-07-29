@@ -108,8 +108,16 @@
                         </v-btn>
                     </v-flex>
 
-                    <v-flex class="d-flex flex-row" style="gap: 24px">
-                        <div style="flex-basis: 100%;">
+                    <v-flex
+                        class="d-flex"
+                        :style="{
+                            'flex-direction' : $vuetify.breakpoint.mdAndDown ? 'column' : 'row',
+                            'align-items': 'center',
+                            'white-space': 'nowrap',
+                            'gap': '24px',
+                        }"
+                        >
+                        <div style="flex-basis: 100%; width: 100%">
                             <h3>Filter</h3>
                             <motif-filter
                                 :items="dbGaps[entry.db]"
@@ -121,7 +129,7 @@
                             >
                             </motif-filter>
                         </div>
-                        <div style="flex-basis: 100%;">
+                        <div style="flex-basis: 100%; width: 100%">
                             <h3>Cluster</h3>
                             <folddisco-hit-cluster :hits="entry" v-on:cluster="$set(clusters, entry.db, $event)"></folddisco-hit-cluster>
                         </div>
