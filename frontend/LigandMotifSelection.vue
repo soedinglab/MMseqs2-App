@@ -72,6 +72,50 @@ function sortResidueStrings(a, b) {
     return (posA - 0) - (posB - 0);
 }
 
+function unquoteCifString(val = "") {
+    if (typeof val !== "string" || val === "") {
+        return val;
+    }
+
+    // semicolon value
+    if (val.startsWith(";\n") || val === ";") {
+        return val.replace(/^;\n?/, "").replace(/\n;?\s*$/, "");
+    }
+
+    const first = val[0];
+    const last  = val[val.length - 1];
+
+    if ((first === "'" || first === '"') && first === last) {
+        let inner = val.slice(1, -1);
+        // replace doubled quote with single quote
+        const doubled = first + first;
+        inner = inner.split(doubled).join(first);
+        return inner;
+    }
+
+    return val;
+}
+
+function getNonPolyIdNameLookup(cif) {
+    const np = cif?.pdbx_entity_nonpoly;
+    if (!np || !Array.isArray(np.comp_id) || !Array.isArray(np.name)) {
+        return {};
+    }
+
+    const ids   = np.comp_id;
+    const names = np.name;
+    const n = Math.min(ids.length, names.length);
+
+    const out = {};
+    for (let i = 0; i < n; i++) {
+        const id = ids[i];
+        if (id != null && id !== "") {
+            out[id] = unquoteCifString(names[i]);
+        }
+    }
+    return out;
+}
+
 
 export default {
     name: "LigandMotifSelection",
@@ -130,13 +174,16 @@ export default {
             this.loading = true;
             const structure = this.queryStructure;
             const foundMotifs = [];
+            const nameLookup = getNonPolyIdNameLookup(structure.extraData?.cif);
 
             try {
                 structure.eachResidue(res => {
                     if (res.isPolymer() || res.isWater()) return;
 
                     const chain = res.chainname || "_";
-                    const ligID = `${res.resname} ${res.resno}:${chain}`;
+                    const ligID = res.resname in nameLookup
+                        ? `${res.resname} ${nameLookup[res.resname]} ${chain}${res.resno}`
+                        : `${res.resname} ${chain}${res.resno}`;
 
                     const ligAtomIndices = [];
                     res.eachAtom(a => ligAtomIndices.push(a.index));
