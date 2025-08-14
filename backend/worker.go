@@ -875,7 +875,7 @@ if [ "${TAXONOMY}" = "1" ] && [ -e "${DB1}_taxonomy" ]; then
 fi
 if [ "${TAXONOMYREPORT}" = "1" ] && [ -e "${DB1}_taxonomy" ]; then
   "${MMSEQS}" taxonomyreport "${DB1}.idx" "${BASE}/res_exp_realign_filter" "${BASE}/res_exp_realign_taxreport" --report-mode 3
-  "${MMSEQS}" createtsv "${BASE}/qdb" "${BASE}/res_exp_realign_taxreport" "${BASE}/uniref_taxreport.tsv" --db-load-mode 2
+  "${MMSEQS}" createtsv "${BASE}/qdb" "${BASE}/res_exp_realign_taxreport" "${BASE}/uniref_taxreport.tsv"
   "${MMSEQS}" rmdb "${BASE}/res_exp_realign_taxreport"
 fi
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign_filter"
