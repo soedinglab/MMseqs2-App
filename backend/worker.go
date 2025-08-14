@@ -878,7 +878,7 @@ fi
 			script.WriteString(`
 if [ "${USE_TEMPLATES}" = "1" ]; then
   if [ -n "${ORIG_CUDA_VISIBLE_DEVICES}" ]; then
-    export CUDA_VISIBLE_DEVICES="${ORIG_CUDA_VISIBLE_DEVICES}"a
+    export CUDA_VISIBLE_DEVICES="${ORIG_CUDA_VISIBLE_DEVICES}"
   fi
   if [ -n "${PDB_CUDA_VISIBLE_DEVICES}" ]; then
     export CUDA_VISIBLE_DEVICES="${PDB_CUDA_VISIBLE_DEVICES}"
@@ -894,7 +894,7 @@ fi
 			script.WriteString(`
 if [ "${USE_ENV}" = "1" ]; then
   if [ -n "${ORIG_CUDA_VISIBLE_DEVICES}" ]; then
-    export CUDA_VISIBLE_DEVICES="${ORIG_CUDA_VISIBLE_DEVICES}"a
+    export CUDA_VISIBLE_DEVICES="${ORIG_CUDA_VISIBLE_DEVICES}"
   fi
   if [ -n "${ENV_CUDA_VISIBLE_DEVICES}" ]; then
     export CUDA_VISIBLE_DEVICES="${ENV_CUDA_VISIBLE_DEVICES}"
