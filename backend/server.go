@@ -729,8 +729,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		status, err := jobsystem.Status(ticket.Id)
-		if err != nil || status != StatusComplete {
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if status != StatusComplete {
+			http.Error(w, "Job is not complete", http.StatusBadRequest)
 			return
 		}
 
@@ -762,8 +767,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		status, err := jobsystem.Status(ticket.Id)
-		if err != nil || status != StatusComplete {
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if status != StatusComplete {
+			http.Error(w, "Job is not complete", http.StatusBadRequest)
 			return
 		}
 
