@@ -807,9 +807,10 @@ USE_ENV="$8"
 USE_TEMPLATES="$9"
 FILTER="${10}"
 TAXONOMY="${11}"
-M8OUT="${12}"
-GPU="${13}"
-GPUSERVER="${14}"
+TAXONOMYREPORT="${12}"
+M8OUT="${13}"
+GPU="${14}"
+GPUSERVER="${15}"
 EXPAND_EVAL=inf
 ALIGN_EVAL=10
 DIFF=3000
@@ -869,6 +870,13 @@ if [ "${TAXONOMY}" = "1" ] && [ -e "${DB1}_taxonomy" ]; then
   awk 'BEGIN { printf("%c%c%c%c",8,0,0,0); exit; }' > "${BASE}/res_exp_realign_tax.dbtype"
   MMSEQS_FORCE_MERGE=1 "${MMSEQS}" filtertaxdb "${DB1}" "${BASE}/res_exp_realign_tax" "${BASE}/res_exp_realign_tax_filt" --taxon-list '!12908&&!28384'
   tr -d '\000' < "${BASE}/res_exp_realign_tax_filt" | sort -u > "${BASE}/uniref_tax.tsv"
+  "${MMSEQS}" rmdb "${BASE}/res_exp_realign_tax_filt"
+  "${MMSEQS}" rmdb "${BASE}/res_exp_realign_tax"
+fi
+if [ "${TAXONOMYREPORT}" = "1" ] && [ -e "${DB1}_taxonomy" ]; then
+  "${MMSEQS}" taxonomyreport "${DB1}.idx" "${BASE}/res_exp_realign_filter" "${BASE}/res_exp_realign_taxreport" --report-mode 3
+  "${MMSEQS}" createtsv "${BASE}/qdb" "${BASE}/res_exp_realign_taxreport" "${BASE}/uniref_taxreport.tsv" --db-load-mode 2
+  "${MMSEQS}" rmdb "${BASE}/res_exp_realign_taxreport"
 fi
 "${MMSEQS}" rmdb "${BASE}/res_exp_realign_filter"
 `)
@@ -937,6 +945,7 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 		useTemplates := isIn("notemplates", modes) == -1
 		useFilter := isIn("nofilter", modes) == -1
 		taxonomy := isIn("taxonomy", modes) == 1
+		taxonomyreport := isIn("taxonomyreport", modes) == 1
 		m8out := isIn("m8output", modes) == 1
 		var b2i = map[bool]int{false: 0, true: 1}
 
@@ -961,6 +970,7 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 			strconv.Itoa(b2i[useTemplates]),
 			strconv.Itoa(b2i[useFilter]),
 			strconv.Itoa(b2i[taxonomy]),
+			strconv.Itoa(b2i[taxonomyreport]),
 			strconv.Itoa(b2i[m8out]),
 			gpuEnabled,
 			gpuServerEnabled,
@@ -1059,6 +1069,14 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 
 					if taxonomy {
 						path = filepath.Join(resultBase, "uniref_tax.tsv")
+						if err := addFile(tw, path); err != nil {
+							return err
+						}
+						os.Remove(path)
+					}
+
+					if taxonomyreport {
+						path = filepath.Join(resultBase, "uniref_taxreport.tsv")
 						if err := addFile(tw, path); err != nil {
 							return err
 						}
