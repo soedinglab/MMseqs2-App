@@ -75,8 +75,8 @@ jobs:
         file: Dockerfile.${{ matrix.file }}
         build-args: |
           FRONTEND_APP=${{ matrix.app }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        # cache-from: type=gha
+        # cache-to: type=gha,mode=max
         tags: |
           ${{ steps.meta.outputs.tags }}
           ${{ steps.dispatch_tag.outputs.tag }}
