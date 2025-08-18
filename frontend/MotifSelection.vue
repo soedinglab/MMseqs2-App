@@ -262,7 +262,7 @@ export default {
     display: inline-block;
     padding-right: 5px;
     padding-bottom: 5px;
-    margin-bottom: 10px;
+    margin-bottom: 2px;
     position: relative;
     vertical-align: top;
     font-size: 1rem;
@@ -270,6 +270,7 @@ export default {
 
 .residue .aa {
     font-family: Protsolata, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
+    font-weight: bold;
 }
 
 .residue .position {
