@@ -1,5 +1,5 @@
-//go:build !windows && !linux
-// +build !windows,!linux
+//go:build linux
+// +build linux
 
 package main
 
@@ -11,7 +11,8 @@ import (
 
 func SetSysProcAttr(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &unix.SysProcAttr{
-		Setpgid: true,
+		Setpgid:   true,
+		Pdeathsig: unix.SIGKILL,
 	}
 }
 
