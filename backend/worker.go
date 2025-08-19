@@ -1529,6 +1529,7 @@ rm -rf -- "${BASE}/tmp"
 					"-t",
 					strconv.Itoa(threads),
 				}
+				parameters = append(parameters, strings.Fields(params.Search)...)
 
 				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
 				if err != nil {
