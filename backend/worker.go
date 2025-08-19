@@ -1488,9 +1488,29 @@ rm -rf -- "${BASE}/tmp"
 					return
 				}
 				if !params.Motif {
-					err := errors.New("database is not a folddisco database")
+					err := errors.New("Database is not a folddisco database")
 					errChan <- &JobExecutionError{err}
 					return
+				}
+
+				threads := 16
+				for _, kv := range os.Environ() {
+					if strings.HasPrefix(kv, "MMSEQS_NUM_THREADS=") {
+						arr := strings.Split(kv, "=")
+						if len(arr) == 2 {
+							threads, err = strconv.Atoi(arr[1])
+							if err != nil {
+								log.Printf("Failed to parse MMSEQS_NUM_THREADS: %s\n", arr[1])
+								errChan <- &JobExecutionError{err}
+								return
+							}
+						} else {
+							log.Printf("Invalid MMSEQS_NUM_THREADS environment variable: %s\n", kv)
+							errChan <- &JobExecutionError{errors.New("invalid MMSEQS_NUM_THREADS environment variable")}
+							return
+						}
+						break
+					}
 				}
 
 				parameters := []string{
@@ -1503,9 +1523,11 @@ rm -rf -- "${BASE}/tmp"
 					filepath.Join(config.Paths.Databases, database),
 					"-o",
 					filepath.Join(resultBase, "alis_"+database),
-					"--top", "1000",
+					"--top",
+					"1000",
 					"--superpose",
-					"-t", "16",
+					"-t",
+					strconv.Itoa(threads),
 				}
 
 				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
