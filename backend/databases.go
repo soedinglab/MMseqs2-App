@@ -207,10 +207,11 @@ func ReadParams(filename string) (Params, error) {
 	err = DecodeJsonAndValidate(bufio.NewReader(file), &params)
 	file.Close()
 	if err != nil {
-		params, err = UpgradeParams(filename)
-		if err != nil {
-			return params, err
-		}
+		// params, err = UpgradeParams(filename)
+		// if err != nil {
+		// 	return params, err
+		// }
+		return params, err
 	}
 
 	return params, nil
