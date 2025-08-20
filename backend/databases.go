@@ -218,23 +218,11 @@ func ReadParams(filename string) (Params, error) {
 }
 
 func SaveParams(file string, params Params) error {
-	f, err := os.Create(file)
+	buf, err := json.Marshal(&params)
 	if err != nil {
 		return err
 	}
-
-	err = json.NewEncoder(f).Encode(params)
-	if err != nil {
-		f.Close()
-		return err
-	}
-
-	err = f.Close()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return os.WriteFile(file, buf, 0o644)
 }
 
 func Databases(basepath string, complete bool) ([]Params, error) {
