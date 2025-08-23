@@ -944,9 +944,9 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 		useEnv := isIn("env", modes) != -1
 		useTemplates := isIn("notemplates", modes) == -1
 		useFilter := isIn("nofilter", modes) == -1
-		taxonomy := isIn("taxonomy", modes) == 1
-		taxonomyreport := isIn("taxonomyreport", modes) == 1
-		m8out := isIn("m8output", modes) == 1
+		taxonomy := isIn("taxonomy", modes) != -1
+		taxonomyreport := isIn("taxonomyreport", modes) != -1
+		m8out := isIn("m8output", modes) != -1
 		var b2i = map[bool]int{false: 0, true: 1}
 
 		gpuEnabled := "0"
