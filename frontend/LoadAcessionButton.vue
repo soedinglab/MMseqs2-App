@@ -109,7 +109,10 @@ export default {
                 if (list.length === 0) {
                     return;
                 }
-                this.loadMany(list, this.source);
+                let combined = list.map((e, _) => {
+                    return [e, this.source];
+                });
+                this.loadMany(combined);
             } else {
                 this.load(this.accession, this.source);
             }
