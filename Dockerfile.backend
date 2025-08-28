@@ -13,7 +13,7 @@ ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-arm64.tar.gz  .
 
 FROM scratch AS foldseek_amd64_downloader
 WORKDIR /opt/build
-ARG FOLDSEEK_HASH=foldseek
+ARG FOLDSEEK_HASH=cfb431e98abcc5bcc49950285211d3723b47dc94
 ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-avx2.tar.gz  .
 ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-sse41.tar.gz .
 # ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-sse2.tar.gz  .
@@ -27,7 +27,7 @@ ONBUILD ADD https://mmseqs.com/foldcomp/foldcomp-linux-x86_64.tar.gz .
 
 FROM scratch AS foldseek_arm64_downloader
 WORKDIR /opt/build
-ARG FOLDSEEK_HASH=foldseek
+ARG FOLDSEEK_HASH=cfb431e98abcc5bcc49950285211d3723b47dc94
 ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-arm64.tar.gz  .
 ARG FOLDMASON_HASH=foldmason
 ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-arm64.tar.gz .
