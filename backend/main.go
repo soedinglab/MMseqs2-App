@@ -2,9 +2,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 )
 
@@ -14,6 +16,7 @@ const (
 	LOCAL RunType = iota
 	WORKER
 	SERVER
+	UTIL_VERSION
 )
 
 func ParseType(args []string) (RunType, []string) {
@@ -29,6 +32,9 @@ func ParseType(args []string) (RunType, []string) {
 			continue
 		case "-local":
 			t = LOCAL
+			continue
+		case "-version":
+			t = UTIL_VERSION
 			continue
 		}
 
@@ -59,6 +65,26 @@ func ParseConfigName(args []string) (string, []string) {
 
 func main() {
 	t, args := ParseType(os.Args[1:])
+
+	if t == UTIL_VERSION {
+		info, ok := debug.ReadBuildInfo()
+		if !ok {
+			fmt.Println("unknown")
+			return
+		}
+		for _, kv := range info.Settings {
+			if kv.Value == "" {
+				continue
+			}
+			switch kv.Key {
+			case "vcs.revision":
+				fmt.Println(kv.Value)
+				return
+			}
+		}
+		return
+	}
+
 	configFile, args := ParseConfigName(args)
 
 	var config ConfigRoot
