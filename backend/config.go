@@ -491,11 +491,28 @@ func setNodeValue(node interface{}, path []string, value string) error {
 	}
 
 	for i := 0; i < v.NumField(); i++ {
-		tag := v.Type().Field(i).Tag.Get("json")
-		if tag == "" || tag == "-" {
+		field := v.Type().Field(i)
+		tag := field.Tag.Get("json")
+		// support embedded structs (anonymous fields)
+		if tag == "" && field.Anonymous && v.Field(i).Kind() == reflect.Struct {
+			if err := setNodeValue(v.Field(i), path, value); err == nil {
+				return nil
+			}
 			continue
 		}
 
+		if tag == "-" {
+			continue
+		}
+
+		splits := strings.Split(tag, ",")
+		for _, t := range splits {
+			if t == "omitempty" {
+				continue
+			}
+			tag = t
+			break
+		}
 		if tag == path[0] {
 			f := v.Field(i)
 			return setNodeValue(f, path[1:], value)
