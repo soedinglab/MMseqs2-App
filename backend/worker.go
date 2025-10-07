@@ -192,11 +192,15 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				if params.Taxonomy {
 					columns += ",taxid,taxname"
 				}
+				dbpath := filepath.Join(config.Paths.Databases, database)
+				if params.OverridePath != "" {
+					dbpath = filepath.Clean(params.OverridePath)
+				}
 				parameters := []string{
 					config.Paths.Mmseqs,
 					"easy-search",
 					filepath.Join(resultBase, "job.fasta"),
-					filepath.Join(config.Paths.Databases, database),
+					dbpath,
 					filepath.Join(resultBase, "alis_"+database),
 					filepath.Join(resultBase, "tmp"+strconv.Itoa(index)),
 					"--shuffle",
@@ -437,11 +441,15 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					}
 					columns += ",q3di,t3di"
 				}
+				dbpath := filepath.Join(config.Paths.Databases, database)
+				if params.OverridePath != "" {
+					dbpath = filepath.Clean(params.OverridePath)
+				}
 				parameters := []string{
 					config.Paths.Foldseek,
 					"easy-search",
 					inputFile,
-					filepath.Join(config.Paths.Databases, database),
+					dbpath,
 					filepath.Join(resultBase, "alis_"+database),
 					filepath.Join(resultBase, "tmp"+strconv.Itoa(index)),
 					// "--shuffle",
@@ -632,11 +640,15 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				if params.Taxonomy {
 					columns += ",taxid,taxname"
 				}
+				dbpath := filepath.Join(config.Paths.Databases, database)
+				if params.OverridePath != "" {
+					dbpath = filepath.Clean(params.OverridePath)
+				}
 				parameters := []string{
 					config.Paths.Foldseek,
 					"easy-complexsearch",
 					inputFile,
-					filepath.Join(config.Paths.Databases, database),
+					dbpath,
 					filepath.Join(resultBase, "alis_"+database),
 					filepath.Join(resultBase, "tmp"+strconv.Itoa(index)),
 					// "--shuffle",
@@ -1513,6 +1525,10 @@ rm -rf -- "${BASE}/tmp"
 					}
 				}
 
+				dbpath := filepath.Join(config.Paths.Databases, database)
+				if params.OverridePath != "" {
+					dbpath = filepath.Clean(params.OverridePath)
+				}
 				parameters := []string{
 					config.Paths.FoldDisco,
 					"query",
@@ -1520,7 +1536,7 @@ rm -rf -- "${BASE}/tmp"
 					inputFile,
 					"-q", motif,
 					"-i",
-					filepath.Join(config.Paths.Databases, database),
+					dbpath,
 					"-o",
 					filepath.Join(resultBase, "alis_"+database),
 					"--top",
@@ -1548,8 +1564,8 @@ rm -rf -- "${BASE}/tmp"
 						errChan <- &JobExecutionError{err}
 					} else {
 						if params.FullHeader || params.Taxonomy {
-							foldseekDb := strings.Replace(database, "_folddisco", "", 1)
-							if fileExists(filepath.Join(config.Paths.Databases, foldseekDb+".dbtype")) {
+							foldseekDb := strings.Replace(dbpath, "_folddisco", "", 1)
+							if fileExists(foldseekDb + ".dbtype") {
 								columns := "bits"
 								if params.FullHeader {
 									columns += ",theader"
@@ -1588,7 +1604,7 @@ printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.d
 										config.Paths.Foldseek,
 										"convertalis",
 										filepath.Join(resultBase, "alis_"+database+"_db_seq"),
-										filepath.Join(config.Paths.Databases, foldseekDb),
+										foldseekDb,
 										filepath.Join(resultBase, "alis_"+database+"_db"),
 										filepath.Join(resultBase, "alis_"+database+".tsv"),
 										"--format-output",
@@ -1611,7 +1627,7 @@ printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.d
 										[]string{
 											config.Paths.Foldseek,
 											"taxonomyreport",
-											filepath.Join(config.Paths.Databases, foldseekDb),
+											foldseekDb,
 											filepath.Join(resultBase, "alis_"+database+"_db"),
 											filepath.Join(resultBase, "alis_"+database+"_report"),
 											"--report-mode",
@@ -1716,10 +1732,14 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 						if config.App == AppFoldseek {
 							executable = config.Paths.Foldseek
 						}
+						dbpath := filepath.Join(config.Paths.Databases, p.Path)
+						if p.OverridePath != "" {
+							dbpath = filepath.Clean(p.OverridePath)
+						}
 						parameters := []string{
 							executable,
 							"gpuserver",
-							filepath.Join(config.Paths.Databases, p.Path),
+							dbpath,
 							"--db-load-mode",
 							"0",
 						}

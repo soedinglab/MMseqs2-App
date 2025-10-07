@@ -95,6 +95,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				return
 			}
 
+			// do not expose local paths
+			for i := range databases {
+				databases[i].OverridePath = ""
+			}
+
 			err = json.NewEncoder(w).Encode(DatabaseResponse{databases})
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -208,6 +213,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				req.FormValue("search"),
 				"",
 				StatusPending,
+				"",
 				nil,
 			}
 
