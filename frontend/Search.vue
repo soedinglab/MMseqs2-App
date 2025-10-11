@@ -82,7 +82,7 @@
 
             <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete>
 
-            <v-tooltip open-delay="300" top>
+            <v-tooltip open-delay="300" top v-if="$APP == 'foldseek'">
                 <template v-slot:activator="{ on }">
                     <v-checkbox v-model="iterativeSearch">
                         <template slot="label">
@@ -93,7 +93,7 @@
                         </template>
                     </v-checkbox>
                 </template>
-                <span>Improve sensitivity of search by performing an iterative search (--num-iterations 3).</span>
+                <span>Improve sensitivity of search by performing an iterative search (--num-iterations 0).</span>
             </v-tooltip>
 
             <v-tooltip v-if="!$ELECTRON && !hideEmail" open-delay="300" top>
