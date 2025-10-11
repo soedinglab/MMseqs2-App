@@ -62,7 +62,7 @@
             </template>
             </panel>
         </v-flex>
-        <v-flex xs12>
+        <!-- <v-flex xs12>
             <panel collapsible collapsed render-collapsed>
             <template slot="header">Alignment settings</template>
             <template slot="toolbar-extra">
@@ -92,7 +92,7 @@
                 />
             </div>
             </panel>
-        </v-flex>
+        </v-flex> -->
         <v-flex>
             <panel>
             <template slot="content">
@@ -132,16 +132,6 @@ import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
 import DragUploadBox from "./DragUploadBox.vue";
 
-const defaultParams = {
-    wg: true,
-    filterMsa: false,
-    compBias: false,
-    matchRatio: 0.52,
-    gapOpen: 20,
-    gapExtend: 2,
-    refineIters: 0
-};
-
 export default {
     name: "FoldMasonSearch",
     tool: "foldmason",
@@ -163,7 +153,6 @@ export default {
             inSearch: false,
             errorMessage: { type: null, message: "" },
             queries: [],   // [ { name: "file", text: "ATOM..." }, { name: "file", text: "ATOM..." } ...]
-            params: structuredClone(defaultParams),
             inFileDrag: false,
             accessionLoading: false,
         };
@@ -223,8 +212,6 @@ export default {
                 params.append('fileNames[]', v.name);
                 params.append('queries[]', new Blob([v.text], { type: 'text/plain' }), v.name);
             });
-            params.append('gapOpen', this.params.gapOpen);
-            params.append('gapExtend', this.params.gapExtend);
 
             try {
                 this.inSearch = true;
@@ -309,9 +296,6 @@ export default {
                 }
             );
             fr.readAsText(file)
-        },
-        resetParams() {
-            this.params = structuredClone(defaultParams);
         },
     }
 };
