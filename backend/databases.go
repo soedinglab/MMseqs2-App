@@ -21,19 +21,20 @@ type GpuConfig struct {
 }
 
 type Params struct {
-	Name       string `json:"name" validate:"required"`
-	Version    string `json:"version"`
-	Path       string `json:"path" validate:"required"`
-	Default    bool   `json:"default"`
-	Order      int    `json:"order"`
-	Taxonomy   bool   `json:"taxonomy"`
-	Complex    bool   `json:"complex"`
-	Motif      bool   `json:"motif"`
-	FullHeader bool   `json:"full_header"`
-	Index      string `json:"index"`
-	Search     string `json:"search"`
-	Multimer   string `json:"multimer"`
-	Status     Status `json:"status"`
+	Name         string `json:"name" validate:"required"`
+	Version      string `json:"version"`
+	Path         string `json:"path" validate:"required"`
+	Default      bool   `json:"default"`
+	Order        int    `json:"order"`
+	Taxonomy     bool   `json:"taxonomy"`
+	Complex      bool   `json:"complex"`
+	Motif        bool   `json:"motif"`
+	FullHeader   bool   `json:"full_header"`
+	Index        string `json:"index"`
+	Search       string `json:"search"`
+	Multimer     string `json:"multimer"`
+	Status       Status `json:"status"`
+	OverridePath string `json:"override_path,omitempty"`
 
 	GpuConfig *GpuConfig `json:"gpu,omitempty"`
 }

@@ -5,15 +5,12 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
 type FoldMasonMSAJob struct {
 	Queries   []string `json:"queries"`
 	FileNames []string `json:"fileNames"`
-	GapOpen   int64    `json:"gapOpen"`
-	GapExtend int64    `json:"gapExtend"`
 }
 
 func (r FoldMasonMSAJob) Hash() Id {
@@ -22,8 +19,6 @@ func (r FoldMasonMSAJob) Hash() Id {
 	for _, query := range r.Queries {
 		h.Write([]byte(query))
 	}
-	h.Write([]byte(strconv.FormatInt(r.GapOpen, 10)))
-	h.Write([]byte(strconv.FormatInt(r.GapExtend, 10)))
 	bs := h.Sum(nil)
 	return Id(base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(bs))
 }
@@ -61,8 +56,6 @@ func NewFoldMasonMSAJobRequest(
 	job := FoldMasonMSAJob{
 		queries,
 		fileNames,
-		gapOpen,
-		gapExtend,
 	}
 	request := JobRequest{
 		job.Hash(),

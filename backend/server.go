@@ -95,6 +95,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				return
 			}
 
+			// do not expose local paths
+			for i := range databases {
+				databases[i].OverridePath = ""
+			}
+
 			err = json.NewEncoder(w).Encode(DatabaseResponse{databases})
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -208,6 +213,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				req.FormValue("search"),
 				"",
 				StatusPending,
+				"",
 				nil,
 			}
 
@@ -511,18 +517,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		}
 		fileNames = req.Form["fileNames[]"]
-
-		gapOpen, err = strconv.ParseInt(req.FormValue("gapOpen"), 10, 32)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		gapExtend, err = strconv.ParseInt(req.FormValue("gapExtend"), 10, 32)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
 
 		request, err := NewFoldMasonMSAJobRequest(queries, fileNames, gapOpen, gapExtend)
 		if err != nil {

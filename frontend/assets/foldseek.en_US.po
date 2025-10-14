@@ -30,9 +30,9 @@ msgstr ""
 
 msgid "CITATION_MULTIMER"
 msgstr ""
-"Kim W, Mirdita M, Levy Karin E, Gilchrist CLM, Schweke H, Soeding J, Levy E, and Steinegger M."
-" <a href=\"https://www.biorxiv.org/content/10.1101/2024.04.14.589414v2\" target=\"_blank\" rel=\"noopener\">"
-"Rapid and Sensitive Protein Complex Alignment with Foldseek-Multimer</a>. bioRxiv, 2024."
+"Kim W, Mirdita M, Levy Karin E, Gilchrist CLM, Schweke H, Soeding J, Levy ED, and Steinegger M."
+" <a href=\"https://www.nature.com/articles/s41592-025-02593-7\" target=\"_blank\" rel=\"noopener\">"
+"Rapid and sensitive protein complex alignment with Foldseek-Multimer</a>. Nature Methods, 2025."
 
 msgid "CITATION_FOLDMASON"
 msgstr ""
