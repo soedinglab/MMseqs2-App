@@ -70,7 +70,7 @@
                                 rel="noopener"
                                 >
                                 <v-list-item-content>
-                                    <v-list-item-title>{{ log( item ).label }}</v-list-item-title>
+                                    <v-list-item-title>{{ item .label }}</v-list-item-title>
                                     <v-list-item-subtitle>
                                         {{ item.accession }}
                                     </v-list-item-subtitle>
@@ -154,7 +154,24 @@
                                 <th :colspan="6 +  entry.hasDescription + entry.hasTaxonomy + ((tableMode == 1) ? 2 : 0)" style="text-align:center; border-bottom: 1px solid #333;">Chain</th>
                             </tr>
                             <tr>
-                                <th class="thin"><v-simple-checkbox :color="entry.color" :ripple="false" v-model="selectAllStatus[entry.db]" @input="toggleDbEntries(entry.db, $event)" style="user-select: none; -webkit-user-select: none;" ></v-simple-checkbox></th>
+                                <th class="thin select-all-th" style="position: relative" :selected="selectAllStatus[entry.db]">
+                                    <v-tooltip top open-delay="300">
+                                        <template v-slot:activator="{ on }">
+                                            <v-simple-checkbox :color="entry.color" v-on="on" class="select-all-checkbox"
+                                                :ripple="false" v-model="selectAllStatus[entry.db]" 
+                                                @input="toggleDbEntries(entry.db, $event)" 
+                                                style="user-select: none; -webkit-user-select: none;" >
+                                            </v-simple-checkbox>
+                                            <v-icon style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);"
+                                            class="select-all-help"
+                                            >{{ $MDI.HelpCircleOutline }}</v-icon>
+                                        </template>
+                                        <span><b>Select a single entry</b>: <br>
+                                                &nbsp;&nbsp;&nbsp;&nbsp;Click the <i>index number</i> in this column <br>
+                                                <b>Multiple selection</b>: Shift-click <br>
+                                                <b>Select all</b>: Click <i>this button</i></span>
+                                    </v-tooltip>
+                                </th>
                                 <template v-if="isComplex">
                                     <!-- <th class="thin">ID</th> -->
                                     <th class="thin">qTM</th>
@@ -276,16 +293,16 @@
                     <v-chip label close color="primary" class="elevation-8" @click:close="clearAllEntries" ><span v-html="selectionBannerContent"></span></v-chip>
                     <v-flex shrink>
                     <template v-if="selectedCounts == 1">
-                        <v-tooltip top :color="errorFoldSeekBtn ? 'error': 'primary'" :value="errorFoldSeekBtn">
+                        <v-tooltip top :color="errorFoldseekBtn ? 'error': 'primary'" :value="errorFoldseekBtn">
                             <template v-slot:activator="{on, attrs}">
-                                <v-btn :color="errorFoldSeekBtn ? 'error': 'primary'" v-bind="attrs" v-on="on" fab class="mr-3 elevation-8" large :loading="loading" @click="sendToFoldSeek"><v-icon>{{isSelectionComplex ?  $MDI.Multimer : $MDI.Monomer}}</v-icon></v-btn>
+                                <v-btn :color="errorFoldseekBtn ? 'error': 'primary'" v-bind="attrs" v-on="on" fab class="mr-3 elevation-8" large :loading="loading" @click="sendToFoldseek"><v-icon>{{isSelectionComplex ?  $MDI.Multimer : $MDI.Monomer}}</v-icon></v-btn>
                             </template> 
-                            <span>{{ toFoldSeekContent }}</span>
+                            <span>{{ toFoldseekContent }}</span>
                         </v-tooltip>
-                        <v-tooltip top :color="errorFoldDiscoBtn ? 'error' : 'secondary'" :value="isSelectionUnableToFetch || errorFoldDiscoBtn">
+                        <v-tooltip top :color="errorFoldDiscoBtn ? 'error' : 'secondary'" :value="errorFoldDiscoBtn">
                             <template v-slot:activator="{on, attrs}">
-                                <v-btn v-bind="attrs" v-on="on" fab class="elevation-8" :color="errorFoldDiscoBtn ? 'error' : 'secondary'" large 
-                                :loading="loading" :disabled="isSelectionUnableToFetch" @click="sendToFoldDisco"><v-icon>{{$MDI.Motif}}</v-icon></v-btn>
+                                <v-btn v-bind="attrs" v-on="on" fab class="elevation-8 fold-disco-btn" :class="{'btn-disabled':isSelectionUnableToFetch}" :color="errorFoldDiscoBtn ? 'error' : 'secondary'" large 
+                                :loading="loading" @click="isSelectionUnableToFetch ? () => {} : sendToFoldDisco()"><v-icon>{{$MDI.Motif}}</v-icon></v-btn>
                             </template>
                             <span v-html="toFoldDiscoContent"></span>
                         </v-tooltip>
@@ -378,17 +395,16 @@ const getChainName = (name) => {
 
 
 const getAccession = (name) => {
-    // HACK FIXME fix AF chain names
+    if (/^AF-\w+-/.test(name)) {
+        name = name.split('-')[1]
+    }
+    
     if (/_v[0-9]+$/.test(name)) {
         return name;
     }
     
-    if (/^AF-\w+-/.test(name)) {
-        name = name.split('-')[1]
-    }
-
     if (/_unrelaxed_rank_/.test(name)) {
-        let pos = name.indexOf('_');
+        let pos = name.indexOf('_unrelaxed_rank_');
         return pos != -1 ? name.substring(0, pos) : name;
     }
 
@@ -399,15 +415,25 @@ const getAccession = (name) => {
 const fetchStructureFileURL = async (accession, db, signal=null) => {
     const fetchWithURL = async (url, retry) => {
         const response = await fetch(url, {signal})
-        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+        if (signal?.aborted) { 
+            throw new DOMException('Aborted', 'AbortError') 
+        }
         if (!response.ok) {
-            if (retry) return await fetchWithURL(url.replace(/\.pdb$/, ".cif"), false)
-            else throw new DOMException('Failed to fetch', 'FetchError')
+            if (retry) { 
+                return await fetchWithURL(url.replace(/\.pdb$/, ".cif"), false) 
+            }
+            else { 
+                throw new DOMException('Failed to fetch', 'FetchError') 
+            }
         } return await response.text()
     }
 
-    if (!db || !accession) throw new DOMException('Invalid entry', 'FetchError')
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    if (!db || !accession) { 
+        throw new DOMException('Invalid entry', 'FetchError') 
+    }
+    if (signal?.aborted) { 
+        throw new DOMException('Aborted', 'AbortError') 
+    }
 
     try {
         if (db == "BFVD") {
@@ -424,7 +450,9 @@ const fetchStructureFileURL = async (accession, db, signal=null) => {
             // First attempt pdb, then cif.
             // PDB accepts only the first 4 characters as accession.
             const url = `https://files.rcsb.org/download/${accession.substring(0, 4).toUpperCase()}.pdb`
-        } else throw new DOMException('Not supported DB', 'FetchError')
+        } else { 
+            throw new DOMException('Not supported DB', 'FetchError') 
+        }
     } catch (error) {
         throw error
     }
@@ -454,7 +482,7 @@ export default {
             toggleSourceDb: "",
             isCollapsed: null,
             dbToIdx: null,
-            errorFoldSeekBtn: false,
+            errorFoldseekBtn: false,
             errorFoldMasonBtn: false,
             errorFoldDiscoBtn: false,
         }
@@ -492,7 +520,7 @@ export default {
                         n.results.map(e => [e.db, false])
                     )
                     this.dbToIdx = obj3
-                } else return
+                }
             },
             immediate: false,
             deep: true,
@@ -500,7 +528,7 @@ export default {
         selectedCounts() {
             this.errorFoldDiscoBtn=false
             this.errorFoldMasonBtn=false
-            this.errorFoldSeekBtn=false
+            this.errorFoldseekBtn=false
         }
     },
     computed: {
@@ -514,18 +542,29 @@ export default {
             return false;
         },
         isSelectionComplex() {
-            if (this.selectedCounts != 1 || !this.isComplex) return false
+            if (this.selectedCounts != 1 || !this.isComplex) { 
+                return false 
+            }
 
             const selection = this.getSingleSelectionInfo();
-            if (selection.idx == -1) return false
+            if (selection.idx == -1) { 
+                return false 
+            }
 
-            if (this.hits.results[this.dbToIdx?.[selection.db]]?.alignments?.[selection.idx]?.length > 1) return true
-            else return false
+            if (this.hits.results[this.dbToIdx?.[selection.db]]?.alignments?.[selection.idx]?.length > 1) { 
+                return true 
+            } else { 
+                return false 
+            }
         },
         isSelectionUnableToFetch() {
-            if (this.selectedCounts != 1) return false
+            if (this.selectedCounts != 1) { 
+                return false 
+            }
             const selection = this.getSingleSelectionInfo();
-            if (selection.idx == -1) return false
+            if (selection.idx == -1) { 
+                return false 
+            }
 
             const banList = ['bfmd', 'cath50', 'gmgcl_id']
             return banList.includes(selection.db)
@@ -563,7 +602,6 @@ export default {
             return "ERROR";
         },
         scoreColumnName() {
-            // console.log(this.mode)
             if (__APP__ == 'foldseek') {
                 switch (this.mode) {
                     case 'tmalign':
@@ -575,34 +613,57 @@ export default {
             return 'E-Value';
         },
         selectionBannerContent() {
-            if (this.selectedCounts == 0) return 'No selection'
-            else if (this.selectedCounts > 1) {
+            if (this.selectedCounts == 0) { 
+                return 'No selection' 
+            } else if (this.selectedCounts > 1) {
                 return this.selectedCounts + " entries" + " selected"
             } else {
                 const selection = this.getSingleSelectionInfo()
-                if (selection.idx == -1) return ''
+                if (selection.idx == -1) { 
+                    return '' 
+                }
 
                 let str = (this.hits.results[this.dbToIdx?.[selection.db]]?.alignments?.[selection.idx]?.[0]?.target)
-                if (!str) return ''
+                if (!str) { 
+                    return '' 
+                }
                 if (str.length >= 15) {
                     str = '<span title="' + str + '">'  + str.slice(0, 12) + '...' + '</span>&nbsp;'
                 }
                 return str + " selected"
             }
         },
-        toFoldSeekContent() {
-            if (this.errorFoldSeekBtn) return 'Failed to load the structure file'
-            else return 'Send to FoldSeek' + (this.isSelectionComplex ? ' Multimer' : "")
+        toFoldseekContent() {
+            if (this.errorFoldseekBtn) { 
+                return 'Failed to load the structure file' 
+            } else { 
+                return 'Send to Foldseek' + (this.isSelectionComplex ? ' Multimer' : "") 
+            }
         },
         toFoldMasonContent() {
-            if (this.errorFoldMasonBtn) return 'Failed to load the structure file'
-            else return 'Send to FoldMason'
+            if (this.errorFoldMasonBtn) { 
+                return 'Failed to load the structure file' 
+            } else { 
+                return 'Send to FoldMason' 
+            }
         },
         toFoldDiscoContent() {
-            if (this.errorFoldDiscoBtn) return 'Failed to load the structure file'
-            else if (this.isSelectionUnableToFetch) return 'This feature is not available<br>for the selected DB'
-            else return 'Send to FoldDisco'
+            if (this.errorFoldDiscoBtn) { 
+                return 'Failed to load the structure file' 
+            } else if (this.isSelectionUnableToFetch) { 
+                return 'This feature is not available<br>for the selected DB' 
+            } else { 
+                return 'Send to FoldDisco' 
+            }
         },
+        remarkStr() {
+            let str = 'REMARK  99 Imported from '
+            let t = this.ticket
+            if (t.length > 55) {
+                t = t.slice(52) + '...'
+            }
+            return (str + t).padEnd(80, ' ') + '\n'
+        }
     },
     methods: {
         log(args) {
@@ -652,7 +713,9 @@ export default {
             return taxFiltered.length > 0;
         },
         onCheckboxClick(db, idx, event) {
-            if (!this.selectedEntries || !this.selectedEntries[db]) return
+            if (!this.selectedEntries || !this.selectedEntries[db]) { 
+                return 
+            }
 
             let value = !this.selectedEntries[db][idx]
 
@@ -663,7 +726,6 @@ export default {
                 this.toggleSourceDb = db
                 this.toggleSourceIdx = idx
                 this.toggleTargetValue = value
-                // this.log(`value set: ${db}, ${idx}, ${value}`)
                 this.$set(this.selectedEntries[db], idx, value)
                 this.selectedCounts += value ? 1 : -1
             } else {
@@ -671,18 +733,22 @@ export default {
                 const endIdx = Math.max(this.toggleSourceIdx, idx) + 1
                 this.handleRangedToggle(db, startIdx, endIdx, this.toggleTargetValue)
             }
-            // this.log(`now selectedCounts = ${this.selectedCounts}`)
         },
         handleRangedToggle(db, startIdx, endIdx, value) {
             if (!this.selectedEntries || !this.selectedEntries[db]) {
                 return
             }
-            // this.log(`ranged set: db: ${db}, from ${startIdx} to ${endIdx} as ${value}`)
 
             let delta = 0
             const src = this.selectedEntries[db]
             // FIXME: If already inside the range?
-            const next = src.map((v, i) => {if (i >= startIdx && i < endIdx) return value; else return v})
+            const next = src.map((v, i) => {
+                if (i >= startIdx && i < endIdx) { 
+                    return value; 
+                } else { 
+                    return v 
+                }})
+
             const deltaUnit = value ? 1 : -1
             
             for (let i = startIdx; i < endIdx; i++) {
@@ -733,7 +799,9 @@ export default {
             for (const [key, arr] of Object.entries(this.selectedEntries)) {
                 db = key
                 idx = arr.indexOf(true);
-                if (idx != -1) break;
+                if (idx != -1) {
+                    break;
+                }
             }
             info.db = db
             info.idx = idx
@@ -753,17 +821,29 @@ export default {
             return arr
         },
         async getMockPdb(info /* info: {db, idx} */, signal) {
-            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+            if (signal?.aborted) { 
+                throw new DOMException('Aborted', 'AbortError')
+            }
+
             let {db, idx} = info
-            if (idx == -1) return;
+            if (idx == -1) {
+                return;
+            }
 
             const ticket = this.$route.params.ticket;
             let response
+
             try {
-                response = await this.$axios.get("api/result/" + ticket + '/' + this.$route.params.entry + '?format=brief&index=' + idx + '&database=' + db, {signal});
+                response = await this.$axios.get("api/result/" 
+                    + ticket + '/' + this.$route.params.entry 
+                    + '?format=brief&index=' + idx 
+                    + '&database=' + db, {signal});
             } catch (error) {
-                if (signal?.aborted) throw new  DOMException('Aborted', 'AbortError')
-                else throw new DOMException('Failed to fetch', 'FetchError')
+                if (signal?.aborted) { 
+                    throw new  DOMException('Aborted', 'AbortError')
+                } else { 
+                    throw new DOMException('Failed to fetch', 'FetchError') 
+                }
             }
 
             let dataArr = response.data;
@@ -771,7 +851,9 @@ export default {
             const name = getAccession(dataArr[0].target)
 
             for (let data of dataArr) {
-                if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+                if (signal?.aborted) { 
+                    throw new DOMException('Aborted', 'AbortError') 
+                }
 
                 const chain = getChainName(data.target)
                 const tCa = data.tCa
@@ -787,16 +869,18 @@ export default {
             } else {
                 out = arr[0].pdb
             }
-            return { pdb: out, isMultimer: arr.length > 1, name: name}
+            return { pdb: this.prependRemark(out, name, db), isMultimer: arr.length > 1, name: name}
         },
-        async sendToFoldSeek() {
-            if (this.loading) return
+        async sendToFoldseek() {
+            if (this.loading) {
+                return
+            }
 
             this.loading = true
-            this.errorFoldSeekBtn = false
+            this.errorFoldseekBtn = false
             let info = this.getSingleSelectionInfo()
             if (info.idx < 0) {
-                console.log("Error in sendToFoldSeek: no entry selected")
+                console.log("Error in sendToFoldseek: no entry selected")
                 this.loading = false
                 return
             }
@@ -811,7 +895,7 @@ export default {
                     console.log("Job canceled")
                 }  else {
                     console.error(error.message)
-                    this.errorFoldSeekBtn = true
+                    this.errorFoldseekBtn = true
                 }
                 this.cancelCtl = null
                 this.loading = false
@@ -839,7 +923,9 @@ export default {
             const inBatches = async (items, k, fn, signal) => {
                 const out = [];
                 for (let p = 0; p < items.length; p += k) {
-                    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+                    if (signal?.aborted) { 
+                        throw new DOMException('Aborted', 'AbortError') 
+                    }
                     
                     const chunk = items.slice(p, p + k);
                     const settled = await Promise.allSettled(chunk.map(x => fn(x, signal)));
@@ -874,7 +960,9 @@ export default {
             try {
                 const signal = this.cancelCtl.signal
                 const settled = await inBatches(this.getMultipleSelectionInfo(), BATCH_SIZE, async (i, s) => await this.getMockPdb(i, s), signal)
-                const values = settled.filter(r => r.status == "fulfilled").map(r => {return {text: r.value?.pdb, name: r.value?.name};})
+                const values = settled.filter(r => r.status == "fulfilled").map(r => {
+                    return {text: r.value?.pdb, name: r.value?.name};
+                })
                 await saveAsChunk(values, CHUNK_SIZE, signal)
                 this.$router.push({name:'foldmason'})
             } catch (e) {
@@ -890,7 +978,9 @@ export default {
             }
         },
         async sendToFoldDisco() {
-            if (this.loading) return
+            if (this.loading) { 
+                return 
+            }
 
             this.errorFoldDiscoBtn = false
             this.loading = true
@@ -901,11 +991,11 @@ export default {
             }
 
             this.cancelCtl = new AbortController();
-            const accession = this.hits.results[this.dbToIdx?.[selection.db]]?.alignments?.[selection.idx]?.[0]?.target
+            const target = this.hits.results[this.dbToIdx?.[selection.db]]?.alignments?.[selection.idx]?.[0]?.target
             let targetPdb
             try {
                 const signal = this.cancelCtl.signal
-                targetPdb = await fetchStructureFileURL(accession, selection.db, signal)
+                targetPdb = await fetchStructureFileURL(target, selection.db, signal)
             } catch (error) {
                 if (error?.name == 'AbortError') {
                     console.log('Job canceled')
@@ -922,8 +1012,9 @@ export default {
                 return
             }
             const storage = new StorageWrapper('folddisco')
+            const accession = getAccession(target)
 
-            await localDb.setItem('folddisco.query', targetPdb)
+            await localDb.setItem('folddisco.query', this.prependRemark(targetPdb, accession, selection.db))
             storage.removeItem('motif')
             this.$router.push({name: "folddisco"})
         },
@@ -933,6 +1024,14 @@ export default {
         toggleCollapse(db) {
             let orig = this.isCollapsed[db]
             this.$set(this.isCollapsed, db, !orig)
+        },
+        prependRemark(pdb, accession, db) {
+            let firstline = 'REMARK  89 Accession: ' + accession + ', DB: ' + db
+            if (firstline.length > 79) {
+                firstline = firstline.slice(76) + '... '
+            }
+            firstline = firstline.padEnd(80, ' ') + '\n' + this.remarkStr
+            return firstline + pdb
         }
     }
 };
@@ -1047,6 +1146,11 @@ tr.hit.selected .entry-checkbox svg {
     fill: var(--active-color);
 }
 
+.fold-disco-btn.btn-disabled {
+    background-color: rgba(0,0,0,.12) !important;
+    color: rgba(0,0,0,.24) !important;
+}
+
 @media print, screen and (min-width: 961px) {
     .result-table {
         table-layout: fixed;
@@ -1083,6 +1187,24 @@ tr.hit.selected .entry-checkbox svg {
         }
         tr.hit:not(.selected) .entry-checkbox div:hover::before {
             opacity: 0;
+        }
+
+        th.select-all-th:not(.selected):not(:hover) .select-all-checkbox {
+            opacity: 0;
+        }
+
+        th.select-all-th:not(.selected):hover .select-all-checkbox {
+            opacity: 1;
+        }
+
+        th.select-all-th:not(.selected):not(:hover) .select-all-help {
+            display: block;
+        }
+        th.select-all-th:not(.selected):hover .select-all-help {
+            display: none;
+        }
+        th.select-all-th.selected .select-all-help {
+            display: none;
         }
     }
 }
