@@ -450,6 +450,7 @@ const fetchStructureFileURL = async (accession, db, signal=null) => {
             // First attempt pdb, then cif.
             // PDB accepts only the first 4 characters as accession.
             const url = `https://files.rcsb.org/download/${accession.substring(0, 4).toUpperCase()}.pdb`
+            return await fetchWithURL(url, true)
         } else { 
             throw new DOMException('Not supported DB', 'FetchError') 
         }
@@ -981,7 +982,7 @@ export default {
             if (this.loading) { 
                 return 
             }
-
+            
             this.errorFoldDiscoBtn = false
             this.loading = true
             const selection = this.getSingleSelectionInfo()
