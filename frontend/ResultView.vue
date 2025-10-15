@@ -657,12 +657,12 @@ export default {
             }
         },
         remarkStr() {
-            let str = 'REMARK  99 Imported from '
+            let str = 'Imported from '
             let t = this.ticket
             if (t.length > 55) {
                 t = t.slice(52) + '...'
             }
-            return (str + t).padEnd(80, ' ') + '\n'
+            return (str + t).padEnd(69, ' ') + '\n'
         }
     },
     methods: {
@@ -1025,13 +1025,20 @@ export default {
             let orig = this.isCollapsed[db]
             this.$set(this.isCollapsed, db, !orig)
         },
-        prependRemark(pdb, accession, db) {
-            let firstline = 'REMARK  89 Accession: ' + accession + ', DB: ' + db
-            if (firstline.length > 79) {
+        prependRemark(structure, accession, db) {
+            let is_cif = false
+            if (structure[0] == '#' || structure.startsWith('data_')) {
+                is_cif = true
+            }
+            
+            let prefix = is_cif ? '# ' : 'REMARK  99 '
+            let firstline = prefix + 'Accession: ' + accession + ', DB: ' + db
+            if (!is_cif && firstline.length > 79) {
                 firstline = firstline.slice(76) + '... '
             }
-            firstline = firstline.padEnd(80, ' ') + '\n' + this.remarkStr
-            return firstline + pdb
+
+            firstline = firstline.padEnd(80, ' ') + '\n' + prefix + this.remarkStr
+            return firstline + structure
         }
     }
 };
