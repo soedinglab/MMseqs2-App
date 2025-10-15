@@ -154,7 +154,7 @@
                                 <th :colspan="6 +  entry.hasDescription + entry.hasTaxonomy + ((tableMode == 1) ? 2 : 0)" style="text-align:center; border-bottom: 1px solid #333;">Chain</th>
                             </tr>
                             <tr>
-                                <th class="thin select-all-th" style="position: relative" :selected="selectAllStatus[entry.db]">
+                                <th class="thin select-all-th" style="position: relative" :class="{ 'selected':selectAllStatus[entry.db] }">
                                     <v-tooltip top open-delay="300">
                                         <template v-slot:activator="{ on }">
                                             <v-simple-checkbox :color="entry.color" v-on="on" class="select-all-checkbox"
