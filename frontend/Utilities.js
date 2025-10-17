@@ -570,7 +570,7 @@ export function mergePdbs(chainPdbs /* [{pdb, chain}] */) {
       if (/^(ATOM  |HETATM)/.test(line)) {
         // reassign atom serial no.
         let s = serial.toString().padStart(5, " ");
-        let l = line.padEnd(80, " "); // 고정폭 보장
+        let l = line.padEnd(80, " ");
         l = l.slice(0, 6) + s + l.slice(11);
 
         // change chain_id
@@ -580,9 +580,38 @@ export function mergePdbs(chainPdbs /* [{pdb, chain}] */) {
         serial++;
       }
     }
-    out.push("TER"); // 체인 경계
+    out.push("TER");
   }
 
+  out.push("END");
+  return out.join("\n");
+}
+
+/**
+ *
+ * @param {*} chainPdbs : Ca only pdb files with chain information in [{pdb, chain}] format
+ * @returns concatenated pdb string
+ * @abstract Concatenate multiple chains into one pdb files with single chain A
+ */
+export function concatenatePdbs(chainPdbs /* [{pdb, chain}] */) {
+  let serial = 1;
+  const out = [];
+
+  for (const { pdb, chain } of chainPdbs) {
+    const lines = pdb.split(/\r?\n/);
+    for (const line of lines) {
+      if (/^(ATOM  |HETATM)/.test(line)) {
+        // reassign atom serial no. and residue sequence no.
+        let s = serial.toString().padStart(5, " ");
+        let rs = serial.toString().padStart(4, " ");
+        let l = line.padEnd(80, " ");
+        l = l.slice(0, 6) + s + l.slice(11, 21) + "A" + rs + l.slice(26);
+        out.push(l);
+        serial++;
+      }
+    }
+  }
+  out.push("TER");
   out.push("END");
   return out.join("\n");
 }

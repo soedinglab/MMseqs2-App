@@ -104,11 +104,11 @@
                         </h2>
 
                         <!-- Button to toggle Sankey Diagram visibility -->
-                        <v-btn v-if="entry.hasTaxonomy && !isComplex" @click="toggleSankeyVisibility(entry.db)" class="mr-2" large>
+                        <v-btn v-if="entry.hasTaxonomy && !isComplex" @click="toggleSankeyVisibility(entry.db)" :class="{ 'mr-2': $vuetify.breakpoint.smAndUp , 'mb-2': $vuetify.breakpoint.xsOnly}" large>
                             {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
                         </v-btn>
                         
-                        <v-btn-toggle mandatory v-model="tableMode" >
+                        <v-btn-toggle mandatory v-model="tableMode" :class="{'mb-2': $vuetify.breakpoint.xsOnly}">
                             <v-btn>
                                 Graphical
                             </v-btn>
@@ -312,7 +312,7 @@
                             <template v-slot:activator="{on, attrs}">
                                 <v-btn v-bind="attrs" v-on="on" fab class="elevation-8" :color="errorFoldMasonBtn ? 'error' : 'primary'" large :loading="loading" @click="sendToFoldMason"><v-icon>{{$MDI.Wall}}</v-icon></v-btn>
                             </template>
-                            <span>{{ toFoldMasonContent }}</span>
+                            <span v-html="toFoldMasonContent"></span>
                         </v-tooltip>
                     </template>
                     </v-flex>
@@ -361,7 +361,7 @@ import Panel from './Panel.vue';
 import AlignmentPanel from './AlignmentPanel.vue';
 import Ruler from './Ruler.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
-import { mockPDB, mergePdbs} from './Utilities';
+import { mockPDB, mergePdbs, concatenatePdbs} from './Utilities';
 import { pulchra } from 'pulchra-wasm';
 import { BlobDatabase } from './lib/BlobDatabase';
 import { StorageWrapper } from './lib/HistoryMixin';
@@ -619,6 +619,8 @@ export default {
             } else if (this.selectedCounts > 1) {
                 return this.selectedCounts + " entries" + " selected"
             } else {
+                if (this.$vuetify.breakpoint.smAndDown) return "1 entry selected"
+
                 const selection = this.getSingleSelectionInfo()
                 if (selection.idx == -1) { 
                     return '' 
@@ -629,7 +631,7 @@ export default {
                     return '' 
                 }
                 if (str.length >= 15) {
-                    str = '<span title="' + str + '">'  + str.slice(0, 12) + '...' + '</span>&nbsp;'
+                    str = '<span title="' + str + '" >'  + str.slice(0, 16) + '...</span>&nbsp;'
                 }
                 return str + " selected"
             }
@@ -645,7 +647,7 @@ export default {
             if (this.errorFoldMasonBtn) { 
                 return 'Failed to load the structure file' 
             } else { 
-                return 'Send to FoldMason' 
+                return 'Send to FoldMason' + (this.isComplex ? "<br><i>*Combine multiple chains<br>into a single chain</i>" :  "")
             }
         },
         toFoldDiscoContent() {
@@ -847,16 +849,17 @@ export default {
                 }
             }
 
-            let dataArr = response.data;
+            let dataArr = response.data
             const arr = []
-            const name = getAccession(dataArr[0].target)
+            let name = getAccession(dataArr[0].target)
+            let chainset = "_"
 
             for (let data of dataArr) {
                 if (signal?.aborted) { 
                     throw new DOMException('Aborted', 'AbortError') 
                 }
-
                 const chain = getChainName(data.target)
+                chainset += chain
                 const tCa = data.tCa
                 const tSeq = data.tSeq
                 const pdb = mockPDB(tCa, tSeq, chain)
@@ -866,7 +869,9 @@ export default {
             }
             let out = ""
             if (arr.length > 1) {
-                out = mergePdbs(arr)
+                // out = mergePdbs(arr)
+                out = concatenatePdbs(arr) // For now, just concatenate chains into one single chain
+                name += chainset
             } else {
                 out = arr[0].pdb
             }
@@ -961,10 +966,13 @@ export default {
             try {
                 const signal = this.cancelCtl.signal
                 const settled = await inBatches(this.getMultipleSelectionInfo(), BATCH_SIZE, async (i, s) => await this.getMockPdb(i, s), signal)
+                settled.filter(r => r.status == 'rejected').map(r => console.warn(r.reason))
                 const values = settled.filter(r => r.status == "fulfilled").map(r => {
                     return {text: r.value?.pdb, name: r.value?.name};
                 })
                 await saveAsChunk(values, CHUNK_SIZE, signal)
+                this.loading = false
+                this.cancelCtl = null
                 this.$router.push({name:'foldmason'})
             } catch (e) {
                 if (e?.name == 'AbortError') {
@@ -973,12 +981,11 @@ export default {
                     this.errorFoldMasonBtn = true
                     console.error(e)
                 }
-            } finally {
                 this.loading = false
                 this.cancelCtl = null
-            }
+            } 
         },
-        async sendToFoldDisco() {
+            async sendToFoldDisco() {
             if (this.loading) { 
                 return 
             }
