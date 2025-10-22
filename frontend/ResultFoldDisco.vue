@@ -308,7 +308,7 @@ import { debounce } from './lib/debounce.js';
 import FolddiscoHitCluster from './FolddiscoHitCluster.vue';
 import MotifFilter from './MotifFilter.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
-import NavigationButton from './navigationButton.vue';
+import NavigationButton from './NavigationButton.vue';
 
 function getAbsOffsetTop($el) {
     var sum = 0;
@@ -432,7 +432,6 @@ export default {
         hits: {
             handler(n, o) {
                 this.setColorScheme();
-                console.log(n)
                 if (n && n.results) {
                     this.isCollapsed = Object.fromEntries(
                         n.results.map(e => [e.db, false])

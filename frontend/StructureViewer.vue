@@ -546,7 +546,6 @@ END
                 query.addRepresentation("surface", { sele: `not (${surfaceSele2.join(" or ")})`, name: "querySurface-2", visible: false, ...surfaceParams });
             } else {
                 // Generate subsetted PDBs for TM-align
-                console.log(query.structure)
                 let qSubPdb = makeSubPDB(query.structure, this.querySele);
                 let tSubPdb = makeSubPDB(target.structure, this.targetSele);
                 let alnFasta = `>target\n${this.alignments[0].dbAln}\n\n>query\n${this.alignments[0].qAln}`

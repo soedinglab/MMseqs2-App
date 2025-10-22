@@ -97,9 +97,6 @@ export default {
     getCurrentScrollDbIdx() {
         const currOffset = window.scrollY + this.tabOffset
         let idx = 0
-        // console.log(window.scrollY)
-        // console.log(this.tabOffset)
-        // console.log(this.scrollOffsetArr)
         for (let i = 0; i < this.scrollOffsetArr.length; i++) {
             if (this.scrollOffsetArr[i] > currOffset+1) {
                 break
@@ -107,7 +104,6 @@ export default {
                 idx = i
             }
         }
-        // console.log(idx)
         return idx
     },
     updateScrollStates() {

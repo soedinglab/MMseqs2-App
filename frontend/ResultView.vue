@@ -372,7 +372,7 @@ import { pulchra } from 'pulchra-wasm';
 import { StorageWrapper } from './lib/HistoryMixin';
 
 import { debounce } from './lib/debounce';
-import NavigationButton from './navigationButton.vue';
+import NavigationButton from './NavigationButton.vue';
 
 const localDb = BlobDatabase()
 
