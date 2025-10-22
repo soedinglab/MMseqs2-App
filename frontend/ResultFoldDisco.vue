@@ -78,80 +78,102 @@
                             </v-list-item>
                         </v-list>
                     </v-menu>
-                    <v-tabs
+                    <v-sheet style="position: sticky; padding-bottom: 2em; top: 64px; z-index: 99999 !important;" class="sticky-tabs">
+                        <v-tabs
                         :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"
                         center-active
                         grow
                         v-model="selectedDatabases"
-                        style="margin-bottom: 2em"
                         show-arrows
                         @change="handleChangeDatabase()"
                         v-if="hits.results.length > 1"
-                    >
-                        <v-tab>All databases</v-tab>
-                        <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db.replaceAll(/_folddisco$/g, '') }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
-                    </v-tabs>
-                    <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
-                    <v-flex
-                        class="d-flex"
-                        :style="{
-                            'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : 'row',
-                            'align-items': 'center',
-                            'flex': '0',
-                            'white-space': 'nowrap',
-                        }">
-                        <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
-                            <span style="text-transform: uppercase;">{{ entry.db.replaceAll(/_folddisco$/g, '') }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
-                        </h2>
-                        <v-btn v-if="entry.hasTaxonomy" @click="toggleSankeyVisibility(entry.db)" large>
-                            {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
-                        </v-btn>
-                    </v-flex>
-
-                    <v-flex
-                        class="d-flex"
-                        :style="{
-                            'flex-direction' : $vuetify.breakpoint.mdAndDown ? 'column' : 'row',
-                            'align-items': 'center',
-                            'white-space': 'nowrap',
-                            'gap': '24px',
-                        }"
                         >
-                        <div style="flex-basis: 100%; width: 100%">
-                            <h3>Filter</h3>
-                            <motif-filter
-                                :items="dbGaps[entry.db]"
-                                :value="gapFilter[entry.db] ? gapFilter[entry.db] : ''"
-                                @input="$set(gapFilter, entry.db, $event)"
-                                @click:clear="$set(gapFilter, entry.db, '')"
-                                :queryresidues="entry.queryresidues"
-                                :color="entry.color"
+                            <v-tab>All databases</v-tab>
+                            <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db.replaceAll(/_folddisco$/g, '') }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
+                        </v-tabs>
+                    </v-sheet>
+                    <div v-for="(entry, entryidx) in hits.results" 
+                        :key="entry.db" v-if="selectedDatabases == 0 || (entryidx + 1) == selectedDatabases" 
+                        style="counter-reset: idx-counter" :class="`result-entry-${entryidx}`">
+                    <v-sheet style="position:sticky; top: 140px; z-index: 99997 !important">
+                        <v-flex
+                            class="d-flex"
+                            :style="{
+                                'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : 'row',
+                                'align-items': 'center',
+                                'flex': '0',
+                                'white-space': 'nowrap',
+                            }">
+                            <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
+                                <template v-if="selectedDatabases == 0">
+                                    <v-icon style="margin-right: 8px;" 
+                                        class="collapse-icon" :class="{ collapsed: isCollapsed[entry.db]}" 
+                                        @click="toggleCollapse(entry.db)">
+                                        {{ $MDI.ChevronRight }}
+                                    </v-icon>
+                                </template>
+                                <template v-else>
+                                    <div style="width: 32px; display: inline-block;"></div>
+                                </template>
+                                <span style="text-transform: uppercase;">{{ entry.db.replaceAll(/_folddisco$/g, '') }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
+                            </h2>
+                            <v-btn v-if="entry.hasTaxonomy" @click="toggleSankeyVisibility(entry.db)" 
+                                :class="{ 'mr-2': $vuetify.breakpoint.smAndUp , 'mb-2': $vuetify.breakpoint.xsOnly}" large>
+                                {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
+                            </v-btn>
+                        </v-flex>
+
+                        <v-flex
+                            class="d-flex"
+                            :style="{
+                                'flex-direction' : $vuetify.breakpoint.mdAndDown ? 'column' : 'row',
+                                'align-items': 'center',
+                                'white-space': 'nowrap',
+                                'gap': '24px',
+                                'padding-left': '36px',
+                            }"
                             >
-                            </motif-filter>
-                        </div>
-                        <div style="flex-basis: 100%; width: 100%">
-                            <h3>Cluster</h3>
-                            <folddisco-hit-cluster :hits="entry" v-on:cluster="$set(clusters, entry.db, $event)"></folddisco-hit-cluster>
-                        </div>
-                    </v-flex>
+                            <div style="flex-basis: 100%; width: 100%">
+                                <h3>Filter</h3>
+                                <motif-filter
+                                    :items="dbGaps[entry.db]"
+                                    :value="gapFilter[entry.db] ? gapFilter[entry.db] : ''"
+                                    @input="$set(gapFilter, entry.db, $event)"
+                                    @click:clear="$set(gapFilter, entry.db, '')"
+                                    :queryresidues="entry.queryresidues"
+                                    :color="entry.color"
+                                >
+                                </motif-filter>
+                            </div>
+                            <div style="flex-basis: 100%; width: 100%">
+                                <h3>Cluster</h3>
+                                <folddisco-hit-cluster :hits="entry" v-on:cluster="$set(clusters, entry.db, $event)"></folddisco-hit-cluster>
+                            </div>
+                        </v-flex>
+                        <v-divider></v-divider>
+                    </v-sheet>
+                    <div style="height: 16px; width: 100%"></div>
                     <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]">
                         <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
                     </v-flex>
 
-                    <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
+                    <table class="v-table result-table" style="position:relative; margin-bottom: 3em;"
+                        v-if="selectedDatabases != 0 || !isCollapsed[entry.db]">
                         <colgroup>
-                            <col style="width: 20%;" /> <!-- target -->
-                            <col v-if="entry.hasDescription" style="width: 30%;" /> 
-                            <col v-if="entry.hasTaxonomy" style="width: 20%;" />
-                            <col style="width: 10%;" /> <!-- idf-score --> 
-                            <col style="width: 10%;" /> <!-- RMSD --> 
-                            <col style="width: 6.5%;" /> <!-- nodecount -->
-                            <col style="width: 20%;" /> <!-- Matched residues --> 
+                            <col style="width: 36px;"> <!--index-->
+                            <col style="min-width: 12%;" /> <!-- target -->
+                            <col v-if="entry.hasDescription" style="width: 25%;" /> 
+                            <col v-if="entry.hasTaxonomy" style="width: 15%;" />
+                            <col style="width: 6%;" /> <!-- idf-score --> 
+                            <col style="width: 6%;" /> <!-- RMSD --> 
+                            <col style="width: 6%;" /> <!-- nodecount -->
+                            <col style="min-width: 12%;" /> <!-- Matched residues --> 
                             <!-- <col style="width: 20%;" /> Interresidue --> 
-                            <col style="width: 6.5%;" /> <!-- action -->
+                            <col style="width: 6%;" /> <!-- action -->
                         </colgroup>
                         <thead>
                             <tr>
+                                <th class="thin"></th>
                                 <th :class="'wide-' + (3 - entry.hasDescription - entry.hasTaxonomy)">
                                     Target
                                 </th>
@@ -183,14 +205,15 @@
                         </thead>
                         <tbody v-for="(clu, key) in clusters[entry.db]">
                             {{ void(clusterShown = false) }}
-                            <template v-for="(group, groupidx) in clu.map(x => entry.alignments[x])">
+                            <template v-for="(group, groupidx) in clu.map(x => entry.alignments[x])" >
                             <template v-for="(item, index) in group" v-if="isGroupVisible(group) && isItemVisible(entry.db, item)">
                             <tr v-if="Object.keys(clu).length != Object.keys(entry.alignments).length && clusterShown == false">
-                                <td colspan="6"><strong>Cluster: {{ key == -1 ? "Noise" : key }}</strong></td>
+                                <td colspan="7"><strong>Cluster: {{ key == -1 ? "Noise" : key }}</strong></td>
                             </tr>
                             {{ void(clusterShown = true) }}
-                            <tr :class="['hit', { 'active' : item.active }]">
-                                <td class="db long" data-label="Target" :style="{ 'border-color' : entry.color }">
+                            <tr :class="['hit', { 'active' : item.active }]" style="counter-increment: idx-counter">
+                                <td class="entry-checkbox" style="position:relative"><div></div></td>
+                                <td class="db long" data-label="Target" :style="{ 'border-color' : entry.color}">
                                     <a :id="item.id" class="anchor" style="position: absolute; top: 0"></a>
                                     <!-- <template v-if="isComplex">
                                         {{ item.query.lastIndexOf('_') != -1 ? item.query.substring(item.query.lastIndexOf('_')+1) : '' }} ➔ 
@@ -241,10 +264,23 @@
                     </div>
                 </template>
                 </panel>
+                <NavigationButton :selectedDatabases="selectedDatabases"
+                    :scrollOffsetArr="scrollOffsetArr"
+                    :tabOffset="140"
+                    @needUpdate="updateScrollOffsetArr"
+                ></NavigationButton>
             </v-flex>
         </v-layout>
         <portal>
-            <panel v-if="alignment != null && targetPdb != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px;'">
+            <panel v-if="alignment != null && targetPdb != null" 
+                class="alignment" :style="'top: ' + alnBoxOffset + 'px;'" 
+                v-click-outside="closeAlignment">
+                <template slot="desc">
+                    <v-btn icon @click="closeAlignment" style="display: block; margin-left: auto;">
+                    <v-icon>
+                        {{ $MDI.CloseCircleOutline }}
+                    </v-icon>
+                </v-btn></template>
                 <StructureViewerMotif
                     slot="content"
                     :key="`ap-${alignment.dbkey}`"
@@ -272,6 +308,7 @@ import { debounce } from './lib/debounce.js';
 import FolddiscoHitCluster from './FolddiscoHitCluster.vue';
 import MotifFilter from './MotifFilter.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
+import NavigationButton from './navigationButton.vue';
 
 function getAbsOffsetTop($el) {
     var sum = 0;
@@ -286,7 +323,7 @@ function getAbsOffsetTop($el) {
 export default {
     name: 'ResultFoldDisco',
     tool: 'folddisco',
-    components: { Panel, StructureViewerMotif, FolddiscoHitCluster, MotifFilter },
+    components: { Panel, StructureViewerMotif, FolddiscoHitCluster, MotifFilter, NavigationButton },
     // components: { ResultView },
     mixins: [ ResultMixin, ResultSankeyMixin ],
     data() {
@@ -307,6 +344,8 @@ export default {
             gapFilter: {},
             clusters: {},
             selectedTaxId: null,
+            isCollapsed: null,
+            scrollOffsetArr: null,
         }
     },
     created() {
@@ -390,8 +429,23 @@ export default {
                 this.fetchData();
             }
         },
-        hits: function() {
-            this.setColorScheme();
+        hits: {
+            handler(n, o) {
+                this.setColorScheme();
+                console.log(n)
+                if (n && n.results) {
+                    this.isCollapsed = Object.fromEntries(
+                        n.results.map(e => [e.db, false])
+                    )
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            this.updateScrollOffsetArr()
+                        }, 0)
+                    })
+                }
+            },
+            immediate: false,
+            deep: true
         },
     },
     methods: {
@@ -515,6 +569,15 @@ export default {
                 this.queryPdb = null;
             }
         },
+        toggleCollapse(db) {
+            let orig = this.isCollapsed[db]
+            this.$set(this.isCollapsed, db, !orig)
+        },
+        updateScrollOffsetArr() {
+            const arr = document.querySelectorAll('[class^="result-entry-"]')
+            const offsetArr = [...arr].map(n => Math.ceil(n.getBoundingClientRect().top + window.scrollY))
+            this.scrollOffsetArr = offsetArr
+        }
     },
 };
 </script>
@@ -607,6 +670,19 @@ export default {
             word-break: keep-all;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+        tr.hit .entry-checkbox div::before {
+            content: counter(idx-counter);
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translateY(-50%) translateX(-50%);
+            transition: opacity 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+            font-weight: 700;
+            line-height: 1.2;
+            text-align: center;
+            opacity: 0.6;
+            font-size: 0.7em;
         }
     }
 }
@@ -702,6 +778,7 @@ export default {
         word-break: break-all;
         max-width: none;
     }
+
 }
 
 .alignment {
@@ -721,6 +798,25 @@ export default {
             color: #fff;
         }
     }
+}
+
+.sticky-tabs::before {
+    content: "";
+    width: 100%;
+    position: absolute;
+    top: -16px;
+    background-color: inherit;
+    display: block;
+    height: 16px;
+    z-index: inherit;
+} 
+
+.collapse-icon:not(.collapsed) {
+    transform: rotate(90deg);
+}
+
+.collapse-icon {
+    cursor: pointer;
 }
 </style>
 

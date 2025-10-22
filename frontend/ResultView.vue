@@ -95,7 +95,7 @@
                     </v-tabs>
                     </v-sheet>
                     <div v-for="(entry, entryidx) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (entryidx + 1) == selectedDatabases" :class="`result-entry-${entryidx}`">
-                    <v-sheet :style="{'position': 'sticky', 'top': '140px', 'z-index': '99997 !important'}" class="sticky-title">
+                    <v-sheet style="position: sticky; top: 140px; z-index: 99997 !important">
                         <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null, 'align-items': 'center'}">
                         <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
                             <template v-if="selectedDatabases == 0"><v-icon style="margin-right: 8px;" class="collapse-icon" :class="{ collapsed: isCollapsed[entry.db]}" @click="toggleCollapse(entry.db)">{{ $MDI.ChevronRight }}</v-icon></template>
@@ -318,17 +318,11 @@
                     </v-flex>
                     </v-sheet>
                 </v-fade-transition>
-                <v-sheet color="transparent" :style="{'position': 'fixed', 'width': '200px', 
-                    'right': '16px',
-                    'bottom': '16px', 'z-index': 99998, 'align-items': 'center', 'justify-content': 'flex-end'}" class="d-flex pa-2">
-                    <v-flex shrink class="mr-3" style="flex-direction: row;">
-                        <v-btn small fab v-show="enableScrollPrev" @click="$vuetify.goTo(scrollPrevTarget, scrollOption)"><v-icon>{{ $MDI.ChevronUp }}</v-icon></v-btn>
-                        <v-btn small fab v-show="enableScrollNext" @click="$vuetify.goTo(scrollNextTarget, scrollOption)"><v-icon>{{ $MDI.ChevronDown }}</v-icon></v-btn>
-                    </v-flex>
-                    <v-btn color="primary" fab v-show="enableScrollTop" @click="$vuetify.goTo(0, scrollOption)">
-                        <v-icon>{{ $MDI.DoubleChevronUp }}</v-icon>
-                    </v-btn>
-                </v-sheet>
+                <NavigationButton :selectedDatabases="selectedDatabases" 
+                    :scrollOffsetArr="scrollOffsetArr" 
+                    :tabOffset="tabOffset"
+                    @needUpdate="updateScrollOffsetArr"
+                ></NavigationButton>
             </v-flex>
         </v-layout>
         <portal>
@@ -373,11 +367,12 @@ import AlignmentPanel from './AlignmentPanel.vue';
 import Ruler from './Ruler.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
 import { mockPDB, mergePdbs, concatenatePdbs} from './Utilities';
-import { pulchra } from 'pulchra-wasm';
 import { BlobDatabase } from './lib/BlobDatabase';
+import { pulchra } from 'pulchra-wasm';
 import { StorageWrapper } from './lib/HistoryMixin';
 
 import { debounce } from './lib/debounce';
+import NavigationButton from './navigationButton.vue';
 
 const localDb = BlobDatabase()
 
@@ -473,7 +468,7 @@ const fetchStructureFileURL = async (accession, db, signal=null) => {
 export default {
     name: 'ResultView',
     mixins: [ ResultSankeyMixin ],
-    components: { Panel, AlignmentPanel, Ruler },
+    components: { Panel, AlignmentPanel, Ruler, NavigationButton },
     data() {
         return {
             alignment: null,
@@ -498,17 +493,7 @@ export default {
             errorFoldMasonBtn: false,
             errorFoldDiscoBtn: false,
             scrollOffsetArr: null,
-            tabOffet: 92,
-            enableScrollTop: false,
-            enableScrollNext: false,
-            enableScrollPrev: false,
-            scrollNextTarget: 0,
-            scrollPrevTarget: 0,
-            scrollOption: {
-                duration: 500,
-                offset: 0,
-                easing: 'easeInOutCubic'
-            }
+            tabOffset: 140,
         }
     },
     props: {
@@ -519,11 +504,9 @@ export default {
     },
     mounted() {
         window.addEventListener("resize", this.handleAlignmentBoxResize, { passive: true });
-        window.addEventListener("scroll", this.updateScrollStates, {passive: true})
     },
     beforeDestroy() {
         window.removeEventListener("resize", this.handleAlignmentBoxResize);
-        window.removeEventListener("scroll", this.updateScrollStates);
     },
     watch: {
         hits: {
@@ -546,11 +529,7 @@ export default {
                     this.dbToIdx = obj3
                     this.$nextTick(() => {
                         setTimeout(() => {
-                            const arr = document.querySelectorAll('[class^="result-entry-"]')
-                            const offsetArr = [...arr].map(n => Math.ceil(n.getBoundingClientRect().top + window.scrollY))
-                            this.scrollOffsetArr = offsetArr
-                            this.enableScrollNext = true
-                            this.scrollNextTarget = offsetArr[1] - this.tabOffet
+                            this.updateScrollOffsetArr()
                         }, 0)
                     })
                 }
@@ -1080,57 +1059,11 @@ export default {
             firstline = firstline.padEnd(80, ' ') + '\n' + prefix + this.remarkStr
             return firstline + structure
         },
-        getCurrentScrollDbIdx() {
-            const currOffset = window.scrollY + this.tabOffet + 48
-            let idx = 0
-            for (let i = 0; i < this.scrollOffsetArr.length; i++) {
-                if (this.scrollOffsetArr[i] > currOffset) {
-                    break
-                } else {
-                    idx = i
-                }
-            }
-            return idx
-        },
-        updateScrollStates: debounce(function() {
-            let offset = window.scrollY
-            let innerHeightHalf = window.innerHeight / 2
-            
-            if (offset >= innerHeightHalf) {
-                this.enableScrollTop = true
-            } else {
-                this.enableScrollTop = false
-            }
-
-            if (this.selectedDatabases != 0 || this.scrollOffsetArr?.length < 2) {
-                this.enableScrollNext = false
-                this.enableScrollPrev = false
-                return
-            }
-            
-            let currIdx = this.getCurrentScrollDbIdx()
-            let endOfPage = offset + (2 * innerHeightHalf) >= document.documentElement.scrollHeight
-
-            // scrollNext behavior
-            if (currIdx == this.scrollOffsetArr?.length-1 || endOfPage) {
-                this.enableScrollNext = false
-            } else {
-                this.enableScrollNext = true
-                this.scrollNextTarget = this.scrollOffsetArr?.[currIdx+1] - this.tabOffet
-            }
-
-            // scrollPrev behavior
-            if (offset >= this.scrollOffsetArr?.[0] + innerHeightHalf - this.tabOffet) {
-                this.enableScrollPrev = true
-                if (offset + this.tabOffet >= this.scrollOffsetArr?.[currIdx] + innerHeightHalf) {
-                    this.scrollPrevTarget = this.scrollOffsetArr?.[currIdx] - this.tabOffet
-                } else {
-                    this.scrollPrevTarget = currIdx == 0 ? 0 : this.scrollOffsetArr?.[currIdx-1] - this.tabOffet
-                }
-            } else {
-                this.enableScrollPrev = false
-            }
-        }, 333, false),
+        updateScrollOffsetArr() {
+            const arr = document.querySelectorAll('[class^="result-entry-"]')
+            const offsetArr = [...arr].map(n => Math.ceil(n.getBoundingClientRect().top + window.scrollY))
+            this.scrollOffsetArr = offsetArr
+        }
     }
 };
 </script>
