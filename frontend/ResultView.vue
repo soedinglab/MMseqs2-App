@@ -287,21 +287,21 @@
                 <!-- For displaying number of selected entries and buttons to switch -->
                 <v-fade-transition>
                     <v-sheet color="transparent" :style="{'position': 'fixed', 'width': $vuetify.breakpoint.smAndDown ? '80%' : '40%', 
-                    'left': 'calc(50% - ' + ($vuetify.breakpoint.smAndDown ? '40%' : '20%') + ')',
-                    'bottom': '16px', 'z-index': 99998, 'align-items': 'center', 'justify-content': 'space-between', 'opacity': loading ? 0.4 : 1}" 
+                    'left': $vuetify.breakpoint.smAndDown ? '16px' : '30%',
+                    'bottom': '16px', 'z-index': 99998, 'align-items': 'center', 'justify-content': $vuetify.breakpoint.smAndDown ? 'flex-start' : 'space-between', 'opacity': loading ? 0.4 : 1}" 
                     class="d-flex pa-2" v-if="selectedCounts > 0" >
-                    <v-chip label close color="primary" class="elevation-8" @click:close="clearAllEntries" ><span v-html="selectionBannerContent"></span></v-chip>
+                    <v-chip label close color="primary" style="margin-right: 24px;" class="elevation-8" @click:close="clearAllEntries" ><span v-html="selectionBannerContent"></span></v-chip>
                     <v-flex shrink>
                     <template v-if="selectedCounts == 1">
                         <v-tooltip top :color="errorFoldseekBtn ? 'error': 'primary'" :value="errorFoldseekBtn">
                             <template v-slot:activator="{on, attrs}">
-                                <v-btn :color="errorFoldseekBtn ? 'error': 'primary'" v-bind="attrs" v-on="on" fab class="mr-3 elevation-8" large :loading="loading" @click="sendToFoldseek"><v-icon>{{isSelectionComplex ?  $MDI.Multimer : $MDI.Monomer}}</v-icon></v-btn>
+                                <v-btn :color="errorFoldseekBtn ? 'error': 'primary'" v-bind="attrs" v-on="on" fab class="mr-3 elevation-8" :loading="loading" @click="sendToFoldseek"><v-icon>{{isSelectionComplex ?  $MDI.Multimer : $MDI.Monomer}}</v-icon></v-btn>
                             </template> 
                             <span>{{ toFoldseekContent }}</span>
                         </v-tooltip>
                         <v-tooltip top :color="errorFoldDiscoBtn ? 'error' : 'secondary'" :value="errorFoldDiscoBtn">
                             <template v-slot:activator="{on, attrs}">
-                                <v-btn v-bind="attrs" v-on="on" fab class="elevation-8 fold-disco-btn" :class="{'btn-disabled':isSelectionUnableToFetch}" :color="errorFoldDiscoBtn ? 'error' : 'secondary'" large 
+                                <v-btn v-bind="attrs" v-on="on" fab class="elevation-8 fold-disco-btn" :class="{'btn-disabled':isSelectionUnableToFetch}" :color="errorFoldDiscoBtn ? 'error' : 'secondary'" 
                                 :loading="loading" @click="isSelectionUnableToFetch ? () => {} : sendToFoldDisco()"><v-icon>{{$MDI.Motif}}</v-icon></v-btn>
                             </template>
                             <span v-html="toFoldDiscoContent"></span>
@@ -310,7 +310,7 @@
                     <template v-else>
                         <v-tooltip top :color="errorFoldMasonBtn ? 'error' : 'primary'" :value="errorFoldMasonBtn">
                             <template v-slot:activator="{on, attrs}">
-                                <v-btn v-bind="attrs" v-on="on" fab class="elevation-8" :color="errorFoldMasonBtn ? 'error' : 'primary'" large :loading="loading" @click="sendToFoldMason"><v-icon>{{$MDI.Wall}}</v-icon></v-btn>
+                                <v-btn v-bind="attrs" v-on="on" fab class="elevation-8" :color="errorFoldMasonBtn ? 'error' : 'primary'" :loading="loading" @click="sendToFoldMason"><v-icon>{{$MDI.Wall}}</v-icon></v-btn>
                             </template>
                             <span v-html="toFoldMasonContent"></span>
                         </v-tooltip>
