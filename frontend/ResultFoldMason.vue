@@ -78,7 +78,7 @@ import makeZip from './lib/zip.js'
 import MSA from './MSA.vue';
 import MSAView from './MSAView.vue';
 import Panel from './Panel.vue';
-import NavigationButton from './navigationButton.vue';
+import NavigationButton from './NavigationButton.vue';
 
 export default {
     name: 'ResultFoldMason',
