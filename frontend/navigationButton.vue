@@ -60,15 +60,15 @@ export default {
   props: {
     selectedDatabases: {
       type: Number,
-      default: 0
+      default: -1
     },
     scrollOffsetArr: {
       type: Array,
-      default: () => {[]}
+      default: []
     },
     tabOffset: {
       type: Number,
-      default: 92
+      default: 140
     }
   },
   emits: [

@@ -66,6 +66,7 @@
 
                 </panel>
             </v-flex>
+            <NavigationButton :scrollOffsetArr="[]"></NavigationButton>
         </v-layout>
     </v-container>
 </template>
@@ -77,16 +78,17 @@ import makeZip from './lib/zip.js'
 import MSA from './MSA.vue';
 import MSAView from './MSAView.vue';
 import Panel from './Panel.vue';
+import NavigationButton from './navigationButton.vue';
 
 export default {
     name: 'ResultFoldMason',
     tool: 'foldmason',
-    components: { MSA, MSAView, Panel },
+    components: { MSA, MSAView, Panel, NavigationButton},
     data() {
         return {
             ticket: "",
             error: "",
-            msaData: null
+            msaData: null,
         }
     },
     mounted() {
