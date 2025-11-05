@@ -819,3 +819,40 @@ export const calculateStrSize = (v) => {
     return -1;
   }
 };
+
+export function storeChains(pdb) {
+  const arr = [];
+  let c = "";
+  for (let line of pdb.split("\n")) {
+    if (line.startsWith("ATOM")) {
+      c = line.charAt(21);
+    } else if (line.startsWith("TER")) {
+      arr.push(c);
+    }
+  }
+  if (arr.length == 0) {
+    arr.push(c);
+  }
+  return arr;
+}
+
+export function revertChainInfo(pdb, chains) {
+  if (chains.length == 0 || chains[0] == "") {
+    return pdb;
+  }
+
+  const arr = [];
+  let i = 0;
+
+  for (let line of pdb.split("\n")) {
+    if (line.startsWith("ATOM")) {
+      line = line.slice(0, 21) + chains[i] + line.slice(22);
+    } else if (line.startsWith("TER")) {
+      i++;
+    }
+
+    arr.push(line);
+  }
+
+  return arr.join("\n");
+}

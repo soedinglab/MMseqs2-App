@@ -79,7 +79,8 @@
                         </v-list>
                     </v-menu>
                     
-                    <v-sheet style="position:sticky; padding-bottom: 2em; top: 64px; z-index: 99999 !important;" class="sticky-tabs">
+                    <v-sheet style="position:sticky; padding-bottom: 2em; top: 64px; 
+                        z-index: 99999 !important;" class="sticky-tabs">
                         
                         <v-tabs
                         :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"
@@ -94,9 +95,10 @@
                         <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
                     </v-tabs>
                     </v-sheet>
-                    <div v-for="(entry, entryidx) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (entryidx + 1) == selectedDatabases" :class="`result-entry-${entryidx}`">
-                    <v-sheet style="position: sticky; top: 140px; z-index: 99997 !important">
-                        <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : null, 'align-items': 'center'}">
+                <div v-for="(entry, entryidx) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (entryidx + 1) == selectedDatabases" >
+                    <v-sheet style="position: sticky; top: 140px; z-index: 99997 !important; padding-bottom: 16px;" 
+                        :db="entryidx" :class="`result-entry-${entryidx}`" :style="{'height': $vuetify.breakpoint.smAndDown ? '188px' : '80px'}">
+                        <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.smAndDown ? 'column' : null, 'align-items': 'center'}">
                         <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
                             <template v-if="selectedDatabases == 0"><v-icon style="margin-right: 8px;" class="collapse-icon" :class="{ collapsed: isCollapsed[entry.db]}" @click="toggleCollapse(entry.db)">{{ $MDI.ChevronRight }}</v-icon></template>
                             <template v-else><div style="width: 32px; display: inline-block;"></div></template>
@@ -104,11 +106,11 @@
                         </h2>
 
                         <!-- Button to toggle Sankey Diagram visibility -->
-                        <v-btn v-if="entry.hasTaxonomy && !isComplex" @click="toggleSankeyVisibility(entry.db)" :class="{ 'mr-2': $vuetify.breakpoint.smAndUp , 'mb-2': $vuetify.breakpoint.xsOnly}" large>
+                        <v-btn v-if="entry.hasTaxonomy && !isComplex" @click="toggleSankeyVisibility(entry.db)" :class="{ 'mr-2': $vuetify.breakpoint.mdAndUp , 'mb-2': $vuetify.breakpoint.smAndDown}" large>
                             {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
                         </v-btn>
                         
-                        <v-btn-toggle mandatory v-model="tableMode" :class="{'mb-2': $vuetify.breakpoint.xsOnly}">
+                        <v-btn-toggle mandatory v-model="tableMode" :class="{'mb-2': $vuetify.breakpoint.smAndDown}">
                             <v-btn>
                                 Graphical
                             </v-btn>
@@ -118,9 +120,7 @@
                             </v-btn>
                         </v-btn-toggle>
                     </v-flex>
-                    <v-divider></v-divider>
                     </v-sheet>
-                    <div style="height: 16px; width: 100%;"></div>
                     <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2">
                         <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
                     </v-flex>
@@ -147,30 +147,41 @@
                             </template>
                             <col style="width: 6%;" />
                         </colgroup>
-                        <thead>
+                        <thead style="position: sticky; z-index: 99997 !important;" class="sticky-thead"
+                            :style="{'top': $vuetify.breakpoint.smAndDown ? '328px' : '220px', 
+                            'background-color': $vuetify.theme.dark ? '#1e1e1e1' : '#fff'}">
                             <tr v-if="isComplex">
                                 <th colspan="1"></th>
                                 <th colspan="2" style="text-align:center; width:10%; border-right: 1px solid #333; border-bottom: 1px solid #333;">Complex</th>
                                 <th :colspan="6 +  entry.hasDescription + entry.hasTaxonomy + ((tableMode == 1) ? 2 : 0)" style="text-align:center; border-bottom: 1px solid #333;">Chain</th>
                             </tr>
                             <tr>
-                                <th class="thin select-all-th" style="position: relative" :class="{ 'selected':selectAllStatus[entry.db] }">
-                                    <v-tooltip top open-delay="300">
-                                        <template v-slot:activator="{ on }">
-                                            <v-simple-checkbox :color="entry.color" v-on="on" class="select-all-checkbox"
-                                                :ripple="false" v-model="selectAllStatus[entry.db]" 
-                                                @input="toggleDbEntries(entry.db, $event)" 
-                                                style="user-select: none; -webkit-user-select: none;" >
-                                            </v-simple-checkbox>
-                                            <v-icon style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);"
-                                            class="select-all-help"
-                                            >{{ $MDI.HelpCircleOutline }}</v-icon>
-                                        </template>
-                                        <span><b>Select a single entry</b>: <br>
-                                                &nbsp;&nbsp;&nbsp;&nbsp;Click the <i>index number</i> in this column <br>
-                                                <b>Multiple selection</b>: Shift-click <br>
-                                                <b>Select all</b>: Click <i>this button</i></span>
-                                    </v-tooltip>
+                                <th class="thin select-all-th" style="position: relative">
+                                    <!-- <v-simple-checkbox :color="entry.color" class="select-all-checkbox"
+                                        :ripple="false" 
+                                        :value="selectedEntries[entry.db].length > 0 
+                                            && selectedCountPerDb[entry.db] == selectedEntries[entry.db].length"
+                                        :indeterminate="selectedCountPerDb[entry.db] > 0
+                                            && selectedCountPerDb[entry.db] < selectedEntries[entry.db].length"
+                                        @input="toggleDbEntries(entry.db, $event)" 
+                                        style="user-select: none; -webkit-user-select: none;" 
+                                        :style="{'color' : selectedCountPerDb[entry.db] > 0 ? entry.color + ' !important' : 'inherit'}"
+                                        >
+                                    </v-simple-checkbox> -->
+                                    <!-- Replaced this checkbox too, for the colored undeterminate state -->
+                                    <div class="v-input--selection-controls__input select-all" style="user-select: none; 
+                                    -webkit-user-select: none; cursor: pointer;" @click.stop="toggleDbEntries(entry.db, $event)"
+                                    title="click to select all the entries" :class="{'any-selected': selectedCountPerDb[entry.db] > 0, 'all-selected': selectedEntries[entry.db].length > 0 
+                                            && selectedCountPerDb[entry.db] == selectedEntries[entry.db].length}">
+                                        <span aria-hidden="true" class="v-icon notranslate" :class="{'theme--light': !$vuetify.theme.dark, 'theme--dark': $vuetify.theme.dark}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg">
+                                        <path class="unchecked" d="M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z">
+                                        </path>
+                                        <path class="checked" d="M10,17L5,12L6.41,10.58L10,14.17L17.59,6.58L19,8M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3Z"></path>
+                                        <path class="undeterminate" d="M17,13H7V11H17M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3Z"></path>
+                                        </svg>
+                                        </span>
+                                    </div>
                                 </th>
                                 <template v-if="isComplex">
                                     <!-- <th class="thin">ID</th> -->
@@ -221,8 +232,8 @@
                                     <!-- performance issue with thousands of v-checkboxes, hardcode the simple checkbox instead -->
                                     <!-- <v-simple-checkbox :value="selectedEntries[entry.db][groupidx]" :color="entry.color" style="user-select: none; -webkit-user-select: none;" 
                                     :ripple="false" @click.stop="onCheckboxClick(entry.db, groupidx, $event)"></v-simple-checkbox> -->
-                                    <div class="v-input--selection-controls__input" style="user-select: none; -webkit-user-select: none; cursor: pointer;" @click.stop="onCheckboxClick(entry.db, groupidx, $event)"
-                                    :data-label="Number( groupidx )+1">
+                                    <div class="v-input--selection-controls__input select-all" style="user-select: none; -webkit-user-select: none; cursor: pointer;" @click.stop="onCheckboxClick(entry.db, groupidx, $event)"
+                                    :data-label="Number( groupidx )+1" title="click to select, shift-click for multiple selection">
                                         <span aria-hidden="true" class="v-icon notranslate" :class="{'theme--light': !$vuetify.theme.dark, 'theme--dark': $vuetify.theme.dark}">
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg">
                                         <path class="unchecked" d="M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z">
@@ -236,13 +247,13 @@
                                     <td class="thin" data-label="Query TM-score" :rowspan="group.length">{{ group[0].complexqtm.toFixed(2) }}</td>
                                     <td class="thin" data-label="Target TM-score" :rowspan="group.length">{{ group[0].complexttm.toFixed(2) }}</td>
                                 </template>
-                                <td class="db long" data-label="Target" :style="{ 'border-width' : isComplex ? '5px' : null, 'border-color' : entry.color }">
-                                    <a :id="item.id" class="anchor" style="position: absolute; top: 0"></a>
+                                <td class="db long" data-label="Target" :style="{ 'border-width' : isComplex ? '5px' : null, 'border-color' : entry.color, 'cursor': 'pointer' }">
+                                    <a :id="item.id" class="anchor" style="position: absolute; top: 0" @click.stop></a>
                                     <template v-if="isComplex">
                                         {{ item.query.lastIndexOf('_') != -1 ? item.query.substring(item.query.lastIndexOf('_')+1) : '' }} ➔ 
                                     </template>
-                                    <a style="text-decoration: underline; color: #2196f3;" v-if="Array.isArray(item.href)" @click="forwardDropdown($event, item.href)"rel="noopener" :title="item.target">{{item.target}}</a>
-                                    <a v-else :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.target}}</a>
+                                    <a style="text-decoration: underline; color: #2196f3;" v-if="Array.isArray(item.href)" @click.stop="forwardDropdown($event, item.href)"rel="noopener" :title="item.target">{{item.target}}</a>
+                                    <a v-else :href="item.href" target="_blank" rel="noopener" :title="item.target" @click.stop>{{item.target}}</a>
                                 </td>
                                 <td class="long" data-label="Description" v-if="entry.hasDescription">
                                     <span :title="item.description">{{ item.description }}</span>
@@ -494,6 +505,10 @@ export default {
             errorFoldDiscoBtn: false,
             scrollOffsetArr: null,
             tabOffset: 140,
+            visibilityTable: null,
+            selectUpperbound: 1000,
+            observer: null,
+            sheetHeights: null,
         }
     },
     props: {
@@ -521,12 +536,16 @@ export default {
                     const obj3 = Object.fromEntries(
                         n.results.map((e, i) => [e.db, i])
                     )
+                    const obj4 = Object.fromEntries(
+                        n.results.map(e => [e.db, Array(Object.keys(e.alignments).length).fill(true)])
+                    )
                     this.selectedEntries = obj
                     this.selectAllStatus = obj2
                     this.isCollapsed = Object.fromEntries(
                         n.results.map(e => [e.db, false])
                     )
                     this.dbToIdx = obj3
+                    this.visibilityTable = obj4
                     this.$nextTick(() => {
                         setTimeout(() => {
                             this.updateScrollOffsetArr()
@@ -541,6 +560,40 @@ export default {
             this.errorFoldDiscoBtn=false
             this.errorFoldMasonBtn=false
             this.errorFoldseekBtn=false
+        },
+        filteredHitsTaxIds: {
+            handler(n, o) {
+                // this.log(n)
+                this.toggleSourceIdx = -1
+                if (!n || n.length == 0) {
+                    // reset visibility table
+                    if (this.visibilityTable) {
+                        this.visibilityTable = Object.fromEntries(Object.entries(this.visibilityTable).map(([key, value]) => {
+                            return [key, Array(value.length).fill(true)]
+                        }))
+                    }
+                } else {
+                    let obj = {}
+                    for (let e of this.hits.results) {
+                        let db = e.db
+                        const arr = Array(this.visibilityTable[db].length).fill(false)
+                        const length = Object.keys(e.alignments).length
+                        for (let i = 0; i < length; i++) {
+                            arr[i] = this.isGroupVisible(e.alignments[i])
+                        }
+                        obj[db] = arr
+                    }
+                    this.visibilityTable = obj
+                }
+            },
+            immediate: false,
+            deep: true,
+        },
+        visibilityTable: {
+            handler(n, o) {
+                // this.log(n)
+            },
+            deep: true
         }
     },
     computed: {
@@ -628,7 +681,7 @@ export default {
             if (this.selectedCounts == 0) { 
                 return 'No selection' 
             } else if (this.selectedCounts > 1) {
-                return this.selectedCounts + " entries" + " selected"
+                return '(' +  this.selectedCounts + " / " + this.selectUpperbound + ") entries" + " selected"
             } else {
                 if (this.$vuetify.breakpoint.smAndDown) return "1 entry selected"
 
@@ -677,6 +730,13 @@ export default {
                 t = t.slice(52) + '...'
             }
             return (str + t).padEnd(69, ' ') + '\n'
+        },
+        selectedCountPerDb() {
+            return this.selectedEntries ? Object.fromEntries(
+                Object.entries(this.selectedEntries)
+                    .map(( [ db, arr ] ) => 
+                    [db, arr.reduce((c, v) => v ? c+1 : c, 0)]))
+                    : {}
         }
     },
     methods: {
@@ -733,10 +793,14 @@ export default {
 
             let value = !this.selectedEntries[db][idx]
 
-            const needRangedToggle = event.shiftKey && (this.toggleSourceDb == db) && (this.toggleSourceIdx != idx)
+            const needRangedToggle = event.shiftKey && (this.toggleSourceDb == db) && (this.toggleSourceIdx != idx && this.toggleSourceIdx != -1)
 
             if (!needRangedToggle) {
                 // simple click. just toggle it.
+                // If selected count exceeds upperbound, than simply ignore
+                if (this.selectedCounts > this.selectUpperbound && value) { 
+                    return 
+                }
                 this.toggleSourceDb = db
                 this.toggleSourceIdx = idx
                 this.toggleTargetValue = value
@@ -749,29 +813,40 @@ export default {
             }
         },
         handleRangedToggle(db, startIdx, endIdx, value) {
-            if (!this.selectedEntries || !this.selectedEntries[db]) {
+            if (!this.selectedEntries || !this.selectedEntries[db]
+                || this.selectedCounts > this.selectUpperbound && value) {
                 return
             }
 
             let delta = 0
             const src = this.selectedEntries[db]
-            // FIXME: If already inside the range?
             const next = src.map((v, i) => {
-                if (i >= startIdx && i < endIdx) { 
+                if (i >= startIdx && i < endIdx && this.visibilityTable[db][i]) { 
                     return value; 
                 } else { 
                     return v 
                 }})
 
+            // mix two array to meet selection upperbound
+
             const deltaUnit = value ? 1 : -1
+            const deltaUpperbound = this.selectUpperbound - this.selectedCounts
+            let mixThreshold
             
             for (let i = startIdx; i < endIdx; i++) {
-                if (src[i] != value ) {
+                mixThreshold = i
+                if (src[i] != value && this.visibilityTable[db][i]) {
                     delta += deltaUnit
                 }
+                if (delta >= deltaUpperbound) {
+                    break
+                }
             }
+
+            const toUpdate = [...next.slice(0, mixThreshold+1), ...src.slice(mixThreshold+1)]
+            
             this.selectedCounts += delta
-            this.$set(this.selectedEntries, db, next)
+            this.$set(this.selectedEntries, db, toUpdate)
         },
         clearAllEntries() {
             if (!this.selectedEntries || this.loading) {
@@ -791,19 +866,37 @@ export default {
             if (!this.selectedEntries || !this.selectedEntries[db]) {
                 return
             }
+            if (this.selectedCountPerDb[db] > 0) {
+                value = false
+            }
             let delta = 0;
             const src = this.selectedEntries[db]
-            const next = src.map(()=>value)
+            const next = src.map((v, i) => {
+                if (this.visibilityTable[db][i]) {
+                    return value
+                } else {
+                    return v
+                }
+            })
+
+            const deltaUpperbound = this.selectUpperbound - this.selectedCounts
             const deltaUnit = value ? 1 : -1
+            let mixThreshold
 
             for (let i = 0; i < src.length; i++) {
-                if (src[i] != value ) {
+                mixThreshold = i
+                if (src[i] != value && this.visibilityTable[db][i]) {
                     delta += deltaUnit
                 }
+                if (delta >= deltaUpperbound) {
+                    break;
+                }
             }
+            
+            const toUpdate = [...next.slice(0, mixThreshold+1), ...src.slice(mixThreshold+1)]
             this.selectedCounts += delta
             this.selectAllStatus[db] = value
-            this.$set(this.selectedEntries, db, next)
+            this.$set(this.selectedEntries, db, toUpdate)
         },
         getSingleSelectionInfo() {
             const info = {}
@@ -1142,6 +1235,8 @@ export default {
     }
 }
 
+// mask the gap between sticky tab and top of parent element
+// unless it would show passing elements through the gap
 .sticky-tabs::before {
     content: "";
     width: 100%;
@@ -1152,6 +1247,20 @@ export default {
     height: 16px;
     z-index: inherit;
 } 
+
+ thead.sticky-thead::before {
+    content: "";
+    width: 100%;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.12);
+    position: absolute;
+    height: 1px;
+    display: block;
+    z-index: inherit;
+}
+.theme--dark thead.sticky-thead::before {
+    background-color: rgba(255, 255, 255, 0.12);
+}
 
 .collapse-icon:not(.collapsed) {
     transform: rotate(90deg);
@@ -1165,15 +1274,31 @@ tr.hit:not(.selected) .entry-checkbox path.checked {
     opacity: 0;
 }
 
-tr.hit.selected .entry-checkbox path.unchecked {
+tr.hit.selected .entry-checkbox path.unchecked{
     opacity: 0;
 }
 
-tr.hit .entry-checkbox svg {
+th.select-all-th .select-all path.undeterminate {
+    opacity: 0;
+}
+
+th.select-all-th .select-all.any-selected:not(.all-selected) path.undeterminate {
+    opacity: 1;
+}
+
+th.select-all-th .select-all:not(.all-selected) path.checked {
+    opacity: 0;
+}
+
+th.select-all-th .select-all.any-selected path.unchecked {
+    opacity: 0;
+}
+
+tr.hit .entry-checkbox svg, .select-all svg {
     transition: opacity 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
 
-tr.hit.selected .entry-checkbox svg {
+tr.hit.selected .entry-checkbox svg, .select-all.any-selected svg {
     fill: var(--active-color);
 }
 
@@ -1196,6 +1321,7 @@ tr.hit.selected .entry-checkbox svg {
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+        /*
         tr.hit:not(.selected) .entry-checkbox div:not(:hover) svg {
             opacity: 0;
         }
@@ -1236,7 +1362,7 @@ tr.hit.selected .entry-checkbox svg {
         }
         th.select-all-th.selected .select-all-help {
             display: none;
-        }
+        } */
     }
 }
 

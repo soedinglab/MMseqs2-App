@@ -84,13 +84,15 @@ export default {
     }
   },
   mounted() {
-    this.throttled = throttle(this.updateScrollStates, 100)
+    this.throttled = throttle(this.updateScrollStates, 64)
     window.addEventListener("scroll", this.throttled, {passive: true})
+    window.addEventListener("scrollend", this.updateScrollStates, {passive: true})
     this.observer = new ResizeObserver(this.emitEvent)
     this.observer.observe(document.documentElement)
   },
   beforeDestroy() {
-    window.removeEventListener("scroll", this.throttled);
+    window.removeEventListener("scroll", this.throttled)
+    window.removeEventListener("scrollend", this.updateScrollStates)
     this.observer.disconnect()
   },
   methods: {

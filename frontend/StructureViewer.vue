@@ -38,7 +38,7 @@
 import StructureViewerTooltip from './StructureViewerTooltip.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerMixin from './StructureViewerMixin.vue';
-import { mockPDB, makeSubPDB, transformStructure, makeMatrix4  } from './Utilities.js';
+import { mockPDB, makeSubPDB, transformStructure, makeMatrix4, storeChains, revertChainInfo } from './Utilities.js';
 import { pulchra } from 'pulchra-wasm';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 
@@ -479,7 +479,11 @@ END
                     // FIXME: pulchra probably should learn mmCIF
                     queryPdb = getPdbText(query);
                 }
+                // As pulchra loses the chain information, it could result in mismatch between selection and pulchra-generated pdb
+                // So we should store chain information of pdb structure information and recover it
+                const chains = storeChains(queryPdb)
                 queryPdb = await pulchra(queryPdb);
+                queryPdb = revertChainInfo(queryPdb, chains)
                 this.stage.removeComponent(query);
                 query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true, name: 'queryStructure'}); 
             }
