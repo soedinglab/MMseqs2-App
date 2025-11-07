@@ -856,3 +856,44 @@ export function revertChainInfo(pdb, chains) {
 
   return arr.join("\n");
 }
+
+export function getAbsOffsetTop($el) {
+  var sum = 0;
+  while ($el) {
+    sum += $el.offsetTop;
+    $el = $el.offsetParent;
+  }
+  return sum;
+}
+
+export const getChainName = (name) => {
+  if (/_v[0-9]+$/.test(name) || /^AF-\W+-/.test(name)) {
+    return "A";
+  }
+
+  let pos = name.lastIndexOf("_");
+  if (pos != -1) {
+    let match = name.substring(pos + 1);
+    return match.length >= 1 && isNaN(Number(match[0])) ? match[0] : "A";
+  }
+  // fallback
+  return "A";
+};
+
+export const getAccession = (name) => {
+  if (/^AF-\w+-/.test(name)) {
+    name = name.split("-")[1];
+  }
+
+  if (/_v[0-9]+$/.test(name)) {
+    return name;
+  }
+
+  if (/_unrelaxed_rank_/.test(name)) {
+    let pos = name.indexOf("_unrelaxed_rank_");
+    return pos != -1 ? name.substring(0, pos) : name;
+  }
+
+  let pos = name.lastIndexOf("_");
+  return pos != -1 ? name.substring(0, pos) : name;
+};
