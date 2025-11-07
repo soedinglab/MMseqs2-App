@@ -69,6 +69,22 @@ const HistoryMixin = {
 
       storage.setItem("history", JSON.stringify(history));
     },
+    addJobNameToUuid(uuid, name) {
+      if (!uuid || !name) {
+        return;
+      }
+
+      let nameMap = JSON.parse(storage.getItem("name_map") || "[]");
+
+      let foundIndex = history.findIndex((e) => e.id == uuid);
+      if (foundIndex == -1) {
+        history.unshift({ id: uuid, name: name });
+      } else {
+        history[foundIndex].name = name;
+      }
+
+      storage.setItem("name_map", JSON.stringify(nameMap));
+    },
   },
 };
 
