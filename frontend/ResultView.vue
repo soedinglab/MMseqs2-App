@@ -101,7 +101,7 @@
                     :mode="mode" :selectedStates="selectedStates[entry.db]" :selectedCounts="selectedCountPerDb[entry.db]"
                     :totalSelectedCounts="selectedCounts" :selectUpperbound="selectUpperbound" :alignment="alignment"
                     @switchTableMode="(n) => switchTableMode(n)" 
-                    @forwardDropDown="(e, h) => forwardDropDown(e, h)"
+                    @forwardDropdown="(e, h) => forwardDropdown(e, h)"
                     @showAlignment="(i, e) => showAlignment(i, entry.db, e)"
                     @updateToggleSource="(db) => updateToggleSourceDb(db)"
                     @toggleSelection="(i, v) => handleToggleSelection(entry.db, i, v)"

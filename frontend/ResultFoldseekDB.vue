@@ -4,7 +4,7 @@
             :db="entryidx" :class="`result-entry-${entryidx}`" :style="{'height': $vuetify.breakpoint.smAndDown ? '188px' : '80px'}">
             <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.smAndDown ? 'column' : null, 'align-items': 'center'}">
             <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
-                <div style="width: 32px; display: inline-block;"></div>
+                <div style="width: 16px; display: inline-block;"></div>
                 <span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{entryLength > 1 ? entryLength.toString() + " hits" : entryLength > 0 ? "1 hit" : "no hit" }}</small>
             </h2>
 
@@ -15,7 +15,7 @@
             -->
                 {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
             </v-btn>
-            <v-btn-toggle v-if="hasEntries" mandatory :value="tableMode" @input="switchTableMode" :class="{'mb-2': $vuetify.breakpoint.smAndDown}">
+            <v-btn-toggle v-if="hasEntries" mandatory :value="tableMode" @change="switchTableMode" :class="{'mb-2': $vuetify.breakpoint.smAndDown}">
                 <v-btn>
                     Graphical
                 </v-btn>
@@ -152,7 +152,7 @@
                         </template>
                         <a style="text-decoration: underline; color: #2196f3;" 
                             v-if="Array.isArray(item.href)" 
-                            @click.stop="emitForwardDown($event, item.href)"
+                            @click.stop="emitForwardDropdown($event, item.href)"
                             rel="noopener" :title="item.target">{{item.target}}</a>
                         <a v-else :href="item.href" target="_blank" rel="noopener" 
                             :title="item.target" @click.stop>{{item.target}}</a>
@@ -391,8 +391,8 @@ export default {
                 this.$emit('bulkToggle', arr, value)
             }
         },
-        emitForwardDropDown(event, href) {
-            this.$emit('forwardDropDown', event, href)
+        emitForwardDropdown(event, href) {
+            this.$emit('forwardDropdown', event, href)
         },
         showAlignment(group, event) {
             this.$emit('showAlignment', group, event)
