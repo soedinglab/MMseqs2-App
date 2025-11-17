@@ -24,7 +24,7 @@
                 <v-list-item-title>
                     {{ formattedDate(child.time) }}
                 </v-list-item-title>
-                <v-list-item-subtitle><span class="mono">{{ child.id }}</span></v-list-item-subtitle>
+                <v-list-item-subtitle><span class="mono">{{ child.name != "" ? child.name : child.id }}</span></v-list-item-subtitle>
             </v-list-item-content>
         </v-list-item>
     </v-list-group>
@@ -85,9 +85,12 @@ export default {
 
             this.error = false;
             var itemsTmp = JSON.parse(storage.history);
+            let name_map = JSON.parse(storage.name_map || "[]");
 
             let tickets = [];
             var hasCurrent = false;
+            let currentHasName = false;
+
             for (let i in itemsTmp) {
                 if (this.current == itemsTmp[i].id) {
                     hasCurrent = true;
@@ -98,6 +101,7 @@ export default {
                 tickets.push(itemsTmp[i].id);
                 itemsTmp[i].status = "UNKNOWN";
             }
+            
             if (this.current != undefined && hasCurrent == false && !this.current.startsWith('user-')) {
                 tickets.unshift(this.current);
                 itemsTmp.unshift({ id: this.current, status: "UNKNOWN", time: +(new Date()) })
@@ -125,6 +129,12 @@ export default {
 
                         if (include) {
                             var entry = itemsTmp[i];
+                            let nameObj = name_map.find(v => v.id == entry.id)
+                            if (nameObj && (!entry.name || entry.name != nameObj.name)) {
+                                entry.name = nameObj.name
+                            } else {
+                                entry.name = ""
+                            }
                             entry.status = data[i].status;
                             items.push(entry);
                         }
@@ -135,7 +145,11 @@ export default {
                     }
                 }, () => {
                     this.error = true;
-                });
+            });
+            
+            // Clean name_map
+            name_map = name_map.filter(v => this.items.some(i => i.id == v.id))
+            storage.name_map = JSON.stringify(name_map)
         }, 16, true),
         formattedRoute(element) {
             if (element.status == 'COMPLETE') {

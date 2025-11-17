@@ -5,8 +5,7 @@
             <panel>
                 <template slot="header">
                     <template v-if="!$LOCAL && (!hits || !hits.query)">
-                        <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
-                        <small class="ticket">{{ ticket }}</small>
+                        <NameField :ticket="ticket"></NameField>
                     </template>
                     <template v-else-if="hits">
                         <span  class="hidden-sm-and-down">Results:&nbsp;</span>
@@ -169,12 +168,13 @@ import { mockPDB, mergePdbs, concatenatePdbs,
 import { debounce } from './lib/debounce';
 import ResultFoldseekDB from './ResultFoldseekDB.vue';
 import SelectToSendPanel from './SelectToSendPanel.vue';
+import NameField from './NameField.vue';
 
 export default {
     name: 'ResultView',
     mixins: [ ResultSankeyMixin, AllAtomPredictMixin ],
     components: { Panel, AlignmentPanel, Ruler, 
-        NavigationButton, ResultFoldseekDB, SelectToSendPanel },
+        NavigationButton, ResultFoldseekDB, SelectToSendPanel, NameField },
     data() {
         return {
             alignment: null,
