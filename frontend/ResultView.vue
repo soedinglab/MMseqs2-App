@@ -97,14 +97,15 @@
                 <ResultFoldseekDB v-for="(entry, entryidx) in hits.results"  :key="entry.db"
                     v-if="selectedDatabases == 0 || (entryidx + 1) == selectedDatabases"
                     :tableMode="tableMode" :entryidx="entryidx" :entry="entry" :toggleSourceDb="toggleSourceDb"
-                    :mode="mode" :selectedStates="selectedStates[entry.db]" :selectedCounts="selectedCountPerDb[entry.db]"
+                    :mode="mode" :selectedStates="selectedStates[entryidx]" :selectedCounts="selectedCountPerDb[entryidx]"
                     :totalSelectedCounts="selectedCounts" :selectUpperbound="selectUpperbound" :alignment="alignment"
+                    :onlyOne="hits.results.length == 1"
                     @switchTableMode="(n) => switchTableMode(n)" 
                     @forwardDropdown="(e, h) => forwardDropdown(e, h)"
                     @showAlignment="(i, e) => showAlignment(i, entry.db, e)"
                     @updateToggleSource="(db) => updateToggleSourceDb(db)"
-                    @toggleSelection="(i, v) => handleToggleSelection(entry.db, i, v)"
-                    @bulkToggle="(a, v) => handleBulkToggle(entry.db, a, v)"
+                    @toggleSelection="(i, v) => handleToggleSelection(entryidx, i, v)"
+                    @bulkToggle="(a, v) => handleBulkToggle(entryidx, a, v)"
                 ></ResultFoldseekDB>
                 </template>
                 </panel>
@@ -207,12 +208,12 @@ export default {
         window.addEventListener("resize", this.handleAlignmentBoxResize, { passive: true });
         if (this.hits && !this.selectedStates && !this.selectedCountPerDb && !this.dbToIdx) {
             const obj = Object.fromEntries(
-                n.results.map(e => [e.db, Object.fromEntries(
-                    e.alignments.map((_, i) => [i, false])
+                n.results.map(( e, i ) => [i, Object.fromEntries(
+                    e.alignments.map((_, j) => [j, false])
                 )])
             )
             const obj2 = Object.fromEntries(
-                n.results.map(e => [e.db, 0])
+                n.results.map(( e,i ) => [i, 0])
             )
             const obj3 = Object.fromEntries(
                 n.results.map((e, i) => [e.db, i])
@@ -235,12 +236,12 @@ export default {
             handler(n, o) {
                 if (n && n.results) {
                     const obj = Object.fromEntries(
-                        n.results.map(e => [e.db, Object.fromEntries(
-                            [...Array(e.alignments.length)].keys().map(i => [i, false])
+                        n.results.map((e, i) => [i, Object.fromEntries(
+                            [...Array(e.alignments.length)].keys().map(j => [j, false])
                         )])
                     )
                     const obj2 = Object.fromEntries(
-                        n.results.map(e => [e.db, 0])
+                        n.results.map((e, i) => [i, 0])
                     )
                     const obj3 = Object.fromEntries(
                         n.results.map((e, i) => [e.db, i])
@@ -301,6 +302,9 @@ export default {
 
             return "ERROR";
         },
+        onlyOne() {
+            return this.hits?.results?.length == 1
+        }
     },
     methods: {
         log(args) {
@@ -442,7 +446,7 @@ export default {
 
             this.selectedSets.forEach(e => {
                 let [ db, idx ] = e.split('#')
-                this.selectedStates[db][Number(idx)] = false
+                this.selectedStates[Number( db )][Number(idx)] = false
             });
             this.selectedSets.clear()
         },
@@ -460,7 +464,7 @@ export default {
                 break
             }
 
-            info.db = db
+            info.db = this.hits.results[db].db
             info.idx = idx
             // If there is no selection, then idx would be -1
             return info
@@ -476,7 +480,7 @@ export default {
                 let [ db, idx ] = e.split('#')
                 idx = Number(idx)
                 arr.push(
-                    {db, idx}
+                    {db: this.hits.results[db].db, idx}
                 )
             }
 
