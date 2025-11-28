@@ -64,9 +64,9 @@
                 <tr>
                     <th class="thin select-all-th" style="position: relative">
                         <!-- Replaced this checkbox too, for the colored undeterminate state -->
-                        <div class="v-input--selection-controls__input select-all" style="user-select: none; 
-                            -webkit-user-select: none; cursor: pointer;" @click.stop="toggleDbEntries($event)"
-                            title="click to select all the entries" :class="{'any-selected': anySelected, 'all-selected': selectAllStatus}">
+                        <div class="v-input--selection-controls__input select-all custom-checkbox" :id="db+'#select-all'" style="user-select: none;
+                            -webkit-user-select: none; cursor: pointer; position: absolute; top: calc(50% - 12px); left: 6px;" @click.stop="toggleDbEntries($event)" :length="entryLength"
+                            title="click to select all the entries">
                             <span aria-hidden="true" class="v-icon notranslate" :class="{'theme--light': !$vuetify.theme.dark, 'theme--dark': $vuetify.theme.dark}">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg">
                                     <path class="unchecked" d="M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z"></path>
@@ -119,12 +119,12 @@
             </thead>
             <tbody>
                 <template v-for="(group, groupidx) in entry.alignments" >
-                <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active , 'selected' : selectedStates[groupidx]}]" v-if="visibilityTable[groupidx]"
+                <tr v-for="(item, index) in group" :class="['hit', { 'active' : item.active }]"
                     @click.stop="$vuetify.breakpoint.width <= 960 ? onCheckboxClick(groupidx, $event) : () => {}">
-                    <td v-if="index == 0" :rowspan="group.length" class="entry-checkbox">
+                    <td v-if="index == 0" :rowspan="group.length" class="entry-checkbox" :id="db + '#' + groupidx">
                         <!-- performance issue with thousands of v-checkboxes, hardcode the simple checkbox instead -->
-                        <div class="v-input--selection-controls__input select-all" 
-                        style="user-select: none; -webkit-user-select: none; cursor: pointer;" 
+                        <div class="v-input--selection-controls__input custom-checkbox" 
+                        style="user-select: none; -webkit-user-select: none; cursor: pointer; position: absolute; top: calc(50% - 12px); left: 6px;" 
                         @click.stop="onCheckboxClick(groupidx, $event)"
                         title="click to select, shift-click for multiple selection">
                             <span aria-hidden="true" 
@@ -275,20 +275,28 @@ export default {
             handler(n, o) {
                 // this.log(n)
                 this.toggleSourceIdx = -1
+                let id = ''
+                let el = undefined
                 if (!n || n.length == 0) {
                     // reset visibility table
                     if (this.visibilityTable) {
                         for (let i = 0; i < this.entryLength; i++) {
-                            if (!this.visibilityTable[i]) {
-                                this.$set(this.visibilityTable, i, true)
+                            this.visibilityTable[i] = true
+                            id = this.db + "#" + String(i)
+                            el = document.getElementById(id)
+                            if (el) {
+                                el.classList.toggle('invisible', false)
                             }
                         }
                     }
                 } else {
                     for (let i = 0; i < this.entryLength; i++) {
                         let target = this.isGroupVisible(this.entry.alignments[i])
-                        if (this.visibilityTable[i] != target) {
-                            this.$set(this.visibilityTable, i, target)
+                        this.visibilityTable[i] = target
+                        id = this.db + '#' + String(i)
+                        el = document.getElementById(id)
+                        if (el) {
+                            el.classList.toggle('invisible', !target)
                         }
                     }
                 }
@@ -301,9 +309,6 @@ export default {
                 this.toggleSourceIdx = -1
             }
         },
-        // toggleSourceIdx(n, o) {
-        //     this.log(n)
-        // },
         entry(n, o) {
             if (n && this.visibilityTable.length == 0) {
                 this.visibilityTable = Array(this.entryLength).fill(true)
@@ -314,6 +319,11 @@ export default {
         if (this.entry && this.visibilityTable.length == 0) {
             this.visibilityTable = Array(this.entryLength).fill(true)
             this.selectedDb = this.db
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.reflectSelectionState()
+                }, 0)
+            })
         }
     },
     computed: {
@@ -453,6 +463,23 @@ export default {
                 this.$emit('bulkToggle', arr, value)
             }
         },
+        reflectSelectionState() {
+            let value = false
+            let id = ""
+            for (let i = 0; i < this.entryLength; i++) {
+                value = this.selectedStates[i]
+                id = this.db + "#" + String(i)
+                let el = document.getElementById(id)
+                if (el) {
+                    el.classList.toggle('selected', value ? true : false)
+                }
+            }
+            let select_all_button = document.getElementById(this.db + '#select-all')
+            if (select_all_button) {
+                select_all_button.classList.toggle('any-selected', this.selectedCounts > 0)
+                select_all_button.classList.toggle('all-selected', this.selectedCounts == this.entryLength)
+            }
+        },
     }
 }
 </script>
@@ -538,11 +565,11 @@ thead.sticky-thead th {
     background-color: rgba(255, 255, 255, 0.12);
 }
 
-tr.hit:not(.selected) .entry-checkbox path.checked {
+tr.hit .entry-checkbox:not(.selected) path.checked {
     opacity: 0;
 }
 
-tr.hit.selected .entry-checkbox path.unchecked{
+tr.hit .entry-checkbox.selected path.unchecked{
     opacity: 0;
 }
 
@@ -564,10 +591,70 @@ th.select-all-th .select-all.any-selected path.unchecked {
 
 tr.hit .entry-checkbox svg, .select-all svg {
     transition: opacity 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+    transition: background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
 
-tr.hit.selected .entry-checkbox svg, .select-all.any-selected svg {
+tr.hit .entry-checkbox, .select-all {
+    position: relative;
+}
+
+.custom-checkbox::before,
+.custom-checkbox::after {
+    content: '';
+    transition: opacity  0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color  0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+    border-radius: 50%;
+    cursor: pointer;
+    width: 34px;
+    height: 34px;
+    top: calc(50% - 17px);
+    left: calc(50% - 17px);
+    position: absolute;
+    background-color: inherit;
+}
+
+:not(.selected) > .custom-checkbox:not(.any-selected)::before,
+:not(.selected) > .custom-checkbox:not(.any-selected)::after {
+    background-color: rgba(0,0,0,0.54);
+}
+
+.theme--dark :not(.selected) > .custom-checkbox:not(.any-selected)::before,
+.theme--dark :not(.selected) > .custom-checkbox:not(.any-selected)::after {
+    background-color: #fff;
+}
+
+.selected .custom-checkbox::before,
+.selected .custom-checkbox::after,
+.custom-checkbox.any-selected::before,
+.custom-checkbox.any-selected::after
+{
+    background-color: var(--active-color);
+}
+
+.custom-checkbox:not(:hover)::before {
+    opacity: 0;
+}
+
+.custom-checkbox:hover::before {
+    opacity: 0.2;
+}
+
+.custom-checkbox::after {
+    opacity: 0.2;
+    transition: opacity  0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+    transform: scale(0);
+    transform-origin: center center;
+}
+
+.custom-checkbox:active::after {
+    transform: scale(1);
+}
+
+tr.hit .entry-checkbox.selected svg, .select-all.any-selected svg {
     fill: var(--active-color);
+}
+
+tr.hit:has(.invisible) {
+    display: none;
 }
 
 
@@ -636,7 +723,7 @@ tr.hit.selected .entry-checkbox svg, .select-all.any-selected svg {
             cursor: pointer;
         }
 
-        tr.hit.selected {
+        tr.hit:has(.selected) {
             outline: 4px solid color-mix(in srgb, var(--active-color) 60%, transparent);
             outline-offset: -2px;
         }

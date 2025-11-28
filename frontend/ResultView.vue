@@ -354,11 +354,24 @@ export default {
             const toCall = value ? this.selectedSets.add.bind(this.selectedSets) : 
                 this.selectedSets.delete.bind(this.selectedSets)
             if (this.selectedStates[db][idx] != value) {
-                this.$set(this.selectedStates[db], idx, value)
+                // Does it really reflect changes?
+                this.selectedStates[db][idx] = value
+                let el = document.getElementById(id)
+                if (el) {
+                    el.classList.toggle('selected', value)
+                }
                 const newVal = this.selectedCountPerDb[db] + deltaUnit
-                this.$set(this.selectedCountPerDb, db, newVal)
+                this.selectedCountPerDb[db] = newVal
                 this.selectedCounts += deltaUnit
                 toCall(id)
+                
+                // update select-all button state
+                const targetDbLength = this.selectedStates[db].length
+                el = document.getElementById(db + '#select-all')
+                if (el) {
+                    el.classList.toggle('any-selected', newVal > 0)
+                    el.classList.toggle('all-selected', newVal == targetDbLength)
+                }
             }
         },
         handleBulkToggle(db, indices, value) {
@@ -379,7 +392,11 @@ export default {
                 }
                 if (this.selectedStates[db][i] != value) {
                     let id = db + '#' + i.toString()
-                    this.$set(this.selectedStates[db], i, value)
+                    let el = document.getElementById(id)
+                    if (el) {
+                        el.classList.toggle('selected', value)
+                    }
+                    this.selectedStates[db][i] = value
                     toCall(id)
                     delta += deltaUnit
                 }
@@ -387,20 +404,45 @@ export default {
             
             this.selectedCounts += delta
             const newVal = this.selectedCountPerDb[db] + delta
-            this.$set(this.selectedCountPerDb, db, newVal)
+            this.selectedCountPerDb[db] = newVal
+            
+            // update select-all button state
+            const selectAllButton = document.getElementById(db+'#select-all')
+            if (selectAllButton) {
+                const dbLength = Number(selectAllButton.getAttribute('length'))
+                selectAllButton.classList.toggle('any-selected', newVal > 0)
+                selectAllButton.classList.toggle('all-selected', newVal == dbLength)
+            }
         },
         clearAllEntries() {
             if (!this.selectedStates) {
                 return
             }
+            
+            let el = undefined
             this.selectedCounts = 0
             for (const key of Object.keys(this.selectedStates)) {
-                this.$set(this.selectedCountPerDb, key, 0)
+                this.selectedCountPerDb[key] = 0
+                
+                // update select-all button states manually
+                el = document.getElementById(key+'#select-all')
+                if (el) {
+                    el.classList.toggle('any-selected', false)
+                    el.classList.toggle('all-selected', false)
+                }
+            }
+            
+            // update selected states manually
+            let prevSelected = document.querySelectorAll('.selected')
+            if (prevSelected.length > 0) {
+                for (let el of prevSelected) {
+                    el.classList.toggle('selected', false)
+                }
             }
 
             this.selectedSets.forEach(e => {
                 let [ db, idx ] = e.split('#')
-                this.$set(this.selectedStates[db], Number(idx), false)
+                this.selectedStates[db][Number(idx)] = false
             });
             this.selectedSets.clear()
         },
