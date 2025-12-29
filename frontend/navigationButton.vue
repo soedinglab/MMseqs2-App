@@ -38,7 +38,7 @@
   </v-sheet>
 </template>
 <script>
-import { throttle } from './lib/throttle';
+import { throttle } from './Utilities.js';
 export default {
   name: 'NavigationButton',
   data() {
