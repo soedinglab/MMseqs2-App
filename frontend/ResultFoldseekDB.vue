@@ -78,9 +78,9 @@
                     </th>
                     <template v-if="isComplex">
                         <!-- <th class="thin">ID</th> -->
-                        <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'qtm', 'sort-down': this.sortOrder < 0}"
+                        <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'qtm', 'sort-down': this.sortOrder < 0}"
                             @click="changeSortMode('qtm')" title="Click to sort by Query TM-score">qTM</th>
-                        <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'ttm', 'sort-down': this.sortOrder < 0}"
+                        <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'ttm', 'sort-down': this.sortOrder < 0}"
                             @click="changeSortMode('ttm')" title="Click to sort by Target TM-score" style="border-right: 1px solid #333; ">tTM</th>
                     </template>
                     <th :class="[`wide-${3 - entry.hasDescription - entry.hasTaxonomy}`, {'sort-selected': this.sortKey == 'target', 'sort-down': this.sortOrder < 0}]" 
@@ -104,13 +104,13 @@
                     </th>
                     <th v-if="entry.hasTaxonomy"  :class="{'sort-selected':this.sortKey == 'tax', 'sort-down': this.sortOrder < 0}" 
                         class="sort-criterion" @click="changeSortMode('tax')" title="Click to sort by scientific name">Scientific Name</th>
-                    <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'prob', 'sort-down': this.sortOrder < 0}" 
+                    <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'prob', 'sort-down': this.sortOrder < 0}" 
                         @click="changeSortMode('prob')" title="Click to sort by probability">Prob.</th>
-                    <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'seqId', 'sort-down': this.sortOrder < 0}"
+                    <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'seqId', 'sort-down': this.sortOrder < 0}"
                         @click="changeSortMode('seqId')" title="Click to sort by sequence identity">Seq. Id.</th>
-                    <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'eval', 'sort-down': this.sortOrder < 0}"
+                    <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'eval', 'sort-down': this.sortOrder < 0, 'default-down': mode == 'lolalign' || mode == 'tmalign'}"
                         @click="changeSortMode('eval')" :title="'Click to sort by '+ scoreColumnName">{{ scoreColumnName }}</th> <!-- TODO fixme!! -->
-                    <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'score', 'sort-down': this.sortOrder < 0}"
+                    <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'score', 'sort-down': this.sortOrder < 0}"
                         v-show="tableMode == 1" @click="changeSortMode('score')" title="Click to sort by score">Score</th>
                     <th v-show="tableMode == 1">Query Pos.</th>
                     <th v-show="tableMode == 1">Target Pos.</th>
@@ -129,7 +129,9 @@
             <tbody>
                 <template v-for="(groupidx, sortIdx) in sortedIndices" >
                 <tr v-for="(item, index) in entry.alignments[groupidx]" :class="['hit', { 'active' : item.active }]"
-                    @click.stop="$vuetify.breakpoint.width <= 960 ? onCheckboxClick(sortIdx, $event) : () => {}">
+                    @click.stop="$vuetify.breakpoint.width <= 960 ? onCheckboxClick(sortIdx, $event) : () => {}"
+                    :key="`${groupidx}-${index}`"
+                    >
                     <td v-if="index == 0" :rowspan="entry.alignments[groupidx].length" class="entry-checkbox" :id="entryidx + '#' + groupidx">
                         <!-- performance issue with thousands of v-checkboxes, hardcode the simple checkbox instead -->
                         <div class="v-input--selection-controls__input custom-checkbox" 
@@ -210,7 +212,7 @@
                         </button>
                     </td>
                 </tr>
-                <tr aria-hidden="true" v-if="isComplex" style="height: 15px"></tr>
+                <tr aria-hidden="true" v-if="isComplex" style="height: 15px" :key="`spacer-${groupidx}`" ></tr>
                 </template>
             </tbody>
         </table>
@@ -220,6 +222,7 @@
 <script>
 import Ruler from './Ruler.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
+import { group } from 'd3';
 
 export default {
     name: 'ResultFoldseekDB',
@@ -715,15 +718,67 @@ thead.sticky-thead th::before {
 }
 
 thead.sticky-thead th.sort-criterion {
-    transition: color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+    cursor: pointer;
+    background-color: transparent;
+    transition: color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+thead.sticky-thead th.sort-criterion:not(.sort-selected):hover  {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+thead.sticky-thead th.sort-criterion:not(.sort-selected):active  {
+    background-color: rgba(0, 0, 0, 0.15);
+}
+
+.theme--dark .sticky-thead th.sort-criterion:not(.sort-selected):hover  {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.theme--dark thead.sticky-thead th.sort-criterion:not(.sort-selected):active  {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+thead.sticky-thead th.sort-criterion.sort-selected:hover  {
+    background-color: color-mix(in srgb, var(--active-color) 12%, transparent);
+}
+
+thead.sticky-thead th.sort-criterion.sort-selected:active  {
+    background-color: color-mix(in srgb, var(--active-color) 20%, transparent);
 }
 
 thead.sticky-thead th.sort-criterion::before {
     transition: background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), height 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), bottom 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
+
 thead.sticky-thead th.sort-criterion::after {
     transform-origin: bottom center;
-    transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+    content: "";
+    width: 0;
+    height: 0;
+    bottom: 1px;
+    right: 0;
+    position: absolute;
+    display: block;
+    z-index: inherit;
+    border-bottom: 7px solid transparent;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    background-color: transparent;
+    transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), border-bottom-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), bottom 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+thead.sticky-thead th.sort-criterion:not(.sort-selected):hover::after {
+    border-bottom-color: rgba(0, 0, 0, 0.15);
+}
+
+.theme--dark .sticky-thead th.sort-criterion:not(.sort-selected):hover::after {
+    border-bottom-color: rgba(255, 255, 255, 0.15);
+}
+
+thead.sticky-thead th.sort-criterion:not(.sort-selected).default-down:hover::after {
+    bottom: 0px;
+    transform: scaleY(-1);
 }
 
 thead.sticky-thead th.sort-criterion.sort-selected::before {
@@ -733,17 +788,11 @@ thead.sticky-thead th.sort-criterion.sort-selected::before {
 }
 
 thead.sticky-thead th.sort-criterion.sort-selected::after {
-    content: "";
-    width: 0;
-    height: 0;
+    border-bottom-color: var(--active-color);
+}
+
+thead.sticky-thead th.sort-criterion.sort-selected:not(.sort-down)::after {
     bottom: 1px;
-    right: 0;
-    position: absolute;
-    display: block;
-    z-index: inherit;
-    border-bottom: 7px solid var(--active-color);
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
 }
 
 thead.sticky-thead th.sort-criterion.sort-selected.sort-down::after {
