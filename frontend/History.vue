@@ -5,9 +5,9 @@
                 <v-list-item-title>
                     History
                 </v-list-item-title>
-                <v-list-item-subtitle v-if="drawer" class="ml-n1" @click.prevent>
-                    <button :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.prevent="previous();"><v-icon style="transform:inherit">{{ $MDI.ChevronLeft }}</v-icon></button>
-                    <button :style="{'opacity' : (page + 1) * limit >= items.length ? 0.6 : 1}"  @click.prevent="next();"><v-icon style="transform:inherit">{{ $MDI.ChevronRight }}</v-icon></button>
+                <v-list-item-subtitle v-if="drawer" class="ml-n1" @click.stop>
+                    <button :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.stop="previous();"><v-icon style="transform:inherit">{{ $MDI.ChevronLeft }}</v-icon></button>
+                    <button :style="{'opacity' : (page + 1) * limit >= items.length ? 0.6 : 1}"  @click.stop="next();"><v-icon style="transform:inherit">{{ $MDI.ChevronRight }}</v-icon></button>
                 </v-list-item-subtitle>
             </v-list-item-content>
         </template>

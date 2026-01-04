@@ -917,3 +917,5 @@ export function throttle(func, delay) {
     }
   };
 }
+
+export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

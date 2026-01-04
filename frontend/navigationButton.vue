@@ -11,7 +11,7 @@
               </v-btn>
             </v-fab-transition>
           </template>
-          <span>Scroll to prev. DB</span>
+          <span>Scroll to prev. cluster</span>
         </v-tooltip>
         <v-tooltip top>
           <template v-slot:activator='{on,attrs}'>
@@ -22,7 +22,7 @@
               </v-btn>
             </v-fab-transition>
           </template>
-          <span>Scroll to next DB</span>
+          <span>Scroll to next cluster</span>
         </v-tooltip>
     </v-flex>
     <v-tooltip top color="primary">

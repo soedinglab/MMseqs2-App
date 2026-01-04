@@ -212,6 +212,8 @@ export default {
         },
         async search() {
             const params = new FormData();
+            console.log(this.queries)
+            return
             this.queries.forEach((v) => {
                 params.append('fileNames[]', v.name);
                 params.append('queries[]', new Blob([v.text], { type: 'text/plain' }), v.name);
@@ -351,6 +353,7 @@ export default {
                 console.warn("MSA query entries and names size differs")
                 console.log(`names length: ${names.length}`)
                 console.log(`texts length: ${texts.length}`)
+                console.log(texts)
                 await clean(size)
                 return
             }
