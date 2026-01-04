@@ -225,8 +225,6 @@ export default {
         },
         async search() {
             const params = new FormData();
-            console.log(this.queries)
-            return
             this.queries.forEach((v) => {
                 params.append('fileNames[]', v.name);
                 params.append('queries[]', new Blob([v.text], { type: 'text/plain' }), v.name);
