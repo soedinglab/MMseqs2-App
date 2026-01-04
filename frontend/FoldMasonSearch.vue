@@ -22,6 +22,17 @@
             </template>
             <template slot="content">
                 <div class="upload-outer-container w-44 gr-2 mb-2">
+                    <v-alert
+                        v-model="alert"
+                        border="left"
+                        close-text="Close Alert"
+                        color="primary"
+                        text
+                        type="info"
+                        dismissible
+                    >
+                    <strong>{{ skippedEntries }} duplicated entries</strong> have been skipped
+                    </v-alert>
                     <DragUploadBox
                             class="drag-upload-box"
                             @uploadedFiles="upload"
@@ -158,6 +169,8 @@ export default {
             queries: [],   // [ { name: "file", text: "ATOM..." }, { name: "file", text: "ATOM..." } ...]
             inFileDrag: false,
             accessionLoading: false,
+            alert: false,
+            skippedEntries: 0,
         };
     },
     async mounted() {
@@ -212,6 +225,8 @@ export default {
         },
         async search() {
             const params = new FormData();
+            console.log(this.queries)
+            return
             this.queries.forEach((v) => {
                 params.append('fileNames[]', v.name);
                 params.append('queries[]', new Blob([v.text], { type: 'text/plain' }), v.name);
@@ -351,6 +366,7 @@ export default {
                 console.warn("MSA query entries and names size differs")
                 console.log(`names length: ${names.length}`)
                 console.log(`texts length: ${texts.length}`)
+                console.log(texts)
                 await clean(size)
                 return
             }
@@ -359,6 +375,24 @@ export default {
 
             for (let i = 0; i < texts.length; i++) {
                 files.push({text: texts[i], name: names[i]})
+            }
+
+            // Calculate overlapping entries
+            files.sort((a, b) => {return a.name.localeCompare(b.name)})
+            let dupCount = 0
+            let prev = ""
+            
+            for (let f of files) {
+                if (f.name == prev) {
+                    dupCount++
+                } else {
+                    prev = f.name
+                }
+            }
+
+            if (dupCount > 0) {
+                this.alert = true
+                this.skippedEntries = dupCount
             }
 
             this.addFiles(files)

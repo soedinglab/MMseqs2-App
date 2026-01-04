@@ -78,19 +78,20 @@
                         </v-list>
                     </v-menu>
                     
-                    <v-sheet style="position:sticky; padding-bottom: 2em; top: 64px; 
-                        z-index: 99999 !important;" class="sticky-tabs">
+                    <v-sheet style="position:sticky; min-height: 44px; padding-bottom: 2em; 
+                        z-index: 99999 !important;" :style="{'top': hits.results.length < 2 ? '48px' : '64px'}"
+                        class="sticky-tabs">
                         
                         <v-tabs
                         :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"
                         center-active
                         grow
-                        v-model="selectedDatabases"
+                        v-model="tabModel"
                         show-arrows
                         @change="handleChangeDatabase()"
                         v-if="hits.results.length > 1"
                         >
-                        <v-tab>All databases</v-tab>
+                        <!-- <v-tab>All databases</v-tab> -->
                         <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
                     </v-tabs>
                     </v-sheet>
@@ -116,6 +117,7 @@
                     :closeAlignment="closeAlignment"
                     :getSingleSelectionInfo="getSingleSelectionInfo"
                     :getMultipleSelectionInfo="getMultipleSelectionInfo"
+                    :getSinglePdb="getMockPdb"
                     :getMockPdb="getMockPdb"
                     :getFullPdb="fetchStructureFileURL"
                     @clearAll="clearAllEntries"
@@ -135,10 +137,11 @@
             right: $vuetify.breakpoint.smAndDown ? '8px' : '16px'}" ref="alignment_panel" v-click-outside="closeAlignment">
                 <template slot="desc">
                     <v-btn icon @click="closeAlignment" style="display: block; margin-left: auto;">
-                    <v-icon>
-                        {{ $MDI.CloseCircleOutline }}
-                    </v-icon>
-                </v-btn></template>
+                        <v-icon>
+                            {{ $MDI.CloseCircleOutline }}
+                        </v-icon>
+                    </v-btn>
+                </template>
                 <AlignmentPanel
                     slot="content"
                     :key="alignment ? `ap-${alignment.id}` : 'ap-'"
@@ -156,6 +159,7 @@ import Panel from './Panel.vue';
 import AlignmentPanel from './AlignmentPanel.vue';
 import Ruler from './Ruler.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
+import AllAtomPredictMixin from './AllAtomPredictMixin.vue';
 import NavigationButton from './NavigationButton.vue';
 
 import { mockPDB, mergePdbs, concatenatePdbs, 
@@ -168,7 +172,7 @@ import NameField from './NameField.vue';
 
 export default {
     name: 'ResultView',
-    mixins: [ ResultSankeyMixin ],
+    mixins: [ ResultSankeyMixin, AllAtomPredictMixin ],
     components: { Panel, AlignmentPanel, Ruler, 
         NavigationButton, ResultFoldseekDB, SelectToSendPanel, NameField },
     data() {
@@ -182,7 +186,8 @@ export default {
             selectedCounts: 0,
             selectedSets: new Set(),
             tableMode: 0,
-            banList: ['bfmd', 'cath50', 'gmgcl_id'],
+            // banList: ['bfmd', 'cath50', 'gmgcl_id'],
+            banList: [],
             menuActivator: null,
             menuItems: [],
             toggleSourceDb: "",
@@ -203,6 +208,7 @@ export default {
         this.getSingleSelectionInfo = this.getSingleSelectionInfo.bind(this)
         this.getMultipleSelectionInfo = this.getMultipleSelectionInfo.bind(this)
         this.getMockPdb = this.getMockPdb.bind(this)
+        this.fetchStructureFileURL = this.fetchStructureFileURL.bind(this)
     },
     mounted() {
         window.addEventListener("resize", this.handleAlignmentBoxResize, { passive: true });
@@ -304,7 +310,15 @@ export default {
         },
         onlyOne() {
             return this.hits?.results?.length == 1
-        }
+        },
+        tabModel: {
+            get() {
+            return this.selectedDatabases - 1;
+            },
+            set(val) {
+            this.selectedDatabases = val + 1;
+            }
+        },
     },
     methods: {
         log(args) {
@@ -548,7 +562,8 @@ export default {
         updateToggleSourceDb(db) {
             this.toggleSourceDb = db
         },
-        fetchStructureFileURL: async (accession, db, signal=null) => {
+        async fetchStructureFileURL (accession, info, signal=undefined) {
+            const db = info.db
             const fetchWithURL = async (url, retry) => {
                 const response = await fetch(url, {signal})
                 if (signal?.aborted) { 
@@ -588,7 +603,10 @@ export default {
                     const url = `https://files.rcsb.org/download/${accession.substring(0, 4).toUpperCase()}.cif`
                     return await fetchWithURL(url, true)
                 } else { 
-                    throw new DOMException('Not supported DB', 'FetchError') 
+                    const mock = await this.getMockPdb(info, signal)
+                    // throw new Error()
+                    const pdb = await this.predictGivenPdb(mock.pdb, signal)
+                    return pdb
                 }
             } catch (error) {
                 throw error

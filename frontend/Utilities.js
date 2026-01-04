@@ -32,7 +32,7 @@ function tryLinkTargetToDB(target, db) {
       if (target.startsWith("AF-")) {
         let accession = target.replaceAll(
           /-F[0-9]+-model_v[0-9]+(\.(cif|pdb))?(\.gz)?(_[A-Z0-9]+)?$/g,
-          ""
+          "",
         );
         accession = accession.substring(3);
         return [
@@ -151,7 +151,7 @@ function tryFixTargetName(target, db) {
     if (res.startsWith("cath")) {
       if (target.startsWith("af_")) {
         const match = target.match(
-          /^af_([A-Z0-9]+)_(\d+)_(\d+)_(\d+\.\d+\.\d+\.\d+)$/
+          /^af_([A-Z0-9]+)_(\d+)_(\d+)_(\d+\.\d+\.\d+\.\d+)$/,
         );
         if (match && match.length == 5) {
           return match[4] + " " + match[1] + " " + match[2] + "-" + match[3];
@@ -504,7 +504,7 @@ export function xyz(structure, resIndex) {
 function atomToPDBRow(ap) {
   const { serial, atomname, resname, chainname, resno, inscode, x, y, z } = ap;
   return `ATOM  ${serial.toString().padStart(5)}${atomname.padStart(
-    4
+    4,
   )}  ${resname.padStart(3)} ${chainname.padStart(1)}${resno
     .toString()
     .padStart(4)} ${inscode.padStart(1)}  ${x.toFixed(3).padStart(8)}${y
@@ -554,7 +554,7 @@ export function mockPDB(ca, seq, chain) {
         x.toFixed(3).padStart(8) +
         y.toFixed(3).padStart(8) +
         z.toFixed(3).padStart(8) +
-        "  1.00  0.00           C  "
+        "  1.00  0.00           C  ",
     );
   }
   return pdb.join("\n");
@@ -916,4 +916,34 @@ export function throttle(func, delay) {
       func.apply(context, args);
     }
   };
+}
+
+export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function getResidueIndices(
+  seq,
+  alnPoses /* array of highlighted columns */,
+) {
+  const result = [];
+
+  if (alnPoses.length == 0) {
+    return result;
+  }
+
+  let resno = 0;
+  let startPos = 0;
+  const sorted = [...alnPoses].sort((a, b) => a - b);
+  for (let p of sorted) {
+    for (let i = startPos; i <= p && i < seq.length; i++) {
+      if (seq[i] != "-") {
+        if (i == p) {
+          result.push(resno++);
+          startPos = i + 1;
+          break;
+        }
+        resno++;
+      }
+    }
+  }
+  return result;
 }

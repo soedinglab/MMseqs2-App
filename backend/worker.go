@@ -335,6 +335,8 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			if err != nil {
 				return &JobExecutionError{err}
 			}
+			// foldseek msa2profile aa.fasta query --submat blosum62.out --pca --pcb 
+			// foldseek msa2profile 3di.fasta query_ss --submat mat3di.out --pca --pcb 
 			script.WriteString(`#!/bin/bash -e
 MMSEQS="$1"
 QUERY="$2"

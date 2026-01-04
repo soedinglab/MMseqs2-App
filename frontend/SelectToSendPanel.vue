@@ -26,12 +26,12 @@
                             </template> 
                             <span>{{ toFoldseekContent }}</span>
                         </v-tooltip>
-                        <v-tooltip top :color="errorFoldDiscoBtn ? 'error' : '#FFC107'" :value="errorFoldDiscoBtn">
+                        <v-tooltip top :color="errorFoldDiscoBtn ? 'error' : '#eca800'" :value="errorFoldDiscoBtn">
                             <template v-slot:activator="{on, attrs}">
                                 <!-- TODO: change FoldDisco color! -->
                                 <v-btn v-bind="attrs" v-on="on" fab class="elevation-8 fold-disco-btn" 
                                 :class="{'btn-disabled':isSelectionUnableToFetch}" style="color: #fff"
-                                :color="errorFoldDiscoBtn ? 'error' : '#FFC107'" 
+                                :color="errorFoldDiscoBtn ? 'error' : '#eca800'" 
                                 :loading="loading" 
                                 @click="isSelectionUnableToFetch ? () => {} : sendToFoldDisco()">
                                     <v-icon>{{$MDI.Motif}}</v-icon>
@@ -77,7 +77,7 @@
 <script>
 
 import { StorageWrapper} from './lib/HistoryMixin.js';
-import { getAccession } from './Utilities';
+import { getAccession, sleep } from './Utilities';
 import { BlobDatabase } from './lib/BlobDatabase';
 
 const localDb = BlobDatabase()
@@ -130,6 +130,10 @@ export default {
             type: Function,
             default: () => {}
         },
+        getSinglePdb: {
+            type: Function,
+            default: async () => {}
+        },
         getMockPdb: {
             type: Function,
             default: async () => {}
@@ -137,6 +141,18 @@ export default {
         getFullPdb: {
             type: Function,
             default: async () => {}
+        },
+        getOrigPdb: {
+            type: Function,
+            default: async () => {}
+        },
+        batchSize: {
+            type: Number,
+            default: 256,
+        },
+        chunkSize: {
+            type: Number,
+            default: 128,
         },
     },
     watch: {
@@ -169,7 +185,7 @@ export default {
             this.cancelCtl = new AbortController()
             try {
                 const signal = this.cancelCtl.signal
-                result = await this.getMockPdb(info, signal)
+                result = await this.getSinglePdb(info, signal)
             } catch (error) {
                 if (error?.name == "AbortError") {
                     console.log("Job canceled")
@@ -196,10 +212,7 @@ export default {
         },
         async sendToFoldMason() {
             if (this.loading) return
-
-            const BATCH_SIZE = 256
-            const CHUNK_SIZE = 128
-
+            
             const inBatches = async (items, k, fn, signal) => {
                 const out = [];
                 for (let p = 0; p < items.length; p += k) {
@@ -210,6 +223,8 @@ export default {
                     const chunk = items.slice(p, p + k);
                     const settled = await Promise.allSettled(chunk.map(x => fn(x, signal)));
                     out.push(...settled);
+                    
+                    await sleep(250)
                 }
                 return out;
             }
@@ -239,15 +254,15 @@ export default {
             this.cancelCtl = new AbortController();
             try {
                 const signal = this.cancelCtl.signal
-                const settled = await inBatches(this.getMultipleSelectionInfo(), BATCH_SIZE, async (i, s) => await this.getMockPdb(i, s), signal)
+                const settled = await inBatches(this.getMultipleSelectionInfo(), this.batchSize, async (i, s) => await this.getMockPdb(i, s), signal)
                 settled.filter(r => r.status == 'rejected').map(r => console.warn(r.reason))
-                const values = settled.filter(r => r.status == "fulfilled").map(r => {
+                const values = settled.filter(r => r.status == "fulfilled" && !(!r.value?.pdb)).map(r => {
                     return {text: r.value?.pdb, name: r.value?.name};
                 })
-                await saveAsChunk(values, CHUNK_SIZE, signal)
+                // const failed = settled.filter(r => r.status == "fulfilled" && !r.value?.pdb).map(r=> r.value?.name)
+                await saveAsChunk(values, this.chunkSize, signal)
                 this.loading = false
                 this.cancelCtl = null
-                this.$router.push({name:'foldmason'})
             } catch (e) {
                 if (e?.name == 'AbortError') {
                     console.log("Job canceled")
@@ -257,7 +272,9 @@ export default {
                 }
                 this.loading = false
                 this.cancelCtl = null
-            } 
+                return
+            }
+            this.$router.push({name:'foldmason'})
         },
         async sendToFoldDisco() {
             if (this.loading) { 
@@ -273,11 +290,21 @@ export default {
             }
 
             this.cancelCtl = new AbortController();
-            const target = this.hits.results[this.dbToIdx?.[selection.db]]?.alignments?.[selection.idx]?.[0]?.target
+            const target = this.hits.results[this.dbToIdx?.[selection.db]]?.alignments?.[selection.idx]?.[0]
             let targetPdb
+            let motifs
             try {
                 const signal = this.cancelCtl.signal
-                targetPdb = await this.getFullPdb(target, selection.db, signal)
+                let result = await this.getOrigPdb(target, selection.db, signal)
+                if (!result) {
+                    targetPdb = await this.getFullPdb(target.target, selection, signal)
+                    motifs = ""
+                } else {
+                    [targetPdb, motifs] = result
+                    motifs = motifs
+                        .replace(/^_,(_,)*|(,_)*,_$/g, '')
+                        .replace(/,_,(_,)*/g, ',')
+                }
             } catch (error) {
                 if (error?.name == 'AbortError') {
                     console.log('Job canceled')
@@ -294,10 +321,10 @@ export default {
                 return
             }
             const storage = new StorageWrapper('folddisco')
-            const accession = getAccession(target)
+            const accession = getAccession(target.target)
 
             await localDb.setItem('folddisco.query', this.prependRemark(targetPdb, accession, selection.db))
-            storage.removeItem('motif')
+            await storage.setItem('motif', motifs)
             this.$router.push({name: "folddisco"})
         },
         cancelJob() {
@@ -342,7 +369,7 @@ export default {
             }
         },
         isSelectionUnableToFetch() {
-            if (this.selectedCounts != 1) { 
+            if (this.banList.length == 0 || this.selectedCounts != 1) { 
                 return false 
             }
             const selection = this.getSingleSelectionInfo();

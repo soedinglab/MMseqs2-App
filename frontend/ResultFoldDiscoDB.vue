@@ -1,52 +1,63 @@
 <template>
-    <div>
-        <v-sheet style="position: sticky; z-index: 99997 !important; padding-bottom: 16px;" 
-            :db="entryidx" class="sticky-sheet" :class="`result-entry-${entryidx}`" 
+    <div :key="entry.db">
+        <v-sheet style="position: sticky; z-index: 99997 !important; padding-bottom: 16px;"
             :style="{'height': headHeight, 'top': headTop,
                 'box-shadow': $vuetify.breakpoint.smAndDown ? 'rgba(0, 0, 0, 0.2) 0px 8px 6px -6px' : '',
-                'padding-bottom': $vuetify.breakpoint.smAndDown ? 0 : '16px',
-            }">
-            <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.smAndDown ? 'column' : null, 
-                'align-items': 'center', 'justify-content': $vuetify.breakpoint.smAndDown ? 'center' : 'space-between'}">
+            }"
+        >
+            <v-flex
+                class="d-flex"
+                :style="{
+                    'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : 'row',
+                    'align-items': 'center',
+                    'flex': '0',
+                    'white-space': 'nowrap',
+                }">
                 <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
-                    <div style="width: 24px; display: inline-block;"
-                        v-if="!$vuetify.breakpoint.smAndDown"
-                    ></div>
+                    <!-- <div style="width: 24px; display: inline-block;"></div> -->
                     <v-icon @click="isCollapsed = !isCollapsed"
-                        v-if="$vuetify.breakpoint.smAndDown"
                         style="transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);"
                         :style="{'transform': isCollapsed ? 'rotate(-90deg)' : ''}"
                         :title="isCollapsed ? 'Show actions' : 'Hide actions'"
                     >
                         {{ $MDI.ChevronDown }}
                     </v-icon>
-                    <span style="text-transform: uppercase;">{{ entry.db }}</span> <small>{{entryLength > 1 ? entryLength.toString() + " hits" : entryLength > 0 ? "1 hit" : "no hit" }}</small>
+                    <span style="text-transform: uppercase;">{{ entry.db.replaceAll(/_folddisco$/g, '') }}</span> <small>{{entryLength > 1 ? entryLength.toString() + " hits" : entryLength > 0 ? "1 hit" : "no hit" }}</small>
                 </h2>
-
-                <div
-                    style="display: flex; justify-content: center; align-items: center;" :style="{'width' : $vuetify.breakpoint.smAndDown ? '100%' : ''}"
-                    v-if="!$vuetify.breakpoint.smAndDown || !isCollapsed"
+                <v-btn v-if="entry.hasTaxonomy && (!$vuetify.breakpoint.xsOnly || !isCollapsed)" @click="toggleSankeyVisibility(entry.db)" 
+                    :class="{ 'mr-2': $vuetify.breakpoint.smAndUp , 'mb-2': $vuetify.breakpoint.xsOnly}" large>
+                    {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
+                </v-btn>
+            </v-flex>
+            <v-flex
+                v-if="!isCollapsed"
+                class="d-flex"
+                :style="{
+                    'flex-direction' : $vuetify.breakpoint.mdAndDown ? 'column' : 'row',
+                    'align-items': 'center',
+                    'white-space': 'nowrap',
+                    'gap': '24px',
+                    'padding-left': '36px',
+                }"
                 >
-                    <div style="display: flex; justify-content: center; align-items: center;"
-                    :style="{'width': $vuetify.breakpoint.smAndDown ? '100%' : '', 'flex-direction': $vuetify.breakpoint.smAndDown ? 'column' : 'row'}">
-                        <!-- Button to toggle Sankey Diagram visibility -->
-                        <v-btn v-if="hasEntries && entry.hasTaxonomy && !isComplex" @click="toggleSankeyVisibility(entry.db)" :class="{ 'mr-2': $vuetify.breakpoint.mdAndUp , 'mb-2': $vuetify.breakpoint.smAndDown}" large>
-                            <!-- TODO: later, isSankeyVisible should be modified as bool, not an object
-                                after ResultFoldDisco also is refactored as well. 
-                            -->
-                            {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
-                        </v-btn>
-                        <v-btn-toggle v-if="hasEntries" mandatory :value="tableMode" @change="switchTableMode" :class="{'mb-2': $vuetify.breakpoint.smAndDown}">
-                            <v-btn>
-                                Graphical
-                            </v-btn>
-
-                            <v-btn>
-                                Numeric
-                            </v-btn>
-                        </v-btn-toggle>
+                <div style="flex-basis: 100%; width: 100%">
+                    <h3>Filter</h3>
+                    <motif-filter
+                        :items="dbGaps"
+                        :value="gapFilter ? gapFilter : ''"
+                        @input="gapFilter = $event"
+                        @click:clear="gapFilter = ''"
+                        :queryresidues="entry.queryresidues"
+                        :color="entry.color"
+                    >
+                    </motif-filter>
+                </div>
+                <v-flex class="d-flex" style="flex-basis: 100%; width: 100%">
+                    <div style="width: 100%">
+                        <h3>Cluster</h3>
+                        <folddisco-hit-cluster :hits="entry" v-on:cluster="clusters = $event"></folddisco-hit-cluster>
                     </div>
-                    <v-menu v-show="$vuetify.breakpoint.smAndDown" bottom left>
+                    <v-menu v-show="$vuetify.breakpoint.smAndDown" bottom left :close-on-content-click='false'>
                         <template v-slot:activator="{on, attrs}">
                             <v-btn
                                 icon
@@ -66,25 +77,9 @@
                         >
                             <v-list-item-group
                                 mandatory
-                                :color="entry.color"
+                                color="primary"
                                 :value="sortMenuValue"
-                                >
-                                <v-list-item v-if="isComplex" @click.stop="changeSortMode('qtm')">
-                                    <v-list-item-title>Query TM-score</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'qtm' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item v-if="isComplex" @click.stop="changeSortMode('ttm')">
-                                    <v-list-item-title>Target TM-score</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'ttm' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
+                            >
                                 <v-list-item @click.stop="changeSortMode('target')">
                                     <v-list-item-title>Target</v-list-item-title>
                                     <v-list-item-icon>
@@ -109,34 +104,26 @@
                                         </v-icon>
                                     </v-list-item-icon>
                                 </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('prob')">
-                                    <v-list-item-title>Probability</v-list-item-title>
+                                <v-list-item @click.stop="changeSortMode('idf')">
+                                    <v-list-item-title>IDF-score</v-list-item-title>
                                     <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'prob' ? '1' : 0}">
+                                        <v-icon :style="{'opacity' : sortKey == 'idf' ? '1' : 0}">
                                             {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
                                         </v-icon>
                                     </v-list-item-icon>
                                 </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('seqId')">
-                                    <v-list-item-title>Sequence Id.</v-list-item-title>
+                                <v-list-item @click.stop="changeSortMode('rmsd')">
+                                    <v-list-item-title>RMSD</v-list-item-title>
                                     <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'seqId' ? '1' : 0}">
+                                        <v-icon :style="{'opacity' : sortKey == 'rmsd' ? '1' : 0}">
                                             {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
                                         </v-icon>
                                     </v-list-item-icon>
                                 </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('eval')">
-                                    <v-list-item-title>{{ this.mode == 'tmalign' ? 'TM-score' : this.mode == 'lolalign' ? 'LOL-score' : 'E-Value' }}</v-list-item-title>
+                                <v-list-item @click.stop="changeSortMode('node')">
+                                    <v-list-item-title>Node Count</v-list-item-title>
                                     <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'eval' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('score')">
-                                    <v-list-item-title>Score</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'score' ? '1' : 0}">
+                                        <v-icon :style="{'opacity' : sortKey == 'node' ? '1' : 0}">
                                             {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
                                         </v-icon>
                                     </v-list-item-icon>
@@ -144,50 +131,36 @@
                             </v-list-item-group>
                         </v-list>
                     </v-menu>
-                </div>
+                </v-flex>
             </v-flex>
         </v-sheet>
-        <v-flex v-if="hasEntries && entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2">
+        <v-flex v-if="hasEntries && entry.hasTaxonomy && isSankeyVisible[entry.db]">
             <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
         </v-flex>
-        <v-sheet v-if="!hasEntries"><div class="text-h5">No hits found...</div></v-sheet>
-        <table class="v-table result-table" style="position:relative; margin-bottom: 3em;" v-if="hasEntries" :style="{'--active-color': entry.color}">
+
+        <table class="v-table result-table" style="position:relative; margin-bottom: 3em;"
+            v-if="hasEntries" :style="{'--active-color': entry.color}">
             <colgroup>
-                <col style="width: 36px;">
-                <template v-if="isComplex">
-                    <col style="width: 6.5%;" />
-                    <col style="width: 6.5%;" />
-                </template>
-                <col style="min-width: 10%;" />
-                <col v-if="entry.hasDescription" style="min-width: 25%;" />
-                <col v-if="entry.hasTaxonomy" style="min-width: 15%;" />
-                <col style="width: 6%;" />
-                <col style="width: 6%;" />
-                <col style="width: 6%;" />
-                <template v-if="tableMode == 0">
-                    <col style="min-width: 20%;" />
-                </template>
-                <template v-else>
-                    <col style="width: 4%;" />
-                    <col style="width: 8%;" />
-                    <col style="width: 8%;" />
-                </template>
-                <col style="width: 6%;" />
+                <col style="width: 36px;"> <!--index-->
+                <col style="min-width: 12%;" /> <!-- target -->
+                <col v-if="entry.hasDescription" style="width: 25%;" /> 
+                <col v-if="entry.hasTaxonomy" style="width: 15%;" />
+                <col style="width: 6%;" /> <!-- idf-score --> 
+                <col style="width: 6%;" /> <!-- RMSD --> 
+                <col style="width: 6%;" /> <!-- nodecount -->
+                <col style="min-width: 12%;" /> <!-- Matched residues --> 
+                <!-- <col style="width: 20%;" /> Interresidue --> 
+                <col style="width: 6%;" /> <!-- action -->
             </colgroup>
             <thead style="position: sticky; z-index: 99997 !important;" class="sticky-thead"
                 :style="{'top': colheadTop, 
                 'background-color': $vuetify.theme.dark ? '#1e1e1e' : '#fff'}">
-                <tr v-if="isComplex">
-                    <th colspan="1"></th>
-                    <th colspan="2" style="text-align:center; width:10%; border-right: 1px solid #333; border-bottom: 1px solid #333;">Complex</th>
-                    <th :colspan="6 +  entry.hasDescription + entry.hasTaxonomy + ((tableMode == 1) ? 2 : 0)" style="text-align:center; border-bottom: 1px solid #333;">Chain</th>
-                </tr>
                 <tr>
                     <th class="thin select-all-th" style="position: relative">
                         <!-- Replaced this checkbox too, for the colored undeterminate state -->
                         <div class="v-input--selection-controls__input select-all custom-checkbox" :id="entryidx+'#select-all'" style="user-select: none;
                             -webkit-user-select: none; cursor: pointer; position: absolute; top: calc(50% - 12px); left: 6px;" @click.stop="toggleDbEntries($event)" :length="entryLength"
-                            title="click to select all the entries">
+                            :title="multipleSelectionEnabled ? 'click to select all the entries' : 'select the first entry (multiple selection is WIP)'">
                             <span aria-hidden="true" class="v-icon notranslate" :class="{'theme--light': !$vuetify.theme.dark, 'theme--dark': $vuetify.theme.dark}">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg">
                                     <path class="unchecked" d="M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z"></path>
@@ -197,23 +170,13 @@
                             </span>
                         </div>
                     </th>
-                    <template v-if="isComplex">
-                        <!-- <th class="thin">ID</th> -->
-                        <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'qtm', 'sort-down': this.sortOrder < 0}"
-                            @click="changeSortMode('qtm')" title="Click to sort by Query TM-score">qTM</th>
-                        <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'ttm', 'sort-down': this.sortOrder < 0}"
-                            @click="changeSortMode('ttm')" title="Click to sort by Target TM-score" style="border-right: 1px solid #333; ">tTM</th>
-                    </template>
-                    <th :class="[`wide-${3 - entry.hasDescription - entry.hasTaxonomy}`, {'sort-selected': this.sortKey == 'target', 'sort-down': this.sortOrder < 0}]" 
-                        class="sort-criterion" title="Click to sort by target name" @click="changeSortMode('target')">
-                        <template v-if="isComplex">
-                            Chain pairing
-                        </template>
-                        <template v-else>
-                            Target
-                        </template>
+                    <th :class="['wide-' + (3 - entry.hasDescription - entry.hasTaxonomy), 
+                    {'sort-selected': this.sortKey == 'target', 'sort-down': this.sortOrder < 0}]" 
+                    class="sort-criterion" @click="changeSortMode('target')" title="Click to sort by target name" >
+                        Target
                     </th>
-                    <th v-if="entry.hasDescription" class="sort-criterion" :class="{'sort-selected':this.sortKey == 'desc', 'sort-down': this.sortOrder < 0}"
+                    <th v-if="entry.hasDescription" class="sort-criterion" 
+                    :class="{'sort-selected':this.sortKey == 'desc', 'sort-down': this.sortOrder < 0}"
                     @click="changeSortMode('desc')" title="Click to sort by description">
                         Description
                         <v-tooltip open-delay="300" top>
@@ -223,118 +186,100 @@
                             <span>Triple click to select whole cell (for very long identifiers)</span>
                         </v-tooltip>
                     </th>
-                    <th v-if="entry.hasTaxonomy"  :class="{'sort-selected':this.sortKey == 'tax', 'sort-down': this.sortOrder < 0}" 
-                        class="sort-criterion" @click="changeSortMode('tax')" title="Click to sort by scientific name">Scientific Name</th>
-                    <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'prob', 'sort-down': this.sortOrder < 0}" 
-                        @click="changeSortMode('prob')" title="Click to sort by probability">Prob.</th>
-                    <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'seqId', 'sort-down': this.sortOrder < 0}"
-                        @click="changeSortMode('seqId')" title="Click to sort by sequence identity">Seq. Id.</th>
-                    <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'eval', 'sort-down': this.sortOrder < 0, 'default-down': mode == 'lolalign' || mode == 'tmalign'}"
-                        @click="changeSortMode('eval')" :title="'Click to sort by '+ scoreColumnName">{{ scoreColumnName }}</th> <!-- TODO fixme!! -->
-                    <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'score', 'sort-down': this.sortOrder < 0}"
-                        v-show="tableMode == 1" @click="changeSortMode('score')" title="Click to sort by score">Score</th>
-                    <th v-show="tableMode == 1">Query Pos.</th>
-                    <th v-show="tableMode == 1">Target Pos.</th>
-                    <th v-show="tableMode == 0">
-                        Position in query
+                    <th v-if="entry.hasTaxonomy" :class="{'sort-selected':this.sortKey == 'tax', 'sort-down': this.sortOrder < 0}" 
+                        class="sort-criterion" @click="changeSortMode('tax')" 
+                        title="Click to sort by scientific name">Scientific Name</th>
+                    <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'idf', 'sort-down': this.sortOrder < 0}" 
+                        @click="changeSortMode('idf')" title="Click to sort by IDF-score">{{ $vuetify.breakpoint.mdAndDown ? 'IDF' :'IDF-score' }}</th>
+                    <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'rmsd', 'sort-down': this.sortOrder < 0}" 
+                        @click="changeSortMode('rmsd')" title="Click to sort by RMSD">RMSD</th>
+                    <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'node', 'sort-down': this.sortOrder < 0}" 
+                        @click="changeSortMode('node')" title="Click to sort by node count" >Nodes</th>
+                    <th>
+                        {{ $vuetify.breakpoint.lgAndDown ? 'Residues' : 'Matched residues' }}
                         <v-tooltip open-delay="300" top>
                             <template v-slot:activator="{ on }">
                                 <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
                             </template>
-                            <span>The position of the aligned region of the target sequence in the query</span>
+                            <span>The position of the aligned motif residues in the target</span>
                         </v-tooltip>
                     </th>
-                    <th class="alignment-action thin">Alignment</th>
+                    <!-- <th>Interresidue Dist</th> -->
+                    <th class="alignment-action thin">Structure</th>
                 </tr>
             </thead>
-            <tbody>
-                <template v-for="(groupidx, sortIdx) in sortedIndices" >
-                <tr v-for="(item, index) in entry.alignments[groupidx]" :class="['hit', { 'active' : item.active }]"
-                    @click.stop="$vuetify.breakpoint.width <= 960 ? onCheckboxClick(sortIdx, $event) : () => {}"
-                    :key="`${groupidx}-${index}`"
+            <tbody v-for="(clu, key) in sortedIndices">
+                {{ void(clusterShown = false) }}
+                <template v-for="(groupidx, sortIdx) in clu" >
+                    <tr v-if="clusters[key].length != entryLength 
+                        && visibleCluster[key] 
+                        && clusterShown == false" :class="'result-entry-'+ entryidx + key">
+                        <td colspan="7"><strong>Cluster: {{ key == -1 ? "Noise" : key }}</strong></td>
+                    </tr>
+                    {{ void(clusterShown = true) }}
+                    <tr v-for="(item, index) in entry.alignments[groupidx]" :class="['hit', { 'active' : item.active }]"
+                        :key="`${groupidx}-${index}`" @click.stop="$vuetify.breakpoint.smAndDown ? onCheckboxClick(key, sortIdx, $event) : () => {}"
                     >
-                    <td v-if="index == 0" :rowspan="entry.alignments[groupidx].length" class="entry-checkbox" :id="entryidx + '#' + groupidx">
-                        <!-- performance issue with thousands of v-checkboxes, hardcode the simple checkbox instead -->
-                        <div class="v-input--selection-controls__input custom-checkbox" 
-                        style="user-select: none; -webkit-user-select: none; cursor: pointer; position: absolute; top: calc(50% - 12px); left: 6px;" 
-                        @click.stop="onCheckboxClick(sortIdx, $event)"
-                        title="click to select, shift-click for multiple selection">
-                            <span aria-hidden="true" 
-                                class="v-icon notranslate" 
-                                :class="{'theme--light': !$vuetify.theme.dark, 'theme--dark': $vuetify.theme.dark}"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg">
-                                    <path class="unchecked" d="M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z"></path>
-                                    <path class="checked" d="M10,17L5,12L6.41,10.58L10,14.17L17.59,6.58L19,8M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3Z"></path>
-                                </svg>
-                            </span>
-                        </div>
-                    </td>
-                    <template v-if="index == 0 && isComplex">
-                        <td class="thin" data-label="Query TM-score" :rowspan="entry.alignments[groupidx].length">{{ entry.alignments[groupidx][0].complexqtm.toFixed(2) }}</td>
-                        <td class="thin" data-label="Target TM-score" :rowspan="entry.alignments[groupidx].length">{{ entry.alignments[groupidx][0].complexttm.toFixed(2) }}</td>
-                    </template>
-                    <td class="db long" data-label="Target" 
-                        :style="{ 'border-width' : isComplex ? '5px' : null, 
-                            'border-color' : entry.color, }"
-                    >
-                        <a :id="item.id" class="anchor" style="position: absolute; top: 0" @click.stop></a>
-                        <template v-if="isComplex">
-                            {{ item.query.lastIndexOf('_') != -1 ? item.query.substring(item.query.lastIndexOf('_')+1) : '' }} ➔ 
-                        </template>
-                        <a style="text-decoration: underline; color: #2196f3;" 
-                            v-if="Array.isArray(item.href)" 
-                            @click.stop="emitForwardDropdown($event, item.href)"
-                            rel="noopener" :title="item.target">{{item.target}}</a>
-                        <a v-else :href="item.href" target="_blank" rel="noopener" 
-                            :title="item.target" @click.stop>{{item.target}}</a>
-                    </td>
-                    <td class="long" data-label="Description" v-if="entry.hasDescription">
-                        <span :title="item.description">{{ item.description }}</span>
-                    </td>
-                    <td class="long" v-if="entry.hasTaxonomy" data-label="Taxonomy">
-                        <a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" 
-                            target="_blank" 
-                            rel="noopener" 
-                            :title="item.taxName" 
-                            @click.stop>
-                            {{ item.taxName }}
-                        </a>
-                    </td>
-                    <td class="thin" data-label="Probability">{{ item.prob }}</td>
-                    <td class="thin" data-label="Sequence Identity">{{ item.seqId }}</td>
-                    <td class="thin" :data-label="scoreColumnName">{{ item.eval }}</td>
-                    <td class="thin" v-show="tableMode == 1" data-label="Score">{{ item.score }}</td>
-                    <td v-show="tableMode == 1" data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
-                    <td v-show="tableMode == 1" data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
-                    <td class="graphical" data-label="Position" v-show="tableMode == 0">
-                        <Ruler :length="item.qLen" :start="item.qStartPos" :end="item.qEndPos" :color="item.color" :label="index == 0"></Ruler>
-                    </td>
-                    <td class="alignment-action" :rowspan="isComplex ? entry.alignments[groupidx].length : 1" v-if="index == 0">
-                        <!-- performance issue with thousands of v-btns, hardcode the minimal button instead -->
-                        <!-- <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
-                            <v-icon v-once>{{ $MDI.NotificationClearAll }}</v-icon>
-                        </v-btn> -->
-                        <button 
-                            @click.stop="showAlignment(groupidx, $event)"
-                            type="button"
-                            class="v-btn v-btn--icon v-btn--round v-btn--text v-size--default"
-                            :class="{ 
-                                        'v-btn--outlined' : alignment && item.target == alignment.target,
-                                        'theme--dark' : $vuetify.theme.dark
-                                    }"
-                            >
-                            <span class="v-btn__content">
-                                <span aria-hidden="true" class="v-icon notranslate theme--dark">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg">
-                                    <path d="M5,13H19V11H5M3,17H17V15H3M7,7V9H21V7"></path>
-                                </svg>
+                        <td v-if="index == 0" :rowspan="entry.alignments[groupidx].length" class="entry-checkbox" :id="entryidx + '#' + groupidx">
+                            <!-- performance issue with thousands of v-checkboxes, hardcode the simple checkbox instead -->
+                            <div class="v-input--selection-controls__input custom-checkbox" 
+                            style="user-select: none; -webkit-user-select: none; cursor: pointer; position: absolute; top: calc(50% - 12px); left: 6px;" 
+                            @click.stop="onCheckboxClick(key, sortIdx, $event)"
+                            :title="multipleSelectionEnabled ? 'click to select, shift-click for multiple selection' : 'click to toggle the selection'">
+                                <span aria-hidden="true" 
+                                    class="v-icon notranslate" 
+                                    :class="{'theme--light': !$vuetify.theme.dark, 'theme--dark': $vuetify.theme.dark}"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg">
+                                        <path class="unchecked" d="M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z"></path>
+                                        <path class="checked" d="M10,17L5,12L6.41,10.58L10,14.17L17.59,6.58L19,8M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3Z"></path>
+                                    </svg>
                                 </span>
-                            </span>
-                        </button>
-                    </td>
-                </tr>
-                <tr aria-hidden="true" v-if="isComplex" style="height: 15px" :key="`spacer-${groupidx}`" ></tr>
+                            </div>
+                        </td>
+                        <td class="db long" data-label="Target" :style="{ 'border-color' : entry.color}">
+                            <a :id="item.id" class="anchor" style="position: absolute; top: 0" @click.stop></a>
+                            <a style="text-decoration: underline; color: #2196f3;" 
+                                v-if="Array.isArray(item.href)" @click.stop="emitForwardDropdown($event, item.href)"
+                                rel="noopener" :title="item.target">{{item.targetname}}</a>
+                            <a v-else :href="item.href" target="_blank" rel="noopener" 
+                                :title="item.target" @click.stop>{{item.targetname}}</a>
+                        </td>
+                        <td class="long" data-label="Description" v-if="entry.hasDescription">
+                            <span :title="item.description">{{ item.description }}</span>
+                        </td>
+                        <td class="long" v-if="entry.hasTaxonomy" data-label="Taxonomy">
+                            <a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" 
+                            target="_blank" rel="noopener" :title="item.taxName" @click.stop>{{ item.taxName }}</a>
+                        </td>
+                        <td class="thin" data-label="idf-score">{{ item.idfscore }}</td>
+                        <td class="thin" data-label="RMSD">{{ item.rmsd }}</td>
+                        <td class="thin" data-label="Node count">{{ item.nodecount }}</td>
+                        <td data-label="Matched residues">
+                            <span class="matched-residues-text" :title="item.targetresidues">{{ item.targetresidues }}</span>
+                        </td> 
+                        <td class="alignment-action thin" :rowspan="1">
+                            <!-- performance issue with thousands of v-btns, hardcode the minimal button instead -->
+                            <!-- <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
+                                <v-icon v-once>{{ $MDI.NotificationClearAll }}</v-icon>
+                            </v-btn> -->
+                            <button 
+                                @click.stop="showAlignment(groupidx, $event)"
+                                type="button"
+                                class="v-btn v-btn--icon v-btn--round v-btn--text v-size--default"
+                                :class="{ 
+                                            'v-btn--outlined' : alignment && item.target == alignment.target,
+                                            'theme--dark' : $vuetify.theme.dark
+                                        }"
+                                >
+                                <span class="v-btn__content">
+                                    <span aria-hidden="true" class="v-icon notranslate theme--dark">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg">
+                                        <path d="M5,13H19V11H5M3,17H17V15H3M7,7V9H21V7"></path></svg>
+                                </span></span>
+                            </button>
+                        </td>
+                    </tr>
                 </template>
             </tbody>
         </table>
@@ -342,30 +287,31 @@
 </template>
 
 <script>
-import Ruler from './Ruler.vue';
+import MotifFilter from './MotifFilter.vue';
+import FolddiscoHitCluster from './FolddiscoHitCluster.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
-import { group } from 'd3';
 
 export default {
-    name: 'ResultFoldseekDB',
+    name: 'ResultFoldDiscoDB',
+    components: {MotifFilter, FolddiscoHitCluster},
     mixins: [ ResultSankeyMixin ],
-    components: {Ruler},
     data() {
         return {
             toggleTargetValue: true,
+            toggleSourceKey: "",
             toggleSourceIdx: -1,
             visibilityTable: [],
             selectedDb: "",
-            sortKey: 'prob',
-            sortOrder: -1,
+            sortKey: 'node',
             isCollapsed: false,
+            sortOrder: -1,
+            clusters: {},
+            gapFilter: "",
+            visibleCluster: {1 : true},
+            multipleSelectionEnabled: false,
         }
     },
     props: {
-        tableMode: {
-            type: Number,
-            default: 0,
-        },
         entryidx: {
             type: Number,
             default: 0,
@@ -375,10 +321,6 @@ export default {
             default: null
         },
         toggleSourceDb: {
-            type: String,
-            default: ""
-        },
-        mode: {
             type: String,
             default: ""
         },
@@ -415,46 +357,45 @@ export default {
         filteredHitsTaxIds: {
             handler(n, o) {
                 // this.log(n)
+                this.toggleSourceKey = ""
                 this.toggleSourceIdx = -1
-                let id = ''
-                let el = undefined
-                if (!n || n.length == 0) {
-                    // reset visibility table
-                    if (this.visibilityTable) {
-                        for (let i = 0; i < this.entryLength; i++) {
-                            this.visibilityTable[i] = true
-                            id = this.entryidx + "#" + String(i)
-                            el = document.getElementById(id)
-                            if (el) {
-                                el.classList.toggle('invisible', false)
-                            }
-                        }
-                    }
-                } else {
-                    for (let i = 0; i < this.entryLength; i++) {
-                        let target = this.isGroupVisible(this.entry.alignments[i])
-                        this.visibilityTable[i] = target
-                        id = this.entryidx + '#' + String(i)
-                        el = document.getElementById(id)
-                        if (el) {
-                            el.classList.toggle('invisible', !target)
-                        }
-                    }
-                }
+                this.toggleSourceValue = true
+                this.$nextTick(() => {
+                    setTimeout(() => {
+                        this.updateVisibility()
+                    }, 0)
+                })
             },
             immediate: false,
             deep: true,
         },
         toggleSourceDb(n, o) {
             if (n != this.db) {
+                this.toggleSourceKey = ""
                 this.toggleSourceIdx = -1
+                this.toggleSourceValue = true
             }
         },
         entry(n, o) {
             if (n && this.visibilityTable.length == 0) {
                 this.visibilityTable = Array(this.entryLength).fill(true)
             }
-        }
+        },
+        gapFilter(n, o) {
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.updateVisibility()
+                }, 0)
+            })
+        },
+        clusters(n, o) {
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.updateVisibility()
+                    this.$emit('updateScroll')
+                }, 0)
+            })
+        },
     },
     mounted() {
         if (this.entry && this.visibilityTable.length == 0) {
@@ -466,11 +407,12 @@ export default {
                 }, 0)
             })
         }
+
+        if (this.$route.query.d2m && this.$route.query.d2m == 1) {
+            this.multipleSelectionEnabled = true
+        }
     },
     computed: {
-        origIndicesArr() {
-            return this.entry ? Array.from({length: this.entryLength}, (_, i) => i) : []
-        },
         db() {
             return this.entry ? this.entry.db : ""
         },
@@ -480,38 +422,29 @@ export default {
         hasEntries() {
             return this.entry ? this.entryLength > 0 : false
         },
-        isComplex() {
-            return this.entry?.alignments?.[0]?.[0]?.complexqtm != null
-        },
         anySelected() {
             return this.selectedCounts > 0
         },
         selectAllStatus() {
             return this.selectedCounts == this.entryLength
         },
-        scoreColumnName() {
-            if (__APP__ == 'foldseek') {
-                switch (this.mode) {
-                    case 'tmalign':
-                        return 'TM-score';
-                    case 'lolalign':
-                        return 'LoL-score';
-                }
-            }
-            return 'E-Value';
-        },
         sortedIndices() {
-            let copiedArr = [...this.origIndicesArr]
-            return copiedArr.sort(this.comparator)
+            if (!this.clusters) return this.clusters
+
+            let copiedArrs = structuredClone(this.clusters)
+
+            for (let key in copiedArrs) {
+                copiedArrs[key].sort(this.comparator)
+            }
+
+            return copiedArrs
         },
         comparator() {
             let comp = () => {}
             switch (this.sortKey) {
-                case 'prob':
+                case 'idf':
                     comp = (a, b) => {
-                        let a_max = Math.max(...this.entry.alignments[a].map(e => e.prob))
-                        let b_max = Math.max(...this.entry.alignments[b].map(e => e.prob))
-                        return this.sortOrder * (a_max - b_max)
+                        return this.sortOrder * (this.entry.alignments[a][0].idfscore - this.entry.alignments[b][0].idfscore)
                     }
                     break;
 
@@ -533,44 +466,16 @@ export default {
                     }
                     break;
 
-                case 'seqId':
+
+                case 'rmsd':
                     comp = (a, b) => {
-                        let a_max = Math.max(...this.entry.alignments[a].map(e => e.seqId))
-                        let b_max = Math.max(...this.entry.alignments[b].map(e => e.seqId))
-                        return this.sortOrder * (a_max - b_max)
-                    }
-                    break;
-                
-                case 'score':
-                    comp = (a, b) => {
-                        let a_max = Math.max(...this.entry.alignments[a].map(e => e.score))
-                        let b_max = Math.max(...this.entry.alignments[b].map(e => e.score))
-                        return this.sortOrder * (a_max - b_max)
+                        return this.sortOrder * (this.entry.alignments[a][0].rmsd - this.entry.alignments[b][0].rmsd)
                     }
                     break;
 
-                case 'eval':
-                    // TODO: need to handle tm align and lol align cases, too!
+                case 'node':
                     comp = (a, b) => {
-                        let a_max = Math.max(...this.entry.alignments[a].map(e => e.eval))
-                        let b_max = Math.max(...this.entry.alignments[b].map(e => e.eval))
-                        return this.sortOrder * (a_max - b_max)
-                    }
-                    break;
-
-                case 'qtm':
-                    comp = (a, b) => {
-                        let a_max = Math.max(...this.entry.alignments[a].map(e => e.complexqtm))
-                        let b_max = Math.max(...this.entry.alignments[b].map(e => e.complexqtm))
-                        return this.sortOrder * (a_max - b_max)
-                    }
-                    break;
-
-                case 'ttm':
-                    comp = (a, b) => {
-                        let a_max = Math.max(...this.entry.alignments[a].map(e => e.complexttm))
-                        let b_max = Math.max(...this.entry.alignments[b].map(e => e.complexttm))
-                        return this.sortOrder * (a_max - b_max)
+                        return this.sortOrder * (this.entry.alignments[a][0].nodecount - this.entry.alignments[b][0].nodecount)
                     }
                     break;
             
@@ -582,50 +487,57 @@ export default {
         headTop() {
             return this.onlyOne ? '92px' : '140px'
         },
-        headHeight() {
-            const auxHeight = this.$vuetify.breakpoint.smAndDown && !this.isCollapsed ? 108 : 0
-            const padding = this.$vuetify.breakpoint.smAndDown ? 0 : 16
-            return String(auxHeight + 64 + padding) + 'px'
-        },
         colheadTop() {
-            let addend = !this.onlyOne ? 48 : 0
-            let breakpointAddend = this.$vuetify.breakpoint.smAndDown ? 108 : 0
-            return String(172 + addend + breakpointAddend) + 'px'
+            const addend = !this.onlyOne ? 140 : 92
+            const breakpointAddend = this.$vuetify.breakpoint.xsOnly ? 176 : this.$vuetify.breakpoint.mdAndDown ? 124 : 0
+            const auxOffset = this.isCollapsed ? this.$vuetify.breakpoint.mdAndDown ? -248 : -116 : 0
+            const taxOffset = this.$vuetify.breakpoint.xsOnly && this.isCollapsed ? -52 : 0
+            return String(180 + addend + breakpointAddend + auxOffset + taxOffset) + 'px'
+        },
+        isTaxAvailable() {
+            return !(!this.filteredHitsTaxIds || this.filteredHitsTaxIds.length == 0)
+        },
+        isGapFilterAvailable() {
+            return !(!this.gapFilter || this.gapFilter == '')
+        },
+        dbGaps() {
+            if (!this.entry) {
+                return {};
+            }
+            let uniqueGaps = new Set()
+            for (let hit of Object.keys(this.entry.alignments)) {
+                uniqueGaps.add(this.entry.alignments[hit][0].gaps)
+            }
+            return [...uniqueGaps, ''];
+        },
+        headHeight() {
+            const taxHeight = !this.isCollapsed && this.$vuetify.breakpoint.xsOnly ? 52 : 0
+            const auxHeight = this.isCollapsed ? -116: this.$vuetify.breakpoint.mdAndDown ? 124 : 0
+            return String(taxHeight + auxHeight + 180) + 'px'
         },
         sortMenuValue() {
-            const offset = (this.entry.hasDescription ? 1 : 0) 
-                + (this.entry.hasTaxonomy ? 1 : 0)
-                + (this.isComplex ? 2 : 0)
+            const offset = (this.entry.hasDescription ? 1 : 0) + (this.entry.hasTaxonomy ? 1 : 0)
             switch (this.sortKey) {
-                case 'qtm': {
+                case 'target': {
                     return 0
                 }
-                case 'ttm': {
-                    return 1
-                }
-                case 'target': {
-                    return this.isComplex ? 2 : 0
-                }
                 case 'desc': {
-                    return this.isComplex ? 3 : 1
+                    return 1
                 }
                 case 'tax': {
                     return offset
                 }
-                case 'prob': {
+                case 'idf': {
                     return 1 + offset
                 }
-                case 'seqId': {
+                case 'rmsd': {
                     return 2 + offset
                 }
-                case 'eval': {
+                case 'node': {
                     return 3 + offset
                 }
-                case 'score': {
-                    return 4 + offset
-                }
                 default: {
-                    return 1 + offset
+                    return 3 + offset
                 }
             }
         }
@@ -635,16 +547,58 @@ export default {
             console.log(a)
             return a
         },
-        switchTableMode(newVal) {
-            this.$emit('switchTableMode', newVal);
+        updateVisibility() {
+            if (!this.entry) return
+ 
+            let el = undefined
+            let id = ''
+            if (!this.isTaxAvailable && !this.isGapFilterAvailable) {
+                this.visibilityTable = Array(this.entryLength).fill(true)
+                for (let i = 0; i < this.entryLength; i++) {
+                    id = this.entryidx + "#" + String(i)
+                    el = document.getElementById(id)
+                    if (el) {
+                        el.classList.toggle('invisible', false)
+                    }
+                }
+            } else {
+                for (let i = 0; i < this.entryLength; i++) {
+                    let target = this.isGroupVisible(this.entry.alignments[i]) 
+                        && this.isItemVisible(this.entry.alignments[i][0])
+                    this.visibilityTable[i] = target
+                    id = this.entryidx + "#" + String(i)
+                    el = document.getElementById(id)
+                    if (el) {
+                        el.classList.toggle('invisible', !target)
+                    }
+                }
+            }
+
+            const visibility = Object.keys(this.clusters).reduce((acc, key) => {
+                acc[key] = false;
+                return acc;
+            }, {});
+            for (const key in this.clusters) {
+                if (this.clusters[key].length == this.entryLength) continue
+
+                for (const idx of this.clusters[key]) {
+                    if (this.visibilityTable[idx]) {
+                        visibility[key] = true
+                        break
+                    }
+                }
+            }
+            this.visibleCluster = visibility
         },
         toggleDbEntries(value) {
             if (!this.selectedStates) {
                 return 
             }
 
-            if (this.selectedCounts > 0) {
+            if (this.anySelected) {
                 value = false
+            } else {
+                value = true
             }
             
             if (!value) {
@@ -656,29 +610,52 @@ export default {
                 }
                 this.$emit('bulkToggle', arr, value)
                 return
-            } 
-
-            const arr = []
-            let deltaUpperbound = this.selectUpperbound - this.totalSelectedCounts
-            let delta = 0
-            for (let i in this.sortedIndices) {
-                if (delta >= deltaUpperbound) {
-                    break
-                }
-                if (this.visibilityTable[i] && this.selectedStates[i] != value) {
-                    arr.push(i)
-                    delta++
-                }
             }
-            if (delta > 0) {
-                this.$emit('bulkToggle', arr, value)
+
+            if (this.multipleSelectionEnabled) {
+                const arr = []
+                let deltaUpperbound = this.selectUpperbound - this.totalSelectedCounts
+                let delta = 0
+                for (let key in this.sortedIndices) {
+                    for (let i of this.sortedIndices[key]) {
+                        if (delta >= deltaUpperbound) {
+                            break
+                        }
+                        if (this.visibilityTable[i] && this.selectedStates[i] != value) {
+                            arr.push(i)
+                            delta++
+                        }
+                    }
+                    if (delta >= deltaUpperbound) {
+                        break
+                    }
+                }
+                if (delta > 0) {
+                    this.$emit('bulkToggle', arr, value)
+                }
+            } else {
+                const arr = []
+                for (let key in this.sortedIndices) {
+                    for (let i of this.sortedIndices[key]) {
+                        if (this.visibilityTable[i] && this.selectedStates[i] != true) {
+                            arr.push(i)
+                            break;
+                        }
+                    }
+                    if (arr.length > 0) {
+                        break
+                    }
+                }
+                if (arr.length > 0) {
+                    this.$emit('bulkToggle', arr, true)
+                }
             }
         },
         emitForwardDropdown(event, href) {
             this.$emit('forwardDropdown', event, href)
         },
         showAlignment(groupidx, event) {
-            this.$emit('showAlignment', this.entry.alignments[groupidx], event)
+            this.$emit('showAlignment', this.entry.alignments[groupidx][0], event)
         },
         isGroupVisible(group) {
             if (!this.filteredHitsTaxIds || this.filteredHitsTaxIds.length === 0) {
@@ -687,22 +664,35 @@ export default {
             let taxFiltered = group.filter(item => this.filteredHitsTaxIds.includes(Number(item.taxId)));
             return taxFiltered.length > 0;
         },
-        onCheckboxClick(idx, event) {
+        isItemVisible(item) {
+            if (!this.gapFilter) return true
+            return this.gapFilter == '' || item.gaps == this.gapFilter;
+        },
+        onCheckboxClick(key, idx, event) {
             if (!this.selectedStates) { 
                 return 
             }
 
-            let targetIdx = this.sortedIndices[idx]
+            let targetIdx = this.sortedIndices[key][idx]
             let value = !this.selectedStates[targetIdx]
 
-            const needRangedToggle = event.shiftKey && (this.toggleSourceIdx != idx && this.toggleSourceIdx != -1)
+            const needRangedToggle = this.multipleSelectionEnabled 
+                && event.shiftKey 
+                && this.toggleSourceKey == key 
+                && (this.toggleSourceIdx != idx && this.toggleSourceIdx != -1)
 
             if (!needRangedToggle) {
                 // simple click. just toggle it.
                 // If selected count exceeds upperbound, than simply ignore
+
+                if (!this.multipleSelectionEnabled && this.anySelected) {
+                    this.$emit('toggleSelection', this.toggleSourceIdx, false)
+                }
+
                 if (this.totalSelectedCounts > this.selectUpperbound && value) { 
                     return 
                 }
+                this.toggleSourceKey = key
                 this.toggleSourceIdx = idx
                 this.toggleTargetValue = value
                 this.$emit('updateToggleSource', this.db)
@@ -710,10 +700,10 @@ export default {
             } else {
                 const startIdx = Math.min(this.toggleSourceIdx, idx)
                 const endIdx = Math.max(this.toggleSourceIdx, idx) + 1
-                this.handleRangedToggle(startIdx, endIdx, this.toggleTargetValue)
+                this.handleRangedToggle(key, startIdx, endIdx, this.toggleTargetValue)
             }
         },
-        handleRangedToggle(startIdx, endIdx, value) {
+        handleRangedToggle(key, startIdx, endIdx, value) {
             if (!this.selectedStates || this.totalSelectedCounts > this.selectUpperbound && value) {
                 return
             }
@@ -727,7 +717,7 @@ export default {
                 if (delta >= deltaUpperbound) {
                     break
                 }
-                let targetIdx = this.sortedIndices[i]
+                let targetIdx = this.sortedIndices[key][i]
                 if (this.visibilityTable[targetIdx] && this.selectedStates[targetIdx] != value) {
                     delta += deltaUnit
                     arr.push(targetIdx)
@@ -764,26 +754,18 @@ export default {
                     case 'target':
                     case 'desc':
                     case 'tax':
+                    case 'rmsd':
                         this.sortOrder = 1
                         break
-                    case 'prob':
-                    case 'seqId':
-                    case 'score':
-                    case 'qtm':
-                    case 'ttm':
+                    case 'idf':
+                    case 'node':
                         this.sortOrder = -1
-                        break
-                    case 'eval':
-                        if (this.mode == 'lolalign' || this.mode == 'tmalign') {
-                            this.sortOrder = -1
-                        } else {
-                            this.sortOrder = 1
-                        }
                         break
                     default:
                         break;
                 }
             }
+            this.toggleSourceKey = ""
             this.toggleSourceIdx = -1
             this.toggleTargetValue = true
             this.$nextTick(() => {
@@ -797,12 +779,15 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+.hide {
+    display: none;
+}
+
 .db {
     border-left: 5px solid black;
 }
 
 .result-table {
-    transform: translateY(0);
     a.anchor {
         display: block;
         position: relative;
@@ -859,6 +844,13 @@ export default {
         // }
     }
 }
+.matched-residues-text {
+    display: inline-block;
+    max-width: 100%;
+    overflow: scroll;
+    scrollbar-width: none;
+}
+
 
 
 // Sticky thead border
@@ -1196,5 +1188,30 @@ th.sort-criterion.sort-selected {
             word-wrap: anywhere;
         }
     }
+        .matched-residues-text {
+        white-space: normal;
+        word-break: break-all;
+        max-width: none;
+    }
 }
+
+.alignment {
+    position:absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 999;
+    box-shadow: 0 3px 5px -1px rgba(0,0,0,.2),0 6px 10px 0 rgba(0,0,0,.14),0 1px 18px 0 rgba(0,0,0,.12) !important;
+
+    .residues {
+        font-family: Protsolata, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
+        white-space: pre;
+    }
+
+    .theme--dark & {
+        .residues {
+            color: #fff;
+        }
+    }
+}
+
 </style>
