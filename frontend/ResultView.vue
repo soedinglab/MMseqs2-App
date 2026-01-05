@@ -137,10 +137,11 @@
             right: $vuetify.breakpoint.smAndDown ? '8px' : '16px'}" ref="alignment_panel" v-click-outside="closeAlignment">
                 <template slot="desc">
                     <v-btn icon @click="closeAlignment" style="display: block; margin-left: auto;">
-                    <v-icon>
-                        {{ $MDI.CloseCircleOutline }}
-                    </v-icon>
-                </v-btn></template>
+                        <v-icon>
+                            {{ $MDI.CloseCircleOutline }}
+                        </v-icon>
+                    </v-btn>
+                </template>
                 <AlignmentPanel
                     slot="content"
                     :key="alignment ? `ap-${alignment.id}` : 'ap-'"

@@ -73,7 +73,7 @@
                         <!-- Replaced this checkbox too, for the colored undeterminate state -->
                         <div class="v-input--selection-controls__input select-all custom-checkbox" :id="entryidx+'#select-all'" style="user-select: none;
                             -webkit-user-select: none; cursor: pointer; position: absolute; top: calc(50% - 12px); left: 6px;" @click.stop="toggleDbEntries($event)" :length="entryLength"
-                            title="click to select all the entries">
+                            :title="multipleSelectionEnabled ? 'click to select all the entries' : 'select the first entry (multiple selection is WIP)'">
                             <span aria-hidden="true" class="v-icon notranslate" :class="{'theme--light': !$vuetify.theme.dark, 'theme--dark': $vuetify.theme.dark}">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg">
                                     <path class="unchecked" d="M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z"></path>
@@ -138,7 +138,7 @@
                             <div class="v-input--selection-controls__input custom-checkbox" 
                             style="user-select: none; -webkit-user-select: none; cursor: pointer; position: absolute; top: calc(50% - 12px); left: 6px;" 
                             @click.stop="onCheckboxClick(key, sortIdx, $event)"
-                            title="click to select, shift-click for multiple selection">
+                            :title="multipleSelectionEnabled ? 'click to select, shift-click for multiple selection' : 'click to toggle the selection'">
                                 <span aria-hidden="true" 
                                     class="v-icon notranslate" 
                                     :class="{'theme--light': !$vuetify.theme.dark, 'theme--dark': $vuetify.theme.dark}"
@@ -220,6 +220,7 @@ export default {
             clusters: {},
             gapFilter: "",
             visibleCluster: {1 : true},
+            multipleSelectionEnabled: false,
         }
     },
     props: {
@@ -317,6 +318,10 @@ export default {
                     this.reflectSelectionState()
                 }, 0)
             })
+        }
+
+        if (this.$route.query.d2m && this.$route.query.d2m == 1) {
+            this.multipleSelectionEnabled = true
         }
     },
     computed: {
@@ -484,27 +489,45 @@ export default {
                 }
                 this.$emit('bulkToggle', arr, value)
                 return
-            } 
+            }
 
-            const arr = []
-            let deltaUpperbound = this.selectUpperbound - this.totalSelectedCounts
-            let delta = 0
-            for (let key in this.sortedIndices) {
-                for (let i of this.sortedIndices[key]) {
+            if (this.multipleSelectionEnabled) {
+                const arr = []
+                let deltaUpperbound = this.selectUpperbound - this.totalSelectedCounts
+                let delta = 0
+                for (let key in this.sortedIndices) {
+                    for (let i of this.sortedIndices[key]) {
+                        if (delta >= deltaUpperbound) {
+                            break
+                        }
+                        if (this.visibilityTable[i] && this.selectedStates[i] != value) {
+                            arr.push(i)
+                            delta++
+                        }
+                    }
                     if (delta >= deltaUpperbound) {
                         break
                     }
-                    if (this.visibilityTable[i] && this.selectedStates[i] != value) {
-                        arr.push(i)
-                        delta++
+                }
+                if (delta > 0) {
+                    this.$emit('bulkToggle', arr, value)
+                }
+            } else {
+                const arr = []
+                for (let key in this.sortedIndices) {
+                    for (let i of this.sortedIndices[key]) {
+                        if (this.visibilityTable[i] && this.selectedStates[i] != true) {
+                            arr.push(i)
+                            break;
+                        }
+                    }
+                    if (arr.length > 0) {
+                        break
                     }
                 }
-                if (delta >= deltaUpperbound) {
-                    break
+                if (arr.length > 0) {
+                    this.$emit('bulkToggle', arr, true)
                 }
-            }
-            if (delta > 0) {
-                this.$emit('bulkToggle', arr, value)
             }
         },
         emitForwardDropdown(event, href) {
@@ -532,13 +555,19 @@ export default {
             let targetIdx = this.sortedIndices[key][idx]
             let value = !this.selectedStates[targetIdx]
 
-            const needRangedToggle = event.shiftKey 
+            const needRangedToggle = this.multipleSelectionEnabled 
+                && event.shiftKey 
                 && this.toggleSourceKey == key 
                 && (this.toggleSourceIdx != idx && this.toggleSourceIdx != -1)
 
             if (!needRangedToggle) {
                 // simple click. just toggle it.
                 // If selected count exceeds upperbound, than simply ignore
+
+                if (!this.multipleSelectionEnabled && this.anySelected) {
+                    this.$emit('toggleSelection', this.toggleSourceIdx, false)
+                }
+
                 if (this.totalSelectedCounts > this.selectUpperbound && value) { 
                     return 
                 }
