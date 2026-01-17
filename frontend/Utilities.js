@@ -919,3 +919,31 @@ export function throttle(func, delay) {
 }
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function getResidueIndices(
+  seq,
+  alnPoses /* array of highlighted columns */
+) {
+  const result = [];
+
+  if (alnPoses.length == 0) {
+    return result;
+  }
+
+  let resno = 0;
+  let startPos = 0;
+  const sorted = [...alnPoses].sort((a, b) => a - b);
+  for (let p of sorted) {
+    for (let i = startPos; i <= p && i < seq.length; i++) {
+      if (seq[i] != "-") {
+        if (i == p) {
+          result.push(resno++);
+          startPos = i + 1;
+          break;
+        }
+        resno++;
+      }
+    }
+  }
+  return result;
+}

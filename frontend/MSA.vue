@@ -46,24 +46,6 @@
                     />
                 </v-card>
             </v-col>
-            <v-col class="flex-col">
-                <v-card class="fill-height" style="position: relative;">
-                    <v-card-title style="position: absolute; left: 0; top: 0; margin: 0; padding: 16px; z-index: 1;">Structure</v-card-title>
-                    <div v-if="structureViewerSelection" style="padding: 10px; height: 100%; width: 100%;">
-                        <StructureViewerMSA
-                            :entries="entries"
-                            :selection="structureViewerSelection"
-                            :reference="structureViewerReference"
-                            :mask="mask"
-                            @loadingChange="handleStructureLoadingChange"
-                            @columnSelected="selectedColumn = $event"
-                        />
-                    </div>
-                    <v-card-text v-else>
-                        No structures loaded.
-                    </v-card-text>
-                </v-card>
-            </v-col>
         </v-row>
         <v-card class="minimap fill-height">
             <v-row dense v-if="cssGradients" style="align-items: center;">
@@ -137,6 +119,45 @@
                         </div>
                     </div>
                 </v-col>
+                <div class="pl-2">
+                    
+                    <v-tooltip bottom transition="fade-transition">
+                        <template v-slot:activator="{on, attrs}">
+                            <button 
+                                @click.stop="toggleView"
+                                type="button"
+                                v-bind="attrs" v-on="on" 
+                                class="v-btn v-btn--icon v-btn--round v-btn--text v-size--x-large structure-panel-btn"
+                                :class="{ 
+                                            'v-btn--outlined' : showViewer,
+                                            'primary--text' : showViewer,
+                                            'theme--dark' : $vuetify.theme.dark
+                                        }"
+                            >
+                                <span class="v-btn__content">
+                                    <span aria-hidden="true" class="v-icon notranslate theme--dark">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg">
+                                        <path d="M5,13H19V11H5M3,17H17V15H3M7,7V9H21V7"></path>
+                                    </svg>
+                                    </span>
+                                </span>
+                            </button>
+                        </template> 
+                        <span>
+                            {{ showViewer ? 'Hide' : 'Show' }} structure viewer
+                        </span>
+                    </v-tooltip>
+                    <v-btn 
+                        icon text x-small 
+                        style="position: absolute; right: 8px; bottom: 8px" 
+                        title="Reset viewer"
+                        @click.stop="resetViewer"
+                    >
+                        <v-icon>
+                            {{ $MDI.Refresh }}
+                        </v-icon>
+                    </v-btn>
+                </div>
             </v-row>
         </v-card>
         <v-card pa-2>
@@ -150,15 +171,61 @@
                 :referenceStructure="structureViewerReference"
                 :matchRatio="parseFloat(matchRatio)"
                 :mask="mask"
-                :highlightColumn="selectedColumn"
+                :highlightColumns="selectedColumns"
                 @cssGradients="handleCSSGradient"
                 @lineLen="handleLineLen"
                 @newStructureSelection="handleNewStructureViewerSelection"
                 @newStructureReference="handleNewStructureViewerReference"
+                @addHighlight="pushActiveIndex"
+                @removeHighlight="spliceActiveIndex"
+                @changePreview="changePreview"
                 ref="msaView"
             />
         </v-card>
     </v-container>
+    
+    <portal>
+        <v-scale-transition
+            origin="center center 0"
+        >
+            <div
+                id="floating-viewer" v-show="showViewer"
+             >
+                 <v-card style="position: relative; width: 100%; height: 100%; padding: 16px" class="elevation-12">
+                     <div 
+                         style="display: flex; flex-direction: row; justify-content: space-between; align-items: center;"
+                         >
+                         <v-icon style="display: block;" class="drag-handle">
+                             {{ $MDI.CursorMove }}
+                         </v-icon>
+                         <!-- <v-card-title>Structure</v-card-title> -->
+                         <v-btn icon @click="showViewer = false" style="display: block;">
+                             <v-icon>
+                                 {{ $MDI.CloseCircleOutline }}
+                             </v-icon>
+                         </v-btn>
+                     </div>
+                     <div style="padding: 10px 20px 10px 20px; height: calc(100% - 36px); width: 100%; position: relative">
+                         <StructureViewerMSA
+                                 :entries="entries"
+                                 :selection="structureViewerSelection"
+                                 :reference="structureViewerReference"
+                                 :mask="mask"
+                                 :selectedColumns="selectedColumns"
+                                 :previewColumn="previewColumn"
+                                 @loadingChange="handleStructureLoadingChange"
+                                 @addHighlight="pushActiveIndex"
+                                 @removeHighlight="spliceActiveIndex"
+                                 ref="structViewer"
+                                 />
+                                 <v-card-text v-if="structureViewerSelection.length == 0" style="position: absolute; top: calc(50% - 27px); left: 0; text-align: center;">
+                                     No structures loaded.
+                                 </v-card-text>
+                     </div>
+                 </v-card>
+            </div>
+        </v-scale-transition>
+    </portal>
 </div>
 </template>
 
@@ -167,8 +234,11 @@ import MSAView from './MSAView.vue';
 import StructureViewer from './StructureViewer.vue';
 import StructureViewerMSA from './StructureViewerMSA.vue';
 import Tree from './Tree.vue';
-import { debounce, makePositionMap, tryFixName } from './Utilities.js'
+import { debounce, makePositionMap, tryFixName, mockPDB } from './Utilities.js'
 import MDI from './MDI.js';
+import interact from 'interactjs';
+
+const position = {x: 0, y: 0}
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -242,7 +312,8 @@ export default {
         entries: [],
         scores: [],
         statistics: {},
-        tree: ""
+        tree: "",
+        ticket: "",
     },
     data() {
         return {
@@ -260,15 +331,17 @@ export default {
             isLoadingStructure: false,
             numMinimapGradients: 30,
             settingsPanelOpen: true,
-            selectedColumn: -1,
             treeLabelWidth: 0,
-            treeLabelHeight: 0
+            treeLabelHeight: 0,
+            showViewer: true,
+            previewColumn: -1,
+            selectedColumns: [],
         }
     },    
     watch: {
         matchRatio: debounce(function() {
             this.handleUpdateMatchRatio();
-        }, 400)
+        }, 400),
     },
     beforeMount() {
         this.handleUpdateMatchRatio();
@@ -281,6 +354,11 @@ export default {
         this.structureViewerSelection = [0, 1];
         this.treeLabelWidth = this.$refs.treeLabel.clientWidth - 16;
         this.treeLabelHeight = this.$refs.treeLabel.clientHeight - 32;
+        this.$nextTick(() => {
+            setTimeout(() => {
+                this.initInteract()
+            }, 0)
+        })
     },
     beforeDestroy() {
         window.removeEventListener("scroll", this.handleScroll);
@@ -354,6 +432,7 @@ export default {
             if (entryIndex === this.structureViewerReference) {
                 this.structureViewerSelection = [];
                 this.structureViewerReference = -1;
+                this.$emit('changedReference', -1);
                 return;
             }
             const selection = this.structureViewerSelection.slice();
@@ -363,11 +442,13 @@ export default {
             }
             this.structureViewerSelection = selection;
             this.structureViewerReference = entryIndex;
+            this.$emit('changedReference', entryIndex);
         },
         handleNewStructureViewerSelection(entryIndex) {
             if (entryIndex === this.structureViewerReference) {
                 this.structureViewerSelection = [];
                 this.structureViewerReference = -1;
+                this.$emit('changedReference', -1);
                 return;
             }
             const selection = this.structureViewerSelection.slice();
@@ -404,7 +485,7 @@ export default {
             };
         },
         handleMapBlockClick(index) {
-            const top = document.querySelector('.minimap').offsetHeight + 60;  // app-bar + minimap
+            const top = document.querySelector('.minimap').offsetHeight + 64;  // app-bar + minimap
             const box = this.$refs.msaView.$el.children[index].getBoundingClientRect();
             window.scrollTo({ behavior: 'smooth', top: box.top + window.scrollY - top });
         },
@@ -471,6 +552,133 @@ export default {
             this.gradientRatio = new Array(numBlocks - 1).fill(this.lineLen / total * 100);
             this.gradientRatio.push(lastBlockLen / total * 100);
         },
+        initInteract() {
+            const viewer = document.getElementById('floating-viewer')
+            const structureStage = this.$refs.structViewer?.stage
+            interact(viewer).draggable({
+                // modifiers: [
+                //     interact.modifiers.restrictRect({
+                //         restriction: {x: 0, y:0, width: window.innerWidth, height: document.documentElement.scrollHeight},
+                //         endOnly: false,
+                //     })
+                // ],
+                allowFrom: '.drag-handle',
+                listeners: {
+                    move (event) {
+                        const { target } = event
+                        const x = position.x + event.delta.x
+                        const y = position.y + event.delta.y
+
+                        target.style.transform = `translate(${x}px, ${y}px)`
+
+                        position.x = x
+                        position.y = y
+                    }
+                }
+            }).resizable({
+                edges: { left: true, right: true, bottom: true, top: true },
+                ignoreFrom: '.drag-handle',
+                margin: 16,
+
+                modifiers: [
+                    interact.modifiers.restrictSize({
+                        min: { width: 300, height: 320 },
+                        max: { width: 750, height: 650 }
+                    })
+                ],
+
+                listeners: {
+                    move(event) {
+                        const { target } = event;
+                        let x = position.x;
+                        let y = position.y;
+
+                        target.style.width = event.rect.width + 'px';
+                        target.style.height = event.rect.height + 'px';
+
+                        x += event.deltaRect.right;
+                        y += event.deltaRect.bottom;
+
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        position.x = x
+                        position.y = y
+                        structureStage?.handleResize?.()
+                    }
+                }
+            })
+        },
+        resetViewer() {
+            const viewer = document.getElementById('floating-viewer')
+            position.x = 0
+            position.y = 0
+            viewer.style.width = this.$vuetify.breakpoint.xsOnly ? '300px' : '400px'
+            viewer.style.height = this.$vuetify.breakpoint.xsOnly ? '320px' : '410px'
+            viewer.style.transform = 'translate(0px, 0px)'
+            if (this.showViewer) this.$refs.structViewer?.stage?.handleResize()
+        },
+        toggleView() {
+            if (!this.showViewer) {
+                this.showViewer = true
+                const stage = this.$refs.structViewer
+                this.$nextTick(() => {
+                    setTimeout(() => {
+                        stage?.handleResize?.()
+                    }, 0)
+                })
+            } else {
+                this.showViewer = false
+            }
+        },
+        pushActiveIndex(idx) {
+            this.selectedColumns.push(idx)
+            if (this.selectedColumns.length > 32) {
+                this.$refs.msaView.removeHighlightColumn(this.selectedColumns[0])
+                this.selectedColumns.shift()
+            }
+            this.$emit('changedSelection', this.selectedColumns)
+            this.$refs.msaView.addHighlightColumn(idx)
+            this.$refs.structViewer.updateAllHighlights()
+            this.$refs.structViewer.moveView(idx)
+        },
+        spliceActiveIndex(idx) {
+            let i = this.selectedColumns.indexOf(idx)
+            if (i < 0) {
+                console.error("Error: tried to remove index which doesn't exist in selected column array")
+                return
+            }
+            
+            this.selectedColumns.splice(i, 1)
+            this.$emit('changedSelection', this.selectedColumns)
+            this.$refs.msaView.removeHighlightColumn(idx)
+            this.$refs.structViewer.updateAllHighlights()
+        },
+        changePreview(idx) {
+            if (idx < 0) {
+                if (this.previewColumn >= 0 ) {
+                    this.previewColumn = -1
+                    this.$nextTick(() => {
+                        setTimeout(()=> {
+                            this.$refs.structViewer.updateAllPreview()
+                        })
+                    })
+                }
+            } else {
+                this.previewColumn = Number(idx)
+                this.$nextTick(() => {
+                    setTimeout(()=>{
+                        this.$refs.structViewer.updateAllPreview()
+                        this.$refs.structViewer.moveView(Number(idx))
+                    })
+                })
+            }
+        },
+        clearSelection() {
+            this.selectedColumns.splice(0)
+            this.$emit('changedSelection', this.selectedColumns)
+            this.$refs.msaView.clearHighlightColumns()
+            this.$refs.structViewer.updateAllHighlights()
+            this.$refs.structViewer.resetView()
+        },
     },
 }
 </script>
@@ -497,7 +705,7 @@ export default {
     margin-top: 1em;
     margin-bottom: 2px;
     height: fit-content;
-    z-index: 1;
+    z-index: 10;
 }
 .minimap-col {
     display: flex;
@@ -597,5 +805,61 @@ div.input-div .v-input__slot {
 .toggle-button {
     color: black;
     z-index: 2;
+}
+#floating-viewer {
+    position: fixed;
+    display: block;
+    width: 400px;
+    height: 410px;
+    bottom: 40px;
+    right: 108px;
+    touch-action: none;
+    user-select: none;
+    /* -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    backface-visibility: hidden; */
+}
+
+#floating-viewer * {
+    user-select: none;
+}
+
+#floating-viewer > div {
+    box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2), 0px 6px 10px 0px rgba(0, 0, 0, 0.14), 0px 1px 18px 0px rgba(0, 0, 0, 0.12);
+}
+
+.drag-handle {
+    cursor: grab;
+}
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.structure-panel-btn {
+    transition: background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+.structure-panel-btn:not(.primary--text):hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.structure-panel-btn:not(.primary--text):active {
+    background-color: rgba(0, 0, 0, 0.15);
+}
+
+.theme--dark .structure-panel-btn:not(.primary--text):hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.theme--dark .structure-panel-btn:not(.primary--text):hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.structure-panel-btn.primary--text:hover {
+    background-color: rgba(25, 118, 210, 12%);
+}
+
+.structure-panel-btn.primary--text:active {
+    background-color: rgba(25, 118, 210, 20%);
 }
 </style>

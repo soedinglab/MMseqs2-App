@@ -25,8 +25,8 @@ import StructureViewerTooltip from './StructureViewerTooltip.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerMixin from './StructureViewerMixin.vue';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
-import { mockPDB, makeSubPDB, makeMatrix4, interpolateMatrices, animateMatrix  } from './Utilities.js';
-import { download, PdbWriter, Matrix4, Quaternion, Vector3, concatStructures, ColormakerRegistry } from 'ngl';
+import { mockPDB, makeSubPDB, makeMatrix4, getResidueIndices  } from './Utilities.js';
+import { download, PdbWriter, Matrix4, Quaternion, Vector3, concatStructures, ColormakerRegistry, Selection } from 'ngl';
 import { pulchra } from 'pulchra-wasm';
 
 // Mock alignment object from two (MSA-derived) aligned strings
@@ -114,6 +114,8 @@ function getAlignmentPos(seq, residueIndex) {
 }
 
 function getResidueIndex(seq, alignmentPos) {
+    if (seq[alignmentPos] == '-') return -1
+
     let residueIndex = -1;
     for (let i = 0; i <= alignmentPos && i < seq.length; i++) {
         if (seq[i] !== '-') {
@@ -154,30 +156,47 @@ export default {
             type: Object,
             default: () => ({ color: 0xFFC107, opacity: 0.5, side: 'front' })
         },
+        selectedColumns: {
+            type: Array
+        },
+        previewColumn: { type: Number, required: false, default: -1}
     },
     mounted() {
         this.updateEntries(this.selection, []);
         this.stage.signals.clicked.add((pickingProxy) => {
             if (!pickingProxy) {
-                this.selectedColumn = -1;
-                this.updateMask()
-                this.$emit('columnSelected', -1);
+                // this.selectedColumn = -1;
+                // this.$emit('columnSelected', -1);
+                // this.$nextTick(() => {
+                //     setTimeout(() => {
+                //         this.updateMask()
+                //     }, 0)
+                // })
                 return;
             }
 
             let atom = pickingProxy.atom;
             if (!atom) {
-                this.selectedColumn = -1;
-                this.updateMask()
-                this.$emit('columnSelected', -1);
+                // this.selectedColumn = -1;
+                // this.updateMask()
+                // this.$emit('columnSelected', -1);
                 return;
             }
             let index = parseInt(atom.structure.name.replace("key-", ""));
-            let alnPos = getAlignmentPos(this.entries[index].aa, atom.residueIndex);
+            let alnPos = getAlignmentPos(this.entries[index].aa, atom.resno-1);
             // console.log(atom.residueIndex, alnPos);
-            this.selectedColumn = alnPos;
-            this.$emit('columnSelected', alnPos);
-            this.updateMask()
+            // this.selectedColumn = alnPos;
+            // this.$emit('columnSelected', alnPos);
+            if (this.selectedColumns.includes(alnPos)) {
+                this.$emit('removeHighlight', alnPos)
+            } else {
+                this.$emit('addHighlight', alnPos)
+            }
+            // this.$nextTick(() => {
+            //     setTimeout(() => {
+            //         this.updateMask()
+            //     }, 0)
+            // })
         });
     },
     methods: {
@@ -328,12 +347,25 @@ ENDMDL
                     if (index === that.reference) {
                         color = that.referenceStyleParameters.color;
                     }
-                    let residueMask = getMaskedPositions(that.entries[index].aa, that.mask);
-                    let highlightedIndex = getResidueIndex(that.entries[index].aa, that.selectedColumn);
+                    let seq = that.entries[index].aa
+                    let residueMask = getMaskedPositions(seq, that.mask);
+                    // let highlightedIndex = getResidueIndex(seq, that.selectedColumn);
+                    let hightlightedIndices = getResidueIndices(seq, that.selectedColumns);
+                    // let previewIndex = getResidueIndex(seq, that.previewColumn)
+
                     this.atomColor = (atom) => {
-                        if (highlightedIndex == atom.residueIndex) {
-                            return 0x11FFEE;
+                        if (hightlightedIndices.includes(atom.residueIndex)) {
+                            return that.highLightColor;
                         }
+                        // if (highlightedIndex == atom.residueIndex) {
+                        //     // return 0x00E676;
+                        //     return that.highLightColor
+                        // }
+
+                        // if (previewIndex == atom.residueIndex) {
+                        //     return that.previewColor
+                        // }
+                        
                         if (residueMask.includes(atom.residueIndex)) {
                             return 0x666666;
                         }
@@ -405,7 +437,7 @@ ENDMDL
             );
 
             await Promise.all(
-                remove.map(async (idx) => {
+                remove.map(async (idx) => { 
                     const structure = this.getComponentByIndex(idx);
                     this.stage.removeComponent(structure);
                 })
@@ -434,6 +466,95 @@ ENDMDL
                 repr.build();
             });
         },
+        async updateAllHighlights() {
+            if (!this.stage) return
+
+            let getHighlightedResno = (index) => {
+                let seq = this.entries[index].aa
+                return getResidueIndices(seq, this.selectedColumns).map(i => i+1)
+            }
+
+            
+            let that = this
+            this.stage.eachComponent(function(comp) {
+                if (comp.type !== 'structure') return
+                
+                let reprList = comp.reprList
+                reprList.find(r => r.name === 'cartoon')?.build()
+                return
+                
+                // As our mockPDB doesn't contain any sidechain atoms,
+                // the licorice representation is useless
+                const index = parseInt(comp.structure.name.replace("key-", ""));
+                let hightlightedIndices = getHighlightedResno(index)
+                let highlightSele = hightlightedIndices.length > 0 ? hightlightedIndices.join(" or ") : "none"
+                let highlightRepr = reprList.find(r => r.name === 'highlight-repr')
+                
+                if (highlightRepr) {
+                    highlightRepr.setSelection(highlightSele).build()
+                } else {
+                    comp.addRepresentation('licorice', {
+                        name: 'highlight-repr',
+                        sele: highlightSele,
+                        colorValue: that.highLightColor,
+                        opacity: 0.5,
+                        scale: 3.0,
+                    }).build()
+                }
+            })
+        },
+        async updateAllPreview() {
+            if (!this.stage) return
+
+            let getPreviewResno = (index) => {
+                let seq = this.entries[index].aa
+                return getResidueIndex(seq, this.previewColumn) + 1;
+            }
+            
+            let that = this
+            this.stage.eachComponent(function(comp) {
+                if (comp.type !== 'structure') return
+
+                let reprList = comp.reprList
+                // reprList.find(r => r.name === 'cartoon')?.build()
+                // return
+
+                // As our mockPDB doesn't contain any sidechain atoms,
+                // the licorice representation is useless
+                
+                const index = parseInt(comp.structure.name.replace("key-", ""));
+
+                let previewIndex = getPreviewResno(index)
+                let previewSele = previewIndex > 0 ? String(previewIndex) : "none"
+                let previewRepr = reprList.find(r => r.name === 'preview-repr')
+                
+                if (previewRepr) {
+                    previewRepr.setSelection(previewSele).build()
+                } else {
+                    comp.addRepresentation('hyperball', {
+                        name: 'preview-repr',
+                        sele: previewSele,
+                        color: that.highLightColor,
+                        opacity: 0.4,
+                        radius: 1.8,
+                        side: 'double',
+                    }).build()
+                }
+            })
+        },
+        async moveView(alnPos) {
+            if (alnPos < 0 || this.reference < 0) {
+                return
+            }
+            let comp = this.getComponentByIndex(this.reference)
+            let resIdx = getResidueIndex(this.entries[this.reference].aa, alnPos)
+            if (resIdx < 0) {
+                return
+            }
+            const range = 8
+            let sele = String(resIdx + 1 - range) + "-" + (resIdx - 1 + range)
+            comp.autoView(sele, 200)
+        }
     },
     watch: {
         '$vuetify.theme.dark': function() {
@@ -466,7 +587,10 @@ ENDMDL
                 quality: 'high',
                 tooltip: false,
             }
-        }
+        },
+        highLightColor() {
+            return 0xe31986
+        },
     },
 }
 </script>

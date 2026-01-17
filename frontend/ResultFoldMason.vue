@@ -4,7 +4,7 @@
             <v-flex xs12>
             <panel class="msa-panel">
                 <template slot="header">
-                    <template v-if="!$LOCAL && !msaData">
+                    <template v-if="!$LOCAL && msaData">
                         <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
                         <small class="ticket">{{ ticket }}</small>
                     </template>
@@ -61,12 +61,24 @@
                         :scores="msaData.scores"
                         :statistics="msaData.statistics"
                         :tree="msaData.tree"
+                        :ticket="ticket"
+                        ref="msa"
+                        @changedReference="selectedReference=$event"
+                        @changedSelection="selectedColumns=$event"
                     />
                 </template>
 
                 </panel>
             </v-flex>
-            <NavigationButton :scrollOffsetArr="[]"></NavigationButton>
+            <NavigationButton :scrollOffsetArr="[]"/>
+            <SelectToSendPanelFoldMason 
+                v-if="msaData"
+                :entries="msaData.entries" :ticket="ticket"
+                :targetIndex="selectedReference"
+                :selectedColumns="selectedColumns"
+                :selectedCounts="selectedColumns.length"
+                @clearAll="clearSelection"
+            />
         </v-layout>
     </v-container>
 </template>
@@ -79,16 +91,19 @@ import MSA from './MSA.vue';
 import MSAView from './MSAView.vue';
 import Panel from './Panel.vue';
 import NavigationButton from './NavigationButton.vue';
+import SelectToSendPanelFoldMason from './SelectToSendPanelFoldMason.vue';
 
 export default {
     name: 'ResultFoldMason',
     tool: 'foldmason',
-    components: { MSA, MSAView, Panel, NavigationButton},
+    components: { MSA, MSAView, Panel, NavigationButton, SelectToSendPanelFoldMason},
     data() {
         return {
             ticket: "",
             error: "",
             msaData: null,
+            selectedReference: 0,
+            selectedColumns: [],
         }
     },
     mounted() {
@@ -166,6 +181,9 @@ export default {
                 this.msaData = null;
             }
         },
+        clearSelection() {
+            this.$refs.msa.clearSelection()
+        }
     }
 };
 </script>

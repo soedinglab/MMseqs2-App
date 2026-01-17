@@ -153,7 +153,7 @@ export default {
         chunkSize: {
             type: Number,
             default: 128,
-        }
+        },
     },
     watch: {
         selectedCounts() {
