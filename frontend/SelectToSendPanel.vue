@@ -26,12 +26,12 @@
                             </template> 
                             <span>{{ toFoldseekContent }}</span>
                         </v-tooltip>
-                        <v-tooltip top :color="errorFoldDiscoBtn ? 'error' : '#FFC107'" :value="errorFoldDiscoBtn">
+                        <v-tooltip top :color="errorFoldDiscoBtn ? 'error' : '#eca800'" :value="errorFoldDiscoBtn">
                             <template v-slot:activator="{on, attrs}">
                                 <!-- TODO: change FoldDisco color! -->
                                 <v-btn v-bind="attrs" v-on="on" fab class="elevation-8 fold-disco-btn" 
                                 :class="{'btn-disabled':isSelectionUnableToFetch}" style="color: #fff"
-                                :color="errorFoldDiscoBtn ? 'error' : '#FFC107'" 
+                                :color="errorFoldDiscoBtn ? 'error' : '#eca800'" 
                                 :loading="loading" 
                                 @click="isSelectionUnableToFetch ? () => {} : sendToFoldDisco()">
                                     <v-icon>{{$MDI.Motif}}</v-icon>
