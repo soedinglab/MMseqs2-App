@@ -190,13 +190,13 @@
                         class="sort-criterion" @click="changeSortMode('tax')" 
                         title="Click to sort by scientific name">Scientific Name</th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'idf', 'sort-down': this.sortOrder < 0}" 
-                        @click="changeSortMode('idf')" title="Click to sort by idf-score">idf-score</th>
+                        @click="changeSortMode('idf')" title="Click to sort by IDF-score">{{ $vuetify.breakpoint.mdAndDown ? 'IDF' :'IDF-score' }}</th>
                     <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'rmsd', 'sort-down': this.sortOrder < 0}" 
                         @click="changeSortMode('rmsd')" title="Click to sort by RMSD">RMSD</th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'node', 'sort-down': this.sortOrder < 0}" 
                         @click="changeSortMode('node')" title="Click to sort by node count" >Nodes</th>
                     <th>
-                        Matched residues
+                        {{ $vuetify.breakpoint.lgAndDown ? 'Residues' : 'Matched residues' }}
                         <v-tooltip open-delay="300" top>
                             <template v-slot:activator="{ on }">
                                 <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
