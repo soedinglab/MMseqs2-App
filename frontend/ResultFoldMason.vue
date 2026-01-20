@@ -5,8 +5,9 @@
             <panel class="msa-panel">
                 <template slot="header">
                     <template v-if="!$LOCAL && msaData">
-                        <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
-                        <small class="ticket">{{ ticket }}</small>
+                        <!-- <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
+                        <small class="ticket">{{ ticket }}</small> -->
+                        <NameField :ticket="ticket"/>
                     </template>
                     <template v-else>
                         <span  class="hidden-sm-and-down">Results:&nbsp;</span>
@@ -92,11 +93,12 @@ import MSAView from './MSAView.vue';
 import Panel from './Panel.vue';
 import NavigationButton from './NavigationButton.vue';
 import SelectToSendPanelFoldMason from './SelectToSendPanelFoldMason.vue';
+import NameField from './NameField.vue';
 
 export default {
     name: 'ResultFoldMason',
     tool: 'foldmason',
-    components: { MSA, MSAView, Panel, NavigationButton, SelectToSendPanelFoldMason},
+    components: { MSA, MSAView, Panel, NavigationButton, SelectToSendPanelFoldMason, NameField},
     data() {
         return {
             ticket: "",

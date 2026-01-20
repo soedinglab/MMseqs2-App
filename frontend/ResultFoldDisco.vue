@@ -5,8 +5,9 @@
             <panel>
                 <template slot="header">
                     <template v-if="!$LOCAL && (!hits || !hits.query)">
-                        <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
-                        <small class="ticket">{{ ticket }}</small>
+                        <!-- <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
+                        <small class="ticket">{{ ticket }}</small> -->
+                        <NameField :ticket="ticket"/>
                     </template>
                     <template v-else-if="hits">
                         <span  class="hidden-sm-and-down">Results:&nbsp;</span>
