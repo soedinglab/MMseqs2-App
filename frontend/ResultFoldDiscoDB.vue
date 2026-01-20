@@ -18,7 +18,7 @@
                     <v-icon @click="isCollapsed = !isCollapsed"
                         style="transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);"
                         :style="{'transform': isCollapsed ? 'rotate(-90deg)' : ''}"
-                        :title="isCollapsed ? 'Show details' : 'Hide details'"
+                        :title="isCollapsed ? 'Show actions' : 'Hide actions'"
                     >
                         {{ $MDI.ChevronDown }}
                     </v-icon>
