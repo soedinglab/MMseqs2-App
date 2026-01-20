@@ -788,6 +788,7 @@ export default {
 }
 
 .result-table {
+    transform: translateY(0);
     a.anchor {
         display: block;
         position: relative;
