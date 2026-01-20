@@ -114,7 +114,6 @@ Vue.use({
     } else {
       apiBase = __CONFIG__.apiEndpoint;
     }
-    apiBase = "https://search.foldseek.com";
 
     const axiosConfig = {
       baseURL: apiBase,
