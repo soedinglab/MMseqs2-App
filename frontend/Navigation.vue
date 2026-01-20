@@ -156,7 +156,7 @@
         <v-divider></v-divider>
 
         <router-view name="sidebar"></router-view>
-        <history v-if="!$LOCAL" />
+        <history v-if="!$LOCAL" ref="history"/>
 
         <v-list-item v-if="$ELECTRON" to="/preferences">
             <v-list-item-action>
@@ -296,6 +296,9 @@ export default {
                 this.mini = !expand;
         },
         toggleMini() {
+            if (!this.mini) {
+                this.$refs.history.drawer = false
+            }
             this.mini = !this.mini;
         },
         electronHandleTitleBarDoubleClick() {
