@@ -79,8 +79,9 @@
                         </v-list>
                     </v-menu>
                     
-                    <v-sheet style="position:sticky; padding-bottom: 2em; top: 64px; 
-                        z-index: 99999 !important;" class="sticky-tabs">
+                    <v-sheet style="position:sticky; min-height: 44px; padding-bottom: 2em; 
+                        z-index: 99999 !important;" :style="{'top': hits.results.length < 2 ? '48px' : '64px'}"
+                        class="sticky-tabs">
                         
                         <v-tabs
                         :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"

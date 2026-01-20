@@ -1,7 +1,10 @@
 <template>
     <div :key="entry.db">
         <v-sheet style="position: sticky; z-index: 99997 !important; padding-bottom: 16px;"
-         :style="{'height': $vuetify.breakpoint.mdAndDown ? $vuetify.breakpoint.xsOnly ? '356px' : '304px' : '180px', 'top': headTop}">
+            :style="{'height': headHeight, 'top': headTop,
+                'box-shadow': $vuetify.breakpoint.smAndDown ? 'rgba(0, 0, 0, 0.2) 0px 8px 6px -6px' : '',
+            }"
+        >
             <v-flex
                 class="d-flex"
                 :style="{
@@ -11,15 +14,23 @@
                     'white-space': 'nowrap',
                 }">
                 <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
-                    <div style="width: 24px; display: inline-block;"></div>
+                    <!-- <div style="width: 24px; display: inline-block;"></div> -->
+                    <v-icon @click="isCollapsed = !isCollapsed"
+                        style="transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);"
+                        :style="{'transform': isCollapsed ? 'rotate(-90deg)' : ''}"
+                        :title="isCollapsed ? 'Show details' : 'Hide details'"
+                    >
+                        {{ $MDI.ChevronDown }}
+                    </v-icon>
                     <span style="text-transform: uppercase;">{{ entry.db.replaceAll(/_folddisco$/g, '') }}</span> <small>{{entryLength > 1 ? entryLength.toString() + " hits" : entryLength > 0 ? "1 hit" : "no hit" }}</small>
                 </h2>
-                <v-btn v-if="entry.hasTaxonomy" @click="toggleSankeyVisibility(entry.db)" 
+                <v-btn v-if="entry.hasTaxonomy && (!$vuetify.breakpoint.xsOnly || !isCollapsed)" @click="toggleSankeyVisibility(entry.db)" 
                     :class="{ 'mr-2': $vuetify.breakpoint.smAndUp , 'mb-2': $vuetify.breakpoint.xsOnly}" large>
                     {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
                 </v-btn>
             </v-flex>
             <v-flex
+                v-if="!isCollapsed"
                 class="d-flex"
                 :style="{
                     'flex-direction' : $vuetify.breakpoint.mdAndDown ? 'column' : 'row',
@@ -41,10 +52,86 @@
                     >
                     </motif-filter>
                 </div>
-                <div style="flex-basis: 100%; width: 100%">
-                    <h3>Cluster</h3>
-                    <folddisco-hit-cluster :hits="entry" v-on:cluster="clusters = $event"></folddisco-hit-cluster>
-                </div>
+                <v-flex class="d-flex" style="flex-basis: 100%; width: 100%">
+                    <div style="width: 100%">
+                        <h3>Cluster</h3>
+                        <folddisco-hit-cluster :hits="entry" v-on:cluster="clusters = $event"></folddisco-hit-cluster>
+                    </div>
+                    <v-menu v-show="$vuetify.breakpoint.smAndDown" bottom left :close-on-content-click='false'>
+                        <template v-slot:activator="{on, attrs}">
+                            <v-btn
+                                icon
+                                v-bind="attrs"
+                                v-on="on"
+                                v-show="$vuetify.breakpoint.smAndDown"
+                                style="align-self: flex-end; margin-bottom: 16px; margin-left: 8px"
+                                title="Sort options"
+                            >
+                                <v-icon>
+                                    {{ $MDI.Sort }}
+                                </v-icon>
+                            </v-btn>
+                        </template>
+                        <v-list
+                            flat dense
+                        >
+                            <v-list-item-group
+                                mandatory
+                                color="primary"
+                                :value="sortMenuValue"
+                            >
+                                <v-list-item @click.stop="changeSortMode('target')">
+                                    <v-list-item-title>Target</v-list-item-title>
+                                    <v-list-item-icon>
+                                        <v-icon :style="{'opacity' : sortKey == 'target' ? '1' : 0}">
+                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
+                                        </v-icon>
+                                    </v-list-item-icon>
+                                </v-list-item>
+                                <v-list-item v-if="entry.hasDescription" @click.stop="changeSortMode('desc')">
+                                    <v-list-item-title>Description</v-list-item-title>
+                                    <v-list-item-icon>
+                                        <v-icon :style="{'opacity' : sortKey == 'desc' ? '1' : 0}">
+                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
+                                        </v-icon>
+                                    </v-list-item-icon>
+                                </v-list-item>
+                                <v-list-item v-if="entry.hasTaxonomy" @click.stop="changeSortMode('tax')">
+                                    <v-list-item-title>Scientific Name</v-list-item-title>
+                                    <v-list-item-icon>
+                                        <v-icon :style="{'opacity' : sortKey == 'tax' ? '1' : 0}">
+                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
+                                        </v-icon>
+                                    </v-list-item-icon>
+                                </v-list-item>
+                                <v-list-item @click.stop="changeSortMode('idf')">
+                                    <v-list-item-title>IDF-score</v-list-item-title>
+                                    <v-list-item-icon>
+                                        <v-icon :style="{'opacity' : sortKey == 'idf' ? '1' : 0}">
+                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
+                                        </v-icon>
+                                    </v-list-item-icon>
+                                </v-list-item>
+                                <v-list-item @click.stop="changeSortMode('rmsd')">
+                                    <v-list-item-title>RMSD</v-list-item-title>
+                                    <v-list-item-icon>
+                                        <v-icon :style="{'opacity' : sortKey == 'rmsd' ? '1' : 0}">
+                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
+                                        </v-icon>
+                                    </v-list-item-icon>
+                                </v-list-item>
+                                <v-list-item @click.stop="changeSortMode('node')">
+                                    <v-list-item-title>Node Count</v-list-item-title>
+                                    <v-list-item-icon>
+                                        <v-icon :style="{'opacity' : sortKey == 'node' ? '1' : 0}">
+                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
+                                        </v-icon>
+                                    </v-list-item-icon>
+                                </v-list-item>
+                            </v-list-item-group>
+                        </v-list>
+                    </v-menu>
+                </v-flex>
             </v-flex>
         </v-sheet>
         <v-flex v-if="hasEntries && entry.hasTaxonomy && isSankeyVisible[entry.db]">
@@ -131,7 +218,7 @@
                     </tr>
                     {{ void(clusterShown = true) }}
                     <tr v-for="(item, index) in entry.alignments[groupidx]" :class="['hit', { 'active' : item.active }]"
-                        :key="`${groupidx}-${index}`"
+                        :key="`${groupidx}-${index}`" @click.stop="$vuetify.breakpoint.smAndDown ? onCheckboxClick(key, sortIdx, $event) : () => {}"
                     >
                         <td v-if="index == 0" :rowspan="entry.alignments[groupidx].length" class="entry-checkbox" :id="entryidx + '#' + groupidx">
                             <!-- performance issue with thousands of v-checkboxes, hardcode the simple checkbox instead -->
@@ -216,6 +303,7 @@ export default {
             visibilityTable: [],
             selectedDb: "",
             sortKey: 'node',
+            isCollapsed: false,
             sortOrder: -1,
             clusters: {},
             gapFilter: "",
@@ -400,9 +488,11 @@ export default {
             return this.onlyOne ? '92px' : '140px'
         },
         colheadTop() {
-            let addend = !this.onlyOne ? 140 : 92
-            let breakpointAddend = this.$vuetify.breakpoint.xsOnly ? 176 : this.$vuetify.breakpoint.mdAndDown ? 124 : 0
-            return String(180 + addend + breakpointAddend) + 'px'
+            const addend = !this.onlyOne ? 140 : 92
+            const breakpointAddend = this.$vuetify.breakpoint.xsOnly ? 176 : this.$vuetify.breakpoint.mdAndDown ? 124 : 0
+            const auxOffset = this.isCollapsed ? this.$vuetify.breakpoint.mdAndDown ? -248 : -116 : 0
+            const taxOffset = this.$vuetify.breakpoint.xsOnly && this.isCollapsed ? -52 : 0
+            return String(180 + addend + breakpointAddend + auxOffset + taxOffset) + 'px'
         },
         isTaxAvailable() {
             return !(!this.filteredHitsTaxIds || this.filteredHitsTaxIds.length == 0)
@@ -420,6 +510,37 @@ export default {
             }
             return [...uniqueGaps, ''];
         },
+        headHeight() {
+            const taxHeight = !this.isCollapsed && this.$vuetify.breakpoint.xsOnly ? 52 : 0
+            const auxHeight = this.isCollapsed ? -116: this.$vuetify.breakpoint.mdAndDown ? 124 : 0
+            return String(taxHeight + auxHeight + 180) + 'px'
+        },
+        sortMenuValue() {
+            const offset = (this.entry.hasDescription ? 1 : 0) + (this.entry.hasTaxonomy ? 1 : 0)
+            switch (this.sortKey) {
+                case 'target': {
+                    return 0
+                }
+                case 'desc': {
+                    return 1
+                }
+                case 'tax': {
+                    return offset
+                }
+                case 'idf': {
+                    return 1 + offset
+                }
+                case 'rmsd': {
+                    return 2 + offset
+                }
+                case 'node': {
+                    return 3 + offset
+                }
+                default: {
+                    return 3 + offset
+                }
+            }
+        }
     },
     methods: {
         log(a) {
@@ -652,7 +773,7 @@ export default {
                     this.reflectSelectionState()
                 }, 0)
             })
-        }
+        },
     }
 }
 </script>
