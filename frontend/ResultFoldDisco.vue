@@ -168,6 +168,7 @@ import ResultSankeyMixin from './ResultSankeyMixin.vue';
 import NavigationButton from './NavigationButton.vue';
 import ResultFoldDiscoDB from './ResultFoldDiscoDB.vue';
 import SelectToSendPanel from './SelectToSendPanel.vue';
+import NameField from './NameField.vue';
 
 function getAbsOffsetTop($el) {
     var sum = 0;
@@ -182,7 +183,7 @@ function getAbsOffsetTop($el) {
 export default {
     name: 'ResultFoldDisco',
     tool: 'folddisco',
-    components: { Panel, StructureViewerMotif, NavigationButton, ResultFoldDiscoDB, SelectToSendPanel },
+    components: { Panel, StructureViewerMotif, NavigationButton, ResultFoldDiscoDB, SelectToSendPanel, NameField },
     // components: { ResultView },
     mixins: [ ResultMixin, ResultSankeyMixin ],
     data() {
