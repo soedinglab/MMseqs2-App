@@ -18,12 +18,14 @@
                                 autocomplete="off"
                                 class="field-input mono"
                                 @keydown.enter="!errorState ? saveName() : () => {}"
+                                ref="inputField"
                             />
                             
                             <div class="active-line"></div>
 
                             <transition name="fade">
-                                <button 
+                                <button
+                                    v-show="inputValue.length > 0"
                                     @click="clearInput"
                                     class="clear-btn" 
                                     type="button"
@@ -114,6 +116,10 @@ export default {
             }
             this.inputValue = this.name
             this.inEdit = true
+            this.$nextTick(() => 
+                setTimeout(() => 
+                this.$refs.inputField.focus()
+                , 0))
         },
         clearInput() {
             this.inputValue = ""

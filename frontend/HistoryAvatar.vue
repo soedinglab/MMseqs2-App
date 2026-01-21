@@ -18,9 +18,13 @@ export default {
     computed: {
         color() {
             const hue = parseInt(h(this.hash).substr(-7), 16) / 0xfffffff * 360
-            const cont = `(65% 0.15 ${hue})`
+            const pre = this.$vuetify.theme.dark ? '(70% ' : '(60% '
+            const post = ` ${hue})`
             const lch = CSS.supports('color: oklch(0% 0 0)') ? 'oklch' : 'lch'
-            return lch + cont
+            const sat = this.$vuetify.theme.dark 
+                ? CSS.supports('color: oklch(0% 0 0)') ? '0.14' : '38' 
+                : CSS.supports('color: oklch(0% 0 0)') ? '0.165' : '45'
+            return lch + pre + sat + post
         },
         content() {
             switch (this.type) {
