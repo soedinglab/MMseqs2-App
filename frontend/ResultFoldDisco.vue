@@ -5,8 +5,9 @@
             <panel>
                 <template slot="header">
                     <template v-if="!$LOCAL && (!hits || !hits.query)">
-                        <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
-                        <small class="ticket">{{ ticket }}</small>
+                        <!-- <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
+                        <small class="ticket">{{ ticket }}</small> -->
+                        <NameField :ticket="ticket"/>
                     </template>
                     <template v-else-if="hits">
                         <span  class="hidden-sm-and-down">Results:&nbsp;</span>
@@ -78,173 +79,67 @@
                             </v-list-item>
                         </v-list>
                     </v-menu>
-                    <v-tabs
+                    <v-sheet style="position: sticky; padding-bottom: 2em; top: 64px; z-index: 99999 !important;" class="sticky-tabs">
+                        <v-tabs
                         :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"
                         center-active
                         grow
-                        v-model="selectedDatabases"
-                        style="margin-bottom: 2em"
+                        v-model="tabModel"
                         show-arrows
                         @change="handleChangeDatabase()"
                         v-if="hits.results.length > 1"
-                    >
-                        <v-tab>All databases</v-tab>
-                        <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db.replaceAll(/_folddisco$/g, '') }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
-                    </v-tabs>
-                    <div v-for="(entry, index) in hits.results" :key="entry.db" v-if="selectedDatabases == 0 || (index + 1) == selectedDatabases">
-                    <v-flex
-                        class="d-flex"
-                        :style="{
-                            'flex-direction' : $vuetify.breakpoint.xsOnly ? 'column' : 'row',
-                            'align-items': 'center',
-                            'flex': '0',
-                            'white-space': 'nowrap',
-                        }">
-                        <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
-                            <span style="text-transform: uppercase;">{{ entry.db.replaceAll(/_folddisco$/g, '') }}</span> <small>{{ entry.alignments ? Object.values(entry.alignments).length : 0 }} hits</small>
-                        </h2>
-                        <v-btn v-if="entry.hasTaxonomy" @click="toggleSankeyVisibility(entry.db)" large>
-                            {{ isSankeyVisible[entry.db] ? 'Hide Taxonomy' : 'Show Taxonomy' }}
-                        </v-btn>
-                    </v-flex>
-
-                    <v-flex
-                        class="d-flex"
-                        :style="{
-                            'flex-direction' : $vuetify.breakpoint.mdAndDown ? 'column' : 'row',
-                            'align-items': 'center',
-                            'white-space': 'nowrap',
-                            'gap': '24px',
-                        }"
                         >
-                        <div style="flex-basis: 100%; width: 100%">
-                            <h3>Filter</h3>
-                            <motif-filter
-                                :items="dbGaps[entry.db]"
-                                :value="gapFilter[entry.db] ? gapFilter[entry.db] : ''"
-                                @input="$set(gapFilter, entry.db, $event)"
-                                @click:clear="$set(gapFilter, entry.db, '')"
-                                :queryresidues="entry.queryresidues"
-                                :color="entry.color"
-                            >
-                            </motif-filter>
-                        </div>
-                        <div style="flex-basis: 100%; width: 100%">
-                            <h3>Cluster</h3>
-                            <folddisco-hit-cluster :hits="entry" v-on:cluster="$set(clusters, entry.db, $event)"></folddisco-hit-cluster>
-                        </div>
-                    </v-flex>
-                    <v-flex v-if="entry.hasTaxonomy && isSankeyVisible[entry.db]">
-                        <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
-                    </v-flex>
-
-                    <table class="v-table result-table" style="position:relativ; margin-bottom: 3em;">
-                        <colgroup>
-                            <col style="width: 20%;" /> <!-- target -->
-                            <col v-if="entry.hasDescription" style="width: 30%;" /> 
-                            <col v-if="entry.hasTaxonomy" style="width: 20%;" />
-                            <col style="width: 10%;" /> <!-- idf-score --> 
-                            <col style="width: 10%;" /> <!-- RMSD --> 
-                            <col style="width: 6.5%;" /> <!-- nodecount -->
-                            <col style="width: 20%;" /> <!-- Matched residues --> 
-                            <!-- <col style="width: 20%;" /> Interresidue --> 
-                            <col style="width: 6.5%;" /> <!-- action -->
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th :class="'wide-' + (3 - entry.hasDescription - entry.hasTaxonomy)">
-                                    Target
-                                </th>
-                                <th v-if="entry.hasDescription">
-                                    Description
-                                    <v-tooltip open-delay="300" top>
-                                        <template v-slot:activator="{ on }">
-                                            <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
-                                        </template>
-                                        <span>Triple click to select whole cell (for very long identifiers)</span>
-                                    </v-tooltip>
-                                </th>
-                                <th v-if="entry.hasTaxonomy">Scientific Name</th>
-                                <th class="thin">idf-score</th>
-                                <th class="thin">RMSD</th>
-                                <th class="thin">Nodes</th>
-                                <th>
-                                    Matched residues
-                                    <v-tooltip open-delay="300" top>
-                                        <template v-slot:activator="{ on }">
-                                            <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
-                                        </template>
-                                        <span>The position of the aligned motif residues in the target</span>
-                                    </v-tooltip>
-                                </th>
-                                <!-- <th>Interresidue Dist</th> -->
-                                <th class="alignment-action thin">Structure</th>
-                            </tr>
-                        </thead>
-                        <tbody v-for="(clu, key) in clusters[entry.db]">
-                            {{ void(clusterShown = false) }}
-                            <template v-for="(group, groupidx) in clu.map(x => entry.alignments[x])">
-                            <template v-for="(item, index) in group" v-if="isGroupVisible(group) && isItemVisible(entry.db, item)">
-                            <tr v-if="Object.keys(clu).length != Object.keys(entry.alignments).length && clusterShown == false">
-                                <td colspan="6"><strong>Cluster: {{ key == -1 ? "Noise" : key }}</strong></td>
-                            </tr>
-                            {{ void(clusterShown = true) }}
-                            <tr :class="['hit', { 'active' : item.active }]">
-                                <td class="db long" data-label="Target" :style="{ 'border-color' : entry.color }">
-                                    <a :id="item.id" class="anchor" style="position: absolute; top: 0"></a>
-                                    <!-- <template v-if="isComplex">
-                                        {{ item.query.lastIndexOf('_') != -1 ? item.query.substring(item.query.lastIndexOf('_')+1) : '' }} ➔ 
-                                    </template> -->
-                                    <a style="text-decoration: underline; color: #2196f3;" v-if="Array.isArray(item.href)" @click="forwardDropdown($event, item.href)"rel="noopener" :title="item.target">{{item.targetname}}</a>
-                                    <a v-else :href="item.href" target="_blank" rel="noopener" :title="item.target">{{item.targetname}}</a>
-                                </td>
-                                <td class="long" data-label="Description" v-if="entry.hasDescription">
-                                    <span :title="item.description">{{ item.description }}</span>
-                                </td>
-                                <td class="long" v-if="entry.hasTaxonomy" data-label="Taxonomy">
-                                    <a :href="'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=' + item.taxId" target="_blank" rel="noopener" :title="item.taxName">{{ item.taxName }}</a>
-                                </td>
-                                <td class="thin" data-label="idf-score">{{ item.idfscore }}</td>
-                                <td class="thin" data-label="RMSD">{{ item.rmsd }}</td>
-                                <td class="thin" data-label="Node count">{{ item.nodecount }}</td>
-                                <td data-label="Matched residues">
-                                    <span class="matched-residues-text" :title="item.targetresidues">{{ item.targetresidues }}</span>
-                                </td> 
-                                <!-- <td data-label="Matched residues">
-                                    <span class="matched-residues-text" :title="item.interresiduedist">{{ item.interresiduedist }}</span>
-                                </td> -->
-                                <td class="alignment-action thin" :rowspan="1">
-                                    <!-- performance issue with thousands of v-btns, hardcode the minimal button instead -->
-                                    <!-- <v-btn @click="showAlignment(item, $event)" text :outlined="alignment && item.target == alignment.target" icon>
-                                        <v-icon v-once>{{ $MDI.NotificationClearAll }}</v-icon>
-                                    </v-btn> -->
-                                    <button 
-                                        @click="showAlignment(item, entry.db, $event)"
-                                        type="button"
-                                        class="v-btn v-btn--icon v-btn--round v-btn--text v-size--default"
-                                        :class="{ 
-                                                    'v-btn--outlined' : alignment && item.target == alignment.target,
-                                                    'theme--dark' : $vuetify.theme.dark
-                                                }"
-                                        >
-                                        <span class="v-btn__content"><span aria-hidden="true" class="v-icon notranslate theme--dark">
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg"><path d="M5,13H19V11H5M3,17H17V15H3M7,7V9H21V7"></path></svg>
-                                        </span></span>
-                                    </button>
-                                </td>
-                            </tr>
-                            <!-- <tr aria-hidden="true" v-if="isComplex" style="height: 15px"></tr> -->
-                            </template>
-                            </template>
-                        </tbody>
-                    </table>
-                    </div>
+                            <!-- <v-tab>All databases</v-tab> -->
+                            <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db.replaceAll(/_folddisco$/g, '') }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
+                        </v-tabs>
+                    </v-sheet>
+                    <ResultFoldDiscoDB v-for="(entry, entryidx) in hits.results" :key="entry.db"
+                        v-if="selectedDatabases == 0 || (entryidx + 1) == selectedDatabases"
+                        :entryidx="entryidx" :entry="entry" :toggleSourceDb="toggleSourceDb"
+                        :selectedStates="selectedStates[entryidx]" :selectedCounts="selectedCountPerDb[entryidx]"
+                        :totalSelectedCounts="selectedCounts" :selectUpperbound="selectUpperbound" :alignment="alignment"
+                        :onlyOne="hits.results.length == 1"
+                        @forwardDropdown="(e, h) => forwardDropdown(e, h)"
+                        @showAlignment="(i, e) => showAlignment(i, entry.db, e)"
+                        @updateToggleSource="(db) => updateToggleSourceDb(db)"
+                        @toggleSelection="(i, v) => handleToggleSelection(entryidx, i, v)"
+                        @bulkToggle="(a, v) => handleBulkToggle(entryidx, a, v)"
+                        @updateScroll="() => updateScrollOffsetArr()"
+                    ></ResultFoldDiscoDB>
                 </template>
                 </panel>
+                <SelectToSendPanel
+                    :hits="hits" :ticket="ticket" :selectedCounts="selectedCounts"
+                    :isComplex="false" :selectUpperbound="selectUpperbound"
+                    :dbToIdx="dbToIdx" :banList="[]"
+                    :closeAlignment="closeAlignment"
+                    :getSingleSelectionInfo="getSingleSelectionInfo"
+                    :getMultipleSelectionInfo="getMultipleSelectionInfo"
+                    :getSinglePdb="getPdbToSend"
+                    :getMockPdb="getPdbToSend"
+                    :getOrigPdb="getOrigPdbToSend"
+                    :batchSize="4"
+                    :chunkSize="32"
+                    @clearAll="clearAllEntries"
+                >
+                </SelectToSendPanel>
+                <NavigationButton :selectedDatabases="selectedDatabases"
+                    :scrollOffsetArr="scrollOffsetArr"
+                    :tabOffset="tabOffset"
+                    @needUpdate="updateScrollOffsetArr"
+                ></NavigationButton>
             </v-flex>
         </v-layout>
         <portal>
-            <panel v-if="alignment != null && targetPdb != null" class="alignment" :style="'top: ' + alnBoxOffset + 'px;'">
+            <panel v-if="alignment != null && targetPdb != null" 
+                class="alignment" :style="'top: ' + alnBoxOffset + 'px;'" 
+                v-click-outside="closeAlignment">
+                <template slot="desc">
+                    <v-btn icon @click="closeAlignment" style="display: block; margin-left: auto;">
+                    <v-icon>
+                        {{ $MDI.CloseCircleOutline }}
+                    </v-icon>
+                </v-btn></template>
                 <StructureViewerMotif
                     slot="content"
                     :key="`ap-${alignment.dbkey}`"
@@ -259,7 +154,7 @@
 </template>
 
 <script>
-import { download, parseResultsFoldDisco, dateTime } from './Utilities.js';
+import { download, parseResultsFoldDisco, dateTime, getAccession, sleep } from './Utilities.js';
 import ResultMixin from './ResultMixin.vue';
 import Panel from './Panel.vue';
 // import AlignmentPanel from './AlignmentPanel.vue';
@@ -269,9 +164,10 @@ import StructureViewerMotif from './StructureViewerMotif.vue';
 // import SankeyDiagram from './SankeyDiagram.vue';
 import { debounce } from './lib/debounce.js';
 // import { thresholdScott } from 'd3';
-import FolddiscoHitCluster from './FolddiscoHitCluster.vue';
-import MotifFilter from './MotifFilter.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
+import NavigationButton from './NavigationButton.vue';
+import ResultFoldDiscoDB from './ResultFoldDiscoDB.vue';
+import SelectToSendPanel from './SelectToSendPanel.vue';
 
 function getAbsOffsetTop($el) {
     var sum = 0;
@@ -286,7 +182,7 @@ function getAbsOffsetTop($el) {
 export default {
     name: 'ResultFoldDisco',
     tool: 'folddisco',
-    components: { Panel, StructureViewerMotif, FolddiscoHitCluster, MotifFilter },
+    components: { Panel, StructureViewerMotif, NavigationButton, ResultFoldDiscoDB, SelectToSendPanel },
     // components: { ResultView },
     mixins: [ ResultMixin, ResultSankeyMixin ],
     data() {
@@ -302,15 +198,26 @@ export default {
             selectedDatabases: 0,
             selectedDb: null,
             menuActivator: null,
-            menuItems: [],
-            queryResidues: null,
-            gapFilter: {},
-            clusters: {},
             selectedTaxId: null,
+            queryResidues: null,
+            menuItems: [],
+            toggleSourceDb: "",
+            dbToIdx: null,
+            selectUpperbound: 100,
+            selectedStates: {},
+            selectedCounts: 0,
+            selectedCountPerDb: {},
+            selectedSets: new Set(),
+            scrollOffsetArr: null,
         }
     },
     created() {
         window.addEventListener("resize", this.handleAlignmentBoxResize, { passive: true });
+        this.getSingleSelectionInfo = this.getSingleSelectionInfo.bind(this)
+        this.getMultipleSelectionInfo = this.getMultipleSelectionInfo.bind(this)
+        this.getPdbToSend = this.getPdbToSend.bind(this)
+        this.getTargetPdb = this.getTargetPdb.bind(this)
+        this.getOrigPdbToSend = this.getOrigPdbToSend.bind(this)
     },
     beforeDestroy() {
         window.removeEventListener("resize", this.handleAlignmentBoxResize);
@@ -323,9 +230,9 @@ export default {
             if (this.$vuetify.breakpoint.xsOnly) {
                 return 30;
             } else if (this.$vuetify.breakpoint.smAndDown) {
-                return 45;
-            } else if (this.$vuetify.breakpoint.mdAndDown) {
                 return 60;
+            } else if (this.$vuetify.breakpoint.mdAndDown) {
+                return 45;
             } else {
                 return 80;
             }
@@ -365,8 +272,44 @@ export default {
             }
             return dbGaps;
         },
+        tabModel: {
+            get() {
+            return this.selectedDatabases - 1;
+            },
+            set(val) {
+            this.selectedDatabases = val + 1;
+            }
+        },
+        tabOffset() {
+            let addend = this.hits?.results?.length == 1 ? 92 : 140
+            let sheetHeight = this.$vuetify.breakpoint.xsOnly ? 356 : this.$vuetify.breakpoint.mdAndDown ? 304 : 180
+            let colheadHeight = 32
+            return addend + sheetHeight + colheadHeight
+        }
     },
     mounted() {
+        if (this.hits && !this.selectedStates && !this.selectedCountPerDb && !this.dbToIdx) {
+            const obj = Object.fromEntries(
+                n.results.map(( e, i ) => [i, Object.fromEntries(
+                    e.alignments.map((_, j) => [j, false])
+                )])
+            )
+            const obj2 = Object.fromEntries(
+                n.results.map(( e,i ) => [i, 0])
+            )
+            const obj3 = Object.fromEntries(
+                n.results.map((e, i) => [e.db, i])
+            )
+            this.selectedStates = obj
+            this.selectedCountPerDb = obj2
+            this.dbToIdx = obj3
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.updateScrollOffsetArr()
+                }, 0)
+            })
+        }
+
         this.$root.$on('downloadJSON', () => {
             let data;
             if (this.ticket.startsWith('user-')) {
@@ -390,8 +333,34 @@ export default {
                 this.fetchData();
             }
         },
-        hits: function() {
-            this.setColorScheme();
+        hits: {
+            handler(n, o) {
+                this.setColorScheme();
+                if (n && n.results) { 
+                    const obj = Object.fromEntries(
+                        n.results.map((e, i) => [i, Object.fromEntries(
+                            [...Array(e.alignments.length)].keys().map(j => [j, false])
+                        )])
+                    )
+                    const obj2 = Object.fromEntries(
+                        n.results.map((e, i) => [i, 0])
+                    )
+                    const obj3 = Object.fromEntries(
+                        n.results.map((e, i) => [e.db, i])
+                    )
+                    this.selectedStates = obj
+                    this.selectedCountPerDb = obj2
+                    this.dbToIdx = obj3
+
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            this.updateScrollOffsetArr()
+                        }, 0)
+                    })
+                }
+            },
+            immediate: false,
+            deep: true
         },
     },
     methods: {
@@ -400,6 +369,7 @@ export default {
             return args;
         },
         showAlignment(item, db, event) {
+            // throw new Error()
             if (this.alignment === item) {
                 this.closeAlignment();
             } else {
@@ -419,13 +389,32 @@ export default {
             if (db.startsWith("pdb100")) {
                 target = item.target;
             }
-            try {
-                const re = "api/result/folddisco/" + this.$route.params.ticket + '?database=' + db +'&id=' + target;
-                const request = await this.$axios.get(re);
-                return request.data;
-            } catch (e) {
-                // throw new Error("Failed to get target structure: " + e.message);
-                alert("Error: Failed to get target structure" + e.message);
+            const re = "api/result/folddisco/" + this.$route.params.ticket + '?database=' + db +'&id=' + target;
+            const MAX_RETRIES = 4
+            let attempt = 0;
+            while (attempt < MAX_RETRIES) {
+                try {
+                    const request = await this.$axios.get(re, {
+                        headers: {
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache',
+                            'Expires': '0',
+                            'Accept': 'text/plain',
+                        },
+                        transformResponse: [(d) => d],
+                    });
+                    return request.data;
+                } catch (e) {
+                    attempt++;
+                    // throw new Error("Failed to get target structure: " + e.message);
+                    // alert("Error: Failed to get target structure" + e.message);
+                    if (attempt >= MAX_RETRIES) {
+                        console.error(`Max attempt reached for ${target} in ${db}:\n`, e);
+                        throw e
+                    }
+                    
+                    await sleep(300 * attempt)
+                }
             }
         },
         closeAlignment() {
@@ -445,24 +434,173 @@ export default {
         },
         handleChangeDatabase() {
             this.closeAlignment();
+        },
+        handleToggleSelection(db, idx, value) {
+            if (!this.selectedStates || !this.selectedStates[db]
+                || this.selectedCounts > this.selectUpperbound && value) {
+                return
+            }
+            
+            const id = db + '#' + idx.toString()
+            const deltaUnit = value ? 1 : -1
+            const toCall = value ? this.selectedSets.add.bind(this.selectedSets) : 
+                this.selectedSets.delete.bind(this.selectedSets)
+            if (this.selectedStates[db][idx] != value) {
+                // Does it really reflect changes?
+                this.selectedStates[db][idx] = value
+                let el = document.getElementById(id)
+                if (el) {
+                    el.classList.toggle('selected', value)
+                }
+                const newVal = this.selectedCountPerDb[db] + deltaUnit
+                this.selectedCountPerDb[db] = newVal
+                this.selectedCounts += deltaUnit
+                toCall(id)
+                
+                // update select-all button state
+                const targetDbLength = this.selectedStates[db].length
+                el = document.getElementById(db + '#select-all')
+                if (el) {
+                    el.classList.toggle('any-selected', newVal > 0)
+                    el.classList.toggle('all-selected', newVal == targetDbLength)
+                }
+            }
+        },
+        handleBulkToggle(db, indices, value) {
+            if (!this.selectedStates || !this.selectedStates[db]
+                || this.selectedCounts > this.selectUpperbound && value) {
+                return
+            }
+
+            let delta = 0
+            const deltaUnit = value ? 1 : -1
+            const deltaUpperbound = this.selectUpperbound - this.selectedCounts
+            const toCall = value ? this.selectedSets.add.bind(this.selectedSets) : 
+                this.selectedSets.delete.bind(this.selectedSets)
+            
+            for (const i of indices) {
+                if (value && delta >= deltaUpperbound) {
+                    break;
+                }
+                if (this.selectedStates[db][i] != value) {
+                    let id = db + '#' + i.toString()
+                    let el = document.getElementById(id)
+                    if (el) {
+                        el.classList.toggle('selected', value)
+                    }
+                    this.selectedStates[db][i] = value
+                    toCall(id)
+                    delta += deltaUnit
+                }
+            }
+            
+            this.selectedCounts += delta
+            const newVal = this.selectedCountPerDb[db] + delta
+            this.selectedCountPerDb[db] = newVal
+            
+            // update select-all button state
+            const selectAllButton = document.getElementById(db+'#select-all')
+            if (selectAllButton) {
+                const dbLength = Number(selectAllButton.getAttribute('length'))
+                selectAllButton.classList.toggle('any-selected', newVal > 0)
+                selectAllButton.classList.toggle('all-selected', newVal == dbLength)
+            }
+        },
+        updateToggleSourceDb(db) {
+            this.toggleSourceDb = db
+        },
+        handleChangeDatabase() {
+            this.closeAlignment();
             this.localSelectedTaxId = null;
             this.filteredHitsTaxIds = [];
         },
-        isGroupVisible(group) {
-            if (!this.filteredHitsTaxIds || this.filteredHitsTaxIds.length === 0) {
-                return true;
+        clearAllEntries() {
+            if (!this.selectedStates) {
+                return
             }
-            let taxFiltered = group.filter(item => this.filteredHitsTaxIds.includes(Number(item.taxId)));
-            return taxFiltered.length > 0;
+            
+            let el = undefined
+            this.selectedCounts = 0
+            for (const key of Object.keys(this.selectedStates)) {
+                this.selectedCountPerDb[key] = 0
+                
+                // update select-all button states manually
+                el = document.getElementById(key+'#select-all')
+                if (el) {
+                    el.classList.toggle('any-selected', false)
+                    el.classList.toggle('all-selected', false)
+                }
+            }
+            
+            // update selected states manually
+            let prevSelected = document.querySelectorAll('.selected')
+            if (prevSelected.length > 0) {
+                for (let el of prevSelected) {
+                    el.classList.toggle('selected', false)
+                }
+            }
+
+            this.selectedSets.forEach(e => {
+                let [ db, idx ] = e.split('#')
+                this.selectedStates[Number( db )][Number(idx)] = false
+            });
+            this.selectedSets.clear()
         },
-        isItemVisible(db, item) {
-            if (!(db in this.gapFilter)) {
-                return true;
+        getSingleSelectionInfo() {
+            const info = {}
+            if (this.selectedCounts != this.selectedSets.size && this.selectedCounts != 1) {
+                console.error("Inconsistent set size and selected counts")
+                return
             }
-            if (this.gapFilter[db] == null) {
-                return true;
+            let db, idx
+
+            for (const e of this.selectedSets) {
+                [ db, idx ] = e.split("#")
+                idx = Number(idx)
+                break
             }
-            return this.gapFilter[db] == '' || item.gaps == this.gapFilter[db];
+
+            info.db = this.hits.results[db].db
+            info.idx = idx
+            // If there is no selection, then idx would be -1
+            return info
+        },
+        getMultipleSelectionInfo() {
+            if (this.selectedCounts != this.selectedSets.size && this.selectedCounts < 2) {
+                console.error("Inconsistent set size and selected counts")
+                return
+            }
+            
+            const arr = []
+            for (const e of this.selectedSets) {
+                let [ db, idx ] = e.split('#')
+                idx = Number(idx)
+                arr.push(
+                    {db: this.hits.results[db].db, idx}
+                )
+            }
+
+            return arr
+        },
+        async getPdbToSend(info, signal) {
+            // Alternative of getMockPdb()
+            if (signal?.aborted) { 
+                throw new DOMException('Aborted', 'AbortError')
+            }
+            
+            let item = this.hits.results[this.dbToIdx[info.db]]?.alignments?.[info.idx]?.[0]
+            let pdb = await this.getTargetPdb(item, info.db)
+            return {pdb: pdb, isMultimer: false, name: getAccession(item.target)}
+        },
+        async getOrigPdbToSend(item, db, signal) {
+            // Alternative of fetchStructureFileURL()
+            if (signal?.aborted) { 
+                throw new DOMException('Aborted', 'AbortError')
+            }
+            
+            let pdb = await this.getTargetPdb(item, db)
+            let residues = item.targetresidues
+            return [pdb, residues]
         },
         resetProperties() {
             this.ticket = this.$route.params.ticket;
@@ -488,7 +626,8 @@ export default {
                     const response = await this.$axios.get("api/result/folddisco/" + this.ticket, {
                         headers: {
                             'Cache-Control': 'no-cache'
-                        }
+                        },
+                        // transformResponse: [(d) => {d}]
                     });
                     const data = response.data;
                     
@@ -505,7 +644,9 @@ export default {
             }
 
             try {
-                const response = await this.$axios.get(`api/result/${this.ticket}/query`);
+                const response = await this.$axios.get(`api/result/${this.ticket}/query`,{
+                    transformResponse: [(d) => d]
+                });
                 // let query = {};
                 // query.pdb = response.data;
                 const query = response.data;
@@ -515,6 +656,11 @@ export default {
                 this.queryPdb = null;
             }
         },
+        updateScrollOffsetArr() {
+            const arr = document.querySelectorAll('[class^="result-entry-"]')
+            const offsetArr = [...arr].map(n => Math.ceil(n.getBoundingClientRect().top + window.scrollY))
+            this.scrollOffsetArr = offsetArr
+        }
     },
 };
 </script>
@@ -608,6 +754,7 @@ export default {
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+
     }
 }
 
@@ -702,6 +849,7 @@ export default {
         word-break: break-all;
         max-width: none;
     }
+
 }
 
 .alignment {
@@ -721,6 +869,25 @@ export default {
             color: #fff;
         }
     }
+}
+
+.sticky-tabs::before {
+    content: "";
+    width: 100%;
+    position: absolute;
+    top: -16px;
+    background-color: inherit;
+    display: block;
+    height: 16px;
+    z-index: inherit;
+} 
+
+.collapse-icon:not(.collapsed) {
+    transform: rotate(90deg);
+}
+
+.collapse-icon {
+    cursor: pointer;
 }
 </style>
 

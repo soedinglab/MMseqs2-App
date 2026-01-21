@@ -5,16 +5,18 @@
                 <v-list-item-title>
                     History
                 </v-list-item-title>
-                <v-list-item-subtitle v-if="drawer" class="ml-n1" @click.prevent>
-                    <button :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.prevent="previous();"><v-icon style="transform:inherit">{{ $MDI.ChevronLeft }}</v-icon></button>
-                    <button :style="{'opacity' : (page + 1) * limit >= items.length ? 0.6 : 1}"  @click.prevent="next();"><v-icon style="transform:inherit">{{ $MDI.ChevronRight }}</v-icon></button>
+                <v-list-item-subtitle v-if="drawer" class="ml-n1" @click.stop>
+                    <button :style="{'opacity' : page == 0 ? 0.6 : 1}" @click.stop="previous();"><v-icon style="transform:inherit">{{ $MDI.ChevronLeft }}</v-icon></button>
+                    <button :style="{'opacity' : (page + 1) * limit >= items.length ? 0.6 : 1}"  @click.stop="next();"><v-icon style="transform:inherit">{{ $MDI.ChevronRight }}</v-icon></button>
                 </v-list-item-subtitle>
             </v-list-item-content>
         </template>
 
         <v-list-item v-for="(child, i) in items.slice(page * limit, (page + 1) * limit)" :key="i" :class="{ 'list__item--highlighted': child.id == current }" :to="formattedRoute(child)" style="padding-left: 16px;">
             <v-list-item-icon>
-                <identicon v-if="child.status == 'COMPLETE'" :hash="child.id"></identicon>
+                <history-avatar v-if="child.status == 'COMPLETE' && types[child.id]" 
+                    :hash="child.id" :type="types[child.id]" />
+                <identicon v-else-if="child.status == 'COMPLETE'" :hash="child.id"></identicon>
                 <v-icon large v-else-if="child.status == 'RUNNING'">{{ $MDI.ClockOutline }}</v-icon>
                 <v-icon large v-else-if="child.status == 'PENDING'">{{ $MDI.ClockOutline }}</v-icon>
                 <v-icon large v-else-if="child.status == 'ERROR'">{{ $MDI.HelpCircleOutline }}</v-icon>
@@ -24,7 +26,7 @@
                 <v-list-item-title>
                     {{ formattedDate(child.time) }}
                 </v-list-item-title>
-                <v-list-item-subtitle><span class="mono">{{ child.id }}</span></v-list-item-subtitle>
+                <v-list-item-subtitle><span class="mono">{{ child.name ? child.name : child.id }}</span></v-list-item-subtitle>
             </v-list-item-content>
         </v-list-item>
     </v-list-group>
@@ -32,22 +34,29 @@
 
 <script>
 import Identicon from './Identicon.vue';
+import HistoryAvatar from './HistoryAvatar.vue';
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import { debounce } from './lib/debounce';
 import { storage } from './lib/HistoryMixin';
+import emitter from './lib/emitter'
 
 export default {
-    components: { Identicon },
+    components: { Identicon, HistoryAvatar },
     data: () => ({
         current: "",
         drawer: false,
         error: false,
         items: [],
         page: 0,
-        limit: 7
+        limit: 7,
+        types: {},
     }),
     mounted() {
-
+        this.refreshJobName = this.refreshJobName.bind(this)
+        emitter.on('refresh-job-name', this.refreshJobName)
+    },
+    beforeDestroy() {
+        emitter.off('refresh-job-name', this.refreshJobName)
     },
     created() {
         this.fetchData();
@@ -60,6 +69,34 @@ export default {
         },
         items(value) {
             storage.history = JSON.stringify(value);
+            const obj = this.types
+            for (let v of value) {
+                if (v.status == 'COMPLETE' && !obj[v.id]) {
+                    this.$axios.get("api/ticket/type/" + v.id).then(
+                        (response) => {
+                            const data = response.data;
+                            switch (data.type) {
+                                case "search":
+                                case "structuresearch":
+                                    obj[v.id] = 'structure'
+                                    break;
+                                case "complexsearch":
+                                    obj[v.id] = 'complex'
+                                    break;
+                                case "foldmasoneasymsa":
+                                    obj[v.id] = 'msa'
+                                    break;
+                                case "folddisco":
+                                    obj[v.id] = 'motif'
+                                    break
+                                default:
+                                    obj[v.id] = ""
+                                    break
+                            }
+                    })
+                }
+            }
+            this.types = obj
         },
         drawer: function (val, oldVal) {
             if (val == true) {
@@ -84,10 +121,13 @@ export default {
             this.current = this.$route.params.ticket;
 
             this.error = false;
-            var itemsTmp = JSON.parse(storage.history);
+            var itemsTmp = JSON.parse(storage.history || "[]");
+            let name_map = JSON.parse(storage.name_map || "[]");
 
             let tickets = [];
             var hasCurrent = false;
+            let currentHasName = false;
+
             for (let i in itemsTmp) {
                 if (this.current == itemsTmp[i].id) {
                     hasCurrent = true;
@@ -98,6 +138,7 @@ export default {
                 tickets.push(itemsTmp[i].id);
                 itemsTmp[i].status = "UNKNOWN";
             }
+            
             if (this.current != undefined && hasCurrent == false && !this.current.startsWith('user-')) {
                 tickets.unshift(this.current);
                 itemsTmp.unshift({ id: this.current, status: "UNKNOWN", time: +(new Date()) })
@@ -125,6 +166,12 @@ export default {
 
                         if (include) {
                             var entry = itemsTmp[i];
+                            let nameObj = name_map.find(v => v.id == entry.id)
+                            if (nameObj) {
+                                entry.name = nameObj.name
+                            } else {
+                                entry.name = ""
+                            }
                             entry.status = data[i].status;
                             items.push(entry);
                         }
@@ -133,9 +180,11 @@ export default {
                     if (hasPending) {
                         setTimeout(this.fetchData.bind(this), 5000);
                     }
+                    name_map = name_map.filter(v => this.items.some(i => i.id == v.id))
+                    storage.name_map = JSON.stringify(name_map)
                 }, () => {
                     this.error = true;
-                });
+            });
         }, 16, true),
         formattedRoute(element) {
             if (element.status == 'COMPLETE') {
@@ -174,7 +223,18 @@ export default {
             const str = date.getFullYear() + "-" + month + "-" + day + " " + hour + ":" + min;
 
             return str;
+        },
+        refreshJobName(payload) {
+            if (!payload) return
+            const idx = this.items.findIndex(v => v.id == payload.id)
+            if (idx != -1) {
+                const obj = this.items[idx]
+                obj.name = payload.name
+                this.$set(this.items, idx, obj)
+            }
         }
+    },
+    computed: {
     }
 }
 </script>

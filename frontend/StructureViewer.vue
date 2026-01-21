@@ -38,7 +38,7 @@
 import StructureViewerTooltip from './StructureViewerTooltip.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerMixin from './StructureViewerMixin.vue';
-import { mockPDB, makeSubPDB, transformStructure, makeMatrix4  } from './Utilities.js';
+import { mockPDB, makeSubPDB, transformStructure, makeMatrix4, storeChains, revertChainInfo } from './Utilities.js';
 import { pulchra } from 'pulchra-wasm';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 
@@ -164,6 +164,7 @@ export default {
     methods: {
         // Create arrows connecting CA coordinates for query/target in match columns
         async drawArrows(str1, str2) {
+            if (!this.stage) return;
             const shape = new Shape('arrows');
             await Promise.all(this.alignments.map(async (alignment) => {
                 const chain_q = getChainName(alignment.query);
@@ -236,6 +237,7 @@ export default {
             repr.setVisibility(true);
         },
         setQuerySelection() {
+            if (!this.stage) return;
             let repr = this.stage.getRepresentationsByName("queryStructure");
             if (!repr) return;
             let sele = this.querySele;
@@ -253,6 +255,7 @@ export default {
             }
         },
         setTargetSelection() {
+            if (!this.stage) return;
             let repr = this.stage.getRepresentationsByName("targetStructure");
             if (!repr) return;
             let sele = this.targetSele;
@@ -403,30 +406,35 @@ END
         let lastIdx = null;
         let remoteData = null;
         let i = 0;
-        for (let alignment of this.alignments) {
-            const chain = getChainName(alignment.target);
-            let tSeq = alignment.tSeq;
-            let tCa = alignment.tCa;
-            if (Number.isInteger(alignment.tCa) && Number.isInteger(alignment.tSeq)) {
-                const db = alignment.db;
-                const idx = alignment.tCa;
-                if (idx != lastIdx) {
-                    const ticket =  this.$route.params.ticket;
-                    const response = await this.$axios.get("api/result/" + ticket + '/' + this.$route.params.entry + '?format=brief&index=' + idx + '&database=' + db);
-                    remoteData = response.data;
-                    lastIdx = idx;
+        // It is wrapped in order to make it handle when it is destroyed even before it is fully mounted
+        try {
+            for (let alignment of this.alignments) {
+                const chain = getChainName(alignment.target);
+                let tSeq = alignment.tSeq;
+                let tCa = alignment.tCa;
+                if (Number.isInteger(alignment.tCa) && Number.isInteger(alignment.tSeq)) {
+                    const db = alignment.db;
+                    const idx = alignment.tCa;
+                    if (idx != lastIdx) {
+                        const ticket =  this.$route.params.ticket;
+                        const response = await this.$axios.get("api/result/" + ticket + '/' + this.$route.params.entry + '?format=brief&index=' + idx + '&database=' + db);
+                        remoteData = response.data;
+                        lastIdx = idx;
+                    }
+                    tSeq = remoteData[i].tSeq;
+                    tCa = remoteData[i].tCa;
+                    i++;
                 }
-                tSeq = remoteData[i].tSeq;
-                tCa = remoteData[i].tCa;
-                i++;
+                const mock = mockPDB(tCa, tSeq, chain);
+                const pdb = await pulchra(mock);
+                const component = await this.stage.loadFile(new Blob([pdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
+                component.structure.eachChain(c => { c.chainname = chain; });
+                component.structure.eachAtom(a => { a.serial = renumber++; });
+                targets.push(component);
+                selections_t.push(`${alignment.dbStartPos}-${alignment.dbEndPos}:${chain}`);
             }
-            const mock = mockPDB(tCa, tSeq, chain);
-            const pdb = await pulchra(mock);
-            const component = await this.stage.loadFile(new Blob([pdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
-            component.structure.eachChain(c => { c.chainname = chain; });
-            component.structure.eachAtom(a => { a.serial = renumber++; });
-            targets.push(component);
-            selections_t.push(`${alignment.dbStartPos}-${alignment.dbEndPos}:${chain}`);
+        } catch (e) {
+            return 
         }
         const structure = concatStructures(getAccession(this.alignments[0].target), ...targets.map(t => t.structure));
         const target = this.stage.addComponentFromObject(structure, { name: "targetStructure" });
@@ -471,7 +479,11 @@ END
                     // FIXME: pulchra probably should learn mmCIF
                     queryPdb = getPdbText(query);
                 }
+                // As pulchra loses the chain information, it could result in mismatch between selection and pulchra-generated pdb
+                // So we should store chain information of pdb structure information and recover it
+                const chains = storeChains(queryPdb)
                 queryPdb = await pulchra(queryPdb);
+                queryPdb = revertChainInfo(queryPdb, chains)
                 this.stage.removeComponent(query);
                 query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true, name: 'queryStructure'}); 
             }

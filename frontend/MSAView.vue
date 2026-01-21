@@ -1,5 +1,5 @@
 <template>
-<div class="msa-wrapper" ref="msaWrapper">
+<div class="msa-wrapper" ref="msaWrapper" @mouseover="onMouseOver" @mouseleave="onMouseLeave">
     <div class="msa-block" v-for="([start, end], i) in blockRanges">
         <!-- <SequenceLogo
             :sequences="getEntryRanges(start, end, makeGradients=false)"
@@ -9,15 +9,33 @@
         <!--
             <div class="msa-row" v-for="({name, aa, ss, seqStart, css}, j) in getEntryRanges(start, end)">
         -->
-        <template v-for="({name, aa, ss, seqStart, css}, j) in getEntryRanges(start, end)">
+        <template v-for="({name, aa, ss, indices, seqStart, css}, j) in getEntryRanges(start, end)">
             <span
                 class="header"
                 :title="name"
                 :style="headerStyle(j)"
                 @click="handleClickHeader($event, j)"
             >{{ name }}</span>
-            <div class="sequence-wrapper">
-                <span class="sequence" :style="css" v-html="insertHighlight(alphabet === 'aa' ? aa : ss, start, end)"></span>
+            <div class="sequence-wrapper" style="position: relative; z-index: 3;">
+                <span class="sequence" :style="$vuetify.theme.dark ? css : {'color': sequenceColor, 'font-weight': fontWeight}" 
+                >{{ alphabet == 'aa' ? aa : ss }}</span>
+            </div>
+            <div class="column-wrapper" v-if="j == 0"
+                style="position: absolute; 
+                height: 100%; display: flex;
+                flex-direction: row; justify-content: center; align-items: center;
+                grid-column: 2; user-select: none; 
+                z-index: 5; transform: translateX(-2px);" 
+                :style="{'width': 'calc((1ch + 4px) * ' + String(aa.length) +')'}"
+            >
+            <div v-for="(c, i) in indices" class="column-box" :data-index="c" :key="c" @click.stop="toggleHighlightColumn"></div>
+            </div>
+            <div class="row-wrapper" 
+                style="position: absolute; 
+                grid-column: 2; height: 1em; transform: translateX(-2px);" 
+                :style="{'grid-row': j+1, 'width': 'calc((1ch + 4px) * ' + String(aa.length) +')'}"
+            >
+                <div class="row-block" style="width: 100%; height: 100%; z-index: 2;" :style="css"></div>
             </div>
             <span class="count">{{ countSequence(aa, seqStart).toString()  }}</span>
         </template>
@@ -90,6 +108,10 @@ export default {
             headerLen: null,
             countLen: null,
             resizeObserver: null,
+            hoverTimer: null,
+            activeColumn: "",
+            pendingColumn: "",
+            ticking: false,
         }
     },
     props: {
@@ -103,7 +125,7 @@ export default {
         referenceStructure: { type: Number },
         colorScheme: { type: String, default: 'lddt' },
         maxHeaderWidth: { type: Number, default: 30 },
-        highlightColumn: { type: Number, default: -1 },
+        highlightedColumns: {type: Array},
     },
     mounted() {
         this.resizeObserver = new ResizeObserver(debounce(this.handleResize, 100)).observe(this.$refs.msaWrapper);
@@ -126,12 +148,24 @@ export default {
         lineLen: function() {
             this.$emit("lineLen", this.lineLen);
         },
+        mask() {
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    for (let id in this.selectedColumns) {
+                        this.$refs.msaWrapper
+                            .querySelector(`.column-box[data-index="${id}"]`)
+                            ?.classList.add('active-column')
+                    }
+                }, 0)
+            })
+        },
     },
     computed: {
         maskCumSum() {
             if (!this.mask) {
                 return [];
             }
+
             const result = [];
             let sum = 0;
             for (let i = 0; i < this.mask.length; i++) {
@@ -139,6 +173,21 @@ export default {
                 result.push(sum);
             }
             return result;
+        },
+        beforeMaskedIndices() {
+            if (!this.mask) {
+                return []
+            }
+
+            const res = []
+            let idx = 0
+            for (let v of this.mask) {
+                if (v) {
+                    res.push(idx)
+                }
+                idx++
+            }
+            return res
         },
         firstSequenceWidth() {
             const container = document.querySelector(".msa-block");
@@ -224,7 +273,7 @@ export default {
             }
         },
         emitGradients() {
-            const elements = document.getElementsByClassName("sequence"); 
+            const elements = document.getElementsByClassName("row-block"); 
             this.$emit(
                 "cssGradients",
                 Array.prototype.map.call(elements, element => element.style['background-image'])
@@ -244,6 +293,7 @@ export default {
                 name: entry.name,
                 aa: entry.aa.slice(start, end),
                 ss: entry.ss.slice(start, end),
+                indices: this.beforeMaskedIndices.slice(start, end),
                 seqStart: 0
             };
             for (let i = 0; i < start; i++) {
@@ -254,18 +304,6 @@ export default {
                 result.css = this.generateCSSGradient(start, end, result.ss);
             }
             return result;
-        },
-        insertHighlight(seq, start, end) {
-            if (this.highlightColumn == -1 || this.mask[this.highlightColumn] == 0) {
-                return seq;
-            }
-            let column = this.highlightColumn - this.maskCumSum[this.highlightColumn];
-            if (column >= start && column < end) {
-                let idx = column - start;
-                let newseq = seq.substring(0, idx) + '<strong>' + seq.substring(idx, idx + 1) + '</strong>' + seq.substring(idx + 1);
-                return newseq;
-            }
-            return seq;
         },
         getEntryRanges(start, end, makeGradients=true) {
             return Array.from(this.entries, entry => this.getEntryRange(entry, start, end, makeGradients));
@@ -309,14 +347,106 @@ export default {
             return {
                 backgroundImage: gradient,
                 // decrease width to account for weird font glyph spacing
-                backgroundSize: `calc(100% - 2px) 100%`,
+                backgroundSize: `100% 100%`,
                 backgroundPosition: 'left top',
                 backgroundAttachment: 'scroll',
                 backgroundClip: this.backgroundClip,
                 color: this.sequenceColor,
                 fontWeight: this.fontWeight,
             };
-        }
+        },
+        onMouseLeave() {
+            this.resetPreviewState()
+        },
+        onMouseOver(event) {
+            // console.log("fired");
+            const target = event.target.closest('.column-box')
+            if (!target) {
+                this?.resetPreviewState()
+                return
+            }
+            
+            const id = target.dataset.index
+            
+            if (id) {
+                this.pendingColumn = id
+                if (!this?.ticking) {
+                    this.ticking = true
+
+                    window.requestAnimationFrame(() => {
+                        this?.togglePreviewColumn()
+                        this.ticking = false
+                    })
+                }
+            } else {
+                this?.resetPreviewState()
+            }
+        },
+        setTimer(id) {
+            const binded = this.activateColumn.bind(this)
+            this.hoverTimer = setTimeout(() => {
+                this.activeColumn = id
+                binded(id)
+            }, 1000)
+        },
+        clearTimer() {
+            if (this.hoverTimer) {
+                clearTimeout(this.hoverTimer)
+                this.hoverTimer = null
+            }
+            this.activeColumn = ""
+        },
+        togglePreviewColumn() {
+            if (this.activateColumn == this.pendingColumn) return;
+
+            this?.clearTimer()
+            const wrapper = this.$refs.msaWrapper
+
+            // remove active column
+            const arr = wrapper?.querySelectorAll('.preview-column')
+            arr?.forEach(e => e.classList.remove('preview-column'))
+            this.$emit('changePreview', -1)
+
+            this.setTimer(this.pendingColumn)
+        },
+        resetPreviewState() {
+            this.clearTimer()
+            const wrapper = this.$refs.msaWrapper
+
+            const arr = wrapper?.querySelectorAll('.preview-column')
+            arr?.forEach(e => e.classList.remove('preview-column'))
+            this.$emit('changePreview', -1)
+        },
+        activateColumn(id) {
+            const wrapper = this.$refs.msaWrapper
+
+            wrapper?.querySelector(`.column-box[data-index="${id}"]`)?.classList.add('preview-column')
+            
+            this.$emit('changePreview', id)
+        },
+        toggleHighlightColumn(event) {
+            const value = event.target.classList.contains('active-column')
+            if (value) {
+                this.$emit('removeHighlight', Number(event.target.dataset.index))
+            } else {
+                this.$emit('addHighlight', Number(event.target.dataset.index))
+            }
+        },
+        addHighlightColumn(idx) {
+            const wrapper = this.$refs.msaWrapper
+            wrapper?.querySelector(`.column-box[data-index="${idx}"]`)?.classList.add('active-column')
+        },
+        removeHighlightColumn(idx) {
+            const wrapper = this.$refs.msaWrapper
+            wrapper?.querySelector(`.column-box[data-index="${idx}"]`)?.classList.remove('active-column')
+        },
+        clearHighlightColumns() {
+            const wrapper = this.$refs.msaWrapper
+            const arr = wrapper?.querySelectorAll('.active-column')
+            for (let el of arr) {
+                el.classList.remove('active-column')
+            }
+        },
     },
 }
 </script>
@@ -329,15 +459,18 @@ export default {
     font-family: monospace;
     white-space: nowrap;
     width: 100%;
+    user-select: none;
 }
 .msa-block {
     margin-bottom: 1.5em;
     display: grid;
     grid-template-columns: fit-content(20%) 5fr auto;
+    grid-auto-rows: 1em;
     width: 100%;
     justify-content: space-between;
     gap: 0px 16px;
     line-height: 1em;
+    position: relative;
 }
 .msa-block:last-child {
     margin-bottom: 0;
@@ -389,5 +522,93 @@ export default {
 }
 .count {
     text-align: right;
+}
+.column-box {
+    position: relative;
+    width: calc(1ch + 4px);
+    display: block;
+    height: 100%;
+    user-select: none;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: background-color 0.4s cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+.column-box::before {
+    content: "";
+    position: absolute;
+    width: 0;
+    height: 0;
+    left: calc(50% - 4px);
+    top: -12px;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 6px solid rgba(0, 0, 0, 0.7);
+    opacity: 0;
+    transition: opacity 0.4s cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+.column-box.preview-column:not(.active-column) {
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+.column-box.active-column {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.column-box.preview-column:not(.active-column)::before {
+    opacity: 0.5;
+}
+
+.column-box.active-column::before {
+    opacity: 1;
+}
+
+/* .column-box:nth-child(odd) {
+    background-color: rgba(0,0,0,0.05);
+}
+.column-box:nth-child(even) {
+    background-color: transparent;
+} */
+.column-box:hover {
+    box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.5);
+}
+.column-box:not(.active-column):active {
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.column-box.active-column:active {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.theme--dark .column-box:hover {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.theme--dark .column-box.preview-column:not(.active-column) {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.theme--dark .column-box:not(.active-column):active {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme--dark .column-box.active-column {
+    background-color: rgba(255, 255, 255, 0.4);
+}
+.theme--dark .column-box.active-column:active {
+    background-color: rgba(255, 255, 255, 0.5);
+}
+
+.theme--dark .column-box::before {
+    border-top: 6px solid rgba(255, 255, 255, 0.7);
+}
+
+.theme--dark .column-box.preview-column:not(.active-column)::before {
+    opacity: 0.5;
+}
+
+.theme--dark .column-box.active-column::before {
+    opacity: 1;
 }
 </style>

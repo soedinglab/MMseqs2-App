@@ -22,6 +22,17 @@
             </template>
             <template slot="content">
                 <div class="upload-outer-container w-44 gr-2 mb-2">
+                    <v-alert
+                        v-model="alert"
+                        border="left"
+                        close-text="Close Alert"
+                        color="primary"
+                        text
+                        type="info"
+                        dismissible
+                    >
+                    <strong>{{ skippedEntries }} duplicated entries</strong> have been skipped
+                    </v-alert>
                     <DragUploadBox
                             class="drag-upload-box"
                             @uploadedFiles="upload"
@@ -38,7 +49,7 @@
                             @click:close="removeQuery(index)"
                         >
                             {{ q.name }}
-                        </v-chip>                           
+                        </v-chip>
                     </div>
                 </div>
 
@@ -131,6 +142,9 @@ import { HistoryMixin } from './lib/HistoryMixin.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
 import DragUploadBox from "./DragUploadBox.vue";
+import { BlobDatabase } from "./lib/BlobDatabase.js";
+
+const db = BlobDatabase();
 
 export default {
     name: "FoldMasonSearch",
@@ -155,13 +169,16 @@ export default {
             queries: [],   // [ { name: "file", text: "ATOM..." }, { name: "file", text: "ATOM..." } ...]
             inFileDrag: false,
             accessionLoading: false,
+            alert: false,
+            skippedEntries: 0,
         };
     },
     async mounted() {
         if (this.preloadAccessions.length > 0) {
             this.queries = [];
-            return;
         }
+        this.retrieveAndClean()
+        return;
     },
     computed: {
         alignDisabled() {
@@ -253,7 +270,7 @@ export default {
         async removeQuery(index) {
             this.queries.splice(index, 1);
         },
-        async addFiles(newFiles) {
+        addFiles(newFiles) {
             for (const newFile of newFiles) {
                 if (!this.fileNameSet.has(newFile.name)) {
                     this.queries.push(newFile);
@@ -297,6 +314,89 @@ export default {
             );
             fr.readAsText(file)
         },
+        resetParams() {
+            this.params = structuredClone(defaultParams);
+        },
+        async retrieveAndClean() {
+            const clean = async (size) => {
+                // return
+                await db.removeItem('msa.query.size')
+                await db.removeItem('msa.query.names')
+                for (let i = 0; i < size; i++) {
+                    await db.removeItem(`msa.query.chunk:${i}`)
+                }
+            }
+            
+            // await clean(2)
+            // return
+
+            const SEP = '\0'
+
+            let size = await db.getItem('msa.query.size')
+            if (!size || size.length == 0) { 
+                await clean()
+                return 
+            }
+
+            size = parseInt(size)
+            
+            const texts = []
+            let names = await db.getItem('msa.query.names')
+            if (!names || names.length == 0) {
+                console.warn("MSA query name has not been passed")
+                await clean(size)
+                return
+            }
+            names = names.split(SEP)
+
+            for (let i = 0; i < size; i++) {
+                const entry = await db.getItem(`msa.query.chunk:${i}`)
+                if (!entry || entry.length == 0) {
+                    console.warn(`MSA query chunk ${i} is missing`)
+                    await clean(size)
+                    return
+                }
+                
+                texts.push(...( ( await entry.text() ).split(SEP) ))
+            }
+
+            if (names.length != texts.length) {
+                console.warn("MSA query entries and names size differs")
+                console.log(`names length: ${names.length}`)
+                console.log(`texts length: ${texts.length}`)
+                console.log(texts)
+                await clean(size)
+                return
+            }
+
+            const files = []
+
+            for (let i = 0; i < texts.length; i++) {
+                files.push({text: texts[i], name: names[i]})
+            }
+
+            // Calculate overlapping entries
+            files.sort((a, b) => {return a.name.localeCompare(b.name)})
+            let dupCount = 0
+            let prev = ""
+            
+            for (let f of files) {
+                if (f.name == prev) {
+                    dupCount++
+                } else {
+                    prev = f.name
+                }
+            }
+
+            if (dupCount > 0) {
+                this.alert = true
+                this.skippedEntries = dupCount
+            }
+
+            this.addFiles(files)
+
+            await clean(size)
+        }
     }
 };
 </script>

@@ -4,9 +4,10 @@
             <v-flex xs12>
             <panel class="msa-panel">
                 <template slot="header">
-                    <template v-if="!$LOCAL && !msaData">
-                        <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
-                        <small class="ticket">{{ ticket }}</small>
+                    <template v-if="!$LOCAL && msaData">
+                        <!-- <span  class="hidden-sm-and-down">Results for job:&nbsp;</span>
+                        <small class="ticket">{{ ticket }}</small> -->
+                        <NameField :ticket="ticket"/>
                     </template>
                     <template v-else>
                         <span  class="hidden-sm-and-down">Results:&nbsp;</span>
@@ -61,11 +62,24 @@
                         :scores="msaData.scores"
                         :statistics="msaData.statistics"
                         :tree="msaData.tree"
+                        :ticket="ticket"
+                        ref="msa"
+                        @changedReference="selectedReference=$event"
+                        @changedSelection="selectedColumns=$event"
                     />
                 </template>
 
                 </panel>
             </v-flex>
+            <NavigationButton :scrollOffsetArr="[]"/>
+            <SelectToSendPanelFoldMason 
+                v-if="msaData"
+                :entries="msaData.entries" :ticket="ticket"
+                :targetIndex="selectedReference"
+                :selectedColumns="selectedColumns"
+                :selectedCounts="selectedColumns.length"
+                @clearAll="clearSelection"
+            />
         </v-layout>
     </v-container>
 </template>
@@ -77,16 +91,21 @@ import makeZip from './lib/zip.js'
 import MSA from './MSA.vue';
 import MSAView from './MSAView.vue';
 import Panel from './Panel.vue';
+import NavigationButton from './NavigationButton.vue';
+import SelectToSendPanelFoldMason from './SelectToSendPanelFoldMason.vue';
+import NameField from './NameField.vue';
 
 export default {
     name: 'ResultFoldMason',
     tool: 'foldmason',
-    components: { MSA, MSAView, Panel },
+    components: { MSA, MSAView, Panel, NavigationButton, SelectToSendPanelFoldMason, NameField},
     data() {
         return {
             ticket: "",
             error: "",
-            msaData: null
+            msaData: null,
+            selectedReference: 0,
+            selectedColumns: [],
         }
     },
     mounted() {
@@ -164,6 +183,9 @@ export default {
                 this.msaData = null;
             }
         },
+        clearSelection() {
+            this.$refs.msa.clearSelection()
+        }
     }
 };
 </script>
