@@ -279,7 +279,7 @@ export default {
                 return getResidueIndices
                     (this.entries[this.targetIndex].aa, 
                         this.selectedColumns)
-                    .map((i) => 'A'+String(i))
+                    .map((i) => 'A'+String(i+1))
                     .join(", ")
             }
         },
