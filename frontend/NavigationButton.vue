@@ -58,10 +58,6 @@ export default {
     }
   },
   props: {
-    selectedDatabases: {
-      type: Number,
-      default: -1
-    },
     scrollOffsetArr: {
       type: Array,
       default: []
@@ -118,7 +114,7 @@ export default {
             this.enableScrollTop = false
         }
 
-        if (this.selectedDatabases != 0 || this.scrollOffsetArr?.length < 2) {
+        if (this.scrollOffsetArr?.length < 2) {
             this.enableScrollNext = false
             this.enableScrollPrev = false
             return
