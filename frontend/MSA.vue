@@ -1,7 +1,7 @@
 <template>
 <div>
     <v-container fluid pa-2 style="overflow: visible; height: 100%;">
-        <v-row>
+        <v-row ref="topRow">
             <v-col class="flex-col">
                 <v-card style="height: 100%">
                     <v-card-title>Summary</v-card-title>
@@ -44,6 +44,28 @@
                         @newStructureSelection="handleNewStructureViewerSelection"
                         @newStructureReference="handleNewStructureViewerReference"
                     />
+                </v-card>
+            </v-col>
+            <v-col class="flex-col">
+                <v-card class="fill-height" style="position: relative;">
+                    <v-card-title style="position: absolute; left: 0; top: 0; margin: 0; padding: 16px; z-index: 1;">Structure</v-card-title>
+                    <div style="padding: 10px; height: 100%; width: 100%;" ref="originalWrapper">
+                        <StructureViewerMSA
+                            :entries="entries"
+                            :selection="structureViewerSelection"
+                            :reference="structureViewerReference"
+                            :mask="mask"
+                            :selectedColumns="selectedColumns"
+                            :previewColumn="previewColumn"
+                            @loadingChange="handleStructureLoadingChange"
+                            @addHighlight="pushActiveIndex"
+                            @removeHighlight="spliceActiveIndex"
+                            ref="structViewer"
+                        />
+                    </div>
+                    <v-card-text v-if="structureViewerSelection.length == 0" style="position: absolute; top: calc(50% - 27px); left: 0; text-align: center;">
+                        No structures loaded.
+                    </v-card-text>
                 </v-card>
             </v-col>
         </v-row>
@@ -121,10 +143,12 @@
                 </v-col>
                 <div class="pl-2">
                     
-                    <v-tooltip bottom transition="fade-transition">
+                    <v-tooltip bottom transition="fade-transition"
+                    nudge-left="48px" nudge-top="4px" color="primary"
+                    >
                         <template v-slot:activator="{on, attrs}">
-                            <button 
-                                @click.stop="toggleView"
+                            <!-- <button 
+                                
                                 type="button"
                                 v-bind="attrs" v-on="on" 
                                 class="v-btn v-btn--icon v-btn--round v-btn--text v-size--x-large structure-panel-btn"
@@ -141,10 +165,15 @@
                                     </svg>
                                     </span>
                                 </span>
-                            </button>
+                            </button> -->
+                            <v-btn :outlined="!showViewer" color="primary" v-bind="attrs" v-on="on"
+                                @click.stop="toggleView" fab dark
+                            >
+                                <v-icon>{{ $MDI.Monomer }}</v-icon>
+                            </v-btn>
                         </template> 
                         <span>
-                            {{ showViewer ? 'Hide' : 'Show' }} structure viewer
+                            {{ showViewer ? 'Hide' : 'Show' }} floating viewer
                         </span>
                     </v-tooltip>
                     <v-btn 
@@ -185,46 +214,55 @@
     </v-container>
     
     <portal>
-        <v-scale-transition
-            origin="center center 0"
+        <v-fade-transition
         >
             <div
-                id="floating-viewer" v-show="showViewer"
+                id="floating-viewer" v-show="showViewerCondition"
              >
-                 <v-card style="position: relative; width: 100%; height: 100%; padding: 16px" class="elevation-12">
-                     <div 
-                         style="display: flex; flex-direction: row; justify-content: space-between; align-items: center;"
-                         >
-                         <v-icon style="display: block;" class="drag-handle">
-                             {{ $MDI.CursorMove }}
-                         </v-icon>
-                         <!-- <v-card-title>Structure</v-card-title> -->
-                         <v-btn icon @click="showViewer = false" style="display: block;">
-                             <v-icon>
-                                 {{ $MDI.CloseCircleOutline }}
-                             </v-icon>
-                         </v-btn>
-                     </div>
-                     <div style="padding: 10px 20px 10px 20px; height: calc(100% - 36px); width: 100%; position: relative">
-                         <StructureViewerMSA
-                                 :entries="entries"
-                                 :selection="structureViewerSelection"
-                                 :reference="structureViewerReference"
-                                 :mask="mask"
-                                 :selectedColumns="selectedColumns"
-                                 :previewColumn="previewColumn"
-                                 @loadingChange="handleStructureLoadingChange"
-                                 @addHighlight="pushActiveIndex"
-                                 @removeHighlight="spliceActiveIndex"
-                                 ref="structViewer"
-                                 />
-                                 <v-card-text v-if="structureViewerSelection.length == 0" style="position: absolute; top: calc(50% - 27px); left: 0; text-align: center;">
-                                     No structures loaded.
-                                 </v-card-text>
-                     </div>
-                 </v-card>
+                <v-card style="position: relative; width: 100%; height: 100%; padding: 8px" class="elevation-12">
+                    <div 
+                        style="display: flex; 
+                            flex-direction: row; 
+                            justify-content: space-between; 
+                            align-items: center;"
+                    >
+                        <div style="
+                            width: 36px;
+                            height: 36px;
+                            display: flex; 
+                            justify-content: center; 
+                            align-items: center;" class="drag-handle">
+                            <v-icon style="display: block;">
+                                {{ $MDI.CursorMove }}
+                            </v-icon>
+                        </div>
+                        <!-- <v-card-title>Structure</v-card-title> -->
+                        <v-btn icon @click="toggleView" style="display: block;">
+                            <v-icon>
+                                {{ $MDI.CloseCircleOutline }}
+                            </v-icon>
+                        </v-btn>
+                    </div>
+                    <div style="padding: 6px; height: calc(100% - 36px); width: 100%; position: relative" ref="floatingWrapper">
+                        <!-- <StructureViewerMSA
+                            :entries="entries"
+                            :selection="structureViewerSelection"
+                            :reference="structureViewerReference"
+                            :mask="mask"
+                            :selectedColumns="selectedColumns"
+                            :previewColumn="previewColumn"
+                            @loadingChange="handleStructureLoadingChange"
+                            @addHighlight="pushActiveIndex"
+                            @removeHighlight="spliceActiveIndex"
+                            ref="structViewer"
+                        /> -->
+                        <v-card-text v-if="structureViewerSelection.length == 0" style="position: absolute; top: calc(50% - 27px); left: 0; text-align: center;">
+                            No structures loaded.
+                        </v-card-text>
+                    </div>
+                </v-card>
             </div>
-        </v-scale-transition>
+        </v-fade-transition>
     </portal>
 </div>
 </template>
@@ -336,6 +374,7 @@ export default {
             showViewer: true,
             previewColumn: -1,
             selectedColumns: [],
+            showViewerCondition: false,
         }
     },    
     watch: {
@@ -354,6 +393,7 @@ export default {
         this.structureViewerSelection = [0, 1];
         this.treeLabelWidth = this.$refs.treeLabel.clientWidth - 16;
         this.treeLabelHeight = this.$refs.treeLabel.clientHeight - 32;
+        this.toggleView = this.toggleView.bind(this)
         this.$nextTick(() => {
             setTimeout(() => {
                 this.initInteract()
@@ -408,9 +448,13 @@ export default {
         },
         settingsBtnIcon() {
             return this.settingsPanelOpen ? MDI.ChevronLeft : MDI.ChevronRight;
-        }
+        },
     },
     methods: {
+        log(v) {
+            console.log(v)
+            return v
+        },
         toggleSettingsPanel() {
             this.settingsPanelOpen = !this.settingsPanelOpen;
         },
@@ -507,6 +551,9 @@ export default {
         },
         handleScroll() {
             const box = this.$refs.msaView.$el.getBoundingClientRect()
+            const scrollOffset = window.scrollY
+            const rowHeight = this.$refs.topRow.scrollHeight
+
             const numBlocks = Math.ceil(this.alnLen / this.lineLen);
             const blockSize = box.height / numBlocks;
             const top = window.scrollY + box.top;  // top of the msa relative to entire document
@@ -519,6 +566,34 @@ export default {
             } else {
                 this.blockIndex = Math.floor((scroll - top) / blockSize);
             }
+            
+            this.showViewerCondition = this.showViewer 
+                && scrollOffset >= rowHeight
+
+            if (
+                this.showViewerCondition
+            ) {
+                if (!this.$refs.floatingWrapper
+                    .contains(this.$refs.structViewer.$el)) {
+                    this.$refs.floatingWrapper.appendChild(this.$refs.structViewer.$el)
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            this.$refs.structViewer?.handleResize?.()
+                        }, 0)
+                    })
+                }
+            } else {
+                if (!this.$refs.originalWrapper
+                    .contains(this.$refs.structViewer.$el)) {
+                    this.$refs.originalWrapper.appendChild(this.$refs.structViewer.$el)
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            this.$refs.structViewer?.handleResize?.()
+                        }, 0)
+                    })
+                }
+            }
+            
         },
         handleLineLen(lineLen) {
             this.lineLen = lineLen;
@@ -578,11 +653,11 @@ export default {
             }).resizable({
                 edges: { left: true, right: true, bottom: true, top: true },
                 ignoreFrom: '.drag-handle',
-                margin: 16,
+                margin: 8,
 
                 modifiers: [
                     interact.modifiers.restrictSize({
-                        min: { width: 300, height: 320 },
+                        min: { width: 300, height: 310 },
                         max: { width: 750, height: 650 }
                     })
                 ],
@@ -611,15 +686,24 @@ export default {
             const viewer = document.getElementById('floating-viewer')
             position.x = 0
             position.y = 0
-            viewer.style.width = this.$vuetify.breakpoint.xsOnly ? '300px' : '400px'
-            viewer.style.height = this.$vuetify.breakpoint.xsOnly ? '320px' : '410px'
-            viewer.style.transform = 'translate(0px, 0px)'
-            if (this.showViewer) this.$refs.structViewer?.stage?.handleResize()
+            viewer.style.width = this.$vuetify.breakpoint.smAndDown ? '300px' : '360px'
+            viewer.style.height = this.$vuetify.breakpoint.smAndDown ? '310px' : '380px'
+            viewer.style.transform = ''
+            if (this.showViewerCondition) this.$refs.structViewer?.stage?.handleResize()
         },
         toggleView() {
+            const scrollOffset = window.scrollY
+            const rowHeight = this.$refs.topRow.scrollHeight
+            const stage = this.$refs.structViewer
             if (!this.showViewer) {
                 this.showViewer = true
-                const stage = this.$refs.structViewer
+                this.showViewerCondition = this.showViewer 
+                    && scrollOffset >= rowHeight
+                if (this.showViewerCondition
+                    && !this.$refs.floatingWrapper.contains(stage.$el)
+                ) {
+                    this.$refs.floatingWrapper.appendChild(stage.$el)
+                }
                 this.$nextTick(() => {
                     setTimeout(() => {
                         stage?.handleResize?.()
@@ -627,6 +711,16 @@ export default {
                 })
             } else {
                 this.showViewer = false
+                this.showViewerCondition = false
+                if (!this.$refs.originalWrapper.contains(stage.$el)
+                ) {
+                    this.$refs.originalWrapper.appendChild(stage.$el)
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            stage?.handleResize?.()
+                        }, 0)
+                    })
+                }
             }
         },
         pushActiveIndex(idx) {
@@ -809,8 +903,8 @@ div.input-div .v-input__slot {
 #floating-viewer {
     position: fixed;
     display: block;
-    width: 400px;
-    height: 410px;
+    width: 360px;
+    height: 380px;
     bottom: 40px;
     right: 108px;
     touch-action: none;
@@ -826,6 +920,13 @@ div.input-div .v-input__slot {
 
 #floating-viewer > div {
     box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2), 0px 6px 10px 0px rgba(0, 0, 0, 0.14), 0px 1px 18px 0px rgba(0, 0, 0, 0.12);
+}
+
+@media only screen and (max-width: 960px) {
+    #floating-viewer {
+        width: 300px;
+        height: 310px;
+    }
 }
 
 .drag-handle {
