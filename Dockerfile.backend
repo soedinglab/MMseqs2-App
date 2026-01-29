@@ -20,8 +20,8 @@ ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-sse41.tar.gz .
 ARG FOLDMASON_HASH=foldmason
 ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-avx2.tar.gz .
 ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-sse2.tar.gz .
-# ARG FOLDDISCO_HASH=folddisco
-ARG FOLDDISCO_HASH=archive/7514114fb6c444c0483e20838a0a06688304918e
+ARG FOLDDISCO_HASH=folddisco
+# ARG FOLDDISCO_HASH=archive/7514114fb6c444c0483e20838a0a06688304918e
 ONBUILD ADD https://mmseqs.com/${FOLDDISCO_HASH}/folddisco-linux-x86_64.tar.gz .
 ONBUILD ADD https://mmseqs.com/foldcomp/foldcomp-linux-x86_64.tar.gz .
 

@@ -1,0 +1,49 @@
+{
+	"app": "foldseek",
+    "verbose": true,
+    "server" : {
+        "address"    : "127.0.0.1:8081",
+        "pathprefix" : "/api/",
+        "dbmanagment": false,
+        "cors"       : true,
+		"checkold"   : true
+    },
+    "worker": {
+        "gracefulexit": false,
+        "paralleldatabases": 1
+    },
+    "paths" : {
+        "databases"    : "/Users/steineggerlab/Desktop/lab/repo/MMseqs2-App/resources/databases",
+        "pdb100"    : "/Users/steineggerlab/Desktop/lab/repo/MMseqs2-App/resources/pdb100",
+        "results"      : "/Users/steineggerlab/Desktop/lab/repo/MMseqs2-App/resources/jobs",
+        "foldseek"     : "/Users/steineggerlab/Desktop/lab/repo/MMseqs2-App/resources/mac/foldseek",
+        "foldmason"     : "/Users/steineggerlab/Desktop/lab/repo/MMseqs2-App/resources/mac/foldseek",
+		"folddisco"     : "/Users/steineggerlab/Desktop/lab/repo/MMseqs2-App/resources/mac/folddisco",
+		"foldcomp"     : "/Users/steineggerlab/Desktop/lab/repo/MMseqs2-App/resources/mac/foldcomp",
+        "mmseqs"       : "~mmseqs"
+    },
+    "local" : {
+        "workers"  : 1,
+		"checkold" : true
+    },
+    "mail" : {
+        "mailer" : {
+            "type" : "null"
+        },
+        "sender"    : "mail@example.org",
+        "templates" : {
+            "success" : {
+                "subject" : "Done -- %s",
+                "body"    : "%s"
+            },
+            "timeout" : {
+                "subject" : "Timeout -- %s",
+                "body"    : "%s"
+            },
+            "error"   : {
+                "subject" : "Error -- %s",
+                "body"    : "%s"
+            }
+        }
+    }
+}

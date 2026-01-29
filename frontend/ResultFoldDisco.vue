@@ -623,7 +623,6 @@ export default {
                     let localData = this.$root.userData;
                     hits = localData[this.$route.params.entry];
                 } else {
-                    // const response = await this.$axios.get("api/result/folddisco/" + this.ticket); //Rachel: recover
                     const response = await this.$axios.get("api/result/folddisco/" + this.ticket, {
                         headers: {
                             'Cache-Control': 'no-cache'
