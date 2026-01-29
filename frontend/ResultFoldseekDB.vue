@@ -469,7 +469,7 @@ export default {
     },
     computed: {
         origIndicesArr() {
-            return this.entry ? Array.from({length: this.entryLength}, (_, i) => i) : []
+            return this.entry ? Object.keys(this.entry.alignments).map(i => Number(i)) : []
         },
         db() {
             return this.entry ? this.entry.db : ""
