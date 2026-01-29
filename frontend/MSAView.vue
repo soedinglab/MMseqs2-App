@@ -397,7 +397,7 @@ export default {
             this.activeColumn = ""
         },
         togglePreviewColumn() {
-            if (this.activateColumn == this.pendingColumn) return;
+            if (this.activeColumn == this.pendingColumn) return;
 
             this?.clearTimer()
             const wrapper = this.$refs.msaWrapper
@@ -417,12 +417,25 @@ export default {
             arr?.forEach(e => e.classList.remove('preview-column'))
             this.$emit('changePreview', -1)
         },
-        activateColumn(id) {
+        activateColumn(id, move=false) {
             const wrapper = this.$refs.msaWrapper
-
-            wrapper?.querySelector(`.column-box[data-index="${id}"]`)?.classList.add('preview-column')
             
-            this.$emit('changePreview', id)
+            const arr = wrapper?.querySelectorAll('.preview-column')
+            arr?.forEach(e => e.classList.remove('preview-column'))
+
+            const el = wrapper?.querySelector(`.column-box[data-index="${id}"]`)
+            el?.classList.add('preview-column')
+            if (move) {
+                if (el) {
+                window.scrollTo({
+                    top: el.getBoundingClientRect().top + window.scrollY - (180),
+                    left: 0,
+                    behavior: 'smooth'
+                })
+            }
+            } else {
+                this.$emit('changePreview', id)
+            }
         },
         toggleHighlightColumn(event) {
             const value = event.target.classList.contains('active-column')
@@ -432,9 +445,17 @@ export default {
                 this.$emit('addHighlight', Number(event.target.dataset.index))
             }
         },
-        addHighlightColumn(idx) {
+        addHighlightColumn(idx, move) {
             const wrapper = this.$refs.msaWrapper
-            wrapper?.querySelector(`.column-box[data-index="${idx}"]`)?.classList.add('active-column')
+            const el = wrapper?.querySelector(`.column-box[data-index="${idx}"]`)
+            el?.classList.add('active-column')
+            if (move && el) {
+                window.scrollTo({
+                    top: el.getBoundingClientRect().top + window.scrollY - (180),
+                    left: 0,
+                    behavior: 'smooth'
+                })
+            }
         },
         removeHighlightColumn(idx) {
             const wrapper = this.$refs.msaWrapper

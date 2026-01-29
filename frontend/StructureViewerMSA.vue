@@ -139,6 +139,9 @@ export default {
         curReferenceIndex: -1,  // index in ALL sequences, not just visualised subset - used as key,
         schemeId: null, // NGL colorscheme,
         selectedColumn: -1,
+        ticking: false,
+        hoverTimer: null,
+        pendingColumn: -1,
     }),
     props: {
         entries: { type: Array, required: true },
@@ -163,6 +166,9 @@ export default {
     },
     mounted() {
         this.updateEntries(this.selection, []);
+        this.stage.setParameters({
+            hoverTimeout: 100,
+        })
         this.stage.signals.clicked.add((pickingProxy) => {
             if (!pickingProxy) {
                 // this.selectedColumn = -1;
@@ -198,6 +204,30 @@ export default {
             //     }, 0)
             // })
         });
+
+        this.stage.signals.hovered.add((pickingProxy) => {
+            if (!pickingProxy || !pickingProxy.atom) {
+                this.clearTimer()
+                return;
+            }
+            const atom = pickingProxy.atom
+            let index = parseInt(atom.structure.name.replace("key-", ""));
+            let alnPos = getAlignmentPos(this.entries[index].aa, atom.resno-1);
+
+            if (alnPos < 0) {
+                this.clearTimer()
+            } else {
+                this.pendingColumn = alnPos
+
+                if (!this.ticking) {
+                    this.ticking = true
+                    window.requestAnimationFrame(() => {
+                        this.togglePreview()
+                        this.ticking = false
+                    })
+                }
+            }
+        })
     },
     methods: {
         resetView() {
@@ -554,7 +584,26 @@ ENDMDL
             const range = 8
             let sele = String(resIdx + 1 - range) + "-" + (resIdx - 1 + range)
             comp.autoView(sele, 200)
-        }
+        },
+        setTimer(idx) {
+            this.hoverTimer = setTimeout(() => {
+                console.log(idx, "fired")
+                this.$emit('changePreview', idx, true)
+            }, 1000)
+        },
+        clearTimer() {
+            if (this.hoverTimer) {
+                clearTimeout(this.hoverTimer)
+                this.hoverTimer = null
+            }
+            this.$emit('changePreview', -1, true)
+        },
+        togglePreview() {
+            if (this.previewColumn == this.pendingColumn) return
+            
+            this.clearTimer()
+            this.setTimer(this.pendingColumn)
+        },
     },
     watch: {
         '$vuetify.theme.dark': function() {
