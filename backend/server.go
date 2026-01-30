@@ -879,7 +879,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 		} else { // If it requests a target structure
 			var pdbpath string
-			if strings.HasPrefix(database, "pdb100") {
+			if strings.HasPrefix(database, "pdb") {
 				pdbpath = filepath.Join(config.Paths.Pdb100, tarId)
 			} else {
 				pdbpath = filepath.Join(resultBase, "pdb_"+database, tarId+".pdb")
