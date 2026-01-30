@@ -1,36 +1,36 @@
 <template>
-    <v-sheet color="transparent" style="position: fixed; width: 200px; right: 16px; bottom: 16px; z-index: 99998; align-items: center; justify-content: flex-end;"
-    class="d-flex pa-2">
-      <v-flex shrink style="flex-direction: row;">
-        <v-tooltip top>
-          <template v-slot:activator='{on,attrs}'>
-            <v-fab-transition>
-              <v-btn small v-bind="attrs" v-on="on" fab 
-                v-show="enableScrollPrev" @click="goTo(scrollPrevTarget)">
-                <v-icon>{{ $MDI.ChevronUp }}</v-icon>
-              </v-btn>
-            </v-fab-transition>
-          </template>
-          <span>Scroll to prev. cluster</span>
-        </v-tooltip>
-        <v-tooltip top>
-          <template v-slot:activator='{on,attrs}'>
-            <v-fab-transition>
-              <v-btn small v-bind="attrs" v-on="on" fab 
-              v-show="enableScrollNext" @click="goTo(scrollNextTarget)">
-              <v-icon>{{ $MDI.ChevronDown }}</v-icon>
-              </v-btn>
-            </v-fab-transition>
-          </template>
-          <span>Scroll to next cluster</span>
-        </v-tooltip>
+  <v-sheet color="transparent" style="position: fixed; right: 16px; bottom: 16px; z-index: 99998; align-items: center; justify-content: flex-end;"
+  class="d-flex pa-2">
+    <v-flex class="mr-3" shrink style="flex-direction: row;" v-if="scrollOffsetArr.length > 0">
+      <v-tooltip top>
+        <template v-slot:activator='{on,attrs}'>
+          <v-fab-transition>
+            <v-btn small v-bind="attrs" v-on="on" fab 
+              v-show="enableScrollPrev" @click="goTo(scrollPrevTarget)">
+              <v-icon>{{ $MDI.ChevronUp }}</v-icon>
+            </v-btn>
+          </v-fab-transition>
+        </template>
+        <span>Scroll to prev. cluster</span>
+      </v-tooltip>
+      <v-tooltip top>
+        <template v-slot:activator='{on,attrs}'>
+          <v-fab-transition>
+            <v-btn small v-bind="attrs" v-on="on" fab 
+            v-show="enableScrollNext" @click="goTo(scrollNextTarget)">
+            <v-icon>{{ $MDI.ChevronDown }}</v-icon>
+            </v-btn>
+          </v-fab-transition>
+        </template>
+        <span>Scroll to next cluster</span>
+      </v-tooltip>
     </v-flex>
     <v-tooltip top color="primary">
       <template v-slot:activator='{on,attrs}'>
         <v-fab-transition>
-          <v-btn class="ml-3" color="primary" fab v-show="enableScrollTop" @click="goTo(0)" v-bind="attrs" v-on="on">
+          <v-btn color="primary" fab v-show="enableScrollTop" @click="goTo(0)" v-bind="attrs" v-on="on">
             <v-icon>{{ $MDI.DoubleChevronUp }}</v-icon>
-        </v-btn>
+          </v-btn>
         </v-fab-transition>
       </template>
       <span>Scroll to top</span>

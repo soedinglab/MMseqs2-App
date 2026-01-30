@@ -2,7 +2,7 @@
     <div>
         <!-- For displaying number of selected entries and buttons to switch -->
         <v-fade-transition>
-            <v-sheet color="transparent" :style="{'position': 'fixed', 'width': $vuetify.breakpoint.smAndDown ? '80%' : '40%', 
+            <v-sheet color="transparent" :style="{'position': 'fixed', 'width': $vuetify.breakpoint.smAndDown ? 'fit-content' : '40%', 
             'left': $vuetify.breakpoint.smAndDown ? '16px' : '30%',
             'bottom': '16px', 'z-index': 99998, 'align-items': 'center', 'justify-content': $vuetify.breakpoint.smAndDown ? 'flex-start' : 'space-between', 'opacity': loading ? 0.4 : 1}" 
             class="d-flex pa-2" v-if="targetIndex >= 0" 

@@ -417,7 +417,7 @@ export default {
             arr?.forEach(e => e.classList.remove('preview-column'))
             this.$emit('changePreview', -1)
         },
-        activateColumn(id, move=false) {
+        activateColumn(id, fromUpward=false, move=false) {
             const wrapper = this.$refs.msaWrapper
             
             const arr = wrapper?.querySelectorAll('.preview-column')
@@ -431,9 +431,8 @@ export default {
                     top: el.getBoundingClientRect().top + window.scrollY - (180),
                     left: 0,
                     behavior: 'smooth'
-                })
-            }
-            } else {
+                })}
+            } else if (!fromUpward) {
                 this.$emit('changePreview', id)
             }
         },

@@ -62,6 +62,7 @@
                             @removeHighlight="spliceActiveIndex"
                             @changePreview="changePreview"
                             ref="structViewer"
+                            id="structure-viewer"
                         />
                     </div>
                     <v-card-text v-if="structureViewerSelection.length == 0" style="position: absolute; top: calc(50% - 27px); left: 0; text-align: center;">
@@ -227,7 +228,7 @@
                             justify-content: space-between; 
                             align-items: center;"
                     >
-                        <div style="
+                        <!-- <div style="
                             width: 36px;
                             height: 36px;
                             display: flex; 
@@ -236,7 +237,8 @@
                             <v-icon style="display: block;">
                                 {{ $MDI.CursorMove }}
                             </v-icon>
-                        </div>
+                        </div> -->
+                        <div class="drag-handle" style="flex-grow: 1; align-self: stretch;"/>
                         <!-- <v-card-title>Structure</v-card-title> -->
                         <v-btn icon @click="toggleView" style="display: block;">
                             <v-icon>
@@ -257,7 +259,7 @@
                             @removeHighlight="spliceActiveIndex"
                             ref="structViewer"
                         /> -->
-                        <v-card-text v-if="structureViewerSelection.length == 0" style="position: absolute; top: calc(50% - 27px); left: 0; text-align: center;">
+                        <v-card-text v-if="structureViewerSelection.length == 0" style="position: absolute; top: calc(50% - 45px); left: 0; text-align: center; z-index: 1;">
                             No structures loaded.
                         </v-card-text>
                     </div>
@@ -568,9 +570,11 @@ export default {
                 this.blockIndex = Math.floor((scroll - top) / blockSize);
             }
             
+            if (!!document.fullscreenElement) return
+
             this.showViewerCondition = this.showViewer 
                 && scrollOffset >= rowHeight
-
+            
             if (
                 this.showViewerCondition
             ) {
@@ -731,7 +735,7 @@ export default {
                 this.selectedColumns.shift()
             }
             this.$emit('changedSelection', this.selectedColumns)
-            this.$refs.msaView.addHighlightColumn(idx, move)
+            this.$refs.msaView.addHighlightColumn(idx, move && this.showViewer)
             this.$refs.structViewer.updateAllHighlights()
             this.$refs.structViewer.moveView(idx)
         },
@@ -765,7 +769,7 @@ export default {
                 this.previewColumn = Number(idx)
 
                 if (fromStruct) {
-                    this.$refs.msaView.activateColumn(idx, true)
+                    this.$refs.msaView.activateColumn(idx, true, true && this.showViewerCondition)
                     this.$nextTick(() => {
                         setTimeout(()=>{
                             this.$refs.structViewer.updateAllPreview()

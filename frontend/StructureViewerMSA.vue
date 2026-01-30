@@ -1,7 +1,7 @@
 <template>
 <div class="structure-panel">
     <StructureViewerTooltip attach=".structure-panel" />
-    <div class="structure-wrapper" ref="structurepanel">
+    <div class="structure-wrapper" ref="structurepanel" @mouseleave="clearTimer" @mousedown="isMouseDown = true" @mouseup="isMouseDown = false">
         <StructureViewerToolbar
             :isFullscreen="isFullscreen"
             :isSpinning="isSpinning"
@@ -16,6 +16,19 @@
             style="position: absolute; bottom: 8px;"
         />
         <div class="structure-viewer" ref="viewport"></div>
+        <div ref="previewTooltip"
+             v-show="previewIndex >= 0"
+        style="position: absolute; 
+            bottom: 48px; 
+            left: 8px; 
+            padding: 8px; 
+            font-size: 12px;
+            background-color: rgba(0, 0, 0, 0.4);
+            color: white
+            " 
+        v-html="refRes"
+        >
+        </div>
     </div>
 </div>
 </template>
@@ -25,7 +38,7 @@ import StructureViewerTooltip from './StructureViewerTooltip.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerMixin from './StructureViewerMixin.vue';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
-import { mockPDB, makeSubPDB, makeMatrix4, getResidueIndices  } from './Utilities.js';
+import { mockPDB, makeSubPDB, makeMatrix4, getResidueIndices, oneToThree } from './Utilities.js';
 import { download, PdbWriter, Matrix4, Quaternion, Vector3, concatStructures, ColormakerRegistry, Selection } from 'ngl';
 import { pulchra } from 'pulchra-wasm';
 
@@ -142,6 +155,9 @@ export default {
         ticking: false,
         hoverTimer: null,
         pendingColumn: -1,
+        registeredColumn: -1,
+        isMouseDown: false,
+        previewIndex: -1,
     }),
     props: {
         entries: { type: Array, required: true },
@@ -169,6 +185,7 @@ export default {
         this.stage.setParameters({
             hoverTimeout: 100,
         })
+
         this.stage.signals.clicked.add((pickingProxy) => {
             if (!pickingProxy) {
                 // this.selectedColumn = -1;
@@ -206,7 +223,7 @@ export default {
         });
 
         this.stage.signals.hovered.add((pickingProxy) => {
-            if (!pickingProxy || !pickingProxy.atom) {
+            if (this.isMouseDown || !pickingProxy || !pickingProxy.atom) {
                 this.clearTimer()
                 return;
             }
@@ -222,7 +239,7 @@ export default {
                 if (!this.ticking) {
                     this.ticking = true
                     window.requestAnimationFrame(() => {
-                        this.togglePreview()
+                        this.togglePreview(index)
                         this.ticking = false
                     })
                 }
@@ -490,6 +507,7 @@ ENDMDL
                 })
             );
             this.updateMask();
+            this.clearTimer()
         },
         async updateMask() {
             this.stage.eachRepresentation((repr) => {
@@ -585,24 +603,29 @@ ENDMDL
             let sele = String(resIdx + 1 - range) + "-" + (resIdx - 1 + range)
             comp.autoView(sele, 200)
         },
-        setTimer(idx) {
+        setTimer(idx, structIdx) {
+            this.registeredColumn = idx;
             this.hoverTimer = setTimeout(() => {
-                console.log(idx, "fired")
+                this.previewIndex = structIdx
                 this.$emit('changePreview', idx, true)
-            }, 1000)
+                this.registeredColumn = -1
+            }, 900)
         },
         clearTimer() {
             if (this.hoverTimer) {
                 clearTimeout(this.hoverTimer)
                 this.hoverTimer = null
             }
+            this.previewIndex = -1
             this.$emit('changePreview', -1, true)
         },
-        togglePreview() {
-            if (this.previewColumn == this.pendingColumn) return
+        togglePreview(index) {
+            if (this.previewColumn == this.pendingColumn
+                || this.pendingColumn == this.registeredColumn
+            ) return
             
             this.clearTimer()
-            this.setTimer(this.pendingColumn)
+            this.setTimer(this.pendingColumn, index)
         },
     },
     watch: {
@@ -639,6 +662,21 @@ ENDMDL
         },
         highLightColor() {
             return 0xe31986
+        },
+        refRes() {
+            if (this.previewColumn < 0 
+                || this.previewIndex < 0) return ""
+            
+            const targetObj = this.entries[this.previewIndex]
+            const name = targetObj.name?.length > 12 
+                ? targetObj.name.slice(0, 9) + '...' 
+                : targetObj.name
+            const targetSeq = targetObj.aa
+            const AA = oneToThree[targetSeq[this.previewColumn]]
+            const formatted = AA.charAt(0) + AA.toLowerCase().slice(1, 3)
+            const resNo = getResidueIndex(targetSeq, this.previewColumn) + 1
+            return '<span>'+ name + ':&nbsp;</span><strong>' 
+                + formatted + String(resNo) +'</strong>'
         },
     },
 }

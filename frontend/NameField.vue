@@ -191,7 +191,7 @@ small.ticket {
     bottom: -1px;
     left: 0;
     width: 100%;
-    height: 1px;
+    height: 2px;
     z-index: 3;
     background-color: var(--primary-color);
     transform: scaleX(0);
