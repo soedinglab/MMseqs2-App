@@ -387,7 +387,7 @@ export default {
         },
         async getTargetPdb(item, db) {
             let target = item.dbkey;
-            if (db.startsWith("pdb100")) {
+            if (db.startsWith("pdb_")) {
                 target = item.target;
             }
             const re = "api/result/folddisco/" + this.$route.params.ticket + '?database=' + db +'&id=' + target;
@@ -623,12 +623,13 @@ export default {
                     let localData = this.$root.userData;
                     hits = localData[this.$route.params.entry];
                 } else {
-                    const response = await this.$axios.get("api/result/folddisco/" + this.ticket, {
-                        headers: {
-                            'Cache-Control': 'no-cache'
-                        },
-                        // transformResponse: [(d) => {d}]
-                    });
+                    const response = await this.$axios.get("api/result/folddisco/" + this.ticket); //Rachel: recover
+                    // const response = await this.$axios.get("api/result/folddisco/" + this.ticket, {
+                    //     headers: {
+                    //         'Cache-Control': 'no-cache'
+                    //     },
+                    //     // transformResponse: [(d) => {d}]
+                    // });
                     const data = response.data;
                     
                     if (data.alignments == null || data.alignments.length > 0) {
