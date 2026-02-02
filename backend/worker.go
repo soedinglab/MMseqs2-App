@@ -1538,6 +1538,7 @@ rm -rf -- "${BASE}/tmp"
 					"--top",
 					"1000",
 					"--superpose",
+					"--partial-fit",
 					"-t",
 					strconv.Itoa(threads),
 				}
