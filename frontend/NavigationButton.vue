@@ -1,7 +1,7 @@
 <template>
   <v-sheet color="transparent" style="position: fixed; right: 16px; bottom: 16px; z-index: 99998; align-items: center; justify-content: flex-end;"
   class="d-flex pa-2">
-    <v-flex class="mr-3" shrink style="flex-direction: row;" v-if="scrollOffsetArr.length > 0">
+    <v-flex class="mr-3" shrink style="flex-direction: row;" v-if="scrollOffsetArr && scrollOffsetArr.length > 0">
       <v-tooltip top>
         <template v-slot:activator='{on,attrs}'>
           <v-fab-transition>

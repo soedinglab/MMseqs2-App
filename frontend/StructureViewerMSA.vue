@@ -17,16 +17,16 @@
         />
         <div class="structure-viewer" ref="viewport"></div>
         <div ref="previewTooltip"
-             v-show="previewIndex >= 0"
-        style="position: absolute; 
-            bottom: 48px; 
-            left: 8px; 
-            padding: 8px; 
-            font-size: 12px;
-            background-color: rgba(0, 0, 0, 0.4);
-            color: white
-            " 
-        v-html="refRes"
+            v-show="previewIndex >= 0"
+            style="position: absolute; 
+                bottom: 48px; 
+                left: 8px; 
+                padding: 8px; 
+                font-size: 12px;
+                background-color: rgba(0, 0, 0, 0.4);
+                color: white
+                " 
+            v-html="refRes"
         >
         </div>
     </div>
@@ -675,7 +675,7 @@ ENDMDL
             const AA = oneToThree[targetSeq[this.previewColumn]]
             const formatted = AA.charAt(0) + AA.toLowerCase().slice(1, 3)
             const resNo = getResidueIndex(targetSeq, this.previewColumn) + 1
-            return '<span>'+ name + ':&nbsp;</span><strong>' 
+            return '<span>'+ name + ':&nbsp;</span><strong class="mono">' 
                 + formatted + String(resNo) +'</strong>'
         },
     },

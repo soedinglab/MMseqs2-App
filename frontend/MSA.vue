@@ -1,8 +1,8 @@
 <template>
 <div>
     <v-container fluid pa-2 style="overflow: visible; height: 100%;">
-        <v-row ref="topRow">
-            <v-col class="flex-col">
+        <v-row ref="topRow" style="justify-content: center;">
+            <v-col class="flex-col" cols="12" sm="5" md="3">
                 <v-card style="height: 100%">
                     <v-card-title>Summary</v-card-title>
                     <v-card-text>
@@ -29,8 +29,8 @@
                     </v-card-text>
                 </v-card>
             </v-col>
-            <v-col class="flex-col" v-if="tree">
-                <v-card class="fill-height" style="position: relative;">
+            <v-col class="flex-col" v-if="tree" cols="12" sm="7" md="4">
+                <v-card class="fill-height" style="position: relative; padding-top: 54px" >
                     <v-card-title
                         ref="treeLabel"
                         style="position: absolute; left: 0; top: 0; margin: 0; padding: 16px; z-index: 1;">Guide Tree</v-card-title>
@@ -46,8 +46,8 @@
                     />
                 </v-card>
             </v-col>
-            <v-col class="flex-col">
-                <v-card class="fill-height" style="position: relative;">
+            <v-col class="flex-col" cols="12" md="5" sm="8">
+                <v-card class="fill-height" style="position: relative; padding-top: 54px;">
                     <v-card-title style="position: absolute; left: 0; top: 0; margin: 0; padding: 16px; z-index: 1;">Structure</v-card-title>
                     <div style="padding: 10px; height: 100%; width: 100%;" ref="originalWrapper">
                         <StructureViewerMSA
@@ -879,24 +879,33 @@ div.input-div .v-input__control, div.input-div .v-input__control * {
 div.input-div .v-input__slot {
     padding: 0 4px !important;
 }
-@media only screen and (min-width: 800px) {
+@media only screen and (min-width: 961px) {
     .flex-col {
-        flex: 1 1 0px;
+        /* flex: 1 0 0px; */
         height: 500px;
     }
     .flex-col:nth-child(1) {
-        flex: 3;
+        /* flex: 3; */
         padding-right: 6px;
     }
-    .flex-col:nth-child(2),
+    /* .flex-col:nth-child(2),
     .flex-col:nth-child(3) {
         flex: 4.5;
-    }
+    } */
     .flex-col:nth-child(3) {
+        min-width: 300px;
         padding-left: 6px;
     }
 }
-@media only screen and (max-width: 800px) {
+
+@media only screen and (min-width: 601px) and (max-width: 960px) {
+    .flex-col {
+        height: 400px;
+        padding: 6px;
+    }
+}
+
+@media only screen and (max-width: 600px) {
     .flex-col {
         height: 400px;
         flex-basis: 100%;
@@ -925,7 +934,7 @@ div.input-div .v-input__slot {
     display: block;
     width: 360px;
     height: 380px;
-    bottom: 40px;
+    bottom: 64px;
     right: 108px;
     touch-action: none;
     user-select: none;
@@ -946,6 +955,8 @@ div.input-div .v-input__slot {
     #floating-viewer {
         width: 300px;
         height: 310px;
+        bottom: 100px;
+        right: 32px;
     }
 }
 

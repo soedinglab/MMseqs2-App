@@ -218,14 +218,16 @@ export default {
                         }
                         return str
                     } else {
-                        return String(this.selectedCounts) 
-                            + (this.selectedCounts > 1 ? ' residues' : ' residue')
+                        return `<span title="${this.resnoStr.join(", ")}">`
+                            + String(this.selectedCounts) 
+                            + (this.selectedCounts > 1 ? ' residues</span>' : ' residue</span>')
                     }
                 } else if (this.$vuetify.breakpoint.xlOnly) {
                     let str = this.entries[this.targetIndex].name
                     if (this.selectedCounts > 0) {
                         str = '<strong>' + str + "</strong>&nbsp;"
-                        return str + ' / '+ String(this.selectedCounts) + (this.selectedCounts > 1 ? ' residues' : ' residue')
+                        return str + `/&nbsp;<span title="${this.resnoStr.join(", ")}">`
+                            + String(this.selectedCounts) + (this.selectedCounts > 1 ? ' residues</span>' : ' residue</span>')
                     } else {
                         str = '<strong>' + str + "</strong>"
                         return "Reference: " + str
@@ -239,7 +241,8 @@ export default {
                     } else {
                         str = '<strong>' + str + "</strong>&nbsp;"
                     }
-                    return str + ' / '+ String(this.selectedCounts) + (this.selectedCounts > 1 ? ' residues' : ' residue')
+                    return str + `/&nbsp;<span title="${this.resnoStr.join(", ")}">`
+                        + String(this.selectedCounts) + (this.selectedCounts > 1 ? ' residues</span>' : ' residue</span>')
                 } else {
                     if (str.length >= 14) {
                         str = '<strong title="' + str + '" >'  + str.slice(0, 12) + '...</strong>'
@@ -276,13 +279,21 @@ export default {
             if (this.selectedCounts == 0) {
                 return ""
             } else {
-                return getResidueIndices
-                    (this.entries[this.targetIndex].aa, 
-                        this.selectedColumns)
-                    .map((i) => 'A'+String(i+1))
+                return this.resnoStr
+                    .map((i) => 'A'+ String(i))
                     .join(", ")
             }
         },
+        resnoStr() {
+            if (this.selectedCounts == 0) {
+                return ""
+            } else {
+                return getResidueIndices
+                    (this.entries[this.targetIndex].aa, 
+                        this.selectedColumns)
+                    .map((i) => i+1)
+            }
+        }
     }
 }
 </script>

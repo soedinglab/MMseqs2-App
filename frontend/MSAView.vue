@@ -28,7 +28,9 @@
                 z-index: 5; transform: translateX(-2px);" 
                 :style="{'width': 'calc((1ch + 4px) * ' + String(aa.length) +')'}"
             >
-            <div v-for="(c, i) in indices" class="column-box" :data-index="c" :key="c" @click.stop="toggleHighlightColumn"></div>
+                <div v-for="(c, i) in indices" class="column-box" :data-index="c" :key="c" @click.stop="toggleHighlightColumn">
+                    <div v-for="v in entryLength" style="width: 100%; height: 1em;" :title="actualResno.length > 0 ? actualResno[v-1][c] : ''"></div>
+                </div>
             </div>
             <div class="row-wrapper" 
                 style="position: absolute; 
@@ -105,13 +107,12 @@ export default {
     data() {
         return {
             lineLen: 80,
-            headerLen: null,
-            countLen: null,
             resizeObserver: null,
             hoverTimer: null,
             activeColumn: "",
             pendingColumn: "",
             ticking: false,
+            actualResno: [],
         }
     },
     props: {
@@ -213,6 +214,9 @@ export default {
         fontWeight() {
             return this.$vuetify.theme.dark ? 'bolder' : 'normal';
         },
+        entryLength() {
+            return this.entries ? this.entries.length : 0
+        }
     },
     methods: {
         handleClickHeader(event, index) {
@@ -240,15 +244,14 @@ export default {
             }
         },
         handleUpdateEntries() {
-            this.headerLen = 0;
-            this.countLen = 0;
+            this.actualResno.length = 0
             this.entries.forEach((e, i) => {
-                this.headerLen = Math.min(30, Math.max(this.headerLen, e.name.length));
-                let count = 0;
-                for (const char of e.aa) {
-                    if (char !== '-') count++;
-                }
-                this.countLen = Math.max(this.countLen, count.toString().length);
+                let acc = 0
+                const nums = [...e.aa].map((c, j) => {
+                    if (c !== '-') return c + String(++acc)
+                    else return ""
+                })
+                this.actualResno.push(nums)
             })
         },
         handleResize() {
@@ -437,11 +440,14 @@ export default {
             }
         },
         toggleHighlightColumn(event) {
-            const value = event.target.classList.contains('active-column')
+            const parent = event.target.closest('.column-box')
+            if (!parent) return
+
+            const value = parent.classList.contains('active-column')
             if (value) {
-                this.$emit('removeHighlight', Number(event.target.dataset.index))
+                this.$emit('removeHighlight', Number(parent.dataset.index))
             } else {
-                this.$emit('addHighlight', Number(event.target.dataset.index))
+                this.$emit('addHighlight', Number(parent.dataset.index))
             }
         },
         addHighlightColumn(idx, move) {

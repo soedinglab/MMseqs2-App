@@ -248,6 +248,7 @@
                 </tr>
             </thead>
             <tbody>
+                <tr aria-hidden="true" style="height: 8px"></tr>
                 <template v-for="(groupidx, sortIdx) in sortedIndices" >
                 <tr v-for="(item, index) in entry.alignments[groupidx]" :class="['hit', { 'active' : item.active }]"
                     @click.stop="$vuetify.breakpoint.width <= 960 ? onCheckboxClick(sortIdx, $event) : () => {}"

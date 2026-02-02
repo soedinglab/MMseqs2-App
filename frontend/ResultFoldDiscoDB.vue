@@ -208,6 +208,7 @@
                     <th class="alignment-action thin">Structure</th>
                 </tr>
             </thead>
+            <tbody><tr aria-hidden="true" style="height: 8px"></tr></tbody>
             <tbody v-for="(clu, key) in sortedIndices">
                 {{ void(clusterShown = false) }}
                 <template v-for="(groupidx, sortIdx) in clu" >

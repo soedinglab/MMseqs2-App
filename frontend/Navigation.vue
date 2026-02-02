@@ -1,6 +1,16 @@
 <template>
 <div>
-<v-navigation-drawer v-if="!$LOCAL" stateless app permanent clipped :mini-variant="mini" :expand-on-hover="false" ref="drawer">
+<v-navigation-drawer v-if="!$LOCAL" 
+    app  
+    clipped
+    v-model="opened"
+    :permanent="$vuetify.breakpoint.mdAndUp"
+    :mini-variant="$vuetify.breakpoint.smAndDown ? false : mini"
+    :temporary="$vuetify.breakpoint.smAndDown"
+    :expand-on-hover="false" 
+    :bottom="$vuetify.breakpoint.smAndDown"
+    ref="drawer"
+>
     <v-list v-if="!$LOCAL">
         <v-list-item to="/search">
             <v-list-item-action>
@@ -45,7 +55,7 @@
                 </v-list-item-content>
             </template>
             
-            <template v-if="!this.mini">
+            <template v-if="!mini">
             <v-list-item
                 @click="$ELECTRON ? electronDownload($route.params.ticket) : null"
                 :href="$ELECTRON ? null : url('api/result/download/' + $route.params.ticket)"
@@ -84,7 +94,7 @@
                     <v-list-item-title>Downloads</v-list-item-title>
                 </v-list-item-content>
             </template>
-            <template v-if="!this.mini">
+            <template v-if="!mini">
             <v-list-item
                 @click="downloadMSA"
                 style="padding-left: 16px;"
@@ -122,7 +132,7 @@
                     <v-list-item-title>Downloads</v-list-item-title>
                 </v-list-item-content>
             </template>
-            <template v-if="!this.mini">
+            <template v-if="!mini">
             <v-list-item
                 @click="$ELECTRON ? electronDownload($route.params.ticket) : null"
                 :href="$ELECTRON ? null : url('api/result/folddisco/download/' + $route.params.ticket)"
@@ -169,7 +179,7 @@
     </v-list>
 </v-navigation-drawer>
 <v-app-bar v-on:dblclick.native="electronHandleTitleBarDoubleClick()" app :height="$ELECTRON ? '72px' : '48px'" fixed clipped-left :class="['ml-0', 'pl-3', $ELECTRON ? 'pt-2' : null]" :style="{'-webkit-app-region': $ELECTRON ? 'drag' : null, '-webkit-user-select': $ELECTRON ? 'none' : null}">
-    <v-app-bar-nav-icon v-if="!$LOCAL" :input-value="!mini ? 'activated' : undefined" @click.stop="toggleMini"></v-app-bar-nav-icon>
+    <v-app-bar-nav-icon v-if="!$LOCAL" :value="opened" @click.stop="toggleMini"></v-app-bar-nav-icon>
     <v-app-bar-title>
         <router-link v-if="!$LOCAL" :to="activeTool ? '/' + activeTool : '/'" style="color: inherit; text-decoration: none">{{ appName }}</router-link>
         <span v-if="$LOCAL">{{ appName }}</span>
@@ -221,9 +231,10 @@ function getLinks(strings, prefix) {
 export default {
     components : { History, },
     data: () => ({
-        mini: true,
         expanded: false,
         activeTool: '',
+        opened: false,
+        mini: true,
     }),
     created() {
         this.$root.$on('multi', this.shouldExpand);
@@ -242,7 +253,12 @@ export default {
         },
         $route: function() {
             this.updateTool();
-        }
+        },
+        isMobile: function(v) {
+            if (v) {
+                this.opened = false
+            }
+        },
     },
     computed: {
         appName() {
@@ -267,6 +283,9 @@ export default {
             }
             return toolLinks;
         },
+        isMobile() {
+            return this.$vuetify.breakpoint.smAndDown
+        }
     },
     methods: {
         updateTool() {
@@ -293,13 +312,18 @@ export default {
         },
         shouldExpand(expand) {
             if (expand)
-                this.mini = !expand;
+                this.opened = expand;
+                this.mini = false
         },
         toggleMini() {
             if (!this.mini) {
                 this.$refs.history.drawer = false
             }
-            this.mini = !this.mini;
+            if (this.$vuetify.breakpoint.smAndDown) {
+                this.opened = !this.opened
+            } else {
+                this.mini = !this.mini;
+            }
         },
         electronHandleTitleBarDoubleClick() {
             this.handleTitleBarDoubleClick();
@@ -343,5 +367,8 @@ export default {
 ::v-deep .theme--dark.v-navigation-drawer {
     background-color: #212121;
     border-color: #212121;
+}
+.v-navigation-drawer--temporary {
+    z-index: 99999;
 }
 </style>
