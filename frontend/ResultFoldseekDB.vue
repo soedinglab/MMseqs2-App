@@ -150,7 +150,7 @@
         <v-flex v-if="hasEntries && entry.hasTaxonomy && isSankeyVisible[entry.db]" class="mb-2">
             <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
         </v-flex>
-        <v-sheet v-if="!hasEntries"><div class="text-h5">No hits found...</div></v-sheet>
+        <v-sheet v-if="!hasEntries"><div class="text-h5 mt-3 pa-2">No hits found...</div></v-sheet>
         <table class="v-table result-table" style="position:relative; margin-bottom: 3em;" v-if="hasEntries" :style="{'--active-color': entry.color}">
             <colgroup>
                 <col style="width: 36px;">
@@ -586,7 +586,10 @@ export default {
         headHeight() {
             const auxHeight = this.$vuetify.breakpoint.smAndDown && !this.isCollapsed ? 108 : 0
             const padding = this.$vuetify.breakpoint.smAndDown ? 0 : 16
-            return String(auxHeight + 64 + padding) + 'px'
+            const taxHeight = this.$vuetify.breakpoint.smAndDown 
+                && this.entry.hasTaxonomy 
+                && !this.isComplex ? 0 : -52
+            return String(auxHeight + 64 + padding + taxHeight) + 'px'
         },
         colheadTop() {
             let addend = !this.onlyOne ? 48 : 0

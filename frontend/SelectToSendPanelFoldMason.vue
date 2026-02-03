@@ -14,7 +14,7 @@
                 </v-chip>
                 <v-flex shrink>
                     <template>
-                        <v-tooltip top :color="errorFoldseekBtn ? 'error': 'primary'" :value="errorFoldseekBtn">
+                        <v-tooltip top :color="errorFoldseekBtn ? 'error': 'primary'" :value="errorFoldseekBtn" :open-on-click="false">
                             <template v-slot:activator="{on, attrs}">
                                 <v-btn :color="errorFoldseekBtn ? 'error': 'primary'" 
                                 v-bind="attrs" v-on="on" fab 
@@ -26,7 +26,7 @@
                             </template> 
                             <span>{{ toFoldseekContent }}</span>
                         </v-tooltip>
-                        <v-tooltip top :color="errorFoldDiscoBtn ? 'error' : '#eca800'" :value="errorFoldDiscoBtn">
+                        <v-tooltip top :color="errorFoldDiscoBtn ? 'error' : '#eca800'" :value="errorFoldDiscoBtn" :open-on-click="false">
                             <template v-slot:activator="{on, attrs}">
                                 <!-- TODO: change FoldDisco color! -->
                                 <v-btn v-bind="attrs" v-on="on" fab class="elevation-8 fold-disco-btn" 

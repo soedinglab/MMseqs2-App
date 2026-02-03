@@ -316,7 +316,7 @@ export default {
                 this.mini = false
         },
         toggleMini() {
-            if (!this.mini) {
+            if (!this.mini && !this.$vuetify.breakpoint.smAndDown) {
                 this.$refs.history.drawer = false
             }
             if (this.$vuetify.breakpoint.smAndDown) {

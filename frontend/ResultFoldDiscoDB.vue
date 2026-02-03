@@ -512,7 +512,7 @@ export default {
             return [...uniqueGaps, ''];
         },
         headHeight() {
-            const taxHeight = !this.isCollapsed && this.$vuetify.breakpoint.xsOnly ? 52 : 0
+            const taxHeight = this.entry.hasTaxonomy && !this.isCollapsed && this.$vuetify.breakpoint.xsOnly ? 52 : 0
             const auxHeight = this.isCollapsed ? -116: this.$vuetify.breakpoint.mdAndDown ? 124 : 0
             return String(taxHeight + auxHeight + 180) + 'px'
         },

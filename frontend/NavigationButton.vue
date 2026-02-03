@@ -2,7 +2,7 @@
   <v-sheet color="transparent" style="position: fixed; right: 16px; bottom: 16px; z-index: 99998; align-items: center; justify-content: flex-end;"
   class="d-flex pa-2">
     <v-flex class="mr-3" shrink style="flex-direction: row;" v-if="scrollOffsetArr && scrollOffsetArr.length > 0">
-      <v-tooltip top>
+      <v-tooltip top :open-on-click="false">
         <template v-slot:activator='{on,attrs}'>
           <v-fab-transition>
             <v-btn small v-bind="attrs" v-on="on" fab 
@@ -13,7 +13,7 @@
         </template>
         <span>Scroll to prev. cluster</span>
       </v-tooltip>
-      <v-tooltip top>
+      <v-tooltip top :open-on-click="false">
         <template v-slot:activator='{on,attrs}'>
           <v-fab-transition>
             <v-btn small v-bind="attrs" v-on="on" fab 
@@ -25,7 +25,7 @@
         <span>Scroll to next cluster</span>
       </v-tooltip>
     </v-flex>
-    <v-tooltip top color="primary">
+    <v-tooltip top color="primary" :open-on-click="false">
       <template v-slot:activator='{on,attrs}'>
         <v-fab-transition>
           <v-btn color="primary" fab v-show="enableScrollTop" @click="goTo(0)" v-bind="attrs" v-on="on">

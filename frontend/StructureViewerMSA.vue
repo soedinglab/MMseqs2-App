@@ -661,7 +661,7 @@ ENDMDL
             }
         },
         highLightColor() {
-            return 0xe31986
+            return 0xec3f5f
         },
         refRes() {
             if (this.previewColumn < 0 
