@@ -112,10 +112,11 @@
                                     title="Toggle between per-column LDDT and 3Di score matrix-based colorschemes"
                                     class="input-label"
                                 >Colours</label>
-                                <v-btn-toggle dense mandatory color="primary" v-model="colorScheme">
-                                    <v-btn x-small value="lddt" style="width: 40px;">LDDT</v-btn>
-                                    <v-btn x-small value="3di"  style="width: 40px;">3Di</v-btn>
-                                </v-btn-toggle>
+                                <v-select dense flat hide-details solo
+                                    style="max-width: 140px; max-height: 32px;"
+                                    v-model="colorScheme"
+                                    :items="schemes"
+                                />
                             </div>
                         </div>
                         <div style="position: relative; display: flex; justify-content: center; align-items: center; width: fit-content; height: 80px;">
@@ -366,6 +367,24 @@ export default {
             blockIndex: 0,
             alphabet: 'aa',
             colorScheme: 'lddt',
+            schemes: [
+                { header: "Structure-based" },
+                { text: "LDDT", value: "lddt" },
+                { text: "3Di", value: "3di" },
+                { header: "Sequence-based" },
+                { text: "Clustal", value: "clustal" },
+                { text: "Clustal2", value: "clustal2" },
+                { text: "Buried", value: "buried" },
+                { text: "Cinema", value: "cinema" },
+                { text: "Helix", value: "helix" },
+                { text: "Hydrophobicity", value: "hydrophobicity" },
+                { text: "Lesk", value: "lesk" },
+                { text: "MAE", value: "mae" },
+                { text: "Strand", value: "strand" },
+                { text: "Taylor", value: "taylor" },
+                { text: "Turn", value: "turn" },
+                { text: "Zappo", value: "zappo" },
+            ],
             matchRatioInner: 0.0,
             structureViewerSelection: [],
             structureViewerReference: 0,

@@ -54,57 +54,106 @@
 import SequenceLogo from './SequenceLogo.vue';
 import { debounce } from './Utilities.js';
 
-const colorsAa = {
-    "A": "#80A0F0FF",
-    "R": "#F01505FF",
-    "N": "#00FF00FF",
-    "D": "#C048C0FF",
-    "C": "#F08080FF",
-    "Q": "#00FF00FF",
-    "E": "#C048C0FF",
-    "G": "#F09048FF",
-    "H": "#15A4A4FF",
-    "I": "#80A0F0FF",
-    "L": "#80A0F0FF",
-    "K": "#F01505FF",
-    "M": "#80A0F0FF",
-    "F": "#80A0F0FF",
-    "P": "#FFD700FF",
-    "S": "#00FF00FF",
-    "T": "#00FF00FF",
-    "W": "#80A0F0FF",
-    "Y": "#15A4A4FF",
-    "V": "#80A0F0FF",
-    "B": "#FFFFFFFF",
-    "X": "#FFFFFFFF",
-    "Z": "#FFFFFFFF",
-    "-": "#ffffff"
-}
-
-const colors3di = {
-    "A": "#df9a8c",
-    "C": "#fb72c5",
-    "D": "#b4a3d8",
-    "E": "#ff5701",
-    "F": "#d99e81",
-    "G": "#7491c5",
-    "H": "#94abe1",
-    "I": "#609d7b",
-    "K": "#d7a304",
-    "L": "#fe4c8b",
-    "M": "#12a564",
-    "N": "#d570fd",
-    "P": "#cb99c4",
-    "Q": "#da8e99",
-    "R": "#9487d0",
-    "S": "#e842fe",
-    "T": "#42a299",
-    "V": "#fb7edd",
-    "W": "#d1a368",
-    "Y": "#17a8fd",
-    "X": "#c0c0c0",
-    "-": "#ffffff"
-}
+const colorsAaByPalette = {
+    "3di": {
+        A: "#3563D4", R: "#91D435", N: "#D435C0", D: "#35D4B9", C: "#D48B35",
+        Q: "#5C35D4", E: "#3BD435", G: "#D4356A", H: "#3598D4", I: "#C7D435",
+        L: "#B235D4", K: "#35D484", M: "#D45535", F: "#3542D4", P: "#71D435",
+        S: "#D4359F", T: "#35CDD4", W: "#D4AC35", Y: "#7D35D4", V: "#35D44F",
+        B: "#D43549", X: "#3577D4", Z: "#A6D435", "-": "#D335D4"
+    },
+    clustal: {
+        A: "#FFA500", R: "#FF0000", N: "#FFFFFF", D: "#FF0000", C: "#008000",
+        Q: "#FFFFFF", E: "#FF0000", G: "#FFA500", H: "#FF0000", I: "#008000",
+        L: "#008000", K: "#FF0000", M: "#008000", F: "#2555D9", P: "#FFA500",
+        S: "#FFA500", T: "#FFA500", W: "#2555D9", Y: "#2555D9", V: "#008000",
+        B: "#FFFFFF", X: "#FFFFFF", Z: "#FFFFFF", "-": "#ffffff"
+    },
+    clustal2: {
+        A: "#80A0F0", R: "#F01505", N: "#00FF00", D: "#C048C0", C: "#F08080",
+        Q: "#00FF00", E: "#C048C0", G: "#F09048", H: "#15A4A4", I: "#80A0F0",
+        L: "#80A0F0", K: "#F01505", M: "#80A0F0", F: "#80A0F0", P: "#FFD700",
+        S: "#00FF00", T: "#00FF00", W: "#80A0F0", Y: "#15A4A4", V: "#80A0F0",
+        B: "#FFFFFF", X: "#FFFFFF", Z: "#FFFFFF", "-": "#ffffff",
+    },
+    buried: {
+        A: "#00A35C", R: "#00FC03", N: "#00EB14", D: "#00EB14", C: "#2555D9",
+        Q: "#00F10E", E: "#00F10E", G: "#009D62", H: "#00D52A", I: "#0054AB",
+        L: "#007B84", K: "#00FF00", M: "#009768", F: "#008778", P: "#00E01F",
+        S: "#00D52A", T: "#00DB24", W: "#00A857", Y: "#00E619", V: "#005FA0",
+        B: "#00EB14", X: "#00B649", Z: "#00F10E", "-": "#ffffff",
+    },
+    cinema: {
+        A: "#BBBBBB", R: "#00FFFF", N: "#008000", D: "#FF0000", C: "#FFD700",
+        Q: "#008000", E: "#FF0000", G: "#A52A2A", H: "#00FFFF", I: "#BBBBBB",
+        L: "#BBBBBB", K: "#00FFFF", M: "#BBBBBB", F: "#FF00FF", P: "#A52A2A",
+        S: "#008000", T: "#008000", W: "#FF00FF", Y: "#FF00FF", V: "#BBBBBB",
+        B: "#808080", X: "#808080", Z: "#808080", "-": "#ffffff",
+    },
+    clustal: {
+        A: "#FFA500", R: "#FF0000", N: "#FFFFFF", D: "#FF0000", C: "#008000",
+        Q: "#FFFFFF", E: "#FF0000", G: "#FFA500", H: "#FF0000", I: "#008000",
+        L: "#008000", K: "#FF0000", M: "#008000", F: "#2555D9", P: "#FFA500",
+        S: "#FFA500", T: "#FFA500", W: "#2555D9", Y: "#2555D9", V: "#008000",
+        B: "#FFFFFF", X: "#FFFFFF", Z: "#FFFFFF", "-": "#ffffff",
+    },
+    helix: {
+        A: "#E718E7", R: "#6F906F", N: "#1BE41B", D: "#778877", C: "#23DC23",
+        Q: "#926D92", E: "#FF00FF", G: "#00FF00", H: "#758A75", I: "#8A758A",
+        L: "#AE51AE", K: "#A05FA0", M: "#EF10EF", F: "#986798", P: "#00FF00",
+        S: "#36C936", T: "#47B847", W: "#8A758A", Y: "#21DE21", V: "#857A85",
+        B: "#49B649", X: "#758A75", Z: "#C936C9", "-": "#ffffff",
+    },
+    hydrophobicity: {
+        A: "#AD0052", R: "#2555D9", N: "#0C00F3", D: "#0C00F3", C: "#C2003D",
+        Q: "#0C00F3", E: "#0C00F3", G: "#6A0095", H: "#1500EA", I: "#FF0000",
+        L: "#EA0015", K: "#2555D9", M: "#B0004F", F: "#CB0034", P: "#4600B9",
+        S: "#5E00A1", T: "#61009E", W: "#5B00A4", Y: "#4F00B0", V: "#F60009",
+        B: "#0C00F3", X: "#680097", Z: "#0C00F3", "-": "#ffffff",
+    },
+    lesk: {
+        A: "#FFA500", R: "#FF0000", N: "#FF00FF", D: "#FF0000", C: "#008000",
+        Q: "#FF00FF", E: "#FF0000", G: "#FFA500", H: "#FF00FF", I: "#008000",
+        L: "#008000", K: "#FF0000", M: "#008000", F: "#008000", P: "#008000",
+        S: "#FFA500", T: "#FFA500", W: "#008000", Y: "#008000", V: "#008000",
+        B: "#FFFFFF", X: "#FFFFFF", Z: "#FFFFFF", "-": "#ffffff",
+    },
+    mae: {
+        A: "#77DD88", R: "#FFCC77", N: "#55BB33", D: "#55BB33", C: "#99EE66",
+        Q: "#55BB33", E: "#55BB33", G: "#77DD88", H: "#5555FF", I: "#66BBFF",
+        L: "#66BBFF", K: "#FFCC77", M: "#66BBFF", F: "#9999FF", P: "#EEAAAA",
+        S: "#FF4455", T: "#FF4455", W: "#9999FF", Y: "#9999FF", V: "#66BBFF",
+        B: "#FFFFFF", X: "#FFFFFF", Z: "#FFFFFF", "-": "#ffffff",
+    },
+    strand: {
+        A: "#5858A7", R: "#6B6B94", N: "#64649B", D: "#2121DE", C: "#9D9D62",
+        Q: "#8C8C73", E: "#2555D9", G: "#4949B6", H: "#60609F", I: "#ECEC13",
+        L: "#B2B24D", K: "#4747B8", M: "#82827D", F: "#C2C23D", P: "#2323DC",
+        S: "#4949B6", T: "#9D9D62", W: "#C0C03F", Y: "#D3D32C", V: "#FFD700",
+        B: "#4343BC", X: "#797986", Z: "#4747B8", "-": "#ffffff",
+    },
+    taylor: {
+        A: "#CCFF00", R: "#2555d9", N: "#CC00FF", D: "#FF0000", C: "#FFD700",
+        Q: "#FF00CC", E: "#FF0066", G: "#FF9900", H: "#7d98e8", I: "#66FF00",
+        L: "#33FF00", K: "#6600FF", M: "#00FF00", F: "#00FF66", P: "#FFCC00",
+        S: "#FF3300", T: "#FF6600", W: "#00CCFF", Y: "#00FFCC", V: "#99FF00",
+        B: "#FFFFFF", X: "#FFFFFF", Z: "#FFFFFF", "-": "#ffffff",
+    },
+    turn: {
+        A: "#2CD3D3", R: "#708F8F", N: "#FF0000", D: "#E81717", C: "#A85757",
+        Q: "#3FC0C0", E: "#778888", G: "#FF0000", H: "#708F8F", I: "#00FFFF",
+        L: "#1CE3E3", K: "#7E8181", M: "#1EE1E1", F: "#1EE1E1", P: "#F60909",
+        S: "#E11E1E", T: "#738C8C", W: "#738C8C", Y: "#9D6262", V: "#07F8F8",
+        B: "#F30C0C", X: "#7C8383", Z: "#5BA4A4", "-": "#ffffff",
+    },
+    zappo: {
+        A: "#FFAFAF", R: "#6464FF", N: "#00FF00", D: "#FF0000", C: "#FFD700",
+        Q: "#00FF00", E: "#FF0000", G: "#FF00FF", H: "#6464FF", I: "#FFAFAF",
+        L: "#FFAFAF", K: "#6464FF", M: "#FFAFAF", F: "#FFC800", P: "#FF00FF",
+        S: "#00FF00", T: "#00FF00", W: "#FFC800", Y: "#FFC800", V: "#FFAFAF",
+        B: "#FFFFFF", X: "#FFFFFF", Z: "#FFFFFF", "-": "#ffffff",
+    },
+};
 
 export default {
     components: { SequenceLogo, SequenceLogo },
@@ -297,7 +346,7 @@ export default {
                 result.seqStart++;
             }
             if (makeGradients) {
-                result.css = this.generateCSSGradient(start, end, result.ss);
+                result.css = this.generateCSSGradient(start, end, result.aa, result.ss);
             }
             return result;
         },
@@ -308,22 +357,26 @@ export default {
             let gaps = sequence.split('-').length - 1;
             return start + this.lineLen - gaps;
         },
-        generateCSSGradient(start, end, sequence) {
+        generateCSSGradient(start, end, aaSequence, ssSequence) {
             if (!this.scores) {
                 return null;
             }
             let colors = [];
-            if (this.colorScheme === '3di') {
-                for (const residue of sequence) {
-                    colors.push(colors3di[residue]); 
+            const palette = colorsAaByPalette[this.colorScheme];
+            if (palette) { 
+                const paletteSequence = (this.colorScheme === "3di" && ssSequence) ? ssSequence : aaSequence;
+                const fallbackColor = palette.X || "#ffffff";
+                for (const residue of paletteSequence) {
+                    const key = residue ? residue.toUpperCase() : residue;
+                    colors.push(palette[key] || fallbackColor);
                 }
             } else {
                 colors = this.scores
                     .slice(start, end)
                     .map(score => this.percentageToColor(parseFloat(score)));
             }
-            for (let i = 0; i < sequence.length; i++) {
-                if (sequence[i] === '-') {
+            for (let i = 0; i < aaSequence.length; i++) {
+                if (aaSequence[i] === '-') {
                     colors[i] = this.$vuetify.theme.dark ? "rgba(100, 100, 100, 0.4)" : "rgba(0, 0, 0, 0)";
                 }
             }
