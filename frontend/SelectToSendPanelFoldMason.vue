@@ -4,7 +4,7 @@
         <v-fade-transition>
             <v-sheet color="transparent" :style="{'position': 'fixed', 'width': $vuetify.breakpoint.smAndDown ? 'fit-content' : '40%', 
             'left': $vuetify.breakpoint.smAndDown ? '16px' : '30%',
-            'bottom': '16px', 'z-index': 99998, 'align-items': 'center', 'justify-content': $vuetify.breakpoint.smAndDown ? 'flex-start' : 'space-between', 'opacity': loading ? 0.4 : 1}" 
+            'bottom': '16px', 'z-index': 199, 'align-items': 'center', 'justify-content': $vuetify.breakpoint.smAndDown ? 'flex-start' : 'space-between'}" 
             class="d-flex pa-2" v-if="targetIndex >= 0" 
             >
                 <v-chip label :close="selectedCounts > 0" color="primary" style="margin-right: 24px;" 
