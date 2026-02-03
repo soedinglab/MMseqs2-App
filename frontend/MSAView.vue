@@ -28,8 +28,12 @@
                 z-index: 5; transform: translateX(-2px);" 
                 :style="{'width': 'calc((1ch + 4px) * ' + String(aa.length) +')'}"
             >
-                <div v-for="(c, i) in indices" class="column-box" :data-index="c" :key="c" @click.stop="toggleHighlightColumn">
-                    <div v-for="v in entryLength" style="width: 100%; height: 1em;" :title="actualResno.length > 0 ? actualResno[v-1][c] : ''"></div>
+                <div v-for="(c, i) in indices" 
+                    class="column-box" :data-index="c" :key="c" @click.stop="toggleHighlightColumn"
+                    :class="{'active-column': highlightedColumns.includes(c)}"
+                >
+                    <div v-for="v in entryLength" style="width: 100%; height: 1em;"
+                     :title="actualResno.length > 0 ? actualResno[v-1][c] : ''"></div>
                 </div>
             </div>
             <div class="row-wrapper" 
@@ -148,17 +152,6 @@ export default {
         },
         lineLen: function() {
             this.$emit("lineLen", this.lineLen);
-        },
-        mask() {
-            this.$nextTick(() => {
-                setTimeout(() => {
-                    for (let id in this.selectedColumns) {
-                        this.$refs.msaWrapper
-                            .querySelector(`.column-box[data-index="${id}"]`)
-                            ?.classList.add('active-column')
-                    }
-                }, 0)
-            })
         },
     },
     computed: {

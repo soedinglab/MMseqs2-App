@@ -202,7 +202,7 @@
                 :referenceStructure="structureViewerReference"
                 :matchRatio="parseFloat(matchRatio)"
                 :mask="mask"
-                :highlightColumns="selectedColumns"
+                :highlightedColumns="selectedColumns"
                 @cssGradients="handleCSSGradient"
                 @lineLen="handleLineLen"
                 @newStructureSelection="handleNewStructureViewerSelection"
@@ -749,7 +749,6 @@ export default {
             this.selectedColumns.splice(i, 1)
             this.$emit('changedSelection', this.selectedColumns)
             this.$refs.msaView.removeHighlightColumn(idx)
-            this.$refs.structViewer.updateAllHighlights()
         },
         changePreview(idx, fromStruct=false) {
             if (idx < 0) {
