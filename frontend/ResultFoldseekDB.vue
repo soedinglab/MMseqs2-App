@@ -586,9 +586,9 @@ export default {
         headHeight() {
             const auxHeight = this.$vuetify.breakpoint.smAndDown && !this.isCollapsed ? 108 : 0
             const padding = this.$vuetify.breakpoint.smAndDown ? 0 : 16
-            const taxHeight = this.$vuetify.breakpoint.smAndDown 
-                && this.entry.hasTaxonomy 
-                && !this.isComplex ? 0 : -52
+            const taxHeight = this.$vuetify.breakpoint.smAndDown ? 
+                this.entry.hasTaxonomy 
+                && !this.isComplex ? 0 : -52 : 0
             return String(auxHeight + 64 + padding + taxHeight) + 'px'
         },
         colheadTop() {
