@@ -56,11 +56,11 @@ import { debounce } from './Utilities.js';
 
 const colorsAaByPalette = {
     "3di": {
-        A: "#3563D4", R: "#91D435", N: "#D435C0", D: "#35D4B9", C: "#D48B35",
-        Q: "#5C35D4", E: "#3BD435", G: "#D4356A", H: "#3598D4", I: "#C7D435",
-        L: "#B235D4", K: "#35D484", M: "#D45535", F: "#3542D4", P: "#71D435",
-        S: "#D4359F", T: "#35CDD4", W: "#D4AC35", Y: "#7D35D4", V: "#35D44F",
-        B: "#D43549", X: "#3577D4", Z: "#A6D435", "-": "#D335D4"
+        A: "#DF9A8C", C: "#FB72C5", D: "#B4A3D8", E: "#FF5701", F: "#D99E81",
+        G: "#7491C5", H: "#94ABE1", I: "#609D7B", K: "#D7A304", L: "#FE4C8B",
+        M: "#12A564", N: "#D570FD", P: "#CB99C4", Q: "#DA8E99", R: "#9487D0",
+        S: "#E842FE", T: "#42A299", V: "#FB7EDD", W: "#D1A368", Y: "#17A8FD",
+        X: "#C0C0C0", "-": "#FFFFFF"
     },
     clustal: {
         A: "#FFA500", R: "#FF0000", N: "#FFFFFF", D: "#FF0000", C: "#008000",
