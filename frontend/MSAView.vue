@@ -1,51 +1,62 @@
 <template>
 <div class="msa-wrapper" ref="msaWrapper" @mouseover="onMouseOver" @mouseleave="onMouseLeave">
-    <div class="msa-block" v-for="([start, end], i) in blockRanges">
+    <div v-for="([start, end], i) in blockRanges" class="msa-block-wrapper">
+        <div class="msa-block">
+            <span class="conservation-label">Conservation</span>
+            <svg
+                class="conservation-track"
+                :viewBox="`0 0 ${end - start} ${conservationHeight}`"
+                :style="{
+                    gridColumn: 2,
+                    gridRow: 1,
+                    width: 'calc((1ch + 4px) * ' + String(end - start) + ')',
+                    height: conservationHeight + 'px',
+                    transform: 'translateX(-2px)'
+                }"
+                preserveAspectRatio="none"
+            >
+                <path :d="conservationPath(getConservationRange(start, end))" />
+                <g :transform="`scale(${1 / conservationScaleX}, 1)`">
+                    <text
+                        v-for="(idx) in getConservationMaxCols(start, end)"
+                        :key="`cons-max-${i}-${idx}`"
+                        class="conservation-max"
+                        :x="(idx + 0.5) * conservationScaleX"
+                        y="0"
+                        text-anchor="middle"
+                        dominant-baseline="hanging"
+                    >*</text>
+                </g>
+            </svg>
         <!-- <SequenceLogo
             :sequences="getEntryRanges(start, end, makeGradients=false)"
             :alphabet="alphabet"
             :lineLen="lineLen"
         /> -->
-        <!--
-            <div class="msa-row" v-for="({name, aa, ss, seqStart, css}, j) in getEntryRanges(start, end)">
-        -->
-        <template v-for="({name, aa, ss, indices, seqStart, css}, j) in getEntryRanges(start, end)">
-            <span
-                class="header"
-                :title="name"
-                :style="headerStyle(j)"
-                @click="handleClickHeader($event, j)"
-            >{{ name }}</span>
-            <div class="sequence-wrapper" style="position: relative; z-index: 3;">
-                <span class="sequence" :style="$vuetify.theme.dark ? css : {'color': sequenceColor, 'font-weight': fontWeight}" 
-                >{{ alphabet == 'aa' ? aa : ss }}</span>
+        <template v-for="({ name, aa, ss, indices, seqStart, css }, j) in getEntryRanges(start, end)">
+            <span class="header" :title="name" :style="headerStyle(j)" @click="handleClickHeader($event, j)">{{
+                name }}</span>
+            <div class="sequence-wrapper" :style="sequenceStyle(j)">
+                <span class="sequence"
+                    :style="$vuetify.theme.dark ? css : { 'color': sequenceColor, 'font-weight': fontWeight }">{{
+                    alphabet == 'aa' ? aa : ss }}</span>
             </div>
             <div class="column-wrapper" v-if="j == 0"
-                style="position: absolute; 
-                height: 100%; display: flex;
-                flex-direction: row; justify-content: center; align-items: center;
-                grid-column: 2; user-select: none; 
-                z-index: 5; transform: translateX(-2px);" 
-                :style="{'width': 'calc((1ch + 4px) * ' + String(aa.length) +')'}"
-            >
-                <div v-for="(c, i) in indices" 
-                    class="column-box" :data-index="c" :key="c" @click.stop="toggleHighlightColumn"
-                    :class="{'active-column': highlightedColumns.includes(c)}"
-                >
-                    <div v-for="v in entryLength" style="width: 100%; height: 1em;"
-                     :title="actualResno.length > 0 ? actualResno[v-1][c] : ''"></div>
+                :style="{ 'width': 'calc((1ch + 4px) * ' + String(aa.length) + ')' }">
+                <div v-for="(c, i) in indices" class="column-box" :data-index="c" :key="c"
+                    @click.stop="toggleHighlightColumn"
+                    :class="{ 'active-column': highlightedColumns.includes(c) }">
+                    <div v-for="v in entryLength" class="column-box-cell"
+                        :title="actualResno.length > 0 ? actualResno[v - 1][c] : ''"></div>
                 </div>
             </div>
-            <div class="row-wrapper" 
-                style="position: absolute; 
-                grid-column: 2; height: 1em; transform: translateX(-2px);" 
-                :style="{'grid-row': j+1, 'width': 'calc((1ch + 4px) * ' + String(aa.length) +')'}"
-            >
-                <div class="row-block" style="width: 100%; height: 100%; z-index: 2;" :style="css"></div>
+            <div class="row-wrapper"
+                :style="{ 'grid-row': j + 2, 'width': 'calc((1ch + 4px) * ' + String(aa.length) + ')' }">
+                <div class="row-block" :style="css"></div>
             </div>
-            <span class="count">{{ countSequence(aa, seqStart).toString()  }}</span>
+            <span class="count" :style="countStyle(j)">{{ countSequence(aa, seqStart).toString() }}</span>
         </template>
-        <!-- </div> -->
+        </div>
     </div>
 </div>
 </template>
@@ -53,6 +64,37 @@
 <script>
 import SequenceLogo from './SequenceLogo.vue';
 import { debounce } from './Utilities.js';
+
+const aaToIndex = {
+    A: 0, B: 2, C: 1, D: 2, E: 3, F: 4, G: 5, H: 6, I: 7, J: 20, K: 8, L: 9, M: 10,
+    N: 11, O: 20, P: 12, Q: 13, R: 14, S: 15, T: 16, U: 1, V: 17, W: 18, X: 20,
+    Y: 19, Z: 3, "-": 21,
+};
+
+const propertyMatrix = [
+    [1, 0, 1, 0, 1, 0, 0, 0, 0, 0],
+    [1, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    [0, 1, 1, 0, 0, 0, 0, 0, 1, 1],
+    [0, 1, 0, 0, 0, 0, 0, 0, 1, 1],
+    [1, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+    [1, 0, 1, 0, 1, 0, 0, 0, 0, 0],
+    [1, 1, 0, 0, 0, 0, 1, 1, 0, 1],
+    [1, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+    [1, 1, 0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 1, 1, 0, 0, 0, 0, 0, 0],
+    [0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 1, 0, 0, 0, 0, 0, 1, 0, 1],
+    [0, 1, 1, 0, 1, 0, 0, 0, 0, 0],
+    [1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+    [1, 0, 1, 0, 0, 1, 0, 0, 0, 0],
+    [1, 1, 0, 0, 0, 0, 1, 0, 0, 0],
+    [1, 1, 0, 0, 0, 0, 1, 0, 0, 0],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+];
 
 const colorsAaByPalette = {
     "3di": {
@@ -166,6 +208,9 @@ export default {
             pendingColumn: "",
             ticking: false,
             actualResno: [],
+            sequenceLogoHeight: 45,
+            conservationHeight: 45,
+            conservationScaleX: 2,
         }
     },
     props: {
@@ -258,6 +303,78 @@ export default {
         },
         entryLength() {
             return this.entries ? this.entries.length : 0
+        },
+        conservationValues() {
+            if (!this.entries || this.entries.length === 0) {
+                return [];
+            }
+            const residueThreshold = 3;
+            const gapsThreshold = 25;
+            const seqCount = this.entries.length;
+            const length = this.entries[0].aa.length;
+            const numAminoAcids = 22;
+            const countMatrix = Array.from({ length }, () => new Array(numAminoAcids).fill(0));
+
+            for (const entry of this.entries) {
+                const seq = entry.aa;
+                for (let i = 0; i < length; i++) {
+                    const residue = seq[i] ? seq[i].toUpperCase() : "X";
+                    const idx = aaToIndex[residue] !== undefined ? aaToIndex[residue] : 20;
+                    countMatrix[i][idx] += 1;
+                }
+            }
+
+            const resThreshold = Math.floor(((seqCount * residueThreshold) / 100) + 0.5);
+            for (let i = 0; i < length; i++) {
+                for (let aa = 0; aa < numAminoAcids; aa++) {
+                    if (countMatrix[i][aa] < resThreshold) {
+                        countMatrix[i][aa] = 0;
+                    }
+                }
+            }
+
+            const scores = new Array(length).fill(0);
+            for (let i = 0; i < length; i++) {
+                const gapPercentage = (countMatrix[i][21] * 100) / seqCount;
+                if (gapPercentage >= gapsThreshold) {
+                    scores[i] = 0;
+                    continue;
+                }
+
+                const aminoAcidIndices = [];
+                for (let aa = 0; aa < numAminoAcids; aa++) {
+                    if (countMatrix[i][aa] > 0) {
+                        aminoAcidIndices.push(aa);
+                    }
+                }
+
+                if (aminoAcidIndices.length === 0) {
+                    scores[i] = 0;
+                    continue;
+                }
+
+                let score = 0;
+                const propertyCount = propertyMatrix[0].length;
+                for (let prop = 0; prop < propertyCount; prop++) {
+                    let allZero = true;
+                    let allOne = true;
+                    for (const aaIdx of aminoAcidIndices) {
+                        const value = propertyMatrix[aaIdx][prop];
+                        if (value !== 0) {
+                            allZero = false;
+                        }
+                        if (value !== 1) {
+                            allOne = false;
+                        }
+                    }
+                    if (allZero || allOne) {
+                        score += 1;
+                    }
+                }
+                scores[i] = score;
+            }
+
+            return scores;
         }
     },
     methods: {
@@ -277,6 +394,7 @@ export default {
             const isSelected  = this.selectedStructures.length > 0 && this.selectedStructures.includes(index);
             const isReference = this.selectedStructures.length > 0 && this.referenceStructure === index;
             return {
+                gridRow: index + 2,
                 fontWeight: isSelected ? 'bold' : 'normal',                
                 color: isReference
                     ? '#1E88E5'
@@ -284,6 +402,48 @@ export default {
                         ? '#e6ac00'
                         : this.$vuetify.theme.dark ? 'rgba(180, 180, 180, 1)' : 'black'),
             }
+        },
+        sequenceStyle(index) {
+            return { gridRow: index + 2 };
+        },
+        countStyle(index) {
+            return { gridRow: index + 2 };
+        },
+        getConservationMaxCols(start, end) {
+            const maxScore = propertyMatrix[0].length;
+            const result = [];
+            const values = this.conservationValues.slice(start, end);
+            for (let i = 0; i < values.length; i++) {
+                if (values[i] >= maxScore) {
+                    result.push(i);
+                }
+            }
+            return result;
+        },
+        getConservationRange(start, end) {
+            return this.conservationValues.slice(start, end);
+        },
+        conservationPath(values) {
+            if (!values || values.length === 0) {
+                return "";
+            }
+            const maxScore = propertyMatrix[0].length;
+            if (maxScore === 0) {
+                return "";
+            }
+            const topOffset = 12;
+            const height = this.conservationHeight - topOffset;
+            const base = topOffset + height;
+            let d = "";
+            for (let i = 0; i < values.length; i++) {
+                const normalized = values[i] / maxScore;
+                const clamped = Math.max(0, Math.min(1, normalized));
+                const y = base - (clamped * height);
+                const x0 = i;
+                const x1 = i + 1;
+                d += ` M${x0} ${base} L${x0} ${y} L${x1} ${y} L${x1} ${base} Z`;
+            }
+            return d;
         },
         handleUpdateEntries() {
             this.actualResno.length = 0
@@ -305,6 +465,9 @@ export default {
             const header    = container.querySelector(".header");
             const count     = container.querySelector(".count");
             const sequence  = container.querySelector(".sequence");
+            if (sequence && sequence.textContent.length > 0) {
+                this.conservationScaleX = Math.max(1, sequence.scrollWidth / sequence.textContent.length);
+            }
             const containerWidth = container.offsetWidth - header.offsetWidth - count.offsetWidth - 32;
             
             // calculate #chars difference
@@ -533,10 +696,15 @@ export default {
     width: 100%;
     user-select: none;
 }
-.msa-block {
+.msa-block-wrapper {
     margin-bottom: 1.5em;
+}
+.msa-block {
+    --conservation-height: 45px;
+    --conservation-gap: 0.3em;
     display: grid;
     grid-template-columns: fit-content(20%) 5fr auto;
+    grid-template-rows: calc(var(--conservation-height) + var(--conservation-gap));
     grid-auto-rows: 1em;
     width: 100%;
     justify-content: space-between;
@@ -544,7 +712,7 @@ export default {
     line-height: 1em;
     position: relative;
 }
-.msa-block:last-child {
+.msa-block-wrapper:last-child {
     margin-bottom: 0;
 }
 .msa-block .sequence {
@@ -559,24 +727,74 @@ export default {
     background: #11FFEE;
     color: #111;
 }
+.conservation-track {
+    height: var(--conservation-height);
+    margin-bottom: var(--conservation-gap);
+    align-self: end;
+    transform: translateX(-2px);
+}
+.conservation-track path {
+    fill: rgba(30, 136, 229, 0.3);
+    stroke: rgba(30, 136, 229, 0.7);
+    vector-effect: non-scaling-stroke;
+    stroke-width: 1.5;
+    stroke-linejoin: miter;
+    stroke-linecap: butt;
+}
+.conservation-max {
+    fill: #e53935;
+    font-size: 20px;
+    font-weight: 600;
+}
+.conservation-label {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+    line-height: 1em;
+    font-size: 12px;
+    color: rgba(180, 180, 180, 0.9);
+    padding-bottom: var(--conservation-gap);
+}
 .msa-row {
     display: contents;
-/*     padding: 0;
-    margin: 0;
-    display: grid;
-    grid-template-columns: fit-content(20%) 5fr auto;
-    width: 100%;
-    justify-content: space-between;
-    gap: 16px;
-    line-height: 1em; */
 }
 .sequence-wrapper {
+    position: relative;
+    z-index: 3;
     overflow: hidden;
     align-content: left;
     align-items: center;
     display: flex;
     flex-grow: 1;
     text-align: left;
+}
+.column-wrapper {
+    position: absolute;
+    top: calc(var(--conservation-height) + var(--conservation-gap));
+    height: calc(100% - var(--conservation-height) - var(--conservation-gap));
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    grid-column: 2;
+    user-select: none;
+    z-index: 5;
+    transform: translateX(-2px);
+}
+.column-box-cell {
+    width: 100%;
+    height: 1em;
+}
+.row-wrapper {
+    position: absolute;
+    grid-column: 2;
+    height: 1em;
+    transform: translateX(-2px);
+}
+.row-block {
+    width: 100%;
+    height: 100%;
+    z-index: 2;
 }
 .sequence {
     margin-left: auto;
