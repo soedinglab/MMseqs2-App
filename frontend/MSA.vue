@@ -113,9 +113,11 @@
                                     class="input-label"
                                 >Colours</label>
                                 <v-select dense flat hide-details solo
-                                    style="max-width: 140px; max-height: 32px;"
+                                    class="colorscheme-select"
+                                    style="max-width: 130px; max-height: 32px;"
                                     v-model="colorScheme"
                                     :items="schemes"
+                                    :menu-props="{ minWidth: '220px' }"
                                 />
                             </div>
                         </div>
@@ -897,6 +899,29 @@ div.input-div .v-input__control, div.input-div .v-input__control * {
 }
 div.input-div .v-input__slot {
     padding: 0 4px !important;
+}
+.colorscheme-select {
+    max-width: 130px;
+}
+.colorscheme-select .v-select__selection {
+    font-size: 14px;
+}
+.colorscheme-select .v-select__selections {
+    justify-content: flex-end;
+}
+.colorscheme-select .v-select__selection {
+    width: 100%;
+    text-align: right;
+}
+.colorscheme-select .v-input__slot {
+    justify-content: flex-end;
+}
+.colorscheme-select .v-select__selections input {
+    cursor: pointer;
+    caret-color: transparent;
+}
+.colorscheme-select .v-input__slot {
+    cursor: pointer;
 }
 @media only screen and (min-width: 961px) {
     .flex-col {
