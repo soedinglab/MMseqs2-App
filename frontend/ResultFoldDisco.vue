@@ -209,7 +209,7 @@ export default {
             selectedCounts: 0,
             selectedCountPerDb: {},
             selectedSets: new Set(),
-            scrollOffsetArr: null,
+            scrollOffsetArr: [],
         }
     },
     created() {

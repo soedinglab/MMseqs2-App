@@ -192,7 +192,7 @@ export default {
             menuItems: [],
             toggleSourceDb: "",
             dbToIdx: null,
-            scrollOffsetArr: null,
+            scrollOffsetArr: [],
             tabOffset: 140,
             selectUpperbound: 1000,
             sheetHeights: null,
