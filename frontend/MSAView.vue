@@ -44,8 +44,7 @@
             <div class="column-wrapper" v-if="j == 0"
                 :style="{ 'width': 'calc((1ch + 4px) * ' + String(aa.length) + ')' }">
                 <div v-for="(c, i) in indices" class="column-box" :data-index="c" :key="c"
-                    @click.stop="toggleHighlightColumn"
-                    :class="{ 'active-column': highlightedColumns.includes(c) }">
+                    @click.stop="toggleHighlightColumn">
                     <div v-for="v in entryLength" class="column-box-cell"
                         :title="actualResno.length > 0 ? actualResno[v - 1][c] : ''"></div>
                 </div>
@@ -246,6 +245,17 @@ export default {
         },
         lineLen: function() {
             this.$emit("lineLen", this.lineLen);
+        },
+        highlightedColumns: function(newColumns) {
+            this.$nextTick(() => {
+                this.clearHighlightColumns();
+                if (!newColumns || newColumns.length === 0) {
+                    return;
+                }
+                for (const idx of newColumns) {
+                    this.addHighlightColumn(idx, false);
+                }
+            });
         },
     },
     computed: {
