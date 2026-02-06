@@ -554,7 +554,10 @@ export default {
         },
         handleMapBlockClick(index) {
             const top = document.querySelector('.minimap').offsetHeight + 64;  // app-bar + minimap
-            const box = this.$refs.msaView.$el.children[index].getBoundingClientRect();
+            const blocks = this.$refs.msaView?.$el?.querySelectorAll?.('.msa-block-wrapper');
+            const target = blocks && blocks[index];
+            if (!target) return;
+            const box = target.getBoundingClientRect();
             window.scrollTo({ behavior: 'smooth', top: box.top + window.scrollY - top });
         },
         handleAlphabetChange(event) {
