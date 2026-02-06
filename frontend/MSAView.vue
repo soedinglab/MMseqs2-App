@@ -1,7 +1,8 @@
 <template>
-<div class="msa-wrapper" ref="msaWrapper" @mouseover="onMouseOver" @mouseleave="onMouseLeave">
-    <div v-for="([start, end], i) in blockRanges" class="msa-block-wrapper">
-        <div class="msa-block">
+<div class="msa-container">
+    <div class="msa-wrapper" ref="msaWrapper">
+        <div v-for="([start, end], i) in blockRanges" class="msa-block-wrapper">
+            <div class="msa-block" @mousemove="onBlockMouseMove($event, start, end)" @mouseleave="onBlockMouseLeave" @click="onBlockClick($event, start, end)">
             <span class="conservation-label">Conservation</span>
             <svg
                 class="conservation-track"
@@ -33,29 +34,48 @@
             :alphabet="alphabet"
             :lineLen="lineLen"
         /> -->
-        <template v-for="({ name, aa, ss, indices, seqStart, css }, j) in getEntryRanges(start, end)">
+        <template v-for="({ name, aa, ss, seqStart, css }, j) in getEntryRanges(start, end)">
             <span class="header" :title="name" :style="headerStyle(j)" @click="handleClickHeader($event, j)">{{
                 name }}</span>
             <div class="sequence-wrapper" :style="sequenceStyle(j)">
                 <span class="sequence"
-                    :style="$vuetify.theme.dark ? css : { 'color': sequenceColor, 'font-weight': fontWeight }">{{
+                    :style="[css, { 'color': sequenceColor, 'font-weight': fontWeight }]">{{
                     alphabet == 'aa' ? aa : ss }}</span>
             </div>
-            <div class="column-wrapper" v-if="j == 0"
-                :style="{ 'width': 'calc((1ch + 4px) * ' + String(aa.length) + ')' }">
-                <div v-for="(c, i) in indices" class="column-box" :data-index="c" :key="c"
-                    @click.stop="toggleHighlightColumn">
-                    <div v-for="v in entryLength" class="column-box-cell"
-                        :title="actualResno.length > 0 ? actualResno[v - 1][c] : ''"></div>
-                </div>
-            </div>
-            <div class="row-wrapper"
-                :style="{ 'grid-row': j + 2, 'width': 'calc((1ch + 4px) * ' + String(aa.length) + ')' }">
-                <div class="row-block" :style="css"></div>
+            <div class="column-wrapper" v-if="j == 0" :style="overlayStyle(aa.length)">
+                <div
+                    v-for="idx in getBlockHighlights(start, end)"
+                    :key="`sel-${i}-${idx}`"
+                    class="column-marker column-active"
+                    :style="columnMarkerStyle(idx, end - start)"
+                ></div>
+                <div
+                    v-if="getHoverLocalIndex(start, end) !== null"
+                    class="column-marker column-hover"
+                    :style="columnMarkerStyle(getHoverLocalIndex(start, end), end - start)"
+                ></div>
+                <div
+                    v-if="getPreviewLocalIndex(start, end) !== null"
+                    class="column-marker column-preview"
+                    :style="columnMarkerStyle(getPreviewLocalIndex(start, end), end - start)"
+                ></div>
+                <div
+                    v-if="hoverInfo && hoverInfo.start === start && hoverInfo.rowIndex !== null"
+                    class="residue-hover"
+                    :style="residueMarkerStyle(hoverInfo, end - start)"
+                ></div>
             </div>
             <span class="count" :style="countStyle(j)">{{ countSequence(aa, seqStart).toString() }}</span>
         </template>
+            </div>
         </div>
+    </div>
+    <div
+        v-if="hoverInfo"
+        class="column-tooltip"
+        :style="tooltipStyle(hoverInfo)"
+    >
+        <pre class="column-tooltip-text">{{ getHoverTooltipText(hoverInfo) }}</pre>
     </div>
 </div>
 </template>
@@ -205,6 +225,8 @@ export default {
             hoverTimer: null,
             activeColumn: "",
             pendingColumn: "",
+            hoverColumn: null,
+            hoverInfo: null,
             ticking: false,
             actualResno: [],
             sequenceLogoHeight: 45,
@@ -246,17 +268,6 @@ export default {
         lineLen: function() {
             this.$emit("lineLen", this.lineLen);
         },
-        highlightedColumns: function(newColumns) {
-            this.$nextTick(() => {
-                this.clearHighlightColumns();
-                if (!newColumns || newColumns.length === 0) {
-                    return;
-                }
-                for (const idx of newColumns) {
-                    this.addHighlightColumn(idx, false);
-                }
-            });
-        },
     },
     computed: {
         maskCumSum() {
@@ -286,6 +297,13 @@ export default {
                 idx++
             }
             return res
+        },
+        maskedIndexByOriginal() {
+            const map = [];
+            for (let i = 0; i < this.beforeMaskedIndices.length; i++) {
+                map[this.beforeMaskedIndices[i]] = i;
+            }
+            return map;
         },
         firstSequenceWidth() {
             const container = document.querySelector(".msa-block");
@@ -491,7 +509,7 @@ export default {
             }
         },
         emitGradients() {
-            const elements = document.getElementsByClassName("row-block"); 
+            const elements = document.getElementsByClassName("sequence");
             this.$emit(
                 "cssGradients",
                 Array.prototype.map.call(elements, element => element.style['background-image'])
@@ -511,7 +529,6 @@ export default {
                 name: entry.name,
                 aa: entry.aa.slice(start, end),
                 ss: entry.ss.slice(start, end),
-                indices: this.beforeMaskedIndices.slice(start, end),
                 seqStart: 0
             };
             for (let i = 0; i < start; i++) {
@@ -577,31 +594,73 @@ export default {
                 fontWeight: this.fontWeight,
             };
         },
-        onMouseLeave() {
+        onBlockMouseLeave() {
+            this.hoverColumn = null
+            this.hoverInfo = null
             this.resetPreviewState()
         },
-        onMouseOver(event) {
-            // console.log("fired");
-            const target = event.target.closest('.column-box')
-            if (!target) {
-                this?.resetPreviewState()
+        onBlockMouseMove(event, start, end) {
+            const info = this.getColumnInfo(event, start, end)
+            if (!info) {
+                if (this.hoverColumn !== null) {
+                    this.hoverColumn = null
+                    this.hoverInfo = null
+                    this.resetPreviewState()
+                }
                 return
             }
-            
-            const id = target.dataset.index
-            
-            if (id) {
-                this.pendingColumn = id
-                if (!this?.ticking) {
-                    this.ticking = true
-
-                    window.requestAnimationFrame(() => {
-                        this?.togglePreviewColumn()
-                        this.ticking = false
-                    })
+            this.hoverColumn = info.globalIndex
+            const block = event.currentTarget
+            const firstSequence = block.querySelector('.sequence')
+            let rowIndex = null
+            let rowHeight = null
+            if (firstSequence) {
+                const firstRect = firstSequence.getBoundingClientRect()
+                rowHeight = firstRect.height || 0
+                if (rowHeight > 0) {
+                    const rows = this.entries?.length || 0
+                    const rowOffset = Math.floor((event.clientY - firstRect.top) / rowHeight)
+                    if (rowOffset >= 0 && rowOffset < rows) {
+                        rowIndex = rowOffset
+                    }
+                }
+            }
+            const container = this.$el
+            const containerRect = container?.getBoundingClientRect()
+            const relativeX = containerRect ? event.clientX - containerRect.left : event.clientX
+            const relativeY = containerRect ? event.clientY - containerRect.top : event.clientY
+            if (rowIndex !== null) {
+                this.hoverInfo = {
+                    start,
+                    localIndex: info.localIndex,
+                    maskedIndex: info.maskedIndex,
+                    rowIndex,
+                    rowHeight,
+                    xFraction: info.xFraction,
+                    columnCount: info.len,
+                    relativeX,
+                    relativeY,
                 }
             } else {
-                this?.resetPreviewState()
+                this.hoverInfo = null
+            }
+            this.pendingColumn = info.globalIndex
+            if (!this.ticking) {
+                this.ticking = true
+                window.requestAnimationFrame(() => {
+                    this.togglePreviewColumn()
+                    this.ticking = false
+                })
+            }
+        },
+        onBlockClick(event, start, end) {
+            const info = this.getColumnInfo(event, start, end)
+            if (!info) return
+            const idx = Number(info.globalIndex)
+            if (this.highlightedColumns && this.highlightedColumns.includes(idx)) {
+                this.$emit('removeHighlight', idx)
+            } else {
+                this.$emit('addHighlight', idx)
             }
         },
         setTimer(id) {
@@ -633,70 +692,139 @@ export default {
         },
         resetPreviewState() {
             this.clearTimer()
-            const wrapper = this.$refs.msaWrapper
-
-            const arr = wrapper?.querySelectorAll('.preview-column')
-            arr?.forEach(e => e.classList.remove('preview-column'))
             this.$emit('changePreview', -1)
         },
         activateColumn(id, fromUpward=false, move=false) {
-            const wrapper = this.$refs.msaWrapper
-            
-            const arr = wrapper?.querySelectorAll('.preview-column')
-            arr?.forEach(e => e.classList.remove('preview-column'))
-
-            const el = wrapper?.querySelector(`.column-box[data-index="${id}"]`)
-            el?.classList.add('preview-column')
+            this.activeColumn = id
             if (move) {
-                if (el) {
-                window.scrollTo({
-                    top: el.getBoundingClientRect().top + window.scrollY - (180),
-                    left: 0,
-                    behavior: 'smooth'
-                })}
+                this.scrollToColumn(id)
             } else if (!fromUpward) {
                 this.$emit('changePreview', id)
             }
         },
-        toggleHighlightColumn(event) {
-            const parent = event.target.closest('.column-box')
-            if (!parent) return
-
-            const value = parent.classList.contains('active-column')
-            if (value) {
-                this.$emit('removeHighlight', Number(parent.dataset.index))
-            } else {
-                this.$emit('addHighlight', Number(parent.dataset.index))
-            }
-        },
         addHighlightColumn(idx, move) {
-            const wrapper = this.$refs.msaWrapper
-            const el = wrapper?.querySelector(`.column-box[data-index="${idx}"]`)
-            el?.classList.add('active-column')
-            if (move && el) {
-                window.scrollTo({
-                    top: el.getBoundingClientRect().top + window.scrollY - (180),
-                    left: 0,
-                    behavior: 'smooth'
-                })
+            if (move) {
+                this.scrollToColumn(idx)
             }
         },
-        removeHighlightColumn(idx) {
-            const wrapper = this.$refs.msaWrapper
-            wrapper?.querySelector(`.column-box[data-index="${idx}"]`)?.classList.remove('active-column')
-        },
-        clearHighlightColumns() {
-            const wrapper = this.$refs.msaWrapper
-            const arr = wrapper?.querySelectorAll('.active-column')
-            for (let el of arr) {
-                el.classList.remove('active-column')
+        removeHighlightColumn() {},
+        clearHighlightColumns() {},
+        getColumnInfo(event, start, end) {
+            const block = event.currentTarget
+            const sequence = block.querySelector('.sequence')
+            if (!sequence) return null
+            const rect = sequence.getBoundingClientRect()
+            if (event.clientX < rect.left || event.clientX > rect.right) {
+                return null
             }
+            const len = end - start
+            if (len <= 0) return null
+            const colWidth = rect.width / len
+            const localIndex = Math.floor((event.clientX - rect.left) / colWidth)
+            if (localIndex < 0 || localIndex >= len) return null
+            const maskedIndex = start + localIndex
+            const globalIndex = this.beforeMaskedIndices[maskedIndex]
+            if (globalIndex === undefined) return null
+            const xFraction = rect.width ? (event.clientX - rect.left) / rect.width : 0
+            return { localIndex, globalIndex, maskedIndex, len, xFraction }
+        },
+        getLocalIndexForColumn(column, start, end) {
+            const maskedIndex = this.maskedIndexByOriginal[column]
+            if (maskedIndex === undefined) return null
+            const localIndex = maskedIndex - start
+            if (localIndex < 0 || localIndex >= end - start) return null
+            return localIndex
+        },
+        getBlockHighlights(start, end) {
+            const result = []
+            if (!this.highlightedColumns) return result
+            for (const col of this.highlightedColumns) {
+                const local = this.getLocalIndexForColumn(col, start, end)
+                if (local !== null) {
+                    result.push(local)
+                }
+            }
+            return result
+        },
+        getHoverLocalIndex(start, end) {
+            if (this.hoverColumn === null) return null
+            return this.getLocalIndexForColumn(this.hoverColumn, start, end)
+        },
+        getPreviewLocalIndex(start, end) {
+            if (!this.activeColumn && this.activeColumn !== 0) return null
+            return this.getLocalIndexForColumn(this.activeColumn, start, end)
+        },
+        overlayStyle(length) {
+            return { width: `calc((1ch + 4px) * ${String(length)})` }
+        },
+        columnMarkerStyle(localIndex, columnCount) {
+            const width = 100 / columnCount
+            return {
+                left: `${localIndex * width}%`,
+                width: `${width}%`,
+            }
+        },
+        residueMarkerStyle(info, columnCount) {
+            if (!info || info.rowIndex === null || info.rowHeight === undefined) {
+                return {}
+            }
+            const width = 100 / columnCount
+            return {
+                left: `${info.localIndex * width}%`,
+                width: `${width}%`,
+                top: `${info.rowIndex * info.rowHeight}px`,
+                height: `${info.rowHeight}px`,
+            }
+        },
+        tooltipStyle(info) {
+            if (!info) return {}
+            if (Number.isFinite(info.relativeX) && Number.isFinite(info.relativeY)) {
+                return {
+                    left: `${info.relativeX}px`,
+                    top: `${info.relativeY - 12}px`,
+                }
+            }
+            if (Number.isFinite(info.xFraction)) {
+                return { left: `${info.xFraction * 100}%` }
+            }
+            if (info.columnCount) {
+                const width = 100 / info.columnCount
+                return { left: `${(info.localIndex + 0.5) * width}%` }
+            }
+            return {}
+        },
+        getHoverTooltipText(info) {
+            if (!info) return ""
+            const rowIndex = info.rowIndex
+            if (rowIndex === null || rowIndex === undefined) return ""
+            const name = this.entries?.[rowIndex]?.name || ""
+            if (!this.actualResno || this.actualResno.length === 0) {
+                return `${name}  -`
+            }
+            const res = this.actualResno[rowIndex]?.[info.maskedIndex] || "-"
+            return `${name}  ${res}`
+        },
+        scrollToColumn(idx) {
+            const maskedIndex = this.maskedIndexByOriginal[idx]
+            if (maskedIndex === undefined) return
+            const blockIndex = Math.floor(maskedIndex / this.lineLen)
+            const blocks = this.$refs.msaWrapper?.querySelectorAll('.msa-block')
+            const block = blocks && blocks[blockIndex]
+            if (!block) return
+            window.scrollTo({
+                top: block.getBoundingClientRect().top + window.scrollY - 180,
+                left: 0,
+                behavior: 'smooth'
+            })
         },
     },
 }
 </script>
 
 <style>
+.msa-container {
+    position: relative;
+}
 .msa-wrapper {
     padding: 16px; /* equivalent to pa-4 */
     display: flex;
@@ -705,6 +833,8 @@ export default {
     white-space: nowrap;
     width: 100%;
     user-select: none;
+    position: relative;
+    overflow: visible;
 }
 .msa-block-wrapper {
     margin-bottom: 1.5em;
@@ -790,21 +920,7 @@ export default {
     user-select: none;
     z-index: 5;
     transform: translateX(-2px);
-}
-.column-box-cell {
-    width: 100%;
-    height: 1em;
-}
-.row-wrapper {
-    position: absolute;
-    grid-column: 2;
-    height: 1em;
-    transform: translateX(-2px);
-}
-.row-block {
-    width: 100%;
-    height: 100%;
-    z-index: 2;
+    pointer-events: none;
 }
 .sequence {
     margin-left: auto;
@@ -823,92 +939,74 @@ export default {
 .count {
     text-align: right;
 }
-.column-box {
-    position: relative;
-    width: calc(1ch + 4px);
-    display: block;
+.column-marker {
+    position: absolute;
+    top: 0;
     height: 100%;
-    user-select: none;
-    cursor: pointer;
-    box-sizing: border-box;
-    transition: background-color 0.4s cubic-bezier(0.075, 0.82, 0.165, 1);
+    pointer-events: none;
 }
-
-.column-box::before {
+.residue-hover {
+    position: absolute;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.8);
+    background: rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+    z-index: 6;
+}
+.theme--dark .residue-hover {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.12);
+}
+.column-tooltip {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1.2;
+    pointer-events: none;
+    white-space: pre;
+    z-index: 9999;
+}
+.column-tooltip-text {
+    margin: 0;
+    font-family: monospace;
+}
+.theme--dark .column-tooltip {
+    background: rgba(255, 255, 255, 0.9);
+    color: #111;
+}
+.column-active {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+.column-preview {
+    background-color: rgba(0, 0, 0, 0.3);
+}
+.column-hover {
+    box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, 0.5);
+}
+.column-active::before {
     content: "";
     position: absolute;
-    width: 0;
-    height: 0;
-    left: calc(50% - 4px);
+    left: 50%;
     top: -12px;
+    transform: translateX(-50%);
     border-left: 4px solid transparent;
     border-right: 4px solid transparent;
     border-top: 6px solid rgba(0, 0, 0, 0.7);
-    opacity: 0;
-    transition: opacity 0.4s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
-
-.column-box.preview-column:not(.active-column) {
-    background-color: rgba(0, 0, 0, 0.3);
-}
-
-.column-box.active-column {
-    background-color: rgba(0, 0, 0, 0.5);
-}
-
-.column-box.preview-column:not(.active-column)::before {
-    opacity: 0.5;
-}
-
-.column-box.active-column::before {
-    opacity: 1;
-}
-
-/* .column-box:nth-child(odd) {
-    background-color: rgba(0,0,0,0.05);
-}
-.column-box:nth-child(even) {
-    background-color: transparent;
-} */
-.column-box:hover {
-    box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.5);
-}
-.column-box:not(.active-column):active {
-    background-color: rgba(0, 0, 0, 0.4);
-}
-
-.column-box.active-column:active {
-    background-color: rgba(0, 0, 0, 0.5);
-}
-
-.theme--dark .column-box:hover {
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
-}
-
-.theme--dark .column-box.preview-column:not(.active-column) {
-    background-color: rgba(255, 255, 255, 0.2);
-}
-
-.theme--dark .column-box:not(.active-column):active {
-    background-color: rgba(255, 255, 255, 0.3);
-}
-
-.theme--dark .column-box.active-column {
+.theme--dark .column-active {
     background-color: rgba(255, 255, 255, 0.4);
 }
-.theme--dark .column-box.active-column:active {
-    background-color: rgba(255, 255, 255, 0.5);
+.theme--dark .column-preview {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+.theme--dark .column-hover {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+.theme--dark .column-active::before {
+    border-top-color: rgba(255, 255, 255, 0.7);
 }
 
-.theme--dark .column-box::before {
-    border-top: 6px solid rgba(255, 255, 255, 0.7);
-}
-
-.theme--dark .column-box.preview-column:not(.active-column)::before {
-    opacity: 0.5;
-}
-
-.theme--dark .column-box.active-column::before {
-    opacity: 1;
-}
 </style>
