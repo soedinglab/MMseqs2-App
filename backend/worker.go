@@ -1725,14 +1725,17 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 			for _, db := range databases {
 				if db.GpuConfig != nil && db.GpuConfig.UseServer {
 					go func(p Params) {
-						executable := config.Paths.Mmseqs
-						if config.App == AppFoldseek {
-							executable = config.Paths.Foldseek
-						}
 						dbpath := filepath.Join(config.Paths.Databases, p.Path)
 						if p.OverridePath != "" {
 							dbpath = filepath.Clean(p.OverridePath)
 						}
+
+						executable := config.Paths.Mmseqs
+						if config.App == AppFoldseek {
+							executable = config.Paths.Foldseek
+							dbpath = dbpath + "_ss"
+						}
+
 						parameters := []string{
 							executable,
 							"gpuserver",
