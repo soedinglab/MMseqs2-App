@@ -16,7 +16,7 @@
             style="position: absolute; bottom: 8px;"
         />
         <div class="structure-viewer" ref="viewport"></div>
-        <div ref="previewTooltip"
+        <div ref="previewTooltip" class="mono"
             v-show="previewIndex >= 0"
             style="position: absolute; 
                 bottom: 48px; 
@@ -38,7 +38,7 @@ import StructureViewerTooltip from './StructureViewerTooltip.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerMixin from './StructureViewerMixin.vue';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
-import { mockPDB, makeSubPDB, makeMatrix4, getResidueIndices, oneToThree } from './Utilities.js';
+import { mockPDB, makeSubPDB, makeMatrix4, getResidueIndices, oneToThree, decodeMultimer, storeChains, revertChainInfo, getResnoWithChain, splitMultimer, mergeMultimer } from './Utilities.js';
 import { download, PdbWriter, Matrix4, Quaternion, Vector3, concatStructures, ColormakerRegistry, Selection } from 'ngl';
 import { pulchra } from 'pulchra-wasm';
 
@@ -114,17 +114,18 @@ function getMaskedPositions(seq, mask) {
 }
 
 function getAlignmentPos(seq, residueIndex) {
-    let resno = -1;
+    let resi = -1;
     for (let i = 0; i < seq.length; i++) {
         if (seq[i] !== '-') {
-            resno++;
+            resi++;
         }
-        if (resno == residueIndex) {
+        if (resi == residueIndex) {
             return i;
         }
     }
     return -1;
 }
+
 
 function getResidueIndex(seq, alignmentPos) {
     if (seq[alignmentPos] == '-') return -1
@@ -206,8 +207,9 @@ export default {
                 return;
             }
             let index = parseInt(atom.structure.name.replace("key-", ""));
-            let alnPos = getAlignmentPos(this.entries[index].aa, atom.resno-1);
-            // console.log(atom.residueIndex, alnPos);
+            let entry = this.entries[index]
+            let alnPos = getAlignmentPos(entry.aa, atom.residueIndex);
+            console.log(atom, entry, alnPos);
             // this.selectedColumn = alnPos;
             // this.$emit('columnSelected', alnPos);
             if (this.selectedColumns.includes(alnPos)) {
@@ -229,7 +231,8 @@ export default {
             }
             const atom = pickingProxy.atom
             let index = parseInt(atom.structure.name.replace("key-", ""));
-            let alnPos = getAlignmentPos(this.entries[index].aa, atom.resno-1);
+            let entry = this.entries[index]
+            let alnPos = getAlignmentPos(entry.aa, atom.residueIndex);
 
             if (alnPos < 0) {
                 this.clearTimer()
@@ -363,10 +366,26 @@ ENDMDL
                 alignment: aln
             });
         },
-        async addStructureToStage(index, aa, ca) {
+        async addStructureToStage(index, aa, ca, suffix) {
             const mock = mockPDB(ca, aa.replace(/-/g, ''), 'A');
-            const pdb  = await pulchra(mock);
-            const blob = new Blob([pdb], { type: 'text/plain' })
+            let blob
+            if (!suffix) {
+                const pdb = await pulchra(mock)
+                blob = new Blob([pdb], { type: 'text/plain' })
+            } else {
+                const decoded = decodeMultimer(mock, suffix)
+                const chains = storeChains(decoded)
+                const splitted = splitMultimer(decoded)
+                const arr = []
+                for (const split of splitted) {
+                    const tmp = await pulchra(split);
+                    arr.push(tmp)
+                }
+                const pdb = mergeMultimer(arr)
+                const reverted = revertChainInfo(pdb, chains)
+                // console.log(reverted)
+                blob = new Blob([reverted], { type: 'text/plain' })
+            }
             return this.stage.loadFile(blob, { ext: 'pdb', firstModelOnly: true, name: `key-${index}` });
         },
         async shiftStructure({ structure }, index, shiftValue) {
@@ -394,10 +413,14 @@ ENDMDL
                     if (index === that.reference) {
                         color = that.referenceStyleParameters.color;
                     }
-                    let seq = that.entries[index].aa
+                    let entry = that.entries[index]
+                    let seq = entry.aa
+                    let chains = entry.chains
+                    let offsets = entry.offsets
                     let residueMask = getMaskedPositions(seq, that.mask);
                     // let highlightedIndex = getResidueIndex(seq, that.selectedColumn);
                     let hightlightedIndices = getResidueIndices(seq, that.selectedColumns);
+                    // let hightlightedIndices = getResnoWithChain(seq, that.selectedColumns, chains, offsets);
                     // let previewIndex = getResidueIndex(seq, that.previewColumn)
 
                     this.atomColor = (atom) => {
@@ -461,7 +484,7 @@ ENDMDL
                 let data = this.entries[this.reference];
                 let ref;
                 if (isNewReference) {
-                    ref = await this.addStructureToStage(this.reference, data.aa, data.ca);
+                    ref = await this.addStructureToStage(this.reference, data.aa, data.ca, data.suffix);
                     ref.addRepresentation(this.representationStyle, {...this.referenceStyleParameters, color: this.schemeId });
                 } else {
                     ref = this.getComponentByIndex(this.reference);
@@ -476,7 +499,7 @@ ENDMDL
             await Promise.all(
                 add.map(async (idx) => {
                     const data = this.entries[idx];
-                    const structure = await this.addStructureToStage(idx, data.aa, data.ca);
+                    const structure = await this.addStructureToStage(idx, data.aa, data.ca, data.suffix);
                     const { matrix } = await this.tmAlignToReference(idx);
                     structure.setTransform(matrix);
                     structure.addRepresentation(this.representationStyle, {...this.regularStyleParameters, color: this.schemeId });
@@ -554,9 +577,18 @@ ENDMDL
         async updateAllPreview() {
             if (!this.stage) return
 
-            let getPreviewResno = (index) => {
-                let seq = this.entries[index].aa
-                return getResidueIndex(seq, this.previewColumn) + 1;
+            let getPreviewSelection = (index) => {
+                let entry = this.entries[index]
+                let seq = entry.aa
+                let resno = getResidueIndex(seq, this.previewColumn) + 1;
+
+                if (resno < 1) {
+                    return "none"
+                }
+                
+                let chain = entry.chains[resno]
+                let processed = resno - entry.offsets[chain]
+                return String(processed) + ' and :' + chain
             }
             
             let that = this
@@ -572,8 +604,7 @@ ENDMDL
                 
                 const index = parseInt(comp.structure.name.replace("key-", ""));
 
-                let previewIndex = getPreviewResno(index)
-                let previewSele = previewIndex > 0 ? String(previewIndex) : "none"
+                let previewSele = getPreviewSelection(index)
                 let previewRepr = reprList.find(r => r.name === 'preview-repr')
                 
                 if (previewRepr) {
@@ -595,12 +626,16 @@ ENDMDL
                 return
             }
             let comp = this.getComponentByIndex(this.reference)
-            let resIdx = getResidueIndex(this.entries[this.reference].aa, alnPos)
-            if (resIdx < 0) {
+            let refEntry = this.entries[this.reference]
+            let resno = getResidueIndex(refEntry.aa, alnPos) + 1
+            if (resno < 1) {
                 return
             }
-            const range = 8
-            let sele = String(resIdx + 1 - range) + "-" + (resIdx - 1 + range)
+            let chain = refEntry.chains[resno]
+            const chainStr = refEntry.suffix ? " and :" + chain : ""
+            const range = 4
+            resno = resno - refEntry.offsets[chain]
+            let sele = String(resno - range) + "-" + String(resno + range) + chainStr
             comp.autoView(sele, 200)
         },
         setTimer(idx, structIdx) {
@@ -674,8 +709,14 @@ ENDMDL
             const targetSeq = targetObj.aa
             const AA = oneToThree[targetSeq[this.previewColumn]]
             const formatted = AA.charAt(0) + AA.toLowerCase().slice(1, 3)
-            const resNo = getResidueIndex(targetSeq, this.previewColumn) + 1
-            return '<span>'+ name + ':&nbsp;</span><strong class="mono">' 
+            let resNo = getResidueIndex(targetSeq, this.previewColumn) + 1
+            const isMultimer = !targetObj.suffix ? false : true
+            let chain = targetObj.chains[resNo]
+            resNo = isMultimer ? resNo - targetObj.offsets[chain] : resNo
+            chain = isMultimer ? chain + ':' : ""
+            
+            return '<span>'+ name + ':&nbsp;</span><strong>' 
+                + chain
                 + formatted + String(resNo) +'</strong>'
         },
     },

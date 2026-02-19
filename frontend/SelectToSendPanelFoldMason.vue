@@ -63,7 +63,7 @@
 </template>
 
 <script>
-import { getAccession, mockPDB, getResidueIndices } from './Utilities.js';
+import { getAccession, mockPDB, getResidueIndices, decodeMultimer, storeChains, revertChainInfo } from './Utilities.js';
 import { StorageWrapper} from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
 import { pulchra } from 'pulchra-wasm';
@@ -196,11 +196,23 @@ export default {
         },
         async getMockPdb(entry) {
             const mock = mockPDB(entry.ca, entry.aa.replace(/-/g, ''), 'A');
-            return await pulchra(mock);
+            if (!entry.suffix) {
+                return await pulchra(mock);
+            } else {
+                const decoded = decodeMultimer(mock, entry.suffix)
+                return decoded
+            }
         },
         async getFullPdb(entry, signal) {
             const mock = mockPDB(entry.ca, entry.aa.replace(/-/g, ''), 'A');
-            return await this.predictGivenPdb(mock, signal)
+            if (!entry.suffix) {
+                return await this.predictGivenPdb(mock, signal)
+            } else {
+                const decoded = decodeMultimer(mock, entry.suffix)
+                const chains = storeChains(decoded)
+                const pdb = await this.predictGivenPdb(decoded, signal)
+                return revertChainInfo(pdb, chains)
+            }
         },
     },
     computed: {
@@ -218,7 +230,7 @@ export default {
                         }
                         return str
                     } else {
-                        return `<span title="${this.resnoStr.join(", ")}">`
+                        return `<span title="${this.motifStr}">`
                             + String(this.selectedCounts) 
                             + (this.selectedCounts > 1 ? ' residues</span>' : ' residue</span>')
                     }
@@ -226,7 +238,7 @@ export default {
                     let str = this.entries[this.targetIndex].name
                     if (this.selectedCounts > 0) {
                         str = '<strong>' + str + "</strong>&nbsp;"
-                        return str + `/&nbsp;<span title="${this.resnoStr.join(", ")}">`
+                        return str + `/&nbsp;<span title="${this.motifStr}">`
                             + String(this.selectedCounts) + (this.selectedCounts > 1 ? ' residues</span>' : ' residue</span>')
                     } else {
                         str = '<strong>' + str + "</strong>"
@@ -241,7 +253,7 @@ export default {
                     } else {
                         str = '<strong>' + str + "</strong>&nbsp;"
                     }
-                    return str + `/&nbsp;<span title="${this.resnoStr.join(", ")}">`
+                    return str + `/&nbsp;<span title="${this.motifStr}">`
                         + String(this.selectedCounts) + (this.selectedCounts > 1 ? ' residues</span>' : ' residue</span>')
                 } else {
                     if (str.length >= 14) {
@@ -280,7 +292,12 @@ export default {
                 return ""
             } else {
                 return this.resnoStr
-                    .map((i) => 'A'+ String(i))
+                    .map((i) => {
+                        let entry = this.entries[this.targetIndex]
+                        let chain = entry.chains[i]
+                        let resno = i - entry.offsets[chain]
+                        return chain + String(resno)
+                    })
                     .join(", ")
             }
         },

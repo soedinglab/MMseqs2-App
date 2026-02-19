@@ -48,7 +48,7 @@
                             :value="q.name"
                             @click:close="removeQuery(index)"
                         >
-                            {{ q.name }}
+                            {{ q.name.split('-_-_-_')[0] }}
                         </v-chip>
                     </div>
                 </div>

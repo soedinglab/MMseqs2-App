@@ -163,7 +163,8 @@ import AllAtomPredictMixin from './AllAtomPredictMixin.vue';
 import NavigationButton from './NavigationButton.vue';
 
 import { mockPDB, mergePdbs, concatenatePdbs, 
-    getChainName, getAccession, getAbsOffsetTop} from './Utilities';
+    getChainName, getAccession, getAbsOffsetTop,
+    encodeMultimer} from './Utilities';
 
 import { debounce } from './lib/debounce';
 import ResultFoldseekDB from './ResultFoldseekDB.vue';
@@ -547,8 +548,10 @@ export default {
             let out = ""
             if (arr.length > 1) {
                 // out = mergePdbs(arr)
-                out = concatenatePdbs(arr) // For now, just concatenate chains into one single chain
+                const result = encodeMultimer(arr)
+                out = result.pdb
                 name += chainset
+                name += result.suffix
             } else {
                 out = arr[0].pdb
             }

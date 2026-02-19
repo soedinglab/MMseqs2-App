@@ -407,8 +407,70 @@ export default {
         }, 400),
     },
     beforeMount() {
+        const parseSuffix = (suffix) => {
+            if (!suffix) return []
+
+            return suffix.split("-").map((s) => {
+                const out = {};
+                const info = s.split("_");
+
+                if (info.length != 3) return out;
+
+                out.chain = info[0];
+                out.end = Number(info[1]);
+                out.offset = Number(info[2]);
+                return out;
+            });
+        }
+
+        const chainToOffset = (arr) => {
+            if (!arr || arr.length == 0) {
+                return {'A' : 0}
+            }
+
+            const out = {}
+            for (let obj of arr) {
+                out[obj.chain] = obj.offset
+            }
+            return out
+        }
+
+        const indexToChainAndOrigResn = (aa, arr) => {
+            const length = aa.replaceAll('-', '').length
+            const chains = Array(length + 1).fill('A')
+            const resns = Array.from({length: length + 1}, (_, i) => i)
+
+            if (!arr || arr.length == 0) {
+                return {chains: chains, resns: resns}
+            }
+
+            let index = 0
+
+            for (let i = 1; i < length + 1; i++) {
+                chains[i] = arr[index].chain
+                resns[i] = i - arr[index].offset
+
+                if (i == arr[index].end) {
+                    index++
+                }
+            }
+            return {chains: chains, resns: resns}
+        }
+
         this.handleUpdateMatchRatio();
+        
         for (let entry of this.entries) {
+            if (/-_-_-_/.test(entry.name)) {
+                entry.suffix = entry.name.split("-_-_-_")[1];
+            }
+            const parsed = parseSuffix(entry.suffix)
+
+            entry.offsets = chainToOffset(parsed)
+
+            const obj = indexToChainAndOrigResn(entry.aa, parsed)
+            entry.chains = obj.chains
+            entry.resns = obj.resns
+            
             entry.name = tryFixName(entry.name)
         }
     },
@@ -455,7 +517,10 @@ export default {
                 const copy = {
                     name: entry.name,
                     aa: "",
-                    ss: ""
+                    ss: "",
+                    offsets: entry.offsets,
+                    chains: entry.chains,
+                    suffix: entry.suffix,
                 }
                 for (let i = 0; i < this.mask.length; i++) {
                     if (this.mask[i] === 1) {

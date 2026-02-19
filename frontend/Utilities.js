@@ -164,6 +164,10 @@ function tryFixTargetName(target, db) {
 
 // Process e.g. AF-{uniprot ID}-F1_model_v4.cif.pdb.gz to just uniprot ID
 export function tryFixName(name) {
+  if (/-_-_-_/.test(name)) {
+    name = name.split("-_-_-_")[0];
+  }
+
   if (name.startsWith("AF-")) {
     name = name.replaceAll(/(AF[-_]|[-_]F[0-9]+[-_]model[-_]v[0-9]+)/g, "");
   }
@@ -616,6 +620,131 @@ export function concatenatePdbs(chainPdbs /* [{pdb, chain}] */) {
   return out.join("\n");
 }
 
+/**
+ *
+ * @param {*} chainPdbs : Ca only pdb files with chain information in [{pdb, chain}] format
+ * @returns concatenated pdb strings with suffix containing the chain informations
+ * @abstract Concatenate multiple chains into one pdb files with single chain A, preserving the chain information in the suffix as well
+ */
+export function encodeMultimer(chainPdbs /* [{pdb, chain}] */) {
+  const out = [];
+  const chainInfoArr = [];
+  const delimiter = "-_-_-_";
+  let atomSerial = 1;
+
+  for (const { pdb, chain } of chainPdbs) {
+    const lines = pdb.split(/\r?\n/);
+    const arr = [];
+
+    for (const line of lines) {
+      if (/^(ATOM  |HETATM)/.test(line)) {
+        // reassign atom serial no. and residue sequence no.
+        let l = line.padEnd(80, " ");
+        let s = atomSerial.toString().padStart(5, " ");
+        let rs = atomSerial.toString().padStart(4, " ");
+        l = l.slice(0, 6) + s + l.slice(11, 21) + "A" + rs + l.slice(26);
+        arr.push(l);
+        atomSerial++;
+      }
+    }
+
+    let firstResn = Number(arr.at(0).slice(22, 26));
+    let lastResn = Number(arr.at(-1).slice(22, 26));
+
+    const info = {};
+    info.chain = chain;
+    info.end = lastResn;
+    info.offset = firstResn - 1;
+    chainInfoArr.push(info);
+
+    out.push(arr.join("\n"));
+  }
+  out.push("TER");
+  out.push("END");
+
+  let suffix =
+    delimiter +
+    chainInfoArr
+      .map((e) => {
+        return e.chain + "_" + e.end + "_" + e.offset;
+      })
+      .join("-");
+
+  return {
+    pdb: out.join("\n"),
+    suffix: suffix,
+  };
+}
+
+/**
+ *
+ * @param {*} pdb : Ca only pdb file merged by encodeMultimer()
+ * @param {*} suffix : String containing chain information encoded by encodedMultimer()
+ * @returns Recovered pdb with original multimer information encoded beforehand
+ * @abstract Revert back the merged pdb into multimeric pdbs using multiple chain information encoded in suffix.
+ * Make sure to call this function with Ca only pdb, before running pulchra
+ */
+export function decodeMultimer(pdb, suffix) {
+  if (!suffix || suffix.length == 0) return pdb;
+
+  const chainInfos = suffix.split("-").map((s) => {
+    const out = {};
+    const info = s.split("_");
+
+    if (info.length != 3) return out;
+
+    out.chain = info[0];
+    out.end = Number(info[1]);
+    out.offset = Number(info[2]);
+    return out;
+  });
+
+  let index = 0;
+  const out = [];
+
+  for (const line of pdb.split("\n")) {
+    if (line.startsWith("ATOM")) {
+      const rs = Number(line.slice(22, 26));
+      const result =
+        line.slice(0, 21) +
+        chainInfos[index].chain +
+        (rs - chainInfos[index].offset).toString().padStart(4, " ") +
+        line.slice(26);
+      out.push(result);
+      if (rs == chainInfos[index].end) {
+        index++;
+        out.push("TER");
+      }
+    }
+  }
+  out.push("END");
+
+  return out.join("\n");
+}
+
+export function splitMultimer(pdb) {
+  const arr = pdb.split("\nTER\n");
+  const processed = arr.slice(0, -1).map((s) => s + "\nTER\nEND");
+  return processed;
+}
+
+export function mergeMultimer(arr) {
+  let serial = 1;
+  const merged = arr.map((s) => s.split("\nEND")[0]).join("\n") + "\nEND";
+  const out = [];
+  for (const line of merged.split("\n")) {
+    if (line.startsWith("ATOM")) {
+      const result =
+        line.slice(0, 6) + serial.toString().padStart(5, " ") + line.slice(11);
+      out.push(result);
+      serial++;
+    } else if (line.startsWith("TER") || line.startsWith("END")) {
+      out.push(line);
+    }
+  }
+  return out.join("\n");
+}
+
 /* ------ The rotation matrix to rotate Chain_1 to Chain_2 ------ */
 /* m               t[m]        u[m][0]        u[m][1]        u[m][2] */
 /* 0     161.2708425765   0.0663961888  -0.6777150909  -0.7323208325 */
@@ -881,9 +1010,16 @@ export const getChainName = (name) => {
 };
 
 export const getAccession = (name) => {
+  if (/-_-_-_/.test(name)) {
+    name = name.split("-_-_-_")[0];
+  }
+
   if (/^AF-\w+-/.test(name)) {
     name = name.split("-")[1];
   }
+
+  // name = name.replaceAll(/-assembly[0-9]/g, "");
+  name = name.replaceAll(/\.(cif|pdb|gz)/g, "");
 
   if (/_v[0-9]+$/.test(name)) {
     return name;
@@ -942,6 +1078,42 @@ export function getResidueIndices(
           break;
         }
         resno++;
+      }
+    }
+  }
+  return result;
+}
+
+export function getResnoWithChain(
+  seq,
+  alnPoses /* array of highlighted columns */,
+  chains,
+  offsets,
+) {
+  const result = [];
+
+  if (alnPoses.length == 0) {
+    return result;
+  }
+
+  let resi = 0;
+  let startPos = 0;
+  const sorted = [...alnPoses].sort((a, b) => a - b);
+  const isMultimer = Object.keys(offsets).length > 1;
+
+  for (let p of sorted) {
+    for (let i = startPos; i <= p && i < seq.length; i++) {
+      if (seq[i] != "-") {
+        if (i == p) {
+          const resno = resi + 1;
+          const chain = isMultimer ? chains[resno] : "A";
+          const offset = isMultimer ? offsets[chain] : 0;
+          result.push(chain + String(resno - offset));
+          resi++;
+          startPos = i + 1;
+          break;
+        }
+        resi++;
       }
     }
   }

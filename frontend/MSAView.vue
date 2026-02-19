@@ -3,70 +3,70 @@
     <div class="msa-wrapper" ref="msaWrapper">
         <div v-for="([start, end], i) in blockRanges" class="msa-block-wrapper">
             <div class="msa-block" @mousemove="onBlockMouseMove($event, start, end)" @mouseleave="onBlockMouseLeave" @click="onBlockClick($event, start, end)">
-            <span class="conservation-label">Conservation</span>
-            <svg
-                class="conservation-track"
-                :viewBox="`0 0 ${end - start} ${conservationHeight}`"
-                :style="{
-                    gridColumn: 2,
-                    gridRow: 1,
-                    width: 'calc((1ch + 4px) * ' + String(end - start) + ')',
-                    height: conservationHeight + 'px',
-                    transform: 'translateX(-2px)'
-                }"
-                preserveAspectRatio="none"
-            >
-                <path :d="conservationPath(getConservationRange(start, end))" />
-                <g :transform="`scale(${1 / conservationScaleX}, 1)`">
-                    <text
-                        v-for="(idx) in getConservationMaxCols(start, end)"
-                        :key="`cons-max-${i}-${idx}`"
-                        class="conservation-max"
-                        :x="(idx + 0.5) * conservationScaleX"
-                        y="0"
-                        text-anchor="middle"
-                        dominant-baseline="hanging"
-                    >*</text>
-                </g>
-            </svg>
-        <!-- <SequenceLogo
-            :sequences="getEntryRanges(start, end, makeGradients=false)"
-            :alphabet="alphabet"
-            :lineLen="lineLen"
-        /> -->
-        <template v-for="({ name, aa, ss, seqStart, css }, j) in getEntryRanges(start, end)">
-            <span class="header" :title="name" :style="headerStyle(j)" @click="handleClickHeader($event, j)">{{
-                name }}</span>
-            <div class="sequence-wrapper" :style="sequenceStyle(j)">
-                <span class="sequence"
-                    :style="[css, { 'color': sequenceColor, 'font-weight': fontWeight }]">{{
-                    alphabet == 'aa' ? aa : ss }}</span>
-            </div>
-            <div class="column-wrapper" v-if="j == 0" :style="overlayStyle(aa.length)">
-                <div
-                    v-for="idx in getBlockHighlights(start, end)"
-                    :key="`sel-${i}-${idx}`"
-                    class="column-marker column-active"
-                    :style="columnMarkerStyle(idx, end - start)"
-                ></div>
-                <div
-                    v-if="getHoverLocalIndex(start, end) !== null"
-                    class="column-marker column-hover"
-                    :style="columnMarkerStyle(getHoverLocalIndex(start, end), end - start)"
-                ></div>
-                <div
-                    v-if="getPreviewLocalIndex(start, end) !== null"
-                    class="column-marker column-preview"
-                    :style="columnMarkerStyle(getPreviewLocalIndex(start, end), end - start)"
-                ></div>
-                <div
-                    v-if="hoverInfo && hoverInfo.start === start && hoverInfo.rowIndex !== null"
-                    class="residue-hover"
-                    :style="residueMarkerStyle(hoverInfo, end - start)"
-                ></div>
-            </div>
-            <span class="count" :style="countStyle(j)">{{ countSequence(aa, seqStart).toString() }}</span>
-        </template>
+                <span class="conservation-label">Conservation</span>
+                <svg
+                    class="conservation-track"
+                    :viewBox="`0 0 ${end - start} ${conservationHeight}`"
+                    :style="{
+                        gridColumn: 2,
+                        gridRow: 1,
+                        width: 'calc((1ch + 4px) * ' + String(end - start) + ')',
+                        height: conservationHeight + 'px',
+                        transform: 'translateX(-2px)'
+                    }"
+                    preserveAspectRatio="none"
+                >
+                    <path :d="conservationPath(getConservationRange(start, end))" />
+                    <g :transform="`scale(${1 / conservationScaleX}, 1)`">
+                        <text
+                            v-for="(idx) in getConservationMaxCols(start, end)"
+                            :key="`cons-max-${i}-${idx}`"
+                            class="conservation-max"
+                            :x="(idx + 0.5) * conservationScaleX"
+                            y="0"
+                            text-anchor="middle"
+                            dominant-baseline="hanging"
+                        >*</text>
+                    </g>
+                </svg>
+            <!-- <SequenceLogo
+                :sequences="getEntryRanges(start, end, makeGradients=false)"
+                :alphabet="alphabet"
+                :lineLen="lineLen"
+            /> -->
+                <template v-for="({ name, aa, ss, seqStart, css }, j) in getEntryRanges(start, end)">
+                    <span class="header" :title="name" :style="headerStyle(j)" @click="handleClickHeader($event, j)">{{
+                        name }}</span>
+                    <div class="sequence-wrapper" :style="sequenceStyle(j)">
+                        <span class="sequence"
+                            :style="[css, { 'color': sequenceColor, 'font-weight': fontWeight }]">{{
+                            alphabet == 'aa' ? aa : ss }}</span>
+                    </div>
+                    <div class="column-wrapper" v-if="j == 0" :style="overlayStyle(aa.length)">
+                        <div
+                            v-for="idx in getBlockHighlights(start, end)"
+                            :key="`sel-${i}-${idx}`"
+                            class="column-marker column-active"
+                            :style="columnMarkerStyle(idx, end - start)"
+                        ></div>
+                        <div
+                            v-if="getHoverLocalIndex(start, end) !== null"
+                            class="column-marker column-hover"
+                            :style="columnMarkerStyle(getHoverLocalIndex(start, end), end - start)"
+                        ></div>
+                        <div
+                            v-if="getPreviewLocalIndex(start, end) !== null"
+                            class="column-marker column-preview"
+                            :style="columnMarkerStyle(getPreviewLocalIndex(start, end), end - start)"
+                        ></div>
+                        <div
+                            v-if="hoverInfo && hoverInfo.start === start && hoverInfo.rowIndex !== null"
+                            class="residue-hover"
+                            :style="residueMarkerStyle(hoverInfo, end - start)"
+                        ></div>
+                    </div>
+                    <span class="count" :style="countStyle(j)">{{ countSequence(aa, seqStart).toString() }}</span>
+                </template>
             </div>
         </div>
     </div>
@@ -476,9 +476,18 @@ export default {
         handleUpdateEntries() {
             this.actualResno.length = 0
             this.entries.forEach((e, i) => {
+                const isMultimer = !e.suffix ? false : true
                 let acc = 0
                 const nums = [...e.aa].map((c, j) => {
-                    if (c !== '-') return c + String(++acc)
+                    if (c !== '-') {
+                        if (isMultimer) {
+                            const chain = e.chains[++acc]
+                            const resn = acc - e.offsets[chain]
+                            return chain + ':' + c + String(resn)
+                        } else {
+                            return c + String(++acc)
+                        }
+                    }
                     else return ""
                 })
                 this.actualResno.push(nums)
@@ -990,11 +999,11 @@ export default {
     content: "";
     position: absolute;
     left: 50%;
-    top: -12px;
+    bottom: -12px;
     transform: translateX(-50%);
     border-left: 4px solid transparent;
     border-right: 4px solid transparent;
-    border-top: 6px solid rgba(0, 0, 0, 0.7);
+    border-bottom: 6px solid rgba(0, 0, 0, 0.7);
 }
 .theme--dark .column-active {
     background-color: rgba(255, 255, 255, 0.4);
