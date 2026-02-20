@@ -321,7 +321,7 @@
                             type="button"
                             class="v-btn v-btn--icon v-btn--round v-btn--text v-size--default"
                             :class="{ 
-                                        'v-btn--outlined' : alignment && item.target == alignment.target,
+                                        'v-btn--outlined' : alignment && item.target == alignment[0].target,
                                         'theme--dark' : $vuetify.theme.dark
                                     }"
                             >
@@ -401,7 +401,7 @@ export default {
         },
         alignment: {
             type: Object,
-            default: null
+            default: null,
         },
         closeAlignment: {
             type: Function,
