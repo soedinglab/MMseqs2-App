@@ -8,6 +8,7 @@
                         label="Colorscheme"
                         v-model="colorscheme"
                         :items="schemes"
+                        attach
                     >
                     <template v-slot:item="{ item, on, attrs }">
                         <v-list-item two-line v-on="on" v-bind="attrs">
