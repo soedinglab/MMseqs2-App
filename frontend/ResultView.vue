@@ -100,7 +100,7 @@
                     :tableMode="tableMode" :entryidx="entryidx" :entry="entry" :toggleSourceDb="toggleSourceDb"
                     :mode="mode" :selectedStates="selectedStates[entryidx]" :selectedCounts="selectedCountPerDb[entryidx]"
                     :totalSelectedCounts="selectedCounts" :selectUpperbound="selectUpperbound" :alignment="alignment"
-                    :onlyOne="hits.results.length == 1"
+                    :onlyOne="hits.results.length == 1" :isComplex="isComplex"
                     @switchTableMode="(n) => switchTableMode(n)" 
                     @forwardDropdown="(e, h) => forwardDropdown(e, h)"
                     @showAlignment="(i, e) => showAlignment(i, entry.db, e)"
@@ -272,7 +272,7 @@ export default {
             return this.hits?.mode ?? "";
         },
         isComplex() {
-            if (this.hits?.results?.[0]?.alignments?.[0]?.[0]?.complexqtm != null) {
+            if (this.hits?.queries?.length > 1) {
                 return true;
             }
             return false;

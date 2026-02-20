@@ -411,6 +411,10 @@ export default {
             type: Boolean,
             default: false
         },
+        isComplex: {
+            type: Boolean,
+            default: false,
+        },
     },
     watch: {
         filteredHitsTaxIds: {
@@ -481,9 +485,9 @@ export default {
         hasEntries() {
             return this.entry ? this.entryLength > 0 : false
         },
-        isComplex() {
-            return this.entry?.alignments?.[0]?.[0]?.complexqtm != null
-        },
+        // isComplex() {
+        //     return this.entry?.alignments?.[0]?.[0]?.complexqtm != null
+        // },
         anySelected() {
             return this.selectedCounts > 0
         },
