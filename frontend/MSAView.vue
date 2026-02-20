@@ -16,10 +16,10 @@
                     }"
                     preserveAspectRatio="none"
                 >
-                    <path :d="conservationPath(getConservationRange(start, end))" />
+                    <path :d="conservationBlocks[i].path" />
                     <g :transform="`scale(${1 / conservationScaleX}, 1)`">
                         <text
-                            v-for="(idx) in getConservationMaxCols(start, end)"
+                            v-for="(idx) in conservationBlocks[i].maxCols"
                             :key="`cons-max-${i}-${idx}`"
                             class="conservation-max"
                             :x="(idx + 0.5) * conservationScaleX"
@@ -30,11 +30,11 @@
                     </g>
                 </svg>
             <!-- <SequenceLogo
-                :sequences="getEntryRanges(start, end, makeGradients=false)"
+                :sequences="cachedEntryRanges[i]"
                 :alphabet="alphabet"
                 :lineLen="lineLen"
             /> -->
-                <template v-for="({ name, aa, ss, seqStart, css }, j) in getEntryRanges(start, end)">
+                <template v-for="({ name, aa, ss, seqStart, css }, j) in cachedEntryRanges[i]">
                     <span class="header" :title="name" :style="headerStyle(j)" @click="handleClickHeader($event, j)">{{
                         name }}</span>
                     <div class="sequence-wrapper" :style="sequenceStyle(j)">
@@ -217,7 +217,7 @@ const colorsAaByPalette = {
 };
 
 export default {
-    components: { SequenceLogo, SequenceLogo },
+    components: { SequenceLogo },
     data() {
         return {
             lineLen: 80,
@@ -248,12 +248,9 @@ export default {
         highlightedColumns: {type: Array},
     },
     mounted() {
-        this.resizeObserver = new ResizeObserver(debounce(this.handleResize, 100)).observe(this.$refs.msaWrapper);
+        this.resizeObserver = new ResizeObserver(debounce(this.handleResize, 100));
+        this.resizeObserver.observe(this.$refs.msaWrapper);
         this.handleUpdateEntries();
-        this.handleResize();
-        this.emitGradients();
-    },
-    updated() {
         this.handleResize();
         this.emitGradients();
     },
@@ -264,24 +261,33 @@ export default {
     watch: {
         entries: function() {
             this.handleUpdateEntries();
+            this.$nextTick(() => this.emitGradients());
+        },
+        colorScheme: function() {
+            this.$nextTick(() => this.emitGradients());
+        },
+        scores: function() {
+            this.$nextTick(() => this.emitGradients());
+        },
+        mask: function() {
+            this.$nextTick(() => this.emitGradients());
         },
         lineLen: function() {
             this.$emit("lineLen", this.lineLen);
+            this.$nextTick(() => this.emitGradients());
         },
     },
     computed: {
-        maskCumSum() {
-            if (!this.mask) {
-                return [];
-            }
-
-            const result = [];
-            let sum = 0;
-            for (let i = 0; i < this.mask.length; i++) {
-                sum += this.mask[i] == 0;
-                result.push(sum);
-            }
-            return result;
+        cachedEntryRanges() {
+            return this.blockRanges.map(([start, end]) =>
+                this.entries.map(entry => this.getEntryRange(entry, start, end, true))
+            );
+        },
+        conservationBlocks() {
+            return this.blockRanges.map(([start, end]) => ({
+                path: this.conservationPath(this.conservationValues.slice(start, end)),
+                maxCols: this.getConservationMaxCols(start, end),
+            }));
         },
         beforeMaskedIndices() {
             if (!this.mask) {
