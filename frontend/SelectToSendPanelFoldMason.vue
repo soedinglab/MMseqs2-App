@@ -99,7 +99,6 @@ export default {
             type: Array,
             default: () => {[]},
         },
-        selectedCounts: 0,
     },
     // mounted() {
     //     console.log(this.entries, this.targetIndex);        
@@ -216,6 +215,9 @@ export default {
         },
     },
     computed: {
+        selectedCounts() {
+            return this.resnoStr.length
+        },
         selectionBannerContent() {
             if (this.targetIndex < 0) { 
                 return 'No selection' 
@@ -288,7 +290,7 @@ export default {
             return (str + t).padEnd(69, ' ') + '\n'
         },
         motifStr() {
-            if (this.selectedCounts == 0) {
+            if (this.selectedColumns.length == 0) {
                 return ""
             } else {
                 return this.resnoStr
@@ -302,8 +304,8 @@ export default {
             }
         },
         resnoStr() {
-            if (this.selectedCounts == 0) {
-                return ""
+            if (this.selectedColumns.length == 0) {
+                return []
             } else {
                 return getResidueIndices
                     (this.entries[this.targetIndex].aa, 
