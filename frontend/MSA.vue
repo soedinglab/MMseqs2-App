@@ -196,7 +196,7 @@
         </v-card>
         <v-card pa-2>
             <MSAView
-                :entries="msaViewEntries"
+                :entries="msaEntries"
                 :scores="msaViewScores"
                 :alnLen="alnLen"
                 :alphabet="alphabet"
@@ -399,12 +399,33 @@ export default {
             previewColumn: -1,
             selectedColumns: [],
             showViewerCondition: false,
+            msaEntries: [],
         }
     },    
     watch: {
         matchRatio: debounce(function() {
             this.handleUpdateMatchRatio();
         }, 400),
+        mask: {
+            handler(n, o) {
+                if (this.msaEntries.length > 0 
+                    && (o.length == 0 || !n.every((v, i) => v === o[i]))) {
+                    this.msaEntries.forEach(( v, i ) => {
+                        v.aa = ""
+                        v.ss = ""
+
+                        for (let j = 0; j < n.length; j++) {
+                            if (n[j] === 1) {
+                                v.aa += this.entries[i].aa[j]
+                                v.ss += this.entries[i].ss[j]
+                            }
+                        }
+                    })
+                }
+            },
+            immediate: false,
+            deep: true,
+        },
     },
     beforeMount() {
         const parseSuffix = (suffix) => {
@@ -456,7 +477,7 @@ export default {
             }
             return {chains: chains, resns: resns}
         }
-
+        
         this.handleUpdateMatchRatio();
         
         for (let entry of this.entries) {
@@ -464,15 +485,33 @@ export default {
                 entry.suffix = entry.name.split("-_-_-_")[1];
             }
             const parsed = parseSuffix(entry.suffix)
-
+            
             entry.offsets = chainToOffset(parsed)
-
+            
             const obj = indexToChainAndOrigResn(entry.aa, parsed)
             entry.chains = obj.chains
             entry.resns = obj.resns
             
             entry.name = tryFixName(entry.name)
         }
+        
+        this.msaEntries = this.entries.map(entry => {
+            const copy = {
+                name: entry.name,
+                aa: entry.aa,
+                ss: entry.ss,
+                offsets: entry.offsets,
+                chains: entry.chains,
+                suffix: entry.suffix,
+            }
+            // for (let i = 0; i < this.mask.length; i++) {
+            //     if (this.mask[i] === 1) {
+            //         copy.aa += entry.aa[i];
+            //         copy.ss += entry.ss[i];
+            //     }
+            // }
+            return copy;
+        })
     },
     mounted() {
         window.addEventListener("scroll", this.handleScroll);
@@ -511,26 +550,6 @@ export default {
         },
         structureViewerEntries() {
             return this.structureViewerSelection.map(index => this.entries[index]);
-        },
-        msaViewEntries() {
-            const entries = this.entries.map(entry => {
-                const copy = {
-                    name: entry.name,
-                    aa: "",
-                    ss: "",
-                    offsets: entry.offsets,
-                    chains: entry.chains,
-                    suffix: entry.suffix,
-                }
-                for (let i = 0; i < this.mask.length; i++) {
-                    if (this.mask[i] === 1) {
-                        copy.aa += entry.aa[i];
-                        copy.ss += entry.ss[i];
-                    }
-                }
-                return copy;
-            })
-            return entries
         },
         msaViewScores() {
             return this.scores.filter((_, index) => this.mask[index] === 1);
