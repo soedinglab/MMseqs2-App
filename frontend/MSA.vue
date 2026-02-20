@@ -400,6 +400,7 @@ export default {
             selectedColumns: [],
             showViewerCondition: false,
             msaEntries: [],
+            scrollTicking: false,
         }
     },    
     watch: {
@@ -411,15 +412,15 @@ export default {
                 if (this.msaEntries.length > 0 
                     && (o.length == 0 || !n.every((v, i) => v === o[i]))) {
                     this.msaEntries.forEach(( v, i ) => {
-                        v.aa = ""
-                        v.ss = ""
-
+                        const aaArr = [], ssArr = [];
                         for (let j = 0; j < n.length; j++) {
                             if (n[j] === 1) {
-                                v.aa += this.entries[i].aa[j]
-                                v.ss += this.entries[i].ss[j]
+                                aaArr.push(this.entries[i].aa[j]);
+                                ssArr.push(this.entries[i].ss[j]);
                             }
                         }
+                        v.aa = aaArr.join('');
+                        v.ss = ssArr.join('');
                     })
                 }
             },
@@ -504,12 +505,6 @@ export default {
                 chains: entry.chains,
                 suffix: entry.suffix,
             }
-            // for (let i = 0; i < this.mask.length; i++) {
-            //     if (this.mask[i] === 1) {
-            //         copy.aa += entry.aa[i];
-            //         copy.ss += entry.ss[i];
-            //     }
-            // }
             return copy;
         })
     },
@@ -661,6 +656,15 @@ export default {
             }
         },
         handleScroll() {
+            if (!this.scrollTicking) {
+                this.scrollTicking = true;
+                window.requestAnimationFrame(() => {
+                    this._doHandleScroll();
+                    this.scrollTicking = false;
+                });
+            }
+        },
+        _doHandleScroll() {
             const box = this.$refs.msaView.$el.getBoundingClientRect()
             const scrollOffset = window.scrollY
             const rowHeight = this.$refs.topRow.scrollHeight
@@ -677,12 +681,12 @@ export default {
             } else {
                 this.blockIndex = Math.floor((scroll - top) / blockSize);
             }
-            
+
             if (!!document.fullscreenElement) return
 
-            this.showViewerCondition = this.showViewer 
+            this.showViewerCondition = this.showViewer
                 && scrollOffset >= rowHeight
-            
+
             if (
                 this.showViewerCondition
             ) {
@@ -706,7 +710,6 @@ export default {
                     })
                 }
             }
-            
         },
         handleLineLen(lineLen) {
             this.lineLen = lineLen;

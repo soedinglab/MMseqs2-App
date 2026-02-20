@@ -529,49 +529,25 @@ ENDMDL
                     representation.setVisibility(true);
                 })
             );
-            this.updateMask();
+            this.rebuildReprs();
             this.clearTimer()
+        },
+        rebuildReprs() {
+            this.stage.eachRepresentation((repr) => {
+                repr.build();
+            });
         },
         async updateMask() {
             this.stage.eachRepresentation((repr) => {
-                repr.build();
+                repr.update({color: true})
             });
         },
         async updateAllHighlights() {
             if (!this.stage) return
 
-            let getHighlightedResno = (index) => {
-                let seq = this.entries[index].aa
-                return getResidueIndices(seq, this.selectedColumns).map(i => i+1)
-            }
-
-            
-            let that = this
             this.stage.eachComponent(function(comp) {
                 if (comp.type !== 'structure') return
-                
-                let reprList = comp.reprList
-                reprList.find(r => r.name === 'cartoon')?.build()
-                return
-                
-                // As our mockPDB doesn't contain any sidechain atoms,
-                // the licorice representation is useless
-                const index = parseInt(comp.structure.name.replace("key-", ""));
-                let hightlightedIndices = getHighlightedResno(index)
-                let highlightSele = hightlightedIndices.length > 0 ? hightlightedIndices.join(" or ") : "none"
-                let highlightRepr = reprList.find(r => r.name === 'highlight-repr')
-                
-                if (highlightRepr) {
-                    highlightRepr.setSelection(highlightSele).build()
-                } else {
-                    comp.addRepresentation('licorice', {
-                        name: 'highlight-repr',
-                        sele: highlightSele,
-                        colorValue: that.highLightColor,
-                        opacity: 0.5,
-                        scale: 3.0,
-                    }).build()
-                }
+                comp.reprList.find(r => r.name === 'cartoon')?.update({ color: true })
             })
         },
         async updateAllPreview() {
@@ -671,7 +647,9 @@ ENDMDL
             this.updateEntries(newV, oldV);
         },
         mask: function(newM, oldM) {
-            this.updateMask();
+            if (oldM?.length == 0 || !newM.every((v, i) => v === oldM[i])) {
+                this.updateMask();
+            }
         }
     },
     computed: {
