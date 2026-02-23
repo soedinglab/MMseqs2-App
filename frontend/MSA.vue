@@ -72,7 +72,7 @@
             </v-col>
         </v-row>
         <v-card class="minimap fill-height">
-            <v-row dense v-if="cssGradients" style="align-items: center;">
+            <v-row dense style="align-items: center;">
                 <v-col align="center" no-gutters style="max-width: fit-content; margin-right: 4px; position: relative;">
                     <div style="display: flex; flex-direction: row;">
                         <div class="input-div-wrapper expansion-panel" :class="{ 'is-expanded': settingsPanelOpen }">
@@ -129,22 +129,24 @@
                     </div>
                 </v-col>
                 <v-col class="minimap-col">
-                    <div
-                        v-for="(block, i) in cssGradients"
-                        :key="'col-' + i"
-                        class="gradient-block-col"
-                        :style="minimapBlock(i)"
-                        @click="handleMapBlockClick(i)"
-                    >
-                        <div class="gradient-block">
-                            <div
+                    <template v-if="cssGradients">
+                        <div
+                            v-for="(block, i) in cssGradients"
+                            :key="'col-' + i"
+                            class="gradient-block-col"
+                            :style="minimapBlock(i)"
+                            @click="handleMapBlockClick(i)"
+                            >
+                            <div class="gradient-block">
+                                <div
                                 v-for="(gradient, j) in block"
                                 :key="'gradient-' + j"
                                 class="gradient-row"
                                 :style="{ 'background-image': gradient }"
-                            />
+                                />
+                            </div>
                         </div>
-                    </div>
+                    </template>
                 </v-col>
                 <div class="pl-2">
                     
@@ -289,6 +291,7 @@ function clamp(value, min, max) {
 }
 
 function makeMatchRatioMask(entries, ratio) {
+    if (!entries.length || !entries[0]?.aa) return [];
     const columnLength = entries[0].aa.length;
     const mask = new Array(columnLength).fill(0);
     for (let i = 0; i < columnLength; i++) {
@@ -562,6 +565,9 @@ export default {
             this.settingsPanelOpen = !this.settingsPanelOpen;
         },
         handleUpdateMatchRatio: function() {
+            if (!this.entries.length 
+                || !this.entries[0]?.aa 
+                    || this.entries[0].aa.length == 0) return;
             if (this.matchRatio === 0.0) {
                 this.mask = new Array(this.entries[0].aa.length).fill(1);
             } else {
@@ -716,16 +722,20 @@ export default {
         },
         handleCSSGradient(gradients) {
             const numBlocks = Math.ceil(this.alnLen / this.lineLen);
-            const blockSize = gradients.length / numBlocks;
+            if (!numBlocks || !isFinite(numBlocks) || !gradients.length) {
+                this.cssGradients = null;
+                this.gradientRatio = null;
+                return;
+            }
 
             // Organise into blocks. Subsetted to numMinimapGradients for large MSAs
             // Use a step to ensure coverage over entire MSA.
+            const blockSize = gradients.length / numBlocks;
             this.cssGradients = Array.from({ length: numBlocks }, () => []);
             if (blockSize < this.numMinimapGradients) {
                 this.cssGradients.forEach((arr, i) => {
-                    let block = i * blockSize;
-                    let slice = gradients.slice(block, block + blockSize);
-                    arr.push(...slice);
+                    const block = i * blockSize;
+                    arr.push(...gradients.slice(block, block + blockSize));
                 });
             } else {
                 const step = (blockSize - 1) / (this.numMinimapGradients - 1);
@@ -738,8 +748,19 @@ export default {
 
             // Calculate length of last block (all others will be lineLen)
             // Get array of %s that sum to 100%
-            const lastBlockLen = this.cssGradients[numBlocks - 1][0].split('%,').length / 2;
+            const lastBlock = this.cssGradients[numBlocks - 1];
+            if (!lastBlock?.length || !lastBlock[0]) {
+                this.cssGradients = null;
+                this.gradientRatio = null;
+                return;
+            }
+            const lastBlockLen = lastBlock[0].split('%,').length / 2;
             const total = (numBlocks - 1) * this.lineLen + lastBlockLen;
+            if (!total) {
+                this.cssGradients = null;
+                this.gradientRatio = null;
+                return;
+            }
             this.gradientRatio = new Array(numBlocks - 1).fill(this.lineLen / total * 100);
             this.gradientRatio.push(lastBlockLen / total * 100);
         },

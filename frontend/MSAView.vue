@@ -34,13 +34,14 @@
                 :alphabet="alphabet"
                 :lineLen="lineLen"
             /> -->
+                <div v-if="alnLen === 0" class="all-masked-overlay" :style="{ gridColumn: '2', gridRow: `2 / ${entries.length + 2}` }">All sequences are masked</div>
                 <template v-for="({ name, aa, ss, seqStart, css }, j) in cachedEntryRanges[i]">
                     <span class="header" :title="name" :style="headerStyle(j)" @click="handleClickHeader($event, j)">{{
                         name }}</span>
                     <div class="sequence-wrapper" :style="sequenceStyle(j)">
                         <span class="sequence"
-                            :style="[css, { 'color': sequenceColor, 'font-weight': fontWeight }]">{{
-                            alphabet == 'aa' ? aa : ss }}</span>
+                            :style="alnLen > 0 ? [css, { 'color': sequenceColor, 'font-weight': fontWeight }] : {}">{{
+                            alnLen > 0 ? (alphabet == 'aa' ? aa : ss) : '' }}</span>
                     </div>
                     <div class="column-wrapper" v-if="j == 0" :style="overlayStyle(aa.length)">
                         <div
@@ -65,7 +66,7 @@
                             :style="residueMarkerStyle(hoverInfo, end - start)"
                         ></div>
                     </div>
-                    <span class="count" :style="countStyle(j)">{{ countSequence(aa, seqStart).toString() }}</span>
+                    <span class="count" :style="countStyle(j)">{{ alnLen > 0 ? countSequence(aa, seqStart) : '' }}</span>
                 </template>
             </div>
         </div>
@@ -221,6 +222,7 @@ export default {
     data() {
         return {
             lineLen: 80,
+            cachedCharWidth: 0,
             resizeObserver: null,
             hoverTimer: null,
             activeColumn: "",
@@ -319,10 +321,17 @@ export default {
             return sequence.scrollWidth;
         },
         blockRanges() {
-            const maxVal = Math.max(1, Math.ceil(this.alnLen / this.lineLen));
+            const len = this.lineLen;
+            if (!len || !isFinite(len) || len <= 0) {
+                // lineLen is invalid (NaN, 0, Infinity) — return a single block
+                // covering whatever alnLen we have so the DOM block always exists
+                // and handleResize can recover a valid lineLen from it.
+                return [[0, this.alnLen]];
+            }
+            const maxVal = Math.max(1, Math.ceil(this.alnLen / len));
             return Array.from({ length: maxVal }, (_, i) => {
-                let start = i * this.lineLen;
-                let end = Math.min(this.alnLen, i * this.lineLen + this.lineLen);
+                let start = i * len;
+                let end = Math.min(this.alnLen, i * len + len);
                 return [start, end];
             });
         },
@@ -500,26 +509,40 @@ export default {
             })
         },
         handleResize() {
-            // Resize based on first row
             const container = document.querySelector(".msa-block");
-            if (!container) {
-                return
-            }
-            const header    = container.querySelector(".header");
-            const count     = container.querySelector(".count");
-            const sequence  = container.querySelector(".sequence");
-            if (sequence && sequence.textContent.length > 0) {
-                this.conservationScaleX = Math.max(1, sequence.scrollWidth / sequence.textContent.length);
-            }
-            const containerWidth = container.offsetWidth - header.offsetWidth - count.offsetWidth - 32;
-            
-            // calculate #chars difference
-            const content = sequence.textContent;
-            const charDiff = Math.abs(Math.ceil(content.length * (sequence.scrollWidth - containerWidth) / sequence.scrollWidth));
+            if (!container) return;
 
-            if (sequence.scrollWidth > containerWidth) {
-                this.lineLen = Math.min(this.lineLen - charDiff, this.entries[0].aa.length);
-            } else if (sequence.scrollWidth < containerWidth) {
+            const header   = container.querySelector(".header");
+            const count    = container.querySelector(".count");
+            const sequence = container.querySelector(".sequence");
+            if (!sequence || !header || !count) return;
+
+            const seqLen     = sequence.textContent.length;
+            const seqWidth   = sequence.scrollWidth;
+            const sideWidth  = header.offsetWidth + count.offsetWidth + 32;
+            const availWidth = container.offsetWidth - sideWidth;
+
+            if (seqLen === 0 || seqWidth === 0) {
+                // All columns masked — sequence is empty and unmeasurable.
+                // Use the last known char width to keep lineLen valid on resize.
+                // Do NOT cap against entries[0].aa.length here: when all columns
+                // are masked that length is 0, which would set lineLen=0 and break
+                // blockRanges (0/0 = NaN → Infinity → empty array).
+                if (this.cachedCharWidth > 0 && availWidth > 0) {
+                    this.lineLen = Math.floor(availWidth / this.cachedCharWidth);
+                }
+                return;
+            }
+
+            const charWidth = seqWidth / seqLen;
+            this.cachedCharWidth    = charWidth;
+            this.conservationScaleX = Math.max(1, charWidth);
+
+            const charDiff = Math.round(Math.abs(seqWidth - availWidth) / charWidth);
+
+            if (seqWidth > availWidth) {
+                this.lineLen = Math.max(1, this.lineLen - charDiff);
+            } else if (seqWidth < availWidth) {
                 this.lineLen = Math.min(this.lineLen + charDiff, this.entries[0].aa.length);
             }
         },
@@ -559,8 +582,9 @@ export default {
             return Array.from(this.entries, entry => this.getEntryRange(entry, start, end, makeGradients));
         },
         countSequence(sequence, start) {
+            if (!sequence.length) return 0;
             let gaps = sequence.split('-').length - 1;
-            return start + this.lineLen - gaps;
+            return start + sequence.length - gaps;
         },
         generateCSSGradient(start, end, aaSequence, ssSequence) {
             if (!this.scores) {
@@ -1022,6 +1046,21 @@ export default {
 }
 .theme--dark .column-active::before {
     border-top-color: rgba(255, 255, 255, 0.7);
+}
+.all-masked-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: monospace;
+    font-style: italic;
+    font-size: 13px;
+    letter-spacing: normal;
+    color: rgba(120, 120, 120, 0.9);
+    pointer-events: none;
+    z-index: 4;
+}
+.theme--dark .all-masked-overlay {
+    color: rgba(180, 180, 180, 0.7);
 }
 
 </style>
