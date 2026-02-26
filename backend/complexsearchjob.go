@@ -10,10 +10,11 @@ import (
 )
 
 type ComplexSearchJob struct {
-	Size      int      `json:"size" validate:"required"`
-	Database  []string `json:"database" validate:"required"`
-	Mode      string   `json:"mode" validate:"oneof=3di tmalign 3diaa lolalign"`
-	TaxFilter string   `json:"taxfilter"`
+	Size     int      `json:"size" validate:"required"`
+	Database []string `json:"database" validate:"required"`
+	Mode     string   `json:"mode" validate:"oneof=3di tmalign 3diaa lolalign"`
+	// Interface bool     `json:"interface"`
+	TaxFilter string `json:"taxfilter"`
 	query     string
 }
 
@@ -22,6 +23,7 @@ func (r ComplexSearchJob) Hash() Id {
 	h.Write(([]byte)(JobComplexSearch))
 	h.Write([]byte(r.query))
 	h.Write([]byte(r.Mode))
+	// h.Write([]byte(strconv.FormatBool(r.Interface)))
 	if r.TaxFilter != "" {
 		h.Write([]byte(r.TaxFilter))
 	}
@@ -48,11 +50,13 @@ func (r ComplexSearchJob) WritePDB(path string) error {
 	return nil
 }
 
+// func NewComplexSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, isInterface bool, resultPath string, email string, taxfilter string) (JobRequest, error) {
 func NewComplexSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, taxfilter string) (JobRequest, error) {
 	job := ComplexSearchJob{
 		max(strings.Count(query, "HEADER"), 1),
 		dbs,
 		mode,
+		// isInterface,
 		taxfilter,
 		query,
 	}

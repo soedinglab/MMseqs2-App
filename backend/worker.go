@@ -645,9 +645,13 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				if params.OverridePath != "" {
 					dbpath = filepath.Clean(params.OverridePath)
 				}
+				workflow := "easy-complexsearch"
+				if params.Interface {
+					workflow = "easy-interfacesearch"
+				}
 				parameters := []string{
 					config.Paths.Foldseek,
-					"easy-complexsearch",
+					workflow,
 					inputFile,
 					dbpath,
 					filepath.Join(resultBase, "alis_"+database),

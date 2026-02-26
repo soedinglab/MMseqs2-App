@@ -150,6 +150,10 @@ msgstr ""
 "<strong>LoLAlign:</strong> fast prefilter using the 3Di alphabet and "
 "alignment using LoL-align (probabilistic multi-domain structure alignment)"
 
+msgid "MODE_HELP_INTERFACE"
+msgstr ""
+"Search for similar protein-protein interfaces."
+
 msgid "MODE_COUNT"
 msgstr "3"
 

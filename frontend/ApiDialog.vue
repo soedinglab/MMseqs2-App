@@ -21,6 +21,9 @@
                 <span v-if="mode">
                   &nbsp;&nbsp;-F 'mode={{mode}}' \<br>
                 </span>
+                <!-- <span v-if="interface">
+                  &nbsp;&nbsp;-F 'interface={{interface}}' \<br>
+                </span> -->
                 <span v-if="taxfilter">
                   &nbsp;&nbsp;-F 'taxfilter={{taxfilter}}' \<br>
                 </span>
@@ -45,6 +48,7 @@ with open(file, "rb") as f:
 <span style="white-space: normal;">
 <span v-if="email">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;("email", "{{ email }}"),<br></span>
 <span v-if="mode">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;("mode", "{{ mode }}"),<br></span>
+<!-- <span v-if="interface">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;("interface", "{{ interface }}"),<br></span> -->
 <span v-if="taxfilter">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;("taxfilter", "{{ taxfilter }}"),<br></span>
 <span v-for="(path, i) in database" :key="`db-${i}`">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;("database[]", "{{ path }}"),<br></span>
 <span v-for="(val, key) in $attrs" :key="key">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;("{{ key }}", "{{ val }}"),<br></span>
@@ -80,6 +84,10 @@ export default {
       type: String,
       default: ''
     },
+    // interface: {
+    //   type: Boolean,
+    //   default: false
+    // },
     database: {
       type: Array,
       default: []

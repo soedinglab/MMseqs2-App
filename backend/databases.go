@@ -33,6 +33,7 @@ type Params struct {
 	Index        string `json:"index"`
 	Search       string `json:"search"`
 	Multimer     string `json:"multimer"`
+	Interface    bool   `json:"interface"`
 	Status       Status `json:"status"`
 	OverridePath string `json:"override_path,omitempty"`
 

@@ -100,6 +100,8 @@ export default {
 
                 if (this.multimerOnly) {
                     this.availableDatabases = this.availableDatabases.filter(db => db.complex);
+                } else {
+                    this.availableDatabases = this.availableDatabases.filter(db => !db.interface);
                 }
 
                 if (this.motifOnly) {

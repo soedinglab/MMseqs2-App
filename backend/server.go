@@ -212,6 +212,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				req.FormValue("index"),
 				req.FormValue("search"),
 				"",
+				false,
 				StatusPending,
 				"",
 				nil,
@@ -276,6 +277,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		var dbs []string
 		var mode string
 		var email string
+		// var isInterface bool
 		var iterativesearch bool
 		var taxfilter string
 
@@ -297,6 +299,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			query = buf.String()
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
+			// isInterface = req.FormValue("interface") == "true"
 			email = req.FormValue("email")
 			iterativesearch = req.FormValue("iterativesearch") == "true"
 			taxfilter = req.FormValue("taxfilter")
@@ -309,6 +312,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			query = req.FormValue("q")
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
+			// isInterface = req.FormValue("interface") == "true"
 			email = req.FormValue("email")
 			iterativesearch = req.FormValue("iterativesearch") == "true"
 			taxfilter = req.FormValue("taxfilter")
@@ -328,6 +332,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			modeIdx := isIn("complex", modes)
 			if modeIdx != -1 {
 				modeWithoutComplex := strings.Join(append(modes[:modeIdx], modes[modeIdx+1:]...), "-")
+				// request, err = NewComplexSearchJobRequest(query, dbs, databases, modeWithoutComplex, isInterface, config.Paths.Results, email, taxfilter)
 				request, err = NewComplexSearchJobRequest(query, dbs, databases, modeWithoutComplex, config.Paths.Results, email, taxfilter)
 			} else {
 				request, err = NewStructureSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, iterativesearch, taxfilter)
