@@ -12,7 +12,6 @@
                 </template>
             </template>
             <template slot="toolbar-extra">
-                    <!-- :interface="interface" -->
                 <api-dialog
                     :disabled="searchDisabled"
                     :email="email"
@@ -64,7 +63,6 @@
                     :hideEmail="hideEmail"
                     :multimer-only="true"
                     ></databases>
-                    <!-- :interface="interface" -->
     
                 <v-radio-group v-model="mode">
                     <v-tooltip open-delay="300" top>
@@ -81,17 +79,6 @@
                                     ></v-radio>
                 </v-radio-group>
 
-                <!-- <v-checkbox v-model="interface" hide-details>
-                    <template v-slot:label>
-                        <v-tooltip open-delay="300" top>
-                            <template v-slot:activator="{ on }">
-                                <label v-on="on">Interface&nbsp;<v-icon color="#FFFFFFB3" style="margin-top:-3px" small v-on="on">{{ $MDI.HelpCircleOutline }}</v-icon></label>
-                            </template>
-                            <span v-html="$STRINGS.MODE_HELP_INTERFACE"></span>
-                        </v-tooltip>
-                    </template>
-                </v-checkbox>
-     -->
                 <TaxonomyAutocomplete v-model="taxFilter"></TaxonomyAutocomplete>
     
                 <v-tooltip v-if="!$ELECTRON && !hideEmail" open-delay="300" top>
@@ -184,7 +171,6 @@ export default {
             mode: storage.getItem('mode') || ('complex-' + this.$STRINGS.MODE_DEFAULT_KEY),
             modes: Array.from({length: this.$STRINGS.MODE_COUNT - 0}, (_, i) => i + 1)
                     .reduce((dict, i, _)  => { dict[this.$STRINGS['MODE_KEY_' + i]] = this.$STRINGS['MODE_TITLE_' + i]; return dict; }, {}),
-            // interface: (storage.getItem('interface') === 'true') || false,
             email: storage.getItem('email') || "",
             hideEmail: true,
             query: "",
@@ -228,9 +214,6 @@ export default {
         mode(value) {
             storage.setItem('mode', value);
         },
-        // interface(value) {
-        //     storage.setItem('interface', value);
-        // },
         email(value) {
             storage.setItem('email', value);
         },
@@ -253,7 +236,6 @@ export default {
                 q: this.query,
                 database: this.database,
                 mode: this.mode,
-                // interface: this.interface,
                 email: this.email
             };
             if (typeof(request.q) === 'string' && request.q != '') {
