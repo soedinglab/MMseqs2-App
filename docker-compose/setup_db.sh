@@ -10,11 +10,23 @@ for DB in "${@}"; do
 
 SAFE=$(echo "${DB}" | tr -cd '[a-zA-Z0-9]._-')
 if [ ! -e "$DBPATH/${SAFE}.dbtype" ]; then
-    "${APP}" databases "${DB}" "$DBPATH/${SAFE}" "$DBPATH/tmp_${SAFE}" || continue
+    if [ -n "${GPU}" ]; then
+        "${APP}" databases "${DB}" "$DBPATH/${SAFE}_raw" "$DBPATH/tmp_${SAFE}"
+        "${APP}" makepaddedseqdb "$DBPATH/${SAFE}_raw" "$DBPATH/${SAFE}"
+        if [ -e "$DBPATH/${SAFE}_raw.version" ]; then
+            ln -sf -- "$DBPATH/${SAFE}_raw.version" "$DBPATH/${SAFE}.version"
+        fi
+    else
+        "${APP}" databases "${DB}" "$DBPATH/${SAFE}" "$DBPATH/tmp_${SAFE}"
+    fi
 fi
 
 if [ ! -e "$DBPATH/${SAFE}.idx.dbtype" ]; then
-    "${APP}" createindex "$DBPATH/${SAFE}" "$DBPATH/tmp_${SAFE}" --split 1
+    if [ -n "${GPU}" ]; then
+        "${APP}" createindex "$DBPATH/${SAFE}" "$DBPATH/tmp_${SAFE}" --split 1 --index-subset 10
+    else
+        "${APP}" createindex "$DBPATH/${SAFE}" "$DBPATH/tmp_${SAFE}" --split 1
+    fi
 fi
 
 rm -rf -- "$DBPATH/tmp_${SAFE}"
