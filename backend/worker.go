@@ -163,6 +163,7 @@ func ismmCIFFile(filePath string) (bool, error) {
 }
 
 func RunJob(request JobRequest, config ConfigRoot) (err error) {
+	start := time.Now()
 	switch job := request.Job.(type) {
 	case SearchJob:
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
@@ -309,7 +310,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		}
 
 		if config.Verbose {
-			log.Print("Process finished gracefully without error")
+			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
 		}
 		return nil
 	case StructureSearchJob:
@@ -579,7 +580,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		}
 
 		if config.Verbose {
-			log.Print("Process finished gracefully without error")
+			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
 		}
 		return nil
 	case ComplexSearchJob:
@@ -770,7 +771,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		}
 
 		if config.Verbose {
-			log.Print("Process finished gracefully without error")
+			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
 		}
 		return nil
 	case MsaJob:
@@ -1140,7 +1141,7 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 		}
 
 		if config.Verbose {
-			log.Print("Process finished gracefully without error")
+			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
 		}
 		return nil
 	case PairJob:
@@ -1402,7 +1403,7 @@ rm -rf -- "${BASE}/tmp"
 			}
 		}
 		if config.Verbose {
-			log.Print("Process finished gracefully without error")
+			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
 		}
 		return nil
 	case IndexJob:
@@ -1423,7 +1424,7 @@ rm -rf -- "${BASE}/tmp"
 			return &JobExecutionError{err}
 		}
 		if config.Verbose {
-			log.Println("Process finished gracefully without error")
+			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
 		}
 		params.Status = StatusComplete
 		err = SaveParams(file+".params", params)
@@ -1460,7 +1461,7 @@ rm -rf -- "${BASE}/tmp"
 			}
 		}
 		if config.Verbose {
-			log.Print("Process finished gracefully without error")
+			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
 		}
 		return nil
 	case FoldDiscoJob:
@@ -1676,7 +1677,7 @@ printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.d
 		}
 
 		if config.Verbose {
-			log.Print("Process finished gracefully without error")
+			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
 		}
 		return nil
 	default:
