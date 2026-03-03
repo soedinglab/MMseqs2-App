@@ -1752,11 +1752,17 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 							"--db-load-mode",
 							"0",
 						}
+						hasMaxSeqs := false
 						searchParams := strings.Fields(p.Search)
 						for i := 0; i < len(searchParams); i++ {
 							if searchParams[i] == "--max-seqs" && i+1 < len(searchParams) {
 								parameters = append(parameters, searchParams[i], searchParams[i+1])
+								hasMaxSeqs = true
 							}
+						}
+						if !hasMaxSeqs && config.App == AppFoldseek {
+							parameters = append(parameters, "--max-seqs")
+							parameters = append(parameters, "1000")
 						}
 						_, environ := gpuParameters(p.GpuConfig)
 						execCommandSync(
