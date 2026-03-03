@@ -1737,6 +1737,10 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 							dbpath = dbpath + "_ss"
 						}
 
+						if fileExists(dbpath + ".idx.dbtype") {
+							dbpath = dbpath + ".idx"
+						}
+
 						parameters := []string{
 							executable,
 							"gpuserver",
