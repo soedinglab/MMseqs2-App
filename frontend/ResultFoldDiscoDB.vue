@@ -41,7 +41,14 @@
                 }"
                 >
                 <div style="flex-basis: 100%; width: 100%">
-                    <h3>Filter</h3>
+                    <h3>Filter
+                        <v-tooltip open-delay="300" top>
+                            <template v-slot:activator="{ on }">
+                                <v-icon v-on="on" style="font-size: 16px;">{{ $MDI.HelpCircleOutline }}</v-icon>
+                            </template>
+                            <span>Filter hits by which query residues are present in the match. Select a pattern to show only hits matching that specific subset of query residues.</span>
+                        </v-tooltip>
+                    </h3>
                     <motif-filter
                         :items="dbGaps"
                         :value="gapFilter ? gapFilter : ''"
@@ -54,7 +61,20 @@
                 </div>
                 <v-flex class="d-flex" style="flex-basis: 100%; width: 100%">
                     <div style="width: 100%">
-                        <h3>Cluster</h3>
+                        <h3>Cluster
+                            <v-tooltip open-delay="300" top>
+                                <template v-slot:activator="{ on }">
+                                    <v-icon v-on="on" style="font-size: 16px;">{{ $MDI.HelpCircleOutline }}</v-icon>
+                                </template>
+                                <div>
+                                    Group hits by similarity of their matched inter-residue distances using DBSCAN density-based clustering. <br> Hits with similar geometric arrangements are placed in the same cluster.
+                                    <ul class="mt-1 ml-4">
+                                        <li><b>Min Points:</b> minimum number of hits required to form a cluster; smaller groups are labeled as noise.</li>
+                                        <li><b>Epsilon:</b> maximum squared distance between two points to be considered neighbors.</li>
+                                    </ul>
+                                </div>
+                            </v-tooltip>
+                        </h3>
                         <folddisco-hit-cluster :hits="entry" v-on:cluster="clusters = $event"></folddisco-hit-cluster>
                     </div>
                     <v-menu v-show="$vuetify.breakpoint.smAndDown" bottom left :close-on-content-click='false'>
