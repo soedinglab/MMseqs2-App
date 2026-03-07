@@ -123,8 +123,15 @@ msgstr "Enter a protein structure in PDB or mmCIF format or upload a PDB or mmCI
 
 msgid "MOTIF_HELP"
 msgstr ""
-"Enter a protein structure in PDB or mmCIF format or upload a PDB or mmCIF file.<br>\n"
-"To define a motif, use the <b>SELECT MOTIF</b> button to highlight specific residues."
+"Enter a protein structure in PDB or mmCIF format or upload a PDB or mmCIF file.<br><br>\n"
+"<b>Defining a motif:</b><br>\n"
+"<ul style='margin: 4px 0 4px 16px;'>\n"
+"<li>Use the <b>pencil button</b> to click or click-and-drag residues in the sequence viewer.</li>\n"
+"<li>Use the <b>ligand button</b> to automatically select residues near a ligand within a distance cutoff.</li>\n"
+"<li>Type residue positions directly in the text field as a comma-separated list (e.g. <code>A207,A210,B15</code>).</li>\n"
+"</ul><br>\n"
+"<b>Substitutions:</b> Append <code>:X</code> to allow a residue to match alternative amino acids.<br>\n"
+"For example, <code>A207:F</code> allows matching with phenylalanine, <code>A207:AG</code> allows alanine or glycine."
 
 msgid "UPLOAD_LABEL"
 msgstr "Upload PDB"
