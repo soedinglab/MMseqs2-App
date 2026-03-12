@@ -326,8 +326,12 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
 		} else if config.App == AppFoldseek {
 			modes := strings.Split(mode, "-")
+			interfaceIdx := isIn("interface", modes)
 			modeIdx := isIn("complex", modes)
-			if modeIdx != -1 {
+			if interfaceIdx != -1 {
+				modeWithoutInterface := strings.Join(append(modes[:interfaceIdx], modes[interfaceIdx+1:]...), "-")
+				request, err = NewInterfaceSearchJobRequest(query, dbs, databases, modeWithoutInterface, config.Paths.Results, email, taxfilter)
+			} else if modeIdx != -1 {
 				modeWithoutComplex := strings.Join(append(modes[:modeIdx], modes[modeIdx+1:]...), "-")
 				request, err = NewComplexSearchJobRequest(query, dbs, databases, modeWithoutComplex, config.Paths.Results, email, taxfilter)
 			} else {
@@ -1092,6 +1096,38 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+		case InterfaceSearchJob:
+			mode = job.Mode
+			result, err := Lookup(ticket.Id, 0, math.MaxInt32, config.Paths.Results, false)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			keys := make([]uint32, 0)
+			for _, lookup := range result.Lookup {
+				if lookup.Set == uint32(id) {
+					keys = append(keys, uint32(lookup.Id))
+				}
+			}
+			isFoldseek = true
+			databases := job.Database
+			if database != "" {
+				if isIn(database, job.Database) == -1 {
+					http.Error(w, "Database not found", http.StatusBadRequest)
+					return
+				}
+				databases = []string{database}
+			}
+			results, err = InterfaceAlignments(ticket.Id, keys, databases, config.Paths.Results)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			fasta, err = ReadQueryByKeys(ticket.Id, keys, config.Paths.Results)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 		default:
 			http.Error(w, "Invalid job type", http.StatusBadRequest)
 			return
@@ -1135,7 +1171,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 							cnt++
 						}
 					}
-				case [][]ComplexAlignmentEntry:
+				case [][]ComplexAlignmentEntry: // Handle both ComplexSearchJob and InterfaceSearchJob
 					if resIndex == -1 {
 						for _, inner := range conv {
 							for i := range inner {
