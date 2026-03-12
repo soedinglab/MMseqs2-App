@@ -562,6 +562,13 @@ func ComplexAlignments(id Id, entry []uint32, databases []string, jobsbase strin
 	return ReadAlignments[ComplexAlignmentEntry, uint32](id, entry, databases, jobsbase)
 }
 
+type InterfaceAlignmentEntry = ComplexAlignmentEntry
+
+func InterfaceAlignments(id Id, entry []uint32, databases []string, jobsbase string) ([]SearchResult, error) {
+	return ReadAlignments[InterfaceAlignmentEntry, uint32](id, entry, databases, jobsbase)
+}
+
+
 func FoldDiscoAlignments(id Id, databases []string, jobsbase string) ([]FoldDiscoResult, error) {
 	return ReadFoldDisco(id, databases, jobsbase)
 }

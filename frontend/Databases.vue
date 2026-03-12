@@ -57,6 +57,10 @@ export default {
             type: Boolean,
             default: false
         },
+        interfaceOnly: {
+            type: Boolean,
+            default: false
+        },
         motifOnly: {
             type: Boolean,
             default: false
@@ -98,8 +102,10 @@ export default {
                 this.dberror = false;
                 this.availableDatabases = response.data.databases;
 
-                if (this.multimerOnly) {
-                    this.availableDatabases = this.availableDatabases.filter(db => db.complex);
+                if (this.interfaceOnly) {
+                    this.availableDatabases = this.availableDatabases.filter(db => db.interface);
+                } else if (this.multimerOnly) {
+                    this.availableDatabases = this.availableDatabases.filter(db => db.complex && !db.interface);
                 } else {
                     this.availableDatabases = this.availableDatabases.filter(db => !db.interface);
                 }
