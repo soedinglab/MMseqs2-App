@@ -277,7 +277,7 @@ export default {
                     case "foldseek-multimer":
                         return "Foldseek-Multimer Search";
                     case "foldseek-interface":
-                        return "Foldseek Interface Search";
+                        return "Foldseek-Interface Search";
                     case "foldmason":
                         return "FoldMason MSA";
                     case "folddisco":
