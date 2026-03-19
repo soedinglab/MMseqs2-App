@@ -24,6 +24,8 @@ ARG FOLDDISCO_HASH=folddisco
 # ARG FOLDDISCO_HASH=archive/7514114fb6c444c0483e20838a0a06688304918e
 ONBUILD ADD https://mmseqs.com/${FOLDDISCO_HASH}/folddisco-linux-x86_64.tar.gz .
 ONBUILD ADD https://mmseqs.com/foldcomp/foldcomp-linux-x86_64.tar.gz .
+ARG FOLDSEEK_INTERFACE_HASH=foldseek_interface-tmp
+ONBUILD ADD https://steineggerlab-hidden.s3.us-east-1.amazonaws.com/foldseek_interface-beta/foldseek-interface-linux-x86_64.tar.gz .
 
 FROM scratch AS foldseek_arm64_downloader
 WORKDIR /opt/build
@@ -64,7 +66,7 @@ RUN mkdir binaries; \
         fi; \
       done; \
     else \
-      for i in mmseqs foldseek foldmason folddisco foldcomp; do \
+      for i in mmseqs foldseek foldmason folddisco foldcomp foldseekinterface; do \
         for j in sse2 sse41 avx2 x86_64; do \
           if [ -e "${i}-linux-${j}.tar.gz" ]; then \
             cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}/bin/${i}; \
