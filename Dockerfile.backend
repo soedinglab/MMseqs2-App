@@ -75,6 +75,8 @@ RUN mkdir binaries; \
             elif [ "$i" = "foldcomp" ]; then \
               cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}; \
               mv -f -- ${i} binaries/${i}; \
+            elif [ "$i" = "foldseek-interface" ]; then \
+              mv -f -- ${i}/bin/${i} binaries/${i}; \
             else \
               mv -f -- ${i}/bin/${i} binaries/${i}_${j}; \
             fi; \
