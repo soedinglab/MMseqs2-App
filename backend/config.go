@@ -341,6 +341,7 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 		paths = append(
 			paths,
 			&config.Paths.Foldseek,
+			&config.Paths.FoldseekInterface,
 			&config.Paths.FoldMason,
 			&config.Paths.FoldDisco,
 			&config.Paths.FoldComp,
