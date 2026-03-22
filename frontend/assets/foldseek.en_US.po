@@ -34,6 +34,12 @@ msgstr ""
 " <a href=\"https://www.nature.com/articles/s41592-025-02593-7\" target=\"_blank\" rel=\"noopener\">"
 "Rapid and sensitive protein complex alignment with Foldseek-Multimer</a>. Nature Methods, 2025."
 
+msgid "CITATION_INTERFACE"
+msgstr ""
+"TODO Steinegger M."
+" <a href=\"TODO\" target=\"_blank\" rel=\"noopener\">"
+"TODO TITLE</a>. Journal, YEAR."
+
 msgid "CITATION_FOLDMASON"
 msgstr ""
 "Gilchrist CLM, Mirdita M and Steinegger M."

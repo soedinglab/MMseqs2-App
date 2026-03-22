@@ -96,6 +96,7 @@ var defaultFileContent = []byte(`{
         */
         // path to foldseek binary
         "foldseek"     : "~foldseek",
+		"foldseekinterface" : "~foldseek-interface",
         "foldmason"    : "~foldmason",
 		"folddisco"    : "~folddisco",
 		"foldcomp"     : "~foldcomp",
@@ -196,16 +197,17 @@ type ConfigColabFoldPaths struct {
 }
 
 type ConfigPaths struct {
-	Databases string                `json:"databases"`
-	Results   string                `json:"results"`
-	Temporary string                `json:"temporary"`
-	Mmseqs    string                `json:"mmseqs"`
-	Foldseek  string                `json:"foldseek"`
-	FoldMason string                `json:"foldmason"`
-	FoldDisco string                `json:"folddisco"`
-	FoldComp  string                `json:"foldcomp"`
-	Pdb100    string                `json:"pdb100"`
-	ColabFold *ConfigColabFoldPaths `json:"colabfold"`
+	Databases         string                `json:"databases"`
+	Results           string                `json:"results"`
+	Temporary         string                `json:"temporary"`
+	Mmseqs            string                `json:"mmseqs"`
+	Foldseek          string                `json:"foldseek"`
+	FoldseekInterface string                `json:"foldseekinterface"`
+	FoldMason         string                `json:"foldmason"`
+	FoldDisco         string                `json:"folddisco"`
+	FoldComp          string                `json:"foldcomp"`
+	Pdb100            string                `json:"pdb100"`
+	ColabFold         *ConfigColabFoldPaths `json:"colabfold"`
 }
 
 type ConfigRedis struct {
@@ -342,6 +344,7 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 			&config.Paths.FoldMason,
 			&config.Paths.FoldDisco,
 			&config.Paths.FoldComp,
+			&config.Paths.FoldseekInterface,
 		)
 	}
 
@@ -384,6 +387,9 @@ func (c *ConfigRoot) CheckPaths() error {
 		}
 		if _, err := os.Stat(c.Paths.FoldDisco); err != nil {
 			return errors.New("FoldDisco binary was not found at " + c.Paths.FoldDisco)
+		}
+		if _, err := os.Stat(c.Paths.FoldseekInterface); err != nil {
+			return errors.New("FoldseekInterface binary was not found at " + c.Paths.FoldseekInterface)
 		}
 	} else if _, err := os.Stat(c.Paths.Mmseqs); err != nil {
 		return errors.New("MMseqs2 binary was not found at " + c.Paths.Mmseqs)

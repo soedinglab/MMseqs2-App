@@ -834,7 +834,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					dbpath = filepath.Clean(params.OverridePath)
 				}
 				parameters := []string{
-					config.Paths.Foldseek,
+					config.Paths.FoldseekInterface,
 					"easy-interfacesearch",
 					inputFile,
 					dbpath,
