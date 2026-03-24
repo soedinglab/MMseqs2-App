@@ -543,6 +543,8 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	ticketFolddiscoHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
 		var query string
 		var motif string
+		var queries []string
+		var motifs []string
 		var dbs []string
 		//var mode string
 		var email string
@@ -556,19 +558,40 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				return
 			}
 
-			f, _, err := req.FormFile("q")
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
+			// Batch mode: multiple structures via queries[] file fields
+			if files := req.MultipartForm.File["queries[]"]; len(files) > 0 {
+				for _, fh := range files {
+					file, err := fh.Open()
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusBadRequest)
+						return
+					}
+					buf := new(bytes.Buffer)
+					buf.ReadFrom(file)
+					file.Close()
+					queries = append(queries, buf.String())
+				}
+			} else if formQueries := req.Form["queries[]"]; len(formQueries) > 0 {
+				queries = formQueries
 			}
 
-			buf := new(bytes.Buffer)
-			buf.ReadFrom(f)
-			query = buf.String()
+			if len(queries) > 0 {
+				motifs = req.Form["motifs[]"]
+			} else {
+				f, _, err := req.FormFile("q")
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				buf := new(bytes.Buffer)
+				buf.ReadFrom(f)
+				query = buf.String()
+				motif = req.FormValue("motif")
+			}
+
 			dbs = req.Form["database[]"]
 			//mode = req.FormValue("mode")
 			email = req.FormValue("email")
-			motif = req.FormValue("motif")
 			// taxfilter = req.FormValue("taxfilter")
 		} else {
 			err := req.ParseForm()
@@ -576,11 +599,18 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			query = req.FormValue("q")
+
+			queries = req.Form["queries[]"]
+			motifs = req.Form["motifs[]"]
+
+			if len(queries) == 0 {
+				query = req.FormValue("q")
+				motif = req.FormValue("motif")
+			}
+
 			dbs = req.Form["database[]"]
 			//mode = req.FormValue("mode")
 			email = req.FormValue("email")
-			motif = req.FormValue("motif")
 			// taxfilter = req.FormValue("taxfilter")
 		}
 
@@ -590,7 +620,12 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		request, err := NewFoldDiscoJobRequest(query, motif, dbs, databases /*mode,*/, config.Paths.Results, email /*, taxfilter*/)
+		var request JobRequest
+		if len(queries) > 0 {
+			request, err = NewFoldDiscoBatchJobRequest(queries, motifs, dbs, databases, config.Paths.Results, email)
+		} else {
+			request, err = NewFoldDiscoJobRequest(query, motif, dbs, databases, config.Paths.Results, email)
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
