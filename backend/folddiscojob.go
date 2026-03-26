@@ -16,9 +16,11 @@ type FoldDiscoJob struct {
 	Database []string `json:"database" validate:"required"`
 	// Mode      string   `json:"mode" validate:"oneof=3di tmalign 3diaa"`
 	// TaxFilter string `json:"taxfilter"`
-	Motif  string   `json:"motif"`
-	Motifs []string `json:"motifs,omitempty"`
-	Top    int      `json:"top,omitempty"`
+	Motif  string     `json:"motif"`
+	// Motifs[i] holds one or more motif strings for queries[i].
+	// Each motifs[] form value may contain multiple motifs separated by ";".
+	Motifs [][]string `json:"motifs,omitempty"`
+	Top    int        `json:"top,omitempty"`
 	query  string
 	queries []string
 }
@@ -35,8 +37,10 @@ func (r FoldDiscoJob) Hash() Id {
 	for _, q := range r.queries {
 		h.Write([]byte(q))
 	}
-	for _, m := range r.Motifs {
-		h.Write([]byte(m))
+	for _, ms := range r.Motifs {
+		for _, m := range ms {
+			h.Write([]byte(m))
+		}
 	}
 	// h.Write([]byte(r.Mode))
 	// if r.TaxFilter != "" {
@@ -81,7 +85,10 @@ func (r FoldDiscoJob) WriteBatchFiles(basePath string) error {
 		if err := os.WriteFile(fp, []byte(q), 0644); err != nil {
 			return err
 		}
-		lines = append(lines, fp+"\t"+r.Motifs[i])
+		// Each query can have multiple motifs; emit one batch line per motif.
+		for _, m := range r.Motifs[i] {
+			lines = append(lines, fp+"\t"+m)
+		}
 	}
 	content := strings.Join(lines, "\n") + "\n"
 	return os.WriteFile(filepath.Join(basePath, "query_batch.txt"), []byte(content), 0644)
@@ -129,12 +136,21 @@ func NewFoldDiscoJobRequest(query string, motif string, dbs []string, validDbs [
 	return request, nil
 }
 
-func NewFoldDiscoBatchJobRequest(queries []string, motifs []string, dbs []string, validDbs []Params, resultPath string, email string, top int) (JobRequest, error) {
+// NewFoldDiscoBatchJobRequest creates a batch Folddisco job. motifs[i] contains
+// the motifs for queries[i]; each entry may hold more than one motif so that a
+// single structure can be searched with multiple motif specifications without
+// re-uploading the file.
+func NewFoldDiscoBatchJobRequest(queries []string, motifs [][]string, dbs []string, validDbs []Params, resultPath string, email string, top int) (JobRequest, error) {
 	if len(queries) != len(motifs) {
 		return JobRequest{}, errors.New("queries and motifs must have the same length")
 	}
 	if len(queries) == 0 {
 		return JobRequest{}, errors.New("at least one query is required")
+	}
+	for i, ms := range motifs {
+		if len(ms) == 0 {
+			return JobRequest{}, fmt.Errorf("query %d has no motifs", i)
+		}
 	}
 
 	totalSize := 0

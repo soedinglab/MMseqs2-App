@@ -544,7 +544,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		var query string
 		var motif string
 		var queries []string
-		var motifs []string
+		var rawMotifs []string
 		var dbs []string
 		//var mode string
 		var email string
@@ -577,7 +577,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 
 			if len(queries) > 0 {
-				motifs = req.Form["motifs[]"]
+				rawMotifs = req.Form["motifs[]"]
 			} else {
 				f, _, err := req.FormFile("q")
 				if err != nil {
@@ -602,7 +602,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 
 			queries = req.Form["queries[]"]
-			motifs = req.Form["motifs[]"]
+			rawMotifs = req.Form["motifs[]"]
 
 			if len(queries) == 0 {
 				query = req.FormValue("q")
@@ -623,6 +623,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+
+		// Each rawMotifs[] entry may contain multiple motifs separated by ";",
+		// allowing a single uploaded structure to be searched with several motifs.
+		var motifs [][]string
+		for _, raw := range rawMotifs {
+			motifs = append(motifs, strings.Split(raw, ";"))
 		}
 
 		var request JobRequest
