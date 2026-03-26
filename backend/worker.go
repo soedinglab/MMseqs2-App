@@ -133,6 +133,10 @@ func execCommandSync(verbose bool, parameters []string, environ []string, timeou
 
 var fasta3DiInput = regexp.MustCompile(`^>.*?\n.*?\n>3DI.*?\n.*?\n`).MatchString
 
+func ismmCIFFirstLine(line string) bool {
+	return strings.HasPrefix(line, "#") || strings.HasPrefix(line, "data_")
+}
+
 func ismmCIFFile(filePath string) (bool, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -156,10 +160,7 @@ func ismmCIFFile(filePath string) (bool, error) {
 		return false, errors.New("empty file")
 	}
 
-	if strings.HasPrefix(firstLine, "#") || strings.HasPrefix(firstLine, "data_") {
-		return true, nil
-	}
-	return false, nil
+	return ismmCIFFirstLine(firstLine), nil
 }
 
 func RunJob(request JobRequest, config ConfigRoot) (err error) {
@@ -1654,22 +1655,27 @@ rm -rf -- "${BASE}/tmp"
 		maxParallel := config.Worker.ParallelDatabases
 		semaphore := make(chan struct{}, max(1, maxParallel))
 
-		inputFile := filepath.Join(resultBase, "job.pdb")
+		isBatch := job.IsBatch()
+		inputFile := ""
+		batchFile := filepath.Join(resultBase, "query_batch.txt")
 
-		isCif, err := ismmCIFFile(inputFile)
-		if err != nil {
-			return &JobExecutionError{err}
-		}
-
-		if isCif {
-			newFilePath := filepath.Join(resultBase, "job.cif")
-			if err := os.Rename(inputFile, newFilePath); err != nil {
+		if !isBatch {
+			inputFile = filepath.Join(resultBase, "job.pdb")
+			isCif, err := ismmCIFFile(inputFile)
+			if err != nil {
 				return &JobExecutionError{err}
 			}
-			inputFile = newFilePath
+			if isCif {
+				newFilePath := filepath.Join(resultBase, "job.cif")
+				if err := os.Rename(inputFile, newFilePath); err != nil {
+					return &JobExecutionError{err}
+				}
+				inputFile = newFilePath
+			}
 		}
 
 		motif := job.Motif
+		top := strconv.Itoa(job.Top)
 
 		for index, database := range job.Database {
 			wg.Add(1)
@@ -1682,12 +1688,6 @@ rm -rf -- "${BASE}/tmp"
 					errChan <- &JobExecutionError{err}
 					return
 				}
-				if !params.Motif {
-					err := errors.New("Database is not a folddisco database")
-					errChan <- &JobExecutionError{err}
-					return
-				}
-
 				threads := 16
 				for _, kv := range os.Environ() {
 					if strings.HasPrefix(kv, "MMSEQS_NUM_THREADS=") {
@@ -1712,22 +1712,33 @@ rm -rf -- "${BASE}/tmp"
 				if params.OverridePath != "" {
 					dbpath = filepath.Clean(params.OverridePath)
 				}
-				parameters := []string{
-					config.Paths.FoldDisco,
-					"query",
-					"-p",
-					inputFile,
-					"-q", motif,
-					"-i",
-					dbpath,
-					"-o",
-					filepath.Join(resultBase, "alis_"+database),
-					"--top",
-					"1000",
-					"--superpose",
-					"--partial-fit",
-					"-t",
-					strconv.Itoa(threads),
+
+				var parameters []string
+				if isBatch {
+					parameters = []string{
+						config.Paths.FoldDisco,
+						"query",
+						"-q", batchFile,
+						"-i", dbpath,
+						"-o", filepath.Join(resultBase, "alis_"+database),
+						"--top", top,
+						"--superpose",
+						"--partial-fit",
+						"-t", strconv.Itoa(threads),
+					}
+				} else {
+					parameters = []string{
+						config.Paths.FoldDisco,
+						"query",
+						"-p", inputFile,
+						"-q", motif,
+						"-i", dbpath,
+						"-o", filepath.Join(resultBase, "alis_"+database),
+						"--top", top,
+						"--superpose",
+						"--partial-fit",
+						"-t", strconv.Itoa(threads),
+					}
 				}
 				parameters = append(parameters, strings.Fields(params.Search)...)
 
