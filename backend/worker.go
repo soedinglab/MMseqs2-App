@@ -1675,6 +1675,7 @@ rm -rf -- "${BASE}/tmp"
 		}
 
 		motif := job.Motif
+		top := strconv.Itoa(job.Top)
 
 		for index, database := range job.Database {
 			wg.Add(1)
@@ -1720,7 +1721,7 @@ rm -rf -- "${BASE}/tmp"
 						"-q", batchFile,
 						"-i", dbpath,
 						"-o", filepath.Join(resultBase, "alis_"+database),
-						"--top", "1000",
+						"--top", top,
 						"--superpose",
 						"--partial-fit",
 						"-t", strconv.Itoa(threads),
@@ -1733,7 +1734,7 @@ rm -rf -- "${BASE}/tmp"
 						"-q", motif,
 						"-i", dbpath,
 						"-o", filepath.Join(resultBase, "alis_"+database),
-						"--top", "1000",
+						"--top", top,
 						"--superpose",
 						"--partial-fit",
 						"-t", strconv.Itoa(threads),

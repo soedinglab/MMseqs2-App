@@ -18,6 +18,7 @@ type FoldDiscoJob struct {
 	// TaxFilter string `json:"taxfilter"`
 	Motif  string   `json:"motif"`
 	Motifs []string `json:"motifs,omitempty"`
+	Top    int      `json:"top,omitempty"`
 	query  string
 	queries []string
 }
@@ -30,6 +31,7 @@ func (r FoldDiscoJob) Hash() Id {
 	h.Write(([]byte)(JobFoldDisco))
 	h.Write([]byte(r.query))
 	h.Write([]byte(r.Motif))
+	h.Write([]byte(fmt.Sprintf("%d", r.Top)))
 	for _, q := range r.queries {
 		h.Write([]byte(q))
 	}
@@ -100,11 +102,15 @@ func validateFolddiscoDatabases(dbs []string, validDbs []Params) error {
 	return nil
 }
 
-func NewFoldDiscoJobRequest(query string, motif string, dbs []string, validDbs []Params, resultPath string, email string) (JobRequest, error) {
+func NewFoldDiscoJobRequest(query string, motif string, dbs []string, validDbs []Params, resultPath string, email string, top int) (JobRequest, error) {
+	if top <= 0 {
+		top = 1000
+	}
 	job := FoldDiscoJob{
 		Size:     max(strings.Count(query, "HEADER"), 1),
 		Database: dbs,
 		Motif:    motif,
+		Top:      top,
 		query:    query,
 	}
 
@@ -123,7 +129,7 @@ func NewFoldDiscoJobRequest(query string, motif string, dbs []string, validDbs [
 	return request, nil
 }
 
-func NewFoldDiscoBatchJobRequest(queries []string, motifs []string, dbs []string, validDbs []Params, resultPath string, email string) (JobRequest, error) {
+func NewFoldDiscoBatchJobRequest(queries []string, motifs []string, dbs []string, validDbs []Params, resultPath string, email string, top int) (JobRequest, error) {
 	if len(queries) != len(motifs) {
 		return JobRequest{}, errors.New("queries and motifs must have the same length")
 	}
@@ -136,10 +142,14 @@ func NewFoldDiscoBatchJobRequest(queries []string, motifs []string, dbs []string
 		totalSize += max(strings.Count(q, "HEADER"), 1)
 	}
 
+	if top <= 0 {
+		top = 1000
+	}
 	job := FoldDiscoJob{
 		Size:     totalSize,
 		Database: dbs,
 		Motifs:   motifs,
+		Top:      top,
 		queries:  queries,
 	}
 

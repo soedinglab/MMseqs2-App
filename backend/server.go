@@ -548,6 +548,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		var dbs []string
 		//var mode string
 		var email string
+		var top int
 		//var iterativesearch bool
 		// var taxfilter string
 
@@ -614,6 +615,10 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			// taxfilter = req.FormValue("taxfilter")
 		}
 
+		if topStr := req.FormValue("top"); topStr != "" {
+			top, _ = strconv.Atoi(topStr)
+		}
+
 		databases, err := Databases(config.Paths.Databases, true)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -622,9 +627,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		var request JobRequest
 		if len(queries) > 0 {
-			request, err = NewFoldDiscoBatchJobRequest(queries, motifs, dbs, databases, config.Paths.Results, email)
+			request, err = NewFoldDiscoBatchJobRequest(queries, motifs, dbs, databases, config.Paths.Results, email, top)
 		} else {
-			request, err = NewFoldDiscoJobRequest(query, motif, dbs, databases, config.Paths.Results, email)
+			request, err = NewFoldDiscoJobRequest(query, motif, dbs, databases, config.Paths.Results, email, top)
 		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
