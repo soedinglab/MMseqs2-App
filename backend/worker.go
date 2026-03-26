@@ -133,6 +133,10 @@ func execCommandSync(verbose bool, parameters []string, environ []string, timeou
 
 var fasta3DiInput = regexp.MustCompile(`^>.*?\n.*?\n>3DI.*?\n.*?\n`).MatchString
 
+func ismmCIFFirstLine(line string) bool {
+	return strings.HasPrefix(line, "#") || strings.HasPrefix(line, "data_")
+}
+
 func ismmCIFFile(filePath string) (bool, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -156,10 +160,7 @@ func ismmCIFFile(filePath string) (bool, error) {
 		return false, errors.New("empty file")
 	}
 
-	if strings.HasPrefix(firstLine, "#") || strings.HasPrefix(firstLine, "data_") {
-		return true, nil
-	}
-	return false, nil
+	return ismmCIFFirstLine(firstLine), nil
 }
 
 func RunJob(request JobRequest, config ConfigRoot) (err error) {

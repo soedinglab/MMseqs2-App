@@ -71,7 +71,7 @@ func (r FoldDiscoJob) WriteBatchFiles(basePath string) error {
 	var lines []string
 	for i, q := range r.queries {
 		ext := ".pdb"
-		if len(q) > 0 && (q[0] == '#' || strings.HasPrefix(q, "data_")) {
+		if len(q) > 0 && ismmCIFFirstLine(strings.TrimSpace(q)) {
 			ext = ".cif"
 		}
 		filename := fmt.Sprintf("job_%d%s", i, ext)
