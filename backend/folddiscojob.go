@@ -88,7 +88,9 @@ func (r FoldDiscoJob) WriteBatchFiles(basePath string) error {
 func validateFolddiscoDatabases(dbs []string, validDbs []Params) error {
 	ids := make([]string, 0)
 	for _, item := range validDbs {
-		ids = append(ids, item.Path)
+		if item.Motif {
+			ids = append(ids, item.Path)
+		}
 	}
 	for _, item := range dbs {
 		if isIn(item, ids) == -1 {
