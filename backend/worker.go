@@ -137,6 +137,45 @@ func ismmCIFFirstLine(line string) bool {
 	return strings.HasPrefix(line, "#") || strings.HasPrefix(line, "data_")
 }
 
+type batchLine struct {
+	Structure string
+	Motif     string
+}
+
+func readBatchLines(path string) ([]batchLine, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var lines []batchLine
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		lines = append(lines, batchLine{Structure: parts[0], Motif: parts[1]})
+	}
+	return lines, nil
+}
+
+func concatFiles(srcs []string, dst string) error {
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	for _, src := range srcs {
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return err
+		}
+		if _, err := out.Write(data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func ismmCIFFile(filePath string) (bool, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -1714,136 +1753,186 @@ rm -rf -- "${BASE}/tmp"
 				}
 
 				outputFile := filepath.Join(resultBase, "alis_"+database)
-				var parameters []string
+				extraArgs := strings.Fields(params.Search)
+
 				if isBatch {
-					// Batch mode: folddisco writes results to stdout, redirect to file via shell.
-					// Use -t 1 to avoid interleaved output from concurrent queries.
-					parameters = []string{
-						"sh", "-c",
-						config.Paths.FoldDisco + " query" +
-							" -q " + batchFile +
-							" -i " + dbpath +
-							" --top " + top +
-							" --superpose --partial-fit" +
-							" -t 1" +
-							" > " + outputFile,
+					// Generate a 3-column batch file with per-query output paths
+					// (col3 tells folddisco to write each query's results to its
+					// own file instead of stdout, avoiding interleaved output).
+					batchLines, err := readBatchLines(batchFile)
+					if err != nil {
+						errChan <- &JobExecutionError{err}
+						return
 					}
-				} else {
-					parameters = []string{
+					var partFiles []string
+					dbBatch := filepath.Join(resultBase, fmt.Sprintf("batch_%s.txt", database))
+					var batchContent strings.Builder
+					for i, bl := range batchLines {
+						partFile := filepath.Join(resultBase, fmt.Sprintf("alis_%s_part_%d", database, i))
+						partFiles = append(partFiles, partFile)
+						batchContent.WriteString(bl.Structure + "\t" + bl.Motif + "\t" + partFile + "\n")
+					}
+					if err := os.WriteFile(dbBatch, []byte(batchContent.String()), 0644); err != nil {
+						errChan <- &JobExecutionError{err}
+						return
+					}
+
+					parameters := []string{
 						config.Paths.FoldDisco,
 						"query",
-						"-p", inputFile,
-						"-q", motif,
+						"-q", dbBatch,
 						"-i", dbpath,
-						"-o", filepath.Join(resultBase, "alis_"+database),
 						"--top", top,
 						"--superpose",
 						"--partial-fit",
 						"-t", strconv.Itoa(threads),
 					}
-				}
-				parameters = append(parameters, strings.Fields(params.Search)...)
+					parameters = append(parameters, extraArgs...)
 
-				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
-				if err != nil {
-					errChan <- &JobExecutionError{err}
-					return
-				}
-
-				select {
-				case <-time.After(1 * time.Hour):
-					if err := KillCommand(cmd); err != nil {
-						log.Printf("Failed to kill: %s\n", err)
-					}
-					errChan <- &JobTimeoutError{}
-				case err := <-done:
+					cmd, done, err := execCommand(config.Verbose, parameters, []string{})
 					if err != nil {
 						errChan <- &JobExecutionError{err}
-					} else {
-						if params.FullHeader || params.Taxonomy {
-							foldseekDb := strings.Replace(dbpath, "_folddisco", "", 1)
-							if fileExists(foldseekDb + ".dbtype") {
-								columns := "bits"
-								if params.FullHeader {
-									columns += ",theader"
-								} else {
-									columns += ",empty"
-								}
-								if params.Taxonomy {
-									columns += ",taxid,taxname"
-								}
-								// make fake foldseek dbs so we can call convertalis for description and taxonomy
-								parameters = []string{
-									"awk",
-									"-v",
-									"db=" + filepath.Join(resultBase, "alis_"+database+"_db"),
-									`BEGIN { printf("") > db; printf("") > db"_seq"; printf("") > db"_seq_h"; }
+						return
+					}
+					select {
+					case <-time.After(1 * time.Hour):
+						if err := KillCommand(cmd); err != nil {
+							log.Printf("Failed to kill: %s\n", err)
+						}
+						errChan <- &JobTimeoutError{}
+						return
+					case err := <-done:
+						if err != nil {
+							errChan <- &JobExecutionError{err}
+							return
+						}
+					}
+
+					if err := concatFiles(partFiles, outputFile); err != nil {
+						errChan <- &JobExecutionError{err}
+						return
+					}
+					for _, f := range partFiles {
+						os.Remove(f)
+					}
+					os.Remove(dbBatch)
+				} else {
+					parameters := []string{
+						config.Paths.FoldDisco,
+						"query",
+						"-p", inputFile,
+						"-q", motif,
+						"-i", dbpath,
+						"-o", outputFile,
+						"--top", top,
+						"--superpose",
+						"--partial-fit",
+						"-t", strconv.Itoa(threads),
+					}
+					parameters = append(parameters, extraArgs...)
+
+					cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+					if err != nil {
+						errChan <- &JobExecutionError{err}
+						return
+					}
+					select {
+					case <-time.After(1 * time.Hour):
+						if err := KillCommand(cmd); err != nil {
+							log.Printf("Failed to kill: %s\n", err)
+						}
+						errChan <- &JobTimeoutError{}
+						return
+					case err := <-done:
+						if err != nil {
+							errChan <- &JobExecutionError{err}
+							return
+						}
+					}
+				}
+
+				// Post-processing: convertalis for headers/taxonomy
+				if params.FullHeader || params.Taxonomy {
+					foldseekDb := strings.Replace(dbpath, "_folddisco", "", 1)
+					if fileExists(foldseekDb + ".dbtype") {
+						columns := "bits"
+						if params.FullHeader {
+							columns += ",theader"
+						} else {
+							columns += ",empty"
+						}
+						if params.Taxonomy {
+							columns += ",taxid,taxname"
+						}
+						// make fake foldseek dbs so we can call convertalis for description and taxonomy
+						err = execCommandSync(
+							config.Verbose,
+							[]string{
+								"awk",
+								"-v",
+								"db=" + filepath.Join(resultBase, "alis_"+database+"_db"),
+								`BEGIN { printf("") > db; printf("") > db"_seq"; printf("") > db"_seq_h"; }
 !($9 in f) { entry = $9"\t"$9"\t0.00\t0\t0\t0\t0\t0\t0\t0\t0"; print(entry) >> db; len += length(entry) + 1; f[$9] = 1; }
 END { printf("%c", 0) >> db; printf("%c", 0) >> db"_seq"; printf("%c", 0) >> db"_seq_h";
 print "0\t0\t"(len + 1) > db".index"; print "0\t0\t0" > db"_seq.index"; print "0\t0\t0" > db"_seq_h.index";
 printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.dbtype"; printf("%c%c%c%c",11,0,0,0) > db"_seq_h.dbtype"
 }`,
-									filepath.Join(resultBase, "alis_"+database),
-								}
-								err = execCommandSync(
-									config.Verbose,
-									parameters,
-									[]string{},
-									1*time.Minute,
-								)
-								if err != nil {
-									errChan <- &JobExecutionError{err}
-									return
-								}
-								err = execCommandSync(
-									config.Verbose,
-									[]string{
-										config.Paths.Foldseek,
-										"convertalis",
-										filepath.Join(resultBase, "alis_"+database+"_db_seq"),
-										foldseekDb,
-										filepath.Join(resultBase, "alis_"+database+"_db"),
-										filepath.Join(resultBase, "alis_"+database+".tsv"),
-										"--format-output",
-										columns,
-										"--db-load-mode",
-										"2",
-										"--db-output",
-										"0",
-									},
-									[]string{},
-									1*time.Minute,
-								)
-								if err != nil {
-									errChan <- &JobExecutionError{err}
-									return
-								}
-								if params.Taxonomy {
-									err = execCommandSync(
-										config.Verbose,
-										[]string{
-											config.Paths.Foldseek,
-											"taxonomyreport",
-											foldseekDb,
-											filepath.Join(resultBase, "alis_"+database+"_db"),
-											filepath.Join(resultBase, "alis_"+database+"_report"),
-											"--report-mode",
-											"3",
-										},
-										[]string{},
-										1*time.Minute,
-									)
-									if err != nil {
-										errChan <- &JobExecutionError{err}
-										return
-									}
-								}
+								filepath.Join(resultBase, "alis_"+database),
+							},
+							[]string{},
+							1*time.Minute,
+						)
+						if err != nil {
+							errChan <- &JobExecutionError{err}
+							return
+						}
+						err = execCommandSync(
+							config.Verbose,
+							[]string{
+								config.Paths.Foldseek,
+								"convertalis",
+								filepath.Join(resultBase, "alis_"+database+"_db_seq"),
+								foldseekDb,
+								filepath.Join(resultBase, "alis_"+database+"_db"),
+								filepath.Join(resultBase, "alis_"+database+".tsv"),
+								"--format-output",
+								columns,
+								"--db-load-mode",
+								"2",
+								"--db-output",
+								"0",
+							},
+							[]string{},
+							1*time.Minute,
+						)
+						if err != nil {
+							errChan <- &JobExecutionError{err}
+							return
+						}
+						if params.Taxonomy {
+							err = execCommandSync(
+								config.Verbose,
+								[]string{
+									config.Paths.Foldseek,
+									"taxonomyreport",
+									foldseekDb,
+									filepath.Join(resultBase, "alis_"+database+"_db"),
+									filepath.Join(resultBase, "alis_"+database+"_report"),
+									"--report-mode",
+									"3",
+								},
+								[]string{},
+								1*time.Minute,
+							)
+							if err != nil {
+								errChan <- &JobExecutionError{err}
+								return
 							}
 						}
-
-						errChan <- nil
 					}
 				}
+
+				errChan <- nil
 			}(index, database)
 		}
 
