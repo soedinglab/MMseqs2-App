@@ -1713,18 +1713,19 @@ rm -rf -- "${BASE}/tmp"
 					dbpath = filepath.Clean(params.OverridePath)
 				}
 
+				outputFile := filepath.Join(resultBase, "alis_"+database)
 				var parameters []string
 				if isBatch {
+					// Batch mode: folddisco writes results to stdout, redirect to file via shell
 					parameters = []string{
-						config.Paths.FoldDisco,
-						"query",
-						"-q", batchFile,
-						"-i", dbpath,
-						"-o", filepath.Join(resultBase, "alis_"+database),
-						"--top", top,
-						"--superpose",
-						"--partial-fit",
-						"-t", strconv.Itoa(threads),
+						"sh", "-c",
+						config.Paths.FoldDisco + " query" +
+							" -q " + batchFile +
+							" -i " + dbpath +
+							" --top " + top +
+							" --superpose --partial-fit" +
+							" -t " + strconv.Itoa(threads) +
+							" > " + outputFile,
 					}
 				} else {
 					parameters = []string{
