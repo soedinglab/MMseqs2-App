@@ -1716,7 +1716,8 @@ rm -rf -- "${BASE}/tmp"
 				outputFile := filepath.Join(resultBase, "alis_"+database)
 				var parameters []string
 				if isBatch {
-					// Batch mode: folddisco writes results to stdout, redirect to file via shell
+					// Batch mode: folddisco writes results to stdout, redirect to file via shell.
+					// Use -t 1 to avoid interleaved output from concurrent queries.
 					parameters = []string{
 						"sh", "-c",
 						config.Paths.FoldDisco + " query" +
@@ -1724,7 +1725,7 @@ rm -rf -- "${BASE}/tmp"
 							" -i " + dbpath +
 							" --top " + top +
 							" --superpose --partial-fit" +
-							" -t " + strconv.Itoa(threads) +
+							" -t 1" +
 							" > " + outputFile,
 					}
 				} else {
