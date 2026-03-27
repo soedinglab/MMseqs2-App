@@ -1756,57 +1756,66 @@ rm -rf -- "${BASE}/tmp"
 				extraArgs := strings.Fields(params.Search)
 
 				if isBatch {
-					// Run each (structure, motif) pair as an individual query
-					// to get proper --top N support and clean per-file output.
+					// Generate a 3-column batch file with per-query output paths
+					// (col3 tells folddisco to write each query's results to its
+					// own file instead of stdout, avoiding interleaved output).
 					batchLines, err := readBatchLines(batchFile)
 					if err != nil {
 						errChan <- &JobExecutionError{err}
 						return
 					}
-					var tempFiles []string
+					var partFiles []string
+					dbBatch := filepath.Join(resultBase, fmt.Sprintf("batch_%s.txt", database))
+					var batchContent strings.Builder
 					for i, bl := range batchLines {
-						tmp := filepath.Join(resultBase, fmt.Sprintf("alis_%s_part_%d", database, i))
-						tempFiles = append(tempFiles, tmp)
-						parameters := []string{
-							config.Paths.FoldDisco,
-							"query",
-							"-p", bl.Structure,
-							"-q", bl.Motif,
-							"-i", dbpath,
-							"-o", tmp,
-							"--top", top,
-							"--superpose",
-							"--partial-fit",
-							"-t", strconv.Itoa(threads),
-						}
-						parameters = append(parameters, extraArgs...)
+						partFile := filepath.Join(resultBase, fmt.Sprintf("alis_%s_part_%d", database, i))
+						partFiles = append(partFiles, partFile)
+						batchContent.WriteString(bl.Structure + "\t" + bl.Motif + "\t" + partFile + "\n")
+					}
+					if err := os.WriteFile(dbBatch, []byte(batchContent.String()), 0644); err != nil {
+						errChan <- &JobExecutionError{err}
+						return
+					}
 
-						cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+					parameters := []string{
+						config.Paths.FoldDisco,
+						"query",
+						"-q", dbBatch,
+						"-i", dbpath,
+						"--top", top,
+						"--superpose",
+						"--partial-fit",
+						"-t", strconv.Itoa(threads),
+					}
+					parameters = append(parameters, extraArgs...)
+
+					cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+					if err != nil {
+						errChan <- &JobExecutionError{err}
+						return
+					}
+					select {
+					case <-time.After(1 * time.Hour):
+						if err := KillCommand(cmd); err != nil {
+							log.Printf("Failed to kill: %s\n", err)
+						}
+						errChan <- &JobTimeoutError{}
+						return
+					case err := <-done:
 						if err != nil {
 							errChan <- &JobExecutionError{err}
 							return
 						}
-						select {
-						case <-time.After(1 * time.Hour):
-							if err := KillCommand(cmd); err != nil {
-								log.Printf("Failed to kill: %s\n", err)
-							}
-							errChan <- &JobTimeoutError{}
-							return
-						case err := <-done:
-							if err != nil {
-								errChan <- &JobExecutionError{err}
-								return
-							}
-						}
 					}
-					if err := concatFiles(tempFiles, outputFile); err != nil {
+
+					if err := concatFiles(partFiles, outputFile); err != nil {
 						errChan <- &JobExecutionError{err}
 						return
 					}
-					for _, tmp := range tempFiles {
-						os.Remove(tmp)
+					for _, f := range partFiles {
+						os.Remove(f)
 					}
+					os.Remove(dbBatch)
 				} else {
 					parameters := []string{
 						config.Paths.FoldDisco,
