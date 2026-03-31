@@ -80,6 +80,9 @@ export default {
                                 case "structuresearch":
                                     obj[v.id] = 'structure'
                                     break;
+                                case "interfacesearch":
+                                    obj[v.id] = 'interface'
+                                    break;
                                 case "complexsearch":
                                     obj[v.id] = 'complex'
                                     break;
