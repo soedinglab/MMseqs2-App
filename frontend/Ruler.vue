@@ -1,18 +1,15 @@
-<template>
+<template functional>
     <div class="ruler">
-      <!-- <div class="tick" v-once v-for="(tick, i) in ticks" :key="tick" :style="{ left: tick + '%' }"></div> -->
-      <!-- <div class="tick-label" v-if="label">1</div> -->
-      <!-- <div class="tick-label" v-if="label" style="left: 100%">{{ length }}</div> -->
-      <div class="query" :class="{ reversed : reversed }" :style="{ left: queryLeft + '%', right: queryRight + '%' }">
-        <div class="chevron-start" :style="{ 'background-color': color }"></div>
-        <div class="chevron-mid" :style="{ 'background-color': color }"></div>
-        <div class="chevron-end" :style="{ 'background-color': color }"></div>
+      <div class="query" :class="{ reversed : props.start > props.end }" :style="{ left: ((Math.min(props.start, props.end) - 1) / props.length) * 100 + '%', right: 100 - ((Math.max(props.start, props.end) / props.length) * 100) + '%' }">
+        <div class="chevron-start" :style="{ 'background-color': props.color }"></div>
+        <div class="chevron-mid" :style="{ 'background-color': props.color }"></div>
+        <div class="chevron-end" :style="{ 'background-color': props.color }"></div>
       </div>
-      <div class="tick-label" :style="{ left: queryLeft + '%' }">{{ minStart }}</div>
-      <div class="tick-label" :style="{ right: queryRight + '%', 'margin-left': 0, 'margin-right': '-25px' }">{{ maxEnd }}</div>
+      <div class="tick-label" :style="{ left: ((Math.min(props.start, props.end) - 1) / props.length) * 100 + '%' }">{{ Math.min(props.start, props.end) }}</div>
+      <div class="tick-label" :style="{ right: 100 - ((Math.max(props.start, props.end) / props.length) * 100) + '%', 'margin-left': 0, 'margin-right': '-25px' }">{{ Math.max(props.start, props.end) }}</div>
     </div>
   </template>
-  
+
   <script>
   export default {
     props: {
@@ -21,37 +18,10 @@
       end: Number,
       color: String,
       label: Boolean,
-      tickInterval: {
-        type: Number,
-        default: 10
-      }
     },
-    computed: {
-      minStart() {
-        return Math.min(this.start, this.end);
-      },
-      maxEnd() {
-        return Math.max(this.start, this.end);
-      },
-      reversed() {
-        return this.start > this.end;
-      },
-      queryLeft() {
-        return ((this.minStart - 1) / this.length) * 100;
-      },
-      queryRight() {
-        return 100 - ((this.maxEnd / this.length) * 100);
-      },
-      numTicks() {
-        return 3;
-      },
-      ticks() {
-        return Array.from({ length: this.numTicks + 1 }, (_, i) => i / this.numTicks * 100);
-      }
-    }
   };
   </script>
-  
+
 <style lang="scss" scoped>
 .ruler {
   position: relative;

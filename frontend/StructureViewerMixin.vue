@@ -1,5 +1,6 @@
 <script>
 import { Stage } from 'ngl';
+import { wrapLog, recoverLog } from './Utilities';
 
 export default {
     data: () => ({
@@ -21,7 +22,7 @@ export default {
         },
         stageParameters: function() {
             return {
-                log: 'none',
+                log: false,
                 backgroundColor: this.bgColor,
                 transparent: true,
                 ambientIntensity: this.ambientIntensity,
@@ -93,11 +94,15 @@ export default {
             this.stage.viewer.renderer.domElement.addEventListener('mousedown', e => {
                 this.isSpinning = false;
             })
+
+            // To ignore "STAGE LOG ..." things.
+            wrapLog()
         },
         teardownStage() {
             window.removeEventListener('resize', this.handleResize)
             if (!this.stage) return;
-            this.stage.dispose() 
+            this.stage.dispose()
+            recoverLog()
         },
         handleMakeImage() {
             this.makeImage();

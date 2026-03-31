@@ -65,10 +65,15 @@ export default {
     tabOffset: {
       type: Number,
       default: 140
+    },
+    hasMoreClusters: {
+      type: Boolean,
+      default: false
     }
   },
   emits: [
-    'needUpdate'
+    'needUpdate',
+    'needRenderNext'
   ],
   watch: {
     scrollOffsetArr: {
@@ -125,7 +130,12 @@ export default {
 
         // scrollNext behavior
         if (currIdx == this.scrollOffsetArr?.length-1 || endOfPage) {
-            this.enableScrollNext = false
+            if (this.hasMoreClusters) {
+                this.enableScrollNext = true
+                this.scrollNextTarget = Infinity
+            } else {
+                this.enableScrollNext = false
+            }
         } else {
             this.enableScrollNext = true
             this.scrollNextTarget = this.scrollOffsetArr?.[currIdx+1] - this.tabOffset
@@ -144,6 +154,10 @@ export default {
         }
     },
     goTo(target) {
+      if (target === Infinity) {
+        this.$emit('needRenderNext')
+        return
+      }
       window.scrollTo({
         top: target,
         left: 0,

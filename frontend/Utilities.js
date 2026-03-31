@@ -1119,3 +1119,21 @@ export function getResnoWithChain(
   }
   return result;
 }
+
+export function wrapLog() {
+  const originalLog = console.log;
+  console.log = function (...args) {
+    if (typeof args[0] === "string" && args[0].includes("STAGE LOG")) {
+      return;
+    }
+    originalLog.apply(console, args);
+  };
+}
+
+export function recoverLog() {
+  const tmpIframe = document.createElement("iframe");
+  tmpIframe.style.display = "none";
+  document.body.appendChild(tmpIframe);
+  console.log = tmpIframe.contentWindow.console.log;
+  document.body.removeChild(tmpIframe);
+}
