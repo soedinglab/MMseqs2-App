@@ -35,7 +35,10 @@ func (r FoldMasonMSAJob) WritePDB(path string) error {
 	os.Mkdir(pdbDir, os.ModePerm)
 	for idx, query := range r.Queries {
 		name := cleanPathComponent.ReplaceAllString(r.FileNames[idx], "")
-		ext := filepath.Ext(r.FileNames[idx])
+		if strings.EqualFold(filepath.Ext(name), ".gz") {
+			name = strings.TrimSuffix(name, filepath.Ext(name))
+		}
+		ext := filepath.Ext(name)
 		if ext == ".cif" || ext == ".mmcif" {
 			name = strings.TrimSuffix(name, ext) + ".cif"
 		}

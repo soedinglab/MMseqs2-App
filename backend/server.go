@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"log"
@@ -22,6 +23,34 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 )
+
+func readUploadedText(r io.Reader) (string, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+
+	if !isGzipPayload(data) {
+		return string(data), nil
+	}
+
+	gr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	defer gr.Close()
+
+	decoded, err := io.ReadAll(gr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(decoded), nil
+}
+
+func isGzipPayload(data []byte) bool {
+	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
+}
 
 type DatabaseResponse struct {
 	Databases []Params `json:"databases"`
@@ -148,10 +177,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
+				defer f.Close()
 
-				buf := new(bytes.Buffer)
-				buf.ReadFrom(f)
-				data = buf.String()
+				data, err = readUploadedText(f)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
 			} else {
 				err := req.ParseForm()
 				if err != nil {
@@ -292,10 +324,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			defer f.Close()
 
-			buf := new(bytes.Buffer)
-			buf.ReadFrom(f)
-			query = buf.String()
+			query, err = readUploadedText(f)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
@@ -378,10 +413,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			defer f.Close()
 
-			buf := new(bytes.Buffer)
-			buf.ReadFrom(f)
-			query = buf.String()
+			query, err = readUploadedText(f)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
@@ -440,10 +478,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			defer f.Close()
 
-			buf := new(bytes.Buffer)
-			buf.ReadFrom(f)
-			query = buf.String()
+			query, err = readUploadedText(f)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
 		} else {
@@ -502,14 +543,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				}
 				defer file.Close()
 
-				buf := new(bytes.Buffer)
-				_, err = io.Copy(buf, file)
+				query, err := readUploadedText(file)
 				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
-
-				query := buf.String()
 				queries = append(queries, query)
 			}
 		} else {
@@ -561,10 +599,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			defer f.Close()
 
-			buf := new(bytes.Buffer)
-			buf.ReadFrom(f)
-			query = buf.String()
+			query, err = readUploadedText(f)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			dbs = req.Form["database[]"]
 			//mode = req.FormValue("mode")
 			email = req.FormValue("email")

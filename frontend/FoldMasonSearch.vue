@@ -227,7 +227,7 @@ export default {
             const params = new FormData();
             this.queries.forEach((v) => {
                 params.append('fileNames[]', v.name);
-                params.append('queries[]', new Blob([v.text], { type: 'text/plain' }), v.name);
+                params.append('queries[]', v.file || new Blob([v.text], { type: 'text/plain' }), v.name);
             });
 
             try {
@@ -285,21 +285,7 @@ export default {
          * @param {*} files - FileList from upload event
          */
         async upload(files) {
-            const readFile = async (file) => {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = e => resolve({ name: file.name, text: e.target.result });
-                    reader.onerror = err => reject(err);
-                    reader.readAsText(file);
-                });
-            }
-            try {
-                const fileReadPromises = Array.from(files).map(readFile);
-                const fileContents = await Promise.all(fileReadPromises);
-                this.addFiles(fileContents);
-            } catch(error) {
-                console.log("Error reading files", error);
-            }
+            this.addFiles(Array.from(files).map(file => ({ name: file.name, file })));
         },
         uploadJSON(files) {
             let file = files[0];
