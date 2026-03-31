@@ -847,8 +847,6 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					"--db-output",
 					"--db-load-mode",
 					"2",
-					"--write-lookup",
-					"1",
 					"--format-output",
 					columns,
 					"--complex-report-mode",
@@ -907,7 +905,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			[]string{
 				config.Paths.Foldseek,
 				"mvdb",
-				filepath.Join(resultBase, "tmp0", "latest", "query_h"),
+				filepath.Join(resultBase, "tmp0", "latest", "interfacedb_query_h"),
 				filepath.Join(resultBase, "query_h"),
 			},
 			[]string{},
@@ -921,8 +919,21 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			[]string{
 				config.Paths.Foldseek,
 				"mvdb",
-				filepath.Join(resultBase, "tmp0", "latest", "query"),
+				filepath.Join(resultBase, "tmp0", "latest", "interfacedb_query"),
 				filepath.Join(resultBase, "query"),
+			},
+			[]string{},
+			1*time.Minute,
+		)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		err = execCommandSync(
+			config.Verbose,
+			[]string{
+				"mv",
+				filepath.Join(resultBase, "tmp0", "latest", "dimerdb_query.lookup"),
+				filepath.Join(resultBase, "query.lookup"),
 			},
 			[]string{},
 			1*time.Minute,

@@ -389,9 +389,9 @@ func (c *ConfigRoot) CheckPaths() error {
 		if _, err := os.Stat(c.Paths.FoldDisco); err != nil {
 			return errors.New("FoldDisco binary was not found at " + c.Paths.FoldDisco)
 		}
-		// if _, err := os.Stat(c.Paths.FoldseekInterface); err != nil {
-		// 	return errors.New("FoldseekInterface binary was not found at " + c.Paths.FoldseekInterface)
-		// }
+		if _, err := os.Stat(c.Paths.FoldseekInterface); err != nil {
+			return errors.New("FoldseekInterface binary was not found at " + c.Paths.FoldseekInterface)
+		}
 	} else if _, err := os.Stat(c.Paths.Mmseqs); err != nil {
 		return errors.New("MMseqs2 binary was not found at " + c.Paths.Mmseqs)
 	}
