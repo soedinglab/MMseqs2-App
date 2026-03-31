@@ -36,8 +36,9 @@
                         @toggleSpin="$emit('toggleSpin')"
                     />
                 </div>
-                <img v-else-if="thumbnailUrl" :src="thumbnailUrl" class="thumbnail-img" />
+                <img v-else-if="thumbnailUrl" style="display: none" />
                 <v-skeleton-loader height="240" v-else type="image" />
+                <canvas class="thumbnail-img" :id="`${entry.db}-thumbnail-canvas`" v-show="!isActive && thumbnailUrl"></canvas>
             </div>
             <v-card-text>
                 <div class="card-content-entry" data-label="Query TM-score" v-if="entry.qTM">
@@ -143,8 +144,8 @@ export default {
             default: ""
         },
         thumbnailUrl: {
-            type: String,
-            default: null,
+            type: Boolean,
+            default: false,
         },
         isActive: {
             type: Boolean,
@@ -312,7 +313,7 @@ export default {
 
 .thumbnail-img {
     width: 100%;
-    height: auto;
+    height: 240px;
     max-height: 240px;
     object-fit: contain;
     display: block;

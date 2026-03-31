@@ -97,6 +97,7 @@ export default {
                 backgroundColor: this.bgColor(),
                 transparent: true,
                 quality: 'low',
+                sampleLevel: 3,
                 clipNear: -1000,
                 clipFar: 1000,
                 fogFar: 1000,
@@ -104,6 +105,7 @@ export default {
                 tooltip: false,
             });
             this.stage.setSize(this.thumbWidth, this.thumbHeight);
+            this.stage.handleResize()
 
             // To ignore "STAGE LOG ..." things.
             wrapLog()
@@ -353,15 +355,23 @@ export default {
             await new Promise(resolve => requestAnimationFrame(resolve));
             if (this.destroyed || !this.stage) return;
 
-            const blob = await this.stage.makeImage({
-                trim: false,
-                factor: 2,
-                antialias: true,
-                transparent: true,
-            });
-            if (this.destroyed) return;
+            const canvas = document.getElementById(id+'-thumbnail-canvas');
+            const nglCanvas = this.$refs.viewport.querySelector('canvas')
+            let result = false
+            if (canvas) {
 
-            this.$emit('thumbnail-ready', { id, blob });
+                canvas.width = this.thumbWidth
+                canvas.height = this.thumbHeight
+                const ctx = canvas.getContext('2d')
+                ctx.clearRect(0, 0, this.thumbWidth, this.thumbHeight)
+                ctx.imageSmoothingQuality = 'high'
+                ctx.imageSmoothingEnabled = true
+                ctx.drawImage(nglCanvas, 0, 0, this.thumbWidth, this.thumbHeight)
+                result = true
+
+            }
+
+            this.$emit('thumbnail-ready', { id, result });
         },
 
         clearStage() {
