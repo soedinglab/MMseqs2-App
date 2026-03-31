@@ -229,7 +229,7 @@
                 </tr>
             </thead>
             <tbody><tr aria-hidden="true" style="height: 8px"></tr></tbody>
-            <tbody v-for="(clu, key) in sortedIndices">
+            <tbody v-for="(clu, key) in visibleSortedIndices">
                 {{ void(clusterShown = false) }}
                 <template v-for="(groupidx, sortIdx) in clu" >
                     <tr v-if="clusters[key].length != entryLength 
@@ -303,6 +303,16 @@
                     </tr>
                 </template>
             </tbody>
+            <tbody v-if="renderLimit < totalSortedCount" ref="sentinel">
+                <tr aria-hidden="true" style="height: 1px"></tr>
+            </tbody>
+            <tbody v-if="renderLimit < totalSortedCount">
+                <tr>
+                    <td :colspan="fullColSpan" style="text-align: center; padding: 8px; color: #888;">
+                        Showing {{ totalVisibleCount }} of {{ totalSortedCount }} hits
+                    </td>
+                </tr>
+            </tbody>
         </table>
     </div>
 </template>
@@ -330,7 +340,11 @@ export default {
             gapFilter: "",
             visibleCluster: {1 : true},
             multipleSelectionEnabled: false,
+            renderLimit: 100,
         }
+    },
+    created() {
+        this.BATCH_SIZE = 100;
     },
     props: {
         entryidx: {
@@ -381,7 +395,9 @@ export default {
                 this.toggleSourceKey = ""
                 this.toggleSourceIdx = -1
                 this.toggleSourceValue = true
+                this.renderLimit = this.BATCH_SIZE
                 this.$nextTick(() => {
+                    this.setupObserver()
                     setTimeout(() => {
                         this.updateVisibility()
                     }, 0)
@@ -401,20 +417,33 @@ export default {
             if (n && this.visibilityTable.length == 0) {
                 this.visibilityTable = Array(this.entryLength).fill(true)
             }
+            if (n) {
+                this.$nextTick(() => { this.setupObserver() })
+            }
         },
         gapFilter(n, o) {
+            this.renderLimit = this.BATCH_SIZE
             this.$nextTick(() => {
+                this.setupObserver()
                 setTimeout(() => {
                     this.updateVisibility()
                 }, 0)
             })
         },
         clusters(n, o) {
+            this.renderLimit = this.BATCH_SIZE
             this.$nextTick(() => {
+                this.setupObserver()
                 setTimeout(() => {
                     this.updateVisibility()
                     this.$emit('updateScroll')
                 }, 0)
+            })
+        },
+        renderedClusterKeys(n, o) {
+            this.$emit('clusterInfo', {
+                totalClusterCount: this.clusterKeys.length,
+                renderedClusterCount: n.length,
             })
         },
     },
@@ -431,6 +460,13 @@ export default {
 
         if (this.$route.query.d2m && this.$route.query.d2m == 1) {
             this.multipleSelectionEnabled = true
+        }
+        this.setupObserver()
+    },
+    beforeDestroy() {
+        if (this._observer) {
+            this._observer.disconnect()
+            this._observer = null
         }
     },
     computed: {
@@ -452,13 +488,54 @@ export default {
         sortedIndices() {
             if (!this.clusters) return this.clusters
 
-            let copiedArrs = structuredClone(this.clusters)
+            let copiedArrs = Object.fromEntries(Object.entries(this.clusters).map(([k, v]) => [k, [...v]]))
 
             for (let key in copiedArrs) {
                 copiedArrs[key].sort(this.comparator)
             }
 
             return copiedArrs
+        },
+        visibleSortedIndices() {
+            if (!this.sortedIndices) return this.sortedIndices
+            let count = 0
+            const result = {}
+            for (const key in this.sortedIndices) {
+                const clu = this.sortedIndices[key]
+                if (count >= this.renderLimit) break
+                const remaining = this.renderLimit - count
+                if (clu.length <= remaining) {
+                    result[key] = clu
+                    count += clu.length
+                } else {
+                    result[key] = clu.slice(0, remaining)
+                    count += remaining
+                }
+            }
+            return result
+        },
+        totalSortedCount() {
+            if (!this.sortedIndices) return 0
+            let count = 0
+            for (const key in this.sortedIndices) {
+                count += this.sortedIndices[key].length
+            }
+            return count
+        },
+        totalVisibleCount() {
+            let count = 0
+            for (const key in this.visibleSortedIndices) {
+                count += this.visibleSortedIndices[key].length
+            }
+            return count
+        },
+        clusterKeys() {
+            if (!this.sortedIndices) return []
+            return Object.keys(this.sortedIndices)
+        },
+        renderedClusterKeys() {
+            if (!this.visibleSortedIndices) return []
+            return Object.keys(this.visibleSortedIndices)
         },
         comparator() {
             let comp = () => {}
@@ -561,40 +638,99 @@ export default {
                     return 3 + offset
                 }
             }
+        },
+        fullColSpan() {
+            let defaultVal = 7
+            let desc = this.entry.hasDescription ? 1 : 0
+            let tax = this.entry.hasTaxonomy ? 1 : 0
+            return defaultVal + desc + tax
         }
     },
     methods: {
+        setupObserver() {
+            if (this._observer) {
+                this._observer.disconnect()
+            }
+            this._observer = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting) {
+                    this.loadMore()
+                }
+            })
+            this.$nextTick(() => {
+                if (this.$refs.sentinel) {
+                    this._observer.observe(this.$refs.sentinel)
+                }
+            })
+        },
+        loadMore() {
+            if (this.renderLimit >= this.totalSortedCount) return
+            const oldLimit = this.renderLimit
+            this.renderLimit += this.BATCH_SIZE
+            this.$nextTick(() => {
+                this.reflectSelectionState()
+                this.applyVisibilityToNewRows(oldLimit)
+                if (this.$refs.sentinel && this._observer) {
+                    this._observer.disconnect()
+                    this._observer.observe(this.$refs.sentinel)
+                }
+            })
+        },
+        applyVisibilityToNewRows(oldLimit) {
+            if (!this.isTaxAvailable && !this.isGapFilterAvailable) return
+            let count = 0
+            for (const key in this.visibleSortedIndices) {
+                for (const groupidx of this.visibleSortedIndices[key]) {
+                    count++
+                    if (count <= oldLimit) continue
+                    const id = this.entryidx + "#" + String(groupidx)
+                    const el = document.getElementById(id)
+                    if (el) {
+                        el.classList.toggle('invisible', !this.visibilityTable[groupidx])
+                    }
+                }
+            }
+        },
+        renderUpToCluster(clusterKey) {
+            if (!this.sortedIndices) return Promise.resolve()
+            let count = 0
+            for (const key in this.sortedIndices) {
+                count += this.sortedIndices[key].length
+                if (key == clusterKey) break
+            }
+            if (count > this.renderLimit) {
+                this.renderLimit = Math.ceil(count / this.BATCH_SIZE) * this.BATCH_SIZE
+            }
+            return this.$nextTick()
+        },
         log(a) {
             console.log(a)
             return a
         },
         updateVisibility() {
             if (!this.entry) return
- 
-            let el = undefined
-            let id = ''
+
+            // Set visibility data for ALL entries
             if (!this.isTaxAvailable && !this.isGapFilterAvailable) {
                 this.visibilityTable = Array(this.entryLength).fill(true)
-                for (let i = 0; i < this.entryLength; i++) {
-                    id = this.entryidx + "#" + String(i)
-                    el = document.getElementById(id)
-                    if (el) {
-                        el.classList.toggle('invisible', false)
-                    }
-                }
             } else {
                 for (let i = 0; i < this.entryLength; i++) {
-                    let target = this.isGroupVisible(this.entry.alignments[i]) 
+                    this.visibilityTable[i] = this.isGroupVisible(this.entry.alignments[i])
                         && this.isItemVisible(this.entry.alignments[i][0])
-                    this.visibilityTable[i] = target
-                    id = this.entryidx + "#" + String(i)
-                    el = document.getElementById(id)
+                }
+            }
+
+            // Toggle DOM only for rendered entries
+            for (const key in this.visibleSortedIndices) {
+                for (const groupidx of this.visibleSortedIndices[key]) {
+                    let id = this.entryidx + "#" + String(groupidx)
+                    let el = document.getElementById(id)
                     if (el) {
-                        el.classList.toggle('invisible', !target)
+                        el.classList.toggle('invisible', !this.visibilityTable[groupidx])
                     }
                 }
             }
 
+            // Compute cluster visibility from ALL clusters (data level)
             const visibility = Object.keys(this.clusters).reduce((acc, key) => {
                 acc[key] = false;
                 return acc;
@@ -752,12 +888,15 @@ export default {
         reflectSelectionState() {
             let value = false
             let id = ""
-            for (let i = 0; i < this.entryLength; i++) {
-                value = this.selectedStates[i]
-                id = this.entryidx + "#" + String(i)
-                let el = document.getElementById(id)
-                if (el) {
-                    el.classList.toggle('selected', value ? true : false)
+            // Only iterate rendered entries
+            for (const key in this.visibleSortedIndices) {
+                for (const groupidx of this.visibleSortedIndices[key]) {
+                    value = this.selectedStates[groupidx]
+                    id = this.entryidx + "#" + String(groupidx)
+                    let el = document.getElementById(id)
+                    if (el) {
+                        el.classList.toggle('selected', value ? true : false)
+                    }
                 }
             }
             let select_all_button = document.getElementById(this.entryidx + '#select-all')
@@ -789,7 +928,14 @@ export default {
             this.toggleSourceKey = ""
             this.toggleSourceIdx = -1
             this.toggleTargetValue = true
+            this.renderLimit = this.BATCH_SIZE
             this.$nextTick(() => {
+                window.scrollTo({
+                    top: 0,
+                    left: 0,
+                    behavior: 'smooth',
+                })
+                this.setupObserver()
                 setTimeout(() => {
                     this.reflectSelectionState()
                 }, 0)
@@ -1095,6 +1241,10 @@ th.sort-criterion.sort-selected {
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+        th {
+            // overflow: hidden;
+            text-overflow: ellipsis;
+        }
     }
 }
 
@@ -1143,6 +1293,8 @@ th.sort-criterion.sort-selected {
             position: relative;
             display: block;
             padding: 2em;
+            margin-left: 2em;
+            margin-right: 2em;
             cursor: pointer;
         }
 

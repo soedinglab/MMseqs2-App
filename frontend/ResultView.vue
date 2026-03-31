@@ -86,28 +86,47 @@
                         :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"
                         center-active
                         grow
-                        v-model="tabModel"
+                        v-model="selectedDatabases"
                         show-arrows
                         @change="handleChangeDatabase()"
                         v-if="hits.results.length > 1"
                         >
-                        <!-- <v-tab>All databases</v-tab> -->
+                        <v-tab>Summary</v-tab>
                         <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
                     </v-tabs>
                     </v-sheet>
-                <ResultFoldseekDB v-for="(entry, entryidx) in hits.results"  :key="entry.db"
-                    v-if="selectedDatabases == 0 || (entryidx + 1) == selectedDatabases"
-                    :tableMode="tableMode" :entryidx="entryidx" :entry="entry" :toggleSourceDb="toggleSourceDb"
-                    :mode="mode" :selectedStates="selectedStates[entryidx]" :selectedCounts="selectedCountPerDb[entryidx]"
-                    :totalSelectedCounts="selectedCounts" :selectUpperbound="selectUpperbound" :alignment="alignment"
-                    :onlyOne="hits.results.length == 1" :isComplex="isComplex"
-                    @switchTableMode="(n) => switchTableMode(n)" 
-                    @forwardDropdown="(e, h) => forwardDropdown(e, h)"
-                    @showAlignment="(i, e) => showAlignment(i, entry.db, e)"
-                    @updateToggleSource="(db) => updateToggleSourceDb(db)"
-                    @toggleSelection="(i, v) => handleToggleSelection(entryidx, i, v)"
-                    @bulkToggle="(a, v) => handleBulkToggle(entryidx, a, v)"
-                ></ResultFoldseekDB>
+                    <TopHits
+                        v-if="hits && hits.results && hits.results.length > 1"
+                        v-show="selectedDatabases == 0"
+                        :hits="hits" :mode="isComplex ? 1 : 0" :alignMode="mode"
+                        @jumpTo="i => selectedDatabases = i+1" 
+                    />
+                    <keep-alive>
+                        <Top100Foldseek
+                            v-if="hits && hits.results && hits.results.length > 1 && selectedDatabases == 0" ref="top100"
+                            :hits="hits" :mode="mode" :isComplex="isComplex" :tableMode="tableMode" :alignment="alignment"
+                            :selectedStates="selectedStates" :selectedCounts="selectedCounts" :selectUpperbound="selectUpperbound"
+                            @switchTableMode="(n) => switchTableMode(n)" 
+                            @showAlignment="(o, db, e) => showAlignment(o, db, e)"
+                            @toggleSelection="(db, i, v) => handleToggleSelection(db, i, v, true)"
+                            @bulkToggle="(a, v) => handleBulkToggleFromTop100(a, v)"
+                            @forwardDropdown="(e, h) => forwardDropdown(e, h)"
+                            @jumpTo="i => selectedDatabases = i+1" 
+                        />
+                    </keep-alive>
+                    <ResultFoldseekDB v-for="(entry, entryidx) in hits.results"  :key="entry.db"
+                        v-if="(entryidx + 1) == selectedDatabases"
+                        :tableMode="tableMode" :entryidx="entryidx" :entry="entry" :toggleSourceDb="toggleSourceDb"
+                        :mode="mode" :selectedStates="selectedStates[entryidx]" :selectedCounts="selectedCountPerDb[entryidx]"
+                        :totalSelectedCounts="selectedCounts" :selectUpperbound="selectUpperbound" :alignment="alignment"
+                        :onlyOne="hits.results.length == 1" :isComplex="isComplex"
+                        @switchTableMode="(n) => switchTableMode(n)" 
+                        @forwardDropdown="(e, h) => forwardDropdown(e, h)"
+                        @showAlignment="(i, e) => showAlignment(i, entry.db, e)"
+                        @updateToggleSource="(db) => updateToggleSourceDb(db)"
+                        @toggleSelection="(i, v) => handleToggleSelection(entryidx, i, v)"
+                        @bulkToggle="(a, v) => handleBulkToggle(entryidx, a, v)"
+                    ></ResultFoldseekDB>
                 </template>
                 </panel>
                 <SelectToSendPanel
@@ -170,20 +189,23 @@ import { debounce } from './lib/debounce';
 import ResultFoldseekDB from './ResultFoldseekDB.vue';
 import SelectToSendPanel from './SelectToSendPanel.vue';
 import NameField from './NameField.vue';
+import TopHits from './TopHits.vue';
+import Top100Foldseek from './Top100Foldseek.vue';
 
 export default {
     name: 'ResultView',
     mixins: [ ResultSankeyMixin, AllAtomPredictMixin ],
     components: { Panel, AlignmentPanel, Ruler, 
-        NavigationButton, ResultFoldseekDB, SelectToSendPanel, NameField },
+        NavigationButton, ResultFoldseekDB, SelectToSendPanel, 
+        NameField, TopHits, Top100Foldseek },
     data() {
         return {
             alignment: null,
             activeTarget: null,
             alnBoxOffset: 0,
             selectedDatabases: 0,
-            selectedStates: {},
-            selectedCountsPerDb: {},
+            selectedStates: null,
+            selectedCountsPerDb: null,
             selectedCounts: 0,
             selectedSets: new Set(),
             tableMode: 0,
@@ -261,6 +283,7 @@ export default {
                             this.updateScrollOffsetArr()
                         }, 0)
                     })
+                    this.selectedDatabases = this.onlyOne ? 1 : 0
                 }
             },
             immediate: false,
@@ -312,14 +335,6 @@ export default {
         onlyOne() {
             return this.hits?.results?.length == 1
         },
-        tabModel: {
-            get() {
-            return this.selectedDatabases - 1;
-            },
-            set(val) {
-            this.selectedDatabases = val + 1;
-            }
-        },
     },
     methods: {
         log(args) {
@@ -362,7 +377,7 @@ export default {
         handleChangeDatabase() {
             this.closeAlignment();
         },
-        handleToggleSelection(db, idx, value) {
+        handleToggleSelection(db, idx, value, fromTop100=false) {
             if (!this.selectedStates || !this.selectedStates[db]
                 || this.selectedCounts > this.selectUpperbound && value) {
                 return
@@ -373,23 +388,36 @@ export default {
             const toCall = value ? this.selectedSets.add.bind(this.selectedSets) : 
                 this.selectedSets.delete.bind(this.selectedSets)
             if (this.selectedStates[db][idx] != value) {
-                // Does it really reflect changes?
                 this.selectedStates[db][idx] = value
-                let el = document.getElementById(id)
-                if (el) {
-                    el.classList.toggle('selected', value)
+
+                if (fromTop100) {
+                    document.getElementById('top.' + id)?.classList.toggle('selected', value)
+                } else {
+                    document.getElementById(id)?.classList.toggle('selected', value)
                 }
+
                 const newVal = this.selectedCountPerDb[db] + deltaUnit
                 this.selectedCountPerDb[db] = newVal
                 this.selectedCounts += deltaUnit
                 toCall(id)
                 
                 // update select-all button state
-                const targetDbLength = this.selectedStates[db].length
-                el = document.getElementById(db + '#select-all')
-                if (el) {
-                    el.classList.toggle('any-selected', newVal > 0)
-                    el.classList.toggle('all-selected', newVal == targetDbLength)
+                if (!fromTop100) {
+                    const targetDbLength = this.selectedStates[db].length
+                    let el = document.getElementById(db + '#select-all') 
+                    if (el) {
+                        el.classList.toggle('any-selected', newVal > 0)
+                        el.classList.toggle('all-selected', newVal == targetDbLength)
+                    }
+                } else {
+                    const length = this.$refs.top100.entryLength
+                    const newValTop = this.$refs.top100.selectedTopEntries + deltaUnit
+                    const selectAllButton = document.getElementById('top#select-all')
+                    if (selectAllButton) {
+                        selectAllButton.classList.toggle('any-selected', newValTop > 0)
+                        selectAllButton.classList.toggle('all-selected', newValTop == length)
+                    }
+                    this.$refs.top100.selectedTopEntries = newValTop
                 }
             }
         },
@@ -411,10 +439,8 @@ export default {
                 }
                 if (this.selectedStates[db][i] != value) {
                     let id = db + '#' + i.toString()
-                    let el = document.getElementById(id)
-                    if (el) {
-                        el.classList.toggle('selected', value)
-                    }
+                    document.getElementById(id)?.classList.toggle('selected', value)
+
                     this.selectedStates[db][i] = value
                     toCall(id)
                     delta += deltaUnit
@@ -433,6 +459,54 @@ export default {
                 selectAllButton.classList.toggle('all-selected', newVal == dbLength)
             }
         },
+        handleBulkToggleFromTop100(indices, value) {
+            // This method is called by Top100 component only
+
+            if (!this.selectedStates 
+                || this.selectedCounts > this.selectUpperbound && value) {
+                return
+            }
+
+            let delta = 0
+            let deltaPerDb = Object.fromEntries(Object.keys(this.selectedStates).map(k => [k, 0]))
+            const deltaUnit = value ? 1 : -1
+            const deltaUpperbound = this.selectUpperbound - this.selectedCounts
+            const toCall = value ? this.selectedSets.add.bind(this.selectedSets) : 
+                this.selectedSets.delete.bind(this.selectedSets)
+            let dbSet = new Set()
+            
+            for (const idx of indices) {
+                if (value && delta >= deltaUpperbound) {
+                    break;
+                }
+                let [db, i] = idx.split("#")
+                dbSet.add(db)
+
+                if (this.selectedStates[db][i] != value) {
+                    document.getElementById('top.' + idx)?.classList.toggle('selected', value)
+                    this.selectedStates[db][i] = value
+                    toCall(idx)
+                    delta += deltaUnit
+                    deltaPerDb[db] += deltaUnit
+                }
+            }
+            
+            this.selectedCounts += delta
+            for (let db of dbSet) {
+                this.selectedCountPerDb[db] += delta
+            }
+            
+            const length = this.$refs.top100.entryLength
+            const newVal = this.$refs.top100.selectedTopEntries + delta
+            this.$refs.top100.selectedTopEntries = newVal
+
+            // update select-all button state
+            const selectAllButton = document.getElementById('top#select-all')
+            if (selectAllButton) {
+                selectAllButton.classList.toggle('any-selected', newVal > 0)
+                selectAllButton.classList.toggle('all-selected', newVal == length)
+            }
+        },
         clearAllEntries() {
             if (!this.selectedStates) {
                 return
@@ -449,6 +523,11 @@ export default {
                     el.classList.toggle('any-selected', false)
                     el.classList.toggle('all-selected', false)
                 }
+            }
+            el = document.getElementById("top#select-all")
+            if (el) {
+                el.classList.toggle("any-selected", false)
+                el.classList.toggle("all-selected", false)
             }
             
             // update selected states manually
