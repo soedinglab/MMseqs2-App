@@ -174,6 +174,7 @@ import Panel from "./Panel.vue";
 import FileButton from "./FileButton.vue";
 import LoadAcessionButton from './LoadAcessionButton.vue';
 import Reference from "./Reference.vue";
+import { readUploadedText } from './Utilities.js';
 import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
@@ -413,12 +414,13 @@ export default {
                 this.inSearch = false;
             }
         },
-        upload(files) {
-            var reader = new FileReader();
-            reader.onload = async e => {
-                this.query = e.target.result;
-            };
-            reader.readAsText(files[0]);
+        async upload(files) {
+            try {
+                this.query = await readUploadedText(files[0]);
+            } catch (error) {
+                this.errorMessage = "Error reading uploaded file";
+                throw error;
+            }
         },
         async goToFoldseek() {
             await db.setItem('query', this.query);

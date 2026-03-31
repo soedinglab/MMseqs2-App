@@ -1,4 +1,5 @@
 import { Selection, Matrix4, PdbWriter } from "ngl";
+import { ungzip } from "pako";
 
 function tryLinkTargetToDB(target, db) {
   try {
@@ -172,6 +173,15 @@ export function tryFixName(name) {
     name = name.replaceAll(/(AF[-_]|[-_]F[0-9]+[-_]model[-_]v[0-9]+)/g, "");
   }
   return name.replaceAll(/\.(cif|pdb|gz)/g, "");
+}
+
+export async function readUploadedText(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const data =
+    bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b
+      ? ungzip(bytes)
+      : bytes;
+  return new TextDecoder().decode(data);
 }
 
 export function parseResults(data) {
