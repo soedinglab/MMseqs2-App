@@ -78,9 +78,9 @@ export default {
         }
     },
     methods: {
-        handleThumbnailReady({ id, blob }) {
-            const url = URL.createObjectURL(blob);
-            this.$set(this.thumbnailCache, id, url);
+        handleThumbnailReady({ id, result }) {
+            // const url = URL.createObjectURL(blob);
+            this.$set(this.thumbnailCache, id, result);
         },
         handleViewerReady() {
             this.viewerSpinning = true;
