@@ -360,14 +360,23 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		maxParallel := config.Worker.ParallelDatabases
 		semaphore := make(chan struct{}, max(1, maxParallel))
 
+		queriesDir := filepath.Join(resultBase, "queries")
+		isBatch := fileExists(queriesDir)
 		inputFile := filepath.Join(resultBase, "job.pdb")
-		input, err := os.ReadFile(inputFile)
-		if err != nil {
-			return &JobExecutionError{err}
+		if isBatch {
+			inputFile = queriesDir
 		}
 
 		is3Di := false
-		if fasta3DiInput(string(input)) {
+		if !isBatch {
+			input, err := os.ReadFile(inputFile)
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+			is3Di = fasta3DiInput(string(input))
+		}
+
+		if is3Di {
 			os.Rename(inputFile, filepath.Join(resultBase, "job.3di"))
 			inputFile = filepath.Join(resultBase, "query")
 			is3Di = true
@@ -412,7 +421,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			if err != nil {
 				return &JobExecutionError{err}
 			}
-		} else {
+		} else if !isBatch {
 			isCif, err := ismmCIFFile(inputFile)
 			if err != nil {
 				return &JobExecutionError{err}
