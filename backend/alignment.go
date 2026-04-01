@@ -558,6 +558,27 @@ func FSAlignments(id Id, entry []int64, databases []string, jobsbase string) ([]
 	return ReadAlignments[FoldseekAlignmentEntry, int64](id, entry, databases, jobsbase)
 }
 
+func FSAllAlignments(id Id, databases []string, jobsbase string) ([]SearchResult, error) {
+	base := filepath.Join(jobsbase, string(id))
+	if len(databases) == 0 {
+		return nil, nil
+	}
+	probe := filepath.Join(filepath.Clean(base), "alis_"+databases[0])
+	reader := Reader[uint32]{}
+	err := reader.Make(dbpaths(probe))
+	if err != nil {
+		return nil, err
+	}
+	n := reader.Size()
+	reader.Delete()
+
+	entries := make([]int64, n)
+	for i := int64(0); i < n; i++ {
+		entries[i] = i
+	}
+	return ReadAlignments[FoldseekAlignmentEntry, int64](id, entries, databases, jobsbase)
+}
+
 func ComplexAlignments(id Id, entry []uint32, databases []string, jobsbase string) ([]SearchResult, error) {
 	return ReadAlignments[ComplexAlignmentEntry, uint32](id, entry, databases, jobsbase)
 }
