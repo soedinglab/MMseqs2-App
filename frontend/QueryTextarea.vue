@@ -16,6 +16,8 @@
 </template>
 
 <script>
+import { readUploadedText } from "./Utilities.js";
+
 export default {
     name: 'QueryTextarea',
     props: {
@@ -28,11 +30,9 @@ export default {
             event.stopPropagation();
             var dataTransfer = event.dataTransfer || event.target;
             if (dataTransfer && dataTransfer.files && dataTransfer.files.length > 0) {
-                var reader = new FileReader();
-                reader.onload = e => {
-                    this.$emit('input', e.target.result);
-                };
-                reader.readAsText(dataTransfer.files[0]);
+                readUploadedText(dataTransfer.files[0]).then((text) => {
+                    this.$emit('input', text);
+                });
             }
         }
     }

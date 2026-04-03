@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"io"
 	"log"
@@ -23,34 +22,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 )
-
-func readUploadedText(r io.Reader) (string, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return "", err
-	}
-
-	if !isGzipPayload(data) {
-		return string(data), nil
-	}
-
-	gr, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return "", err
-	}
-	defer gr.Close()
-
-	decoded, err := io.ReadAll(gr)
-	if err != nil {
-		return "", err
-	}
-
-	return string(decoded), nil
-}
-
-func isGzipPayload(data []byte) bool {
-	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
-}
 
 type DatabaseResponse struct {
 	Databases []Params `json:"databases"`
@@ -179,11 +150,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				}
 				defer f.Close()
 
-				data, err = readUploadedText(f)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				}
+				buf := new(bytes.Buffer)
+				buf.ReadFrom(f)
+				data = buf.String()
 			} else {
 				err := req.ParseForm()
 				if err != nil {
@@ -326,11 +295,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 			defer f.Close()
 
-			query, err = readUploadedText(f)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(f)
+			query = buf.String()
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
@@ -415,11 +382,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 			defer f.Close()
 
-			query, err = readUploadedText(f)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(f)
+			query = buf.String()
 			dbs = req.Form["database[]"]
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
@@ -480,11 +445,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 			defer f.Close()
 
-			query, err = readUploadedText(f)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(f)
+			query = buf.String()
 			mode = req.FormValue("mode")
 			email = req.FormValue("email")
 		} else {
@@ -517,7 +480,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	}
 
 	ticketFoldMasonMSAHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
-		var queries []string
+		var queries [][]byte
 		var fileNames []string
 		var gapOpen int64
 		var gapExtend int64
@@ -543,12 +506,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				}
 				defer file.Close()
 
-				query, err := readUploadedText(file)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				}
-				queries = append(queries, query)
+				buf := new(bytes.Buffer)
+				buf.ReadFrom(file)
+				queries = append(queries, buf.Bytes())
 			}
 		} else {
 			err := req.ParseForm()
@@ -556,7 +516,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			queries = req.Form["queries[]"]
+			for _, query := range req.Form["queries[]"] {
+				queries = append(queries, []byte(query))
+			}
 
 		}
 		fileNames = req.Form["fileNames[]"]
@@ -601,11 +563,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 			defer f.Close()
 
-			query, err = readUploadedText(f)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(f)
+			query = buf.String()
 			dbs = req.Form["database[]"]
 			//mode = req.FormValue("mode")
 			email = req.FormValue("email")

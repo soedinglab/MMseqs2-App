@@ -140,7 +140,6 @@ import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import ApiDialog from './ApiDialog.vue';
 import { HistoryMixin } from './lib/HistoryMixin.js';
 import Databases from './Databases.vue';
-import QueryTextarea from "./QueryTextarea.vue";
 import DragUploadBox from "./DragUploadBox.vue";
 import { BlobDatabase } from "./lib/BlobDatabase.js";
 
@@ -159,7 +158,6 @@ export default {
         Reference,
         ApiDialog,
         Databases,
-        QueryTextarea,
         DragUploadBox
     },
     data() {
