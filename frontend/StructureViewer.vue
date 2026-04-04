@@ -159,7 +159,8 @@ export default {
         qRepr: { type: String, default: "cartoon" },
         tRepr: { type: String, default: "cartoon" },
         hits: { type: Object },
-        autoViewTime: { type: Number, default: 100 }
+        autoViewTime: { type: Number, default: 100 },
+        searchType: { type: String, default: "" },
     },
     methods: {
         // Create arrows connecting CA coordinates for query/target in match columns

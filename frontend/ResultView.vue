@@ -167,6 +167,7 @@
                     :alignments="alignment"
                     :lineLen="fluidLineLen"
                     :hits="hits"
+                    :searchType="searchType"
                 />
             </panel>
         </portal>
@@ -226,6 +227,7 @@ export default {
         error: "",
         hits: null,
         selectedTaxId: null,
+        searchType: "",
     },
     created() {
         this.getSingleSelectionInfo = this.getSingleSelectionInfo.bind(this)

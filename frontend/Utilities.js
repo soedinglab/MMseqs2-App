@@ -12,6 +12,7 @@ function tryLinkTargetToDB(target, db) {
         target
           .replaceAll(/-assembly[0-9]+/g, "")
           .replaceAll(/\.(cif|pdb|ent)(\.gz)?/g, "")
+          .replaceAll(/[0-9]+DI_/g, "") // For interface cluster, should we link to cluster web?
           .split("_")[0]
       );
     } else if (

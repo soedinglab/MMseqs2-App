@@ -6,6 +6,7 @@
         :selectedDatabases="selectedDatabases"
         :tableMode="tableMode"
         :selectedTaxId="selectedTaxId"
+        :searchType="searchType"
     />
 </template>
 
@@ -51,7 +52,7 @@ export default {
     data() {
         return {
             selectedTaxId: null,
-
+            searchType: "",
         }
     },
     watch: {
@@ -72,6 +73,7 @@ export default {
             this.selectedDatabases = 0;
             this.tableMode = 0;
             this.selectedTaxId = 0;
+            this.searchType = "";
             this.$nextTick(() => {
                 this.selectedTaxId = null;
             });
@@ -86,6 +88,7 @@ export default {
                 } else {
                     const response = await this.$axios.get("api/result/" + this.ticket + '/' + this.$route.params.entry + '?format=brief');
                     const data = response.data;
+                    this.searchType = data.type;
                     if (data.alignments == null || data.alignments.length > 0) {
                         hits = parseResults(data);
                     } else {

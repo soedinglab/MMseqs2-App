@@ -65,6 +65,7 @@
                 qRepr="cartoon"
                 tRepr="cartoon"
                 ref="structureViewer"
+                :searchType="searchType"
             />
         </div>
     </div>
@@ -126,7 +127,8 @@ export default {
     props: {
         alignments: { type: Array, required: true, },
         lineLen: { type: Number, required: true, },
-        hits: { type: Object }
+        hits: { type: Object },
+        searchType: { type: String },
     },
     computed: {
         hasSelection() {

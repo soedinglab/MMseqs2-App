@@ -1215,12 +1215,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		type AlignmentModeResponse struct {
+			Type    JobType        `json:"type"`
 			Queries []FastaEntry   `json:"queries"`
 			Mode    string         `json:"mode"`
 			Results []SearchResult `json:"results"`
 		}
 		w.Header().Set("Cache-Control", "public, max-age=3600")
-		err = json.NewEncoder(w).Encode(AlignmentModeResponse{fasta, mode, results})
+		err = json.NewEncoder(w).Encode(AlignmentModeResponse{Type: request.Type, Queries: fasta, Mode: mode, Results: results})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
