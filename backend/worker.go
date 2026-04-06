@@ -825,7 +825,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					columns += "target"
 				}
 				columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,prob,evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
-				columns += ",complexassignid,complexqtmscore,complexttmscore,complexu,complext"
+				columns += ",complexassignid,complexqtmscore,complexttmscore,complexu,complext,tkey"
 				if params.Taxonomy {
 					columns += ",taxid,taxname"
 				}

@@ -141,6 +141,37 @@ type ComplexAlignmentEntry struct {
 	TaxonName       string        `json:"taxName,omitempty"`
 }
 
+type InterfaceAlignmentEntry struct {
+	MarshalFormat   MarshalFormat `json:"-"`
+	Query           string        `json:"query"`
+	Target          string        `json:"target"`
+	SeqId           float32       `json:"seqId"`
+	AlnLength       int           `json:"alnLength"`
+	Missmatches     int           `json:"missmatches"`
+	Gapsopened      int           `json:"gapsopened"`
+	QueryStartPos   int           `json:"qStartPos"`
+	QueryEndPos     int           `json:"qEndPos"`
+	DbStartPos      int           `json:"dbStartPos"`
+	DbEndPos        int           `json:"dbEndPos"`
+	Prob            float32       `json:"prob"`
+	Eval            float64       `json:"eval"`
+	Score           int           `json:"score"`
+	QueryLength     int           `json:"qLen"`
+	DbLength        int           `json:"dbLen"`
+	QueryAln        string        `json:"qAln"`
+	DbAln           string        `json:"dbAln"`
+	TargetCa        string        `json:"tCa"`
+	TargetSeq       string        `json:"tSeq"`
+	ComplexAssignId int           `json:"complexid"`
+	ComplexQtmScore float32       `json:"complexqtm"`
+	ComplexTtmScore float32       `json:"complexttm"`
+	ComplexU        string        `json:"complexu"`
+	ComplexT        string        `json:"complext"`
+	TargetKey       uint32        `json:"targetKey"`
+	TaxonId         json.Number   `json:"taxId,omitempty"`
+	TaxonName       string        `json:"taxName,omitempty"`
+}
+
 func (entry ComplexAlignmentEntry) MarshalJSON() ([]byte, error) {
 	type Alias ComplexAlignmentEntry
 
@@ -562,12 +593,9 @@ func ComplexAlignments(id Id, entry []uint32, databases []string, jobsbase strin
 	return ReadAlignments[ComplexAlignmentEntry, uint32](id, entry, databases, jobsbase)
 }
 
-type InterfaceAlignmentEntry = ComplexAlignmentEntry
-
 func InterfaceAlignments(id Id, entry []uint32, databases []string, jobsbase string) ([]SearchResult, error) {
 	return ReadAlignments[InterfaceAlignmentEntry, uint32](id, entry, databases, jobsbase)
 }
-
 
 func FoldDiscoAlignments(id Id, databases []string, jobsbase string) ([]FoldDiscoResult, error) {
 	return ReadFoldDisco(id, databases, jobsbase)

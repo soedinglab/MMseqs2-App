@@ -53,7 +53,8 @@
             </template>
         </div>
         <div v-if=" $APP == 'foldseek'" class="alignment-structure-wrapper">
-            <StructureViewer
+            <component
+                :is="structureViewerComponent"
                 :key="`struc2-${alignments[0].id}`"
                 :alignments="alignments"
                 :highlights="structureHighlights" 
@@ -102,7 +103,11 @@ function countCharacter(string, char) {
 }
 
 export default {
-    components: { StructureViewer: () => __APP__ == "foldseek" ? import('./StructureViewer.vue') : null, Alignment },
+    components: {
+        StructureViewer: () => __APP__ == "foldseek" ? import('./StructureViewer.vue') : null,
+        StructureViewerInterface: () => __APP__ == "foldseek" ? import('./StructureViewerInterface.vue') : null,
+        Alignment,
+    },
     data: () => ({
         queryMap: null,
         targetMap: null,
@@ -131,6 +136,9 @@ export default {
         searchType: { type: String },
     },
     computed: {
+        structureViewerComponent() {
+            return this.searchType === 'interfacesearch' ? 'StructureViewerInterface' : 'StructureViewer';
+        },
         hasSelection() {
             return !this.structureHighlights.some(e => e !== null);
         }
