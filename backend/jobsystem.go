@@ -127,6 +127,9 @@ func (m *JobRequest) WriteSupportFiles(base string) error {
 		return errors.New("invalid job type")
 	case JobStructureSearch:
 		if j, ok := m.Job.(StructureSearchJob); ok {
+			if j.IsBatch() {
+				return j.WriteBatchDir(base)
+			}
 			return j.WritePDB(filepath.Join(base, "job.pdb"))
 		}
 		return errors.New("invalid job type")
@@ -159,6 +162,9 @@ func (m *JobRequest) WriteSupportFiles(base string) error {
 		return errors.New("invalid job type")
 	case JobFoldDisco:
 		if j, ok := m.Job.(FoldDiscoJob); ok {
+			if j.IsBatch() {
+				return j.WriteBatchFiles(base)
+			}
 			return j.WritePDB(filepath.Join(base, "job.pdb"))
 		}
 		return errors.New("invalid job type")
