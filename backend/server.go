@@ -914,15 +914,42 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 					}
 					databases = []string{database}
 				}
-				results, err = FoldDiscoAlignments(ticket.Id, databases, config.Paths.Results)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				}
 
-				for _, res := range results {
-					if res.Alignments == nil {
-						continue
+				w.Header().Set("Cache-Control", "public, max-age=3600")
+
+				if job.IsBatch() {
+					manifest, err := ReadBatchManifest(filepath.Join(resultBase, "query_batch.txt"))
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusBadRequest)
+						return
+					}
+					batchResults, err := ReadFoldDiscoBatch(ticket.Id, databases, config.Paths.Results, manifest)
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusBadRequest)
+						return
+					}
+					type FoldDiscoBatchModeResponse struct {
+						Results []FoldDiscoBatchResult `json:"results"`
+					}
+					err = json.NewEncoder(w).Encode(FoldDiscoBatchModeResponse{batchResults})
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusBadRequest)
+						return
+					}
+				} else {
+					results, err = FoldDiscoAlignments(ticket.Id, databases, config.Paths.Results)
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusBadRequest)
+						return
+					}
+					type FoldDiscoModeResponse struct {
+						Motif   string            `json:"motif"`
+						Results []FoldDiscoResult `json:"results"`
+					}
+					err = json.NewEncoder(w).Encode(FoldDiscoModeResponse{motif, results})
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusBadRequest)
+						return
 					}
 				}
 			default:
@@ -981,18 +1008,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			w.Header().Set("Content-Type", "application/octet-stream")
 			w.Header().Set("Cache-Control", "public, max-age=3600")
 			w.Write(pdb)
-			return
-		}
-
-		type FoldDiscoModeResponse struct {
-			// Mode    string            `json:"mode"`
-			Motif   string            `json:"motif"`
-			Results []FoldDiscoResult `json:"results"`
-		}
-		w.Header().Set("Cache-Control", "public, max-age=3600")
-		err = json.NewEncoder(w).Encode(FoldDiscoModeResponse{motif, results})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 	}).Methods("GET")

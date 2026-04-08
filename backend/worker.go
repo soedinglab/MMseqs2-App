@@ -1823,9 +1823,6 @@ rm -rf -- "${BASE}/tmp"
 						errChan <- &JobExecutionError{err}
 						return
 					}
-					for _, f := range partFiles {
-						os.Remove(f)
-					}
 					os.Remove(dbBatch)
 				} else {
 					parameters := []string{

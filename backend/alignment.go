@@ -225,6 +225,19 @@ type FoldDiscoResult struct {
 	TaxonomyReports interface{}               `json:"taxonomyreports"`
 }
 
+type FoldDiscoQueryResult struct {
+	QueryIndex int                        `json:"query_index"`
+	Motif      string                     `json:"motif"`
+	Alignments []FoldDiscoAlignmentEntry  `json:"alignments"`
+	Meta       []FolddiscoMeta           `json:"meta,omitempty"`
+}
+
+type FoldDiscoBatchResult struct {
+	Database        string                  `json:"db"`
+	Queries         []FoldDiscoQueryResult  `json:"queries"`
+	TaxonomyReports interface{}             `json:"taxonomyreports"`
+}
+
 type EmptyEntry struct{}
 
 type FastaEntry struct {
@@ -488,6 +501,120 @@ func ReadFoldDisco(id Id, databases []string, jobsbase string) ([]FoldDiscoResul
 	}
 
 	return res, nil
+}
+
+func ReadFoldDiscoBatch(id Id, databases []string, jobsbase string, batchManifest []BatchEntry) ([]FoldDiscoBatchResult, error) {
+	base := filepath.Join(jobsbase, string(id))
+	taxonomyReader := Reader[uint32]{}
+
+	res := make([]FoldDiscoBatchResult, 0, len(databases))
+
+	for _, db := range databases {
+		alisBase := filepath.Join(filepath.Clean(base), "alis_"+db)
+
+		// Read shared meta from the concatenated file's .tsv
+		allMeta := make(map[uint32]FolddiscoMeta)
+		metafile := alisBase + ".tsv"
+		if fileExists(metafile) {
+			file, err := os.Open(metafile)
+			if err != nil {
+				return nil, fmt.Errorf("result file not found")
+			}
+			defer file.Close()
+
+			metaSlice, err := ReadAlignment[FolddiscoMeta](file)
+			if err != nil {
+				return res, err
+			}
+			for _, m := range metaSlice {
+				allMeta[m.TargetKey] = m
+			}
+		}
+
+		// Read shared taxonomy
+		allTaxonomyReports := make([][]TaxonomyReport, 0)
+		if fileExists(alisBase + "_report") {
+			err := taxonomyReader.Make(dbpaths(alisBase + "_report"))
+			if err != nil {
+				return res, err
+			}
+			taxBody := taxonomyReader.Data(0)
+			taxResult, err := ReadTaxonomyReport(taxBody)
+			if err != nil {
+				taxonomyReader.Delete()
+				return nil, err
+			}
+			allTaxonomyReports = append(allTaxonomyReports, taxResult)
+			taxonomyReader.Delete()
+		}
+
+		// Read per-query part files
+		queries := make([]FoldDiscoQueryResult, 0, len(batchManifest))
+		for i, entry := range batchManifest {
+			partPath := filepath.Join(filepath.Clean(base), fmt.Sprintf("alis_%s_part_%d", db, i))
+
+			var alignments []FoldDiscoAlignmentEntry
+			if fileExists(partPath) {
+				file, err := os.Open(partPath)
+				if err != nil {
+					return nil, fmt.Errorf("result part file not found: %s", partPath)
+				}
+				defer file.Close()
+
+				alignments, err = ReadAlignment[FoldDiscoAlignmentEntry](file)
+				if err != nil {
+					return res, err
+				}
+			}
+
+			// Filter meta to only keys present in this query's alignments
+			var queryMeta []FolddiscoMeta
+			if len(allMeta) > 0 {
+				seen := make(map[uint32]bool)
+				for _, a := range alignments {
+					key := uint32(a.DbKey)
+					if !seen[key] {
+						if m, ok := allMeta[key]; ok {
+							queryMeta = append(queryMeta, m)
+						}
+						seen[key] = true
+					}
+				}
+			}
+
+			queries = append(queries, FoldDiscoQueryResult{
+				QueryIndex: i,
+				Motif:      entry.Motif,
+				Alignments: alignments,
+				Meta:       queryMeta,
+			})
+		}
+
+		res = append(res, FoldDiscoBatchResult{db, queries, allTaxonomyReports})
+	}
+
+	return res, nil
+}
+
+type BatchEntry struct {
+	Structure string
+	Motif     string
+}
+
+func ReadBatchManifest(path string) ([]BatchEntry, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var entries []BatchEntry
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) < 2 {
+			continue
+		}
+		entries = append(entries, BatchEntry{Structure: parts[0], Motif: parts[1]})
+	}
+	return entries, nil
 }
 
 func ReadTaxonomyReport(taxBody string) ([]TaxonomyReport, error) {
