@@ -1,4 +1,5 @@
 import { Selection, Matrix4, PdbWriter } from "ngl";
+import { ungzip } from "pako";
 
 function tryLinkTargetToDB(target, db) {
   try {
@@ -11,6 +12,7 @@ function tryLinkTargetToDB(target, db) {
         target
           .replaceAll(/-assembly[0-9]+/g, "")
           .replaceAll(/\.(cif|pdb|ent)(\.gz)?/g, "")
+          .replaceAll(/[0-9]+DI_/g, "") // For interface cluster, should we link to cluster web?
           .split("_")[0]
       );
     } else if (
@@ -172,6 +174,15 @@ export function tryFixName(name) {
     name = name.replaceAll(/(AF[-_]|[-_]F[0-9]+[-_]model[-_]v[0-9]+)/g, "");
   }
   return name.replaceAll(/\.(cif|pdb|gz)/g, "");
+}
+
+export async function readUploadedText(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const data =
+    bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b
+      ? ungzip(bytes)
+      : bytes;
+  return new TextDecoder().decode(data);
 }
 
 export function parseResults(data) {
@@ -1118,4 +1129,22 @@ export function getResnoWithChain(
     }
   }
   return result;
+}
+
+export function wrapLog() {
+  const originalLog = console.log;
+  console.log = function (...args) {
+    if (typeof args[0] === "string" && args[0].includes("STAGE LOG")) {
+      return;
+    }
+    originalLog.apply(console, args);
+  };
+}
+
+export function recoverLog() {
+  const tmpIframe = document.createElement("iframe");
+  tmpIframe.style.display = "none";
+  document.body.appendChild(tmpIframe);
+  console.log = tmpIframe.contentWindow.console.log;
+  document.body.removeChild(tmpIframe);
 }

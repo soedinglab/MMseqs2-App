@@ -148,6 +148,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
+				defer f.Close()
 
 				buf := new(bytes.Buffer)
 				buf.ReadFrom(f)
@@ -292,6 +293,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			defer f.Close()
 
 			buf := new(bytes.Buffer)
 			buf.ReadFrom(f)
@@ -378,6 +380,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			defer f.Close()
 
 			buf := new(bytes.Buffer)
 			buf.ReadFrom(f)
@@ -440,6 +443,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			defer f.Close()
 
 			buf := new(bytes.Buffer)
 			buf.ReadFrom(f)
@@ -476,7 +480,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	}
 
 	ticketFoldMasonMSAHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
-		var queries []string
+		var queries [][]byte
 		var fileNames []string
 		var gapOpen int64
 		var gapExtend int64
@@ -503,14 +507,8 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				defer file.Close()
 
 				buf := new(bytes.Buffer)
-				_, err = io.Copy(buf, file)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-
-				query := buf.String()
-				queries = append(queries, query)
+				buf.ReadFrom(file)
+				queries = append(queries, buf.Bytes())
 			}
 		} else {
 			err := req.ParseForm()
@@ -518,7 +516,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			queries = req.Form["queries[]"]
+			for _, query := range req.Form["queries[]"] {
+				queries = append(queries, []byte(query))
+			}
 
 		}
 		fileNames = req.Form["fileNames[]"]
@@ -589,6 +589,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				query = buf.String()
 				motif = req.FormValue("motif")
 			}
+			defer f.Close()
 
 			dbs = req.Form["database[]"]
 			//mode = req.FormValue("mode")
@@ -1339,12 +1340,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		type AlignmentModeResponse struct {
+			Type    JobType        `json:"type"`
 			Queries []FastaEntry   `json:"queries"`
 			Mode    string         `json:"mode"`
 			Results []SearchResult `json:"results"`
 		}
 		w.Header().Set("Cache-Control", "public, max-age=3600")
-		err = json.NewEncoder(w).Encode(AlignmentModeResponse{fasta, mode, results})
+		err = json.NewEncoder(w).Encode(AlignmentModeResponse{Type: request.Type, Queries: fasta, Mode: mode, Results: results})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

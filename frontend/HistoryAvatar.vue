@@ -32,6 +32,7 @@ export default {
                 case 'complex': return this.$MDI.Multimer
                 case 'msa': return this.$MDI.Wall
                 case 'motif': return this.$MDI.Motif
+                case 'interface': return this.$MDI.Interface
                 default: return this.$MDI.HelpCircleOutline
             }
         }

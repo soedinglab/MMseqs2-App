@@ -129,7 +129,7 @@ const getPdbText = comp => {
 }
 
 export default {
-    name: "StructureViewer",
+    name: "StructureViewerInterface",
     components: {
         Panel,
         StructureViewerTooltip,
@@ -376,6 +376,7 @@ END
         // Tickets prefixed with 'user-' only occur on user uploaded files
         let queryPdb = "";
         this.hasQuery = true;
+
         if (this.$LOCAL) {
             if (this.hits.queries[0].hasOwnProperty('pdb')) {
                 queryPdb = JSON.parse(this.hits.queries[0].pdb);
@@ -411,6 +412,7 @@ END
         try {
             for (let alignment of this.alignments) {
                 const chain = getChainName(alignment.target);
+                // RACHEL: Change here to get dimer instead of interface coords.
                 let tSeq = alignment.tSeq;
                 let tCa = alignment.tCa;
                 if (Number.isInteger(alignment.tCa) && Number.isInteger(alignment.tSeq)) {
@@ -432,6 +434,7 @@ END
                 component.structure.eachChain(c => { c.chainname = chain; });
                 component.structure.eachAtom(a => { a.serial = renumber++; });
                 targets.push(component);
+                //FIXME: this will not work because start and end positions are not coordinated
                 selections_t.push(`${alignment.dbStartPos}-${alignment.dbEndPos}:${chain}`);
             }
         } catch (e) {

@@ -135,14 +135,6 @@ small.ticket {
     margin-right: 4px;
 }
 
-/* @media print, screen and (max-width: 599px) {
-    small.ticket {
-        display: inline-block;
-        line-height: 0.9;
-    }
-} */
-
-/* --- 설정 변수 --- */
 .custom-field-container {
     --primary-color: #fff;
     --error-color: #ff5252;

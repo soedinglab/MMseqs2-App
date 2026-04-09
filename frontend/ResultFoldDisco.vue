@@ -84,17 +84,36 @@
                         :color="selectedDatabases > 0 ? hits.results[selectedDatabases - 1].color : null"
                         center-active
                         grow
-                        v-model="tabModel"
+                        v-model="selectedDatabases"
                         show-arrows
                         @change="handleChangeDatabase()"
                         v-if="hits.results.length > 1"
                         >
-                            <!-- <v-tab>All databases</v-tab> -->
+                            <v-tab>Summary</v-tab>
                             <v-tab v-for="entry in hits.results" :key="entry.db">{{ entry.db.replaceAll(/_folddisco$/g, '') }} ({{ entry.alignments ? Object.values(entry.alignments).length : 0 }})</v-tab>
                         </v-tabs>
                     </v-sheet>
+                    <TopHits
+                        v-if="hits && hits.results && hits.results.length > 1"
+                        v-show="selectedDatabases == 0"
+                        :hits="hits" :mode="2"
+                        @jumpTo="i => selectedDatabases = i+1"
+                    />
+                    <keep-alive>
+                        <Top100Folddisco
+                            v-if="hits && hits.results && hits.results.length > 1 && selectedDatabases == 0"
+                            ref="top100" :hits="hits" :alignment="alignment" :selectedStates="selectedStates"
+                            :selectedCounts="selectedCounts" :selectUpperbound="selectUpperbound"
+                            @showAlignment="(o, db, e) => showAlignment(o, db, e)"
+                            @toggleSelection="(db, i, v) => handleToggleSelection(db, i, v, true)"
+                            @bulkToggle="(a, v) => handleBulkToggleFromTop100(a, v)"
+                            @forwardDropdown="(e, h) => forwardDropdown(e, h)"
+                            @clearAll="clearAllEntries" @jumpTo="i => selectedDatabases = i+1"
+                        />
+                    </keep-alive>
                     <ResultFoldDiscoDB v-for="(entry, entryidx) in hits.results" :key="entry.db"
-                        v-if="selectedDatabases == 0 || (entryidx + 1) == selectedDatabases"
+                        :ref="'dbComponent' + entryidx"
+                        v-if="(entryidx + 1) == selectedDatabases"
                         :entryidx="entryidx" :entry="entry" :toggleSourceDb="toggleSourceDb"
                         :selectedStates="selectedStates[entryidx]" :selectedCounts="selectedCountPerDb[entryidx]"
                         :totalSelectedCounts="selectedCounts" :selectUpperbound="selectUpperbound" :alignment="alignment"
@@ -105,6 +124,7 @@
                         @toggleSelection="(i, v) => handleToggleSelection(entryidx, i, v)"
                         @bulkToggle="(a, v) => handleBulkToggle(entryidx, a, v)"
                         @updateScroll="() => updateScrollOffsetArr()"
+                        @clusterInfo="(info) => handleClusterInfo(entryidx, info)"
                     ></ResultFoldDiscoDB>
                 </template>
                 </panel>
@@ -126,7 +146,9 @@
                 <NavigationButton :selectedDatabases="selectedDatabases"
                     :scrollOffsetArr="scrollOffsetArr"
                     :tabOffset="tabOffset"
+                    :hasMoreClusters="hasMoreClusters"
                     @needUpdate="updateScrollOffsetArr"
+                    @needRenderNext="handleNeedRenderNext"
                 ></NavigationButton>
             </v-flex>
         </v-layout>
@@ -169,6 +191,8 @@ import NavigationButton from './NavigationButton.vue';
 import ResultFoldDiscoDB from './ResultFoldDiscoDB.vue';
 import SelectToSendPanel from './SelectToSendPanel.vue';
 import NameField from './NameField.vue';
+import TopHits from './TopHits.vue';
+import Top100Folddisco from './Top100Folddisco.vue';
 
 function getAbsOffsetTop($el) {
     var sum = 0;
@@ -183,7 +207,15 @@ function getAbsOffsetTop($el) {
 export default {
     name: 'ResultFoldDisco',
     tool: 'folddisco',
-    components: { Panel, StructureViewerMotif, NavigationButton, ResultFoldDiscoDB, SelectToSendPanel, NameField },
+    components: { Panel, 
+        StructureViewerMotif, 
+        NavigationButton, 
+        ResultFoldDiscoDB, 
+        SelectToSendPanel, 
+        NameField, 
+        TopHits,
+        Top100Folddisco,
+    },
     // components: { ResultView },
     mixins: [ ResultMixin, ResultSankeyMixin ],
     data() {
@@ -205,11 +237,12 @@ export default {
             toggleSourceDb: "",
             dbToIdx: null,
             selectUpperbound: 100,
-            selectedStates: {},
+            selectedStates: null,
             selectedCounts: 0,
-            selectedCountPerDb: {},
+            selectedCountPerDb: null,
             selectedSets: new Set(),
             scrollOffsetArr: [],
+            clusterInfoPerDb: {},
         }
     },
     created() {
@@ -273,19 +306,18 @@ export default {
             }
             return dbGaps;
         },
-        tabModel: {
-            get() {
-            return this.selectedDatabases - 1;
-            },
-            set(val) {
-            this.selectedDatabases = val + 1;
-            }
-        },
         tabOffset() {
             let addend = this.hits?.results?.length == 1 ? 92 : 140
             let sheetHeight = this.$vuetify.breakpoint.xsOnly ? 356 : this.$vuetify.breakpoint.mdAndDown ? 304 : 180
             let colheadHeight = 32
             return addend + sheetHeight + colheadHeight
+        },
+        hasMoreClusters() {
+            for (const key in this.clusterInfoPerDb) {
+                const info = this.clusterInfoPerDb[key]
+                if (info.totalClusterCount > info.renderedClusterCount) return true
+            }
+            return false
         }
     },
     mounted() {
@@ -358,6 +390,7 @@ export default {
                             this.updateScrollOffsetArr()
                         }, 0)
                     })
+                    this.selectedDatabases = n.results.length == 1 ? 1 : 0
                 }
             },
             immediate: false,
@@ -387,7 +420,7 @@ export default {
         },
         async getTargetPdb(item, db) {
             let target = item.dbkey;
-            if (db.startsWith("pdb_")) {
+            if (db.startsWith("pdb")) {
                 target = item.target;
             }
             const re = "api/result/folddisco/" + this.$route.params.ticket + '?database=' + db +'&id=' + target;
@@ -397,9 +430,9 @@ export default {
                 try {
                     const request = await this.$axios.get(re, {
                         headers: {
-                            'Cache-Control': 'no-cache, no-store, must-revalidate',
-                            'Pragma': 'no-cache',
-                            'Expires': '0',
+                            // 'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            // 'Pragma': 'no-cache',
+                            // 'Expires': '0',
                             'Accept': 'text/plain',
                         },
                         transformResponse: [(d) => d],
@@ -436,7 +469,7 @@ export default {
         handleChangeDatabase() {
             this.closeAlignment();
         },
-        handleToggleSelection(db, idx, value) {
+        handleToggleSelection(db, idx, value, fromTop100=false) {
             if (!this.selectedStates || !this.selectedStates[db]
                 || this.selectedCounts > this.selectUpperbound && value) {
                 return
@@ -449,21 +482,36 @@ export default {
             if (this.selectedStates[db][idx] != value) {
                 // Does it really reflect changes?
                 this.selectedStates[db][idx] = value
-                let el = document.getElementById(id)
-                if (el) {
-                    el.classList.toggle('selected', value)
+
+                if (fromTop100) {
+                    document.getElementById('top.' + id)?.classList.toggle('selected', value)                    
+                } else {
+                    document.getElementById(id)?.classList.toggle('selected', value)
                 }
+                
+                
                 const newVal = this.selectedCountPerDb[db] + deltaUnit
                 this.selectedCountPerDb[db] = newVal
                 this.selectedCounts += deltaUnit
                 toCall(id)
                 
                 // update select-all button state
-                const targetDbLength = this.selectedStates[db].length
-                el = document.getElementById(db + '#select-all')
-                if (el) {
-                    el.classList.toggle('any-selected', newVal > 0)
-                    el.classList.toggle('all-selected', newVal == targetDbLength)
+                if (!fromTop100) {
+                    const targetDbLength = this.selectedStates[db].length
+                    let el = document.getElementById(db + '#select-all')
+                    if (el) {
+                        el.classList.toggle('any-selected', newVal > 0)
+                        el.classList.toggle('all-selected', newVal == targetDbLength)
+                    }
+                } else {
+                    const length = this.$refs.top100.entryLength
+                    const newValTop = this.$refs.top100.selectedTopEntries + deltaUnit
+                    const selectAllButton = document.getElementById('top#select-all')
+                    if (selectAllButton) {
+                        selectAllButton.classList.toggle('any-selected', newValTop > 0)
+                        selectAllButton.classList.toggle('all-selected', newValTop == length)
+                    }
+                    this.$refs.top100.selectedTopEntries = newValTop
                 }
             }
         },
@@ -485,10 +533,8 @@ export default {
                 }
                 if (this.selectedStates[db][i] != value) {
                     let id = db + '#' + i.toString()
-                    let el = document.getElementById(id)
-                    if (el) {
-                        el.classList.toggle('selected', value)
-                    }
+                    document.getElementById(id)?.classList.toggle('selected', value)
+
                     this.selectedStates[db][i] = value
                     toCall(id)
                     delta += deltaUnit
@@ -505,6 +551,54 @@ export default {
                 const dbLength = Number(selectAllButton.getAttribute('length'))
                 selectAllButton.classList.toggle('any-selected', newVal > 0)
                 selectAllButton.classList.toggle('all-selected', newVal == dbLength)
+            }
+        },
+        handleBulkToggleFromTop100(indices, value) {
+            // This method is called by Top100 component only
+
+            if (!this.selectedStates 
+                || this.selectedCounts > this.selectUpperbound && value) {
+                return
+            }
+
+            let delta = 0
+            let deltaPerDb = Object.fromEntries(Object.keys(this.selectedStates).map(k => [k, 0]))
+            const deltaUnit = value ? 1 : -1
+            const deltaUpperbound = this.selectUpperbound - this.selectedCounts
+            const toCall = value ? this.selectedSets.add.bind(this.selectedSets) : 
+                this.selectedSets.delete.bind(this.selectedSets)
+            let dbSet = new Set()
+            
+            for (const idx of indices) {
+                if (value && delta >= deltaUpperbound) {
+                    break;
+                }
+                let [db, i] = idx.split("#")
+                dbSet.add(db)
+
+                if (this.selectedStates[db][i] != value) {
+                    document.getElementById('top.' + idx)?.classList.toggle('selected', value)
+                    this.selectedStates[db][i] = value
+                    toCall(idx)
+                    delta += deltaUnit
+                    deltaPerDb[db] += deltaUnit
+                }
+            }
+            
+            this.selectedCounts += delta
+            for (let db of dbSet) {
+                this.selectedCountPerDb[db] += delta
+            }
+            
+            const length = this.$refs.top100.entryLength
+            const newVal = this.$refs.top100.selectedTopEntries + delta
+            this.$refs.top100.selectedTopEntries = newVal
+
+            // update select-all button state
+            const selectAllButton = document.getElementById('top#select-all')
+            if (selectAllButton) {
+                selectAllButton.classList.toggle('any-selected', newVal > 0)
+                selectAllButton.classList.toggle('all-selected', newVal == length)
             }
         },
         updateToggleSourceDb(db) {
@@ -531,6 +625,11 @@ export default {
                     el.classList.toggle('any-selected', false)
                     el.classList.toggle('all-selected', false)
                 }
+            }
+            el = document.getElementById('top#select-all')
+            if (el) {
+                el.classList.toggle('any-selected', false)
+                el.classList.toggle('all-selected', false)
             }
             
             // update selected states manually
@@ -661,6 +760,36 @@ export default {
             const arr = document.querySelectorAll('[class^="result-entry-"]')
             const offsetArr = [...arr].map(n => Math.ceil(n.getBoundingClientRect().top + window.scrollY))
             this.scrollOffsetArr = offsetArr
+        },
+        handleClusterInfo(entryidx, info) {
+            this.$set(this.clusterInfoPerDb, entryidx, info)
+        },
+        async handleNeedRenderNext() {
+            // Find the first child component that has unrendered clusters
+            const results = this.hits?.results
+            if (!results) return
+            for (let i = 0; i < results.length; i++) {
+                if (this.selectedDatabases != 0 && (i + 1) != this.selectedDatabases) continue
+                const refs = this.$refs['dbComponent' + i]
+                const comp = Array.isArray(refs) ? refs[0] : refs
+                if (!comp) continue
+                const info = this.clusterInfoPerDb[i]
+                if (!info || info.totalClusterCount <= info.renderedClusterCount) continue
+                // Find the next unrendered cluster key
+                const nextKey = comp.clusterKeys[comp.renderedClusterKeys.length]
+                if (!nextKey) continue
+                await comp.renderUpToCluster(nextKey)
+                this.$nextTick(() => {
+                    this.updateScrollOffsetArr()
+                    // Scroll to the newly rendered cluster
+                    const el = document.querySelector('.result-entry-' + i + nextKey)
+                    if (el) {
+                        const top = Math.ceil(el.getBoundingClientRect().top + window.scrollY) - this.tabOffset
+                        window.scrollTo({ top, left: 0, behavior: 'smooth' })
+                    }
+                })
+                return
+            }
         }
     },
 };

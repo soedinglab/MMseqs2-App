@@ -138,14 +138,13 @@ import LoadAcessionButton from './LoadAcessionButton.vue';
 import Reference from "./Reference.vue";
 import { convertToQueryUrl } from './lib/convertToQueryUrl';
 import TaxonomyAutocomplete from './TaxonomyAutocomplete.vue';
-import { djb2, parseResultsList, checkMultimer } from './Utilities.js';
+import { djb2, parseResultsList, checkMultimer, readUploadedText } from './Utilities.js';
 import { AxiosCompressRequest } from './lib/AxiosCompressRequest.js';
 import ApiDialog from './ApiDialog.vue';
 import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
-
 const db = BlobDatabase();
 const storage = new StorageWrapper("complex");
 
@@ -286,12 +285,13 @@ export default {
                 this.inSearch = false;
             }
         },
-        upload(files) {
-            var reader = new FileReader();
-            reader.onload = e => {
-                this.query = e.target.result;
-            };
-            reader.readAsText(files[0]);
+        async upload(files) {
+            try {
+                this.query = await readUploadedText(files[0]);
+            } catch (error) {
+                this.errorMessage = "Error reading uploaded file";
+                throw error;
+            }
         },
         uploadJSON(files) {
             let file = files[0];

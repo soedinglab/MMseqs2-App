@@ -32,7 +32,7 @@ func Lookup(ticketId Id, page uint64, limit uint64, basepath string, shouldGroup
 		return LookupResponse{}, err
 	}
 
-	isComplex := request.Type == JobComplexSearch && shouldGroup
+	isComplex := request.Type == JobComplexSearch || request.Type == JobInterfaceSearch && shouldGroup
 
 	results := make([]LookupResult, 0)
 	res := LookupResult{}
