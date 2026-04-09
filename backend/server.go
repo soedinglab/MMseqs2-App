@@ -584,12 +584,12 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
+				defer f.Close()
 				buf := new(bytes.Buffer)
 				buf.ReadFrom(f)
 				query = buf.String()
 				motif = req.FormValue("motif")
 			}
-			defer f.Close()
 
 			dbs = req.Form["database[]"]
 			//mode = req.FormValue("mode")
