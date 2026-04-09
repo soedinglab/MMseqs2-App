@@ -1,6 +1,11 @@
 ARG FRONTEND_APP
 ARG downloader=${FRONTEND_APP}_${TARGETARCH}_downloader
 
+FROM rust:latest AS folddisco-builder
+WORKDIR /opt/build
+RUN git clone https://github.com/genesistherapeutics/folddisco.git . && \
+    cargo build --release
+
 FROM scratch AS mmseqs_amd64_downloader
 WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-avx2.tar.gz  .
@@ -20,9 +25,6 @@ ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-sse41.tar.gz .
 ARG FOLDMASON_HASH=foldmason
 ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-avx2.tar.gz .
 ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-sse2.tar.gz .
-ARG FOLDDISCO_HASH=folddisco
-# ARG FOLDDISCO_HASH=archive/7514114fb6c444c0483e20838a0a06688304918e
-ONBUILD ADD https://mmseqs.com/${FOLDDISCO_HASH}/folddisco-linux-x86_64.tar.gz .
 ONBUILD ADD https://mmseqs.com/foldcomp/foldcomp-linux-x86_64.tar.gz .
 
 FROM scratch AS foldseek_arm64_downloader
@@ -31,9 +33,6 @@ ARG FOLDSEEK_HASH=foldseek
 ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-arm64.tar.gz  .
 ARG FOLDMASON_HASH=foldmason
 ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-arm64.tar.gz .
-ARG FOLDDISCO_HASH=folddisco
-# ARG FOLDDISCO_HASH=archive/de0174aee028b8fb774d865cab882c8829afb69a
-ONBUILD ADD https://mmseqs.com/${FOLDDISCO_HASH}/folddisco-linux-arm64.tar.gz .
 ONBUILD ADD https://mmseqs.com/foldcomp/foldcomp-linux-arm64.tar.gz .
 
 FROM $downloader AS downloader
@@ -52,7 +51,7 @@ ADD https://raw.githubusercontent.com/steineggerlab/foldseek/2a7d682841e78deb511
 COPY --from=downloader /opt/build/* .
 RUN mkdir binaries; \
     if [ "$TARGETARCH" = "arm64" ]; then \
-      for i in mmseqs foldseek foldmason folddisco foldcomp; do \
+      for i in mmseqs foldseek foldmason foldcomp; do \
         if [ -e "${i}-linux-arm64.tar.gz" ]; then \
           cat ${i}-linux-arm64.tar.gz | tar -xzvf- ${i}/bin/${i}; \
           if [ "$i" = "foldcomp" ] ; then \
@@ -64,13 +63,11 @@ RUN mkdir binaries; \
         fi; \
       done; \
     else \
-      for i in mmseqs foldseek foldmason folddisco foldcomp; do \
+      for i in mmseqs foldseek foldmason foldcomp; do \
         for j in sse2 sse41 avx2 x86_64; do \
           if [ -e "${i}-linux-${j}.tar.gz" ]; then \
             cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}/bin/${i}; \
-            if [ "$i" = "folddisco" ] ; then \
-              mv -f -- ${i}/bin/${i} binaries/${i}; \
-            elif [ "$i" = "foldcomp" ]; then \
+            if [ "$i" = "foldcomp" ]; then \
               cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}; \
               mv -f -- ${i} binaries/${i}; \
             else \
@@ -82,6 +79,9 @@ RUN mkdir binaries; \
       sed 's|foldseek|foldmason|g' binaries/foldseek > binaries/foldmason; \
     fi; \
     chmod -R +x binaries;
+
+COPY --from=folddisco-builder /opt/build/target/release/folddisco binaries/folddisco
+RUN chmod +x binaries/folddisco
 
 FROM debian:stable-slim
 LABEL maintainer="Milot Mirdita <milot@mirdita.de>"
