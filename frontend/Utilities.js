@@ -538,8 +538,12 @@ export function makeChainMap(structure, sele) {
 
 export function makeSubPDB(structure, sele) {
   let pdb = [];
+  let lastResno = null;
   structure.eachAtom((ap) => {
-    pdb.push(atomToPDBRow(ap));
+    if (ap.atomname === "CA" && ap.resno !== lastResno) {
+      lastResno = ap.resno;
+      pdb.push(atomToPDBRow(ap));
+    }
   }, new Selection(sele));
   return pdb.join("\n");
 }
