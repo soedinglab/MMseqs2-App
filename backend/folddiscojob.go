@@ -53,7 +53,7 @@ func (r FoldDiscoJob) WritePDB(path string) error {
 	return nil
 }
 
-func NewFoldDiscoJobRequest(query string, motif string, dbs []string, validDbs []Params, resultPath string, email string) (JobRequest, error) {
+func NewFoldDiscoJobRequest(query string, motif string, dbs []string, validDbs []Params, resultPath string, email string, otelTrace OtelTraceContext) (JobRequest, error) {
 	job := FoldDiscoJob{
 		max(strings.Count(query, "HEADER"), 1),
 		dbs,
@@ -64,11 +64,12 @@ func NewFoldDiscoJobRequest(query string, motif string, dbs []string, validDbs [
 	}
 
 	request := JobRequest{
-		job.Hash(),
-		StatusPending,
-		JobFoldDisco,
-		job,
-		email,
+		Id:        job.Hash(),
+		Status:    StatusPending,
+		Type:      JobFoldDisco,
+		Job:       job,
+		Email:     email,
+		OtelTrace: otelTrace.Ptr(),
 	}
 
 	ids := make([]string, 0)

@@ -34,7 +34,7 @@ func (r PairJob) WriteFasta(path string) error {
 	return nil
 }
 
-func NewPairJobRequest(query string, mode string, mail string) (JobRequest, error) {
+func NewPairJobRequest(query string, mode string, mail string, otelTrace OtelTraceContext) (JobRequest, error) {
 	job := PairJob{
 		max(strings.Count(query, ">"), 1),
 		mode,
@@ -42,11 +42,12 @@ func NewPairJobRequest(query string, mode string, mail string) (JobRequest, erro
 	}
 
 	request := JobRequest{
-		job.Hash(),
-		StatusPending,
-		JobPair,
-		job,
-		mail,
+		Id:        job.Hash(),
+		Status:    StatusPending,
+		Type:      JobPair,
+		Job:       job,
+		Email:     mail,
+		OtelTrace: otelTrace.Ptr(),
 	}
 
 	return request, nil

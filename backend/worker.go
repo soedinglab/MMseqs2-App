@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bufio"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -70,7 +71,7 @@ func gpuParameters(config *GpuConfig) ([]string, []string) {
 	return parameters, environ
 }
 
-func execCommand(verbose bool, parameters []string, environ []string) (*exec.Cmd, chan error, error) {
+func execCommand(ctx context.Context, verbose bool, parameters []string, environ []string) (*exec.Cmd, chan error, error) {
 	cmd := exec.Command(
 		parameters[0],
 		parameters[1:]...,
@@ -112,15 +113,15 @@ func execCommand(verbose bool, parameters []string, environ []string) (*exec.Cmd
 
 const maxDuration time.Duration = 1<<63 - 1
 
-func execCommandSync(verbose bool, parameters []string, environ []string, timeout time.Duration) error {
-	cmd, done, err := execCommand(verbose, parameters, environ)
+func execCommandSync(ctx context.Context, verbose bool, parameters []string, environ []string, timeout time.Duration) error {
+	cmd, done, err := execCommand(ctx, verbose, parameters, environ)
 	if err != nil {
 		return err
 	}
 	select {
 	case <-time.After(timeout):
 		if err := KillCommand(cmd); err != nil {
-			log.Printf("Failed to kill: %s\n", err)
+			log.Printf("Failed to kill: %s%s\n", err, TraceStr(ctx))
 		}
 		return &JobTimeoutError{}
 	case err := <-done:
@@ -162,7 +163,7 @@ func ismmCIFFile(filePath string) (bool, error) {
 	return false, nil
 }
 
-func RunJob(request JobRequest, config ConfigRoot) (err error) {
+func RunJob(ctx context.Context, request JobRequest, config ConfigRoot) (err error) {
 	start := time.Now()
 	switch job := request.Job.(type) {
 	case SearchJob:
@@ -228,7 +229,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				gpupar, environ := gpuParameters(params.GpuConfig)
 				parameters = append(parameters, gpupar...)
 
-				cmd, done, err := execCommand(config.Verbose, parameters, environ)
+				cmd, done, err := execCommand(ctx, config.Verbose, parameters, environ)
 				if err != nil {
 					errChan <- &JobExecutionError{err}
 					return
@@ -237,7 +238,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 				select {
 				case <-time.After(1 * time.Hour):
 					if err := KillCommand(cmd); err != nil {
-						log.Printf("Failed to kill: %s\n", err)
+						log.Printf("Failed to kill: %s%s\n", err, TraceStr(ctx))
 					}
 					errChan <- &JobTimeoutError{}
 				case err := <-done:
@@ -260,6 +261,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		}
 
 		err = execCommandSync(
+			ctx,
 			config.Verbose,
 			[]string{
 				config.Paths.Mmseqs,
@@ -274,6 +276,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			return &JobExecutionError{err}
 		}
 		err = execCommandSync(
+			ctx,
 			config.Verbose,
 			[]string{
 				config.Paths.Mmseqs,
@@ -310,7 +313,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		}
 
 		if config.Verbose {
-			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
+			log.Printf("Process finished gracefully without error in %s%s\n", time.Since(start), TraceStr(ctx))
 		}
 		return nil
 	case StructureSearchJob:
@@ -364,6 +367,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				resultBase,
 			}
 			err = execCommandSync(
+				ctx,
 				config.Verbose,
 				parameters,
 				[]string{},
@@ -496,7 +500,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				gpupar, environ := gpuParameters(params.GpuConfig)
 				parameters = append(parameters, gpupar...)
 
-				cmd, done, err := execCommand(config.Verbose, parameters, environ)
+				cmd, done, err := execCommand(ctx, config.Verbose, parameters, environ)
 				if err != nil {
 					errChan <- &JobExecutionError{err}
 					return
@@ -505,7 +509,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				select {
 				case <-time.After(1 * time.Hour):
 					if err := KillCommand(cmd); err != nil {
-						log.Printf("Failed to kill: %s\n", err)
+						log.Printf("Failed to kill: %s%s\n", err, TraceStr(ctx))
 					}
 					errChan <- &JobTimeoutError{}
 				case err := <-done:
@@ -529,6 +533,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 
 		if !is3Di {
 			err = execCommandSync(
+				ctx,
 				config.Verbose,
 				[]string{
 					config.Paths.Foldseek,
@@ -543,6 +548,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				return &JobExecutionError{err}
 			}
 			err = execCommandSync(
+				ctx,
 				config.Verbose,
 				[]string{
 					config.Paths.Foldseek,
@@ -580,7 +586,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		}
 
 		if config.Verbose {
-			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
+			log.Printf("Process finished gracefully without error in %s%s\n", time.Since(start), TraceStr(ctx))
 		}
 		return nil
 	case ComplexSearchJob:
@@ -686,7 +692,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					parameters = append(parameters, job.TaxFilter)
 				}
 
-				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+				cmd, done, err := execCommand(ctx, config.Verbose, parameters, []string{})
 				if err != nil {
 					errChan <- &JobExecutionError{err}
 					return
@@ -695,7 +701,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				select {
 				case <-time.After(1 * time.Hour):
 					if err := KillCommand(cmd); err != nil {
-						log.Printf("Failed to kill: %s\n", err)
+						log.Printf("Failed to kill: %s%s\n", err, TraceStr(ctx))
 					}
 					errChan <- &JobTimeoutError{}
 				case err := <-done:
@@ -718,6 +724,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		}
 
 		err = execCommandSync(
+			ctx,
 			config.Verbose,
 			[]string{
 				config.Paths.Foldseek,
@@ -732,6 +739,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			return &JobExecutionError{err}
 		}
 		err = execCommandSync(
+			ctx,
 			config.Verbose,
 			[]string{
 				config.Paths.Foldseek,
@@ -768,7 +776,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		}
 
 		if config.Verbose {
-			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
+			log.Printf("Process finished gracefully without error in %s%s\n", time.Since(start), TraceStr(ctx))
 		}
 		return nil
 	case InterfaceSearchJob:
@@ -869,7 +877,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					parameters = append(parameters, job.TaxFilter)
 				}
 
-				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+				cmd, done, err := execCommand(ctx, config.Verbose, parameters, []string{})
 				if err != nil {
 					errChan <- &JobExecutionError{err}
 					return
@@ -878,7 +886,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				select {
 				case <-time.After(1 * time.Hour):
 					if err := KillCommand(cmd); err != nil {
-						log.Printf("Failed to kill: %s\n", err)
+						log.Printf("Failed to kill: %s%s\n", err, TraceStr(ctx))
 					}
 					errChan <- &JobTimeoutError{}
 				case err := <-done:
@@ -901,6 +909,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		}
 
 		err = execCommandSync(
+			ctx,
 			config.Verbose,
 			[]string{
 				config.Paths.Foldseek,
@@ -915,6 +924,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			return &JobExecutionError{err}
 		}
 		err = execCommandSync(
+			ctx,
 			config.Verbose,
 			[]string{
 				config.Paths.Foldseek,
@@ -929,6 +939,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			return &JobExecutionError{err}
 		}
 		err = execCommandSync(
+			ctx,
 			config.Verbose,
 			[]string{
 				"mv",
@@ -964,7 +975,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		}
 
 		if config.Verbose {
-			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
+			log.Printf("Process finished gracefully without error in %s%s\n", time.Since(start), TraceStr(ctx))
 		}
 		return nil
 	case MsaJob:
@@ -1211,7 +1222,7 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 			}
 		}
 
-		cmd, done, err := execCommand(config.Verbose, parameters, environ)
+		cmd, done, err := execCommand(ctx, config.Verbose, parameters, environ)
 		if err != nil {
 			return &JobExecutionError{err}
 		}
@@ -1219,7 +1230,7 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 		select {
 		case <-time.After(1 * time.Hour):
 			if err := KillCommand(cmd); err != nil {
-				log.Printf("Failed to kill: %s\n", err)
+				log.Printf("Failed to kill: %s%s\n", err, TraceStr(ctx))
 			}
 			return &JobTimeoutError{}
 		case err := <-done:
@@ -1334,7 +1345,7 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 		}
 
 		if config.Verbose {
-			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
+			log.Printf("Process finished gracefully without error in %s%s\n", time.Since(start), TraceStr(ctx))
 		}
 		return nil
 	case PairJob:
@@ -1528,7 +1539,7 @@ rm -rf -- "${BASE}/tmp"
 			}
 		}
 
-		cmd, done, err := execCommand(config.Verbose, parameters, environ)
+		cmd, done, err := execCommand(ctx, config.Verbose, parameters, environ)
 		if err != nil {
 			return &JobExecutionError{err}
 		}
@@ -1536,7 +1547,7 @@ rm -rf -- "${BASE}/tmp"
 		select {
 		case <-time.After(1 * time.Hour):
 			if err := KillCommand(cmd); err != nil {
-				log.Printf("Failed to kill: %s\n", err)
+				log.Printf("Failed to kill: %s%s\n", err, TraceStr(ctx))
 			}
 			return &JobTimeoutError{}
 		case err := <-done:
@@ -1596,7 +1607,7 @@ rm -rf -- "${BASE}/tmp"
 			}
 		}
 		if config.Verbose {
-			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
+			log.Printf("Process finished gracefully without error in %s%s\n", time.Since(start), TraceStr(ctx))
 		}
 		return nil
 	case IndexJob:
@@ -1617,7 +1628,7 @@ rm -rf -- "${BASE}/tmp"
 			return &JobExecutionError{err}
 		}
 		if config.Verbose {
-			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
+			log.Printf("Process finished gracefully without error in %s%s\n", time.Since(start), TraceStr(ctx))
 		}
 		params.Status = StatusComplete
 		err = SaveParams(file+".params", params)
@@ -1638,14 +1649,14 @@ rm -rf -- "${BASE}/tmp"
 			"--report-paths",
 			"0",
 		}
-		cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+		cmd, done, err := execCommand(ctx, config.Verbose, parameters, []string{})
 		if err != nil {
 			return &JobExecutionError{err}
 		}
 		select {
 		case <-time.After(1 * time.Hour):
 			if err := KillCommand(cmd); err != nil {
-				log.Printf("Failed to kill: %s\n", err)
+				log.Printf("Failed to kill: %s%s\n", err, TraceStr(ctx))
 			}
 			return &JobTimeoutError{}
 		case err := <-done:
@@ -1654,11 +1665,11 @@ rm -rf -- "${BASE}/tmp"
 			}
 		}
 		if config.Verbose {
-			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
+			log.Printf("Process finished gracefully without error in %s%s\n", time.Since(start), TraceStr(ctx))
 		}
 		return nil
 	case FoldDiscoJob:
-		log.Print(config.Paths.FoldDisco)
+		log.Print(config.Paths.FoldDisco, TraceStr(ctx))
 		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
 		var wg sync.WaitGroup
 		errChan := make(chan error, len(job.Database))
@@ -1706,12 +1717,12 @@ rm -rf -- "${BASE}/tmp"
 						if len(arr) == 2 {
 							threads, err = strconv.Atoi(arr[1])
 							if err != nil {
-								log.Printf("Failed to parse MMSEQS_NUM_THREADS: %s\n", arr[1])
+								log.Printf("Failed to parse MMSEQS_NUM_THREADS: %s%s\n", arr[1], TraceStr(ctx))
 								errChan <- &JobExecutionError{err}
 								return
 							}
 						} else {
-							log.Printf("Invalid MMSEQS_NUM_THREADS environment variable: %s\n", kv)
+							log.Printf("Invalid MMSEQS_NUM_THREADS environment variable: %s%s\n", kv, TraceStr(ctx))
 							errChan <- &JobExecutionError{errors.New("invalid MMSEQS_NUM_THREADS environment variable")}
 							return
 						}
@@ -1742,7 +1753,7 @@ rm -rf -- "${BASE}/tmp"
 				}
 				parameters = append(parameters, strings.Fields(params.Search)...)
 
-				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+				cmd, done, err := execCommand(ctx, config.Verbose, parameters, []string{})
 				if err != nil {
 					errChan <- &JobExecutionError{err}
 					return
@@ -1751,7 +1762,7 @@ rm -rf -- "${BASE}/tmp"
 				select {
 				case <-time.After(1 * time.Hour):
 					if err := KillCommand(cmd); err != nil {
-						log.Printf("Failed to kill: %s\n", err)
+						log.Printf("Failed to kill: %s%s\n", err, TraceStr(ctx))
 					}
 					errChan <- &JobTimeoutError{}
 				case err := <-done:
@@ -1784,6 +1795,7 @@ printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.d
 									filepath.Join(resultBase, "alis_"+database),
 								}
 								err = execCommandSync(
+									ctx,
 									config.Verbose,
 									parameters,
 									[]string{},
@@ -1794,6 +1806,7 @@ printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.d
 									return
 								}
 								err = execCommandSync(
+									ctx,
 									config.Verbose,
 									[]string{
 										config.Paths.Foldseek,
@@ -1818,6 +1831,7 @@ printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.d
 								}
 								if params.Taxonomy {
 									err = execCommandSync(
+										ctx,
 										config.Verbose,
 										[]string{
 											config.Paths.Foldseek,
@@ -1870,7 +1884,7 @@ printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.d
 		}
 
 		if config.Verbose {
-			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
+			log.Printf("Process finished gracefully without error in %s%s\n", time.Since(start), TraceStr(ctx))
 		}
 		return nil
 	default:
@@ -1880,6 +1894,7 @@ printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.d
 
 func worker(jobsystem JobSystem, config ConfigRoot) {
 	log.Println("MMseqs2 worker")
+	startupCtx := context.Background()
 	mailer := MailTransport(NullTransport{})
 	if config.Mail.Mailer != nil {
 		log.Println("Using " + config.Mail.Mailer.Type + " mail transport")
@@ -1959,6 +1974,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 						}
 						_, environ := gpuParameters(p.GpuConfig)
 						execCommandSync(
+							startupCtx,
 							config.Verbose,
 							parameters,
 							environ,
@@ -1996,6 +2012,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 					}
 				}
 				execCommandSync(
+					startupCtx,
 					config.Verbose,
 					parameters,
 					environ,
@@ -2049,17 +2066,22 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 			continue
 		}
 
+		jobCtx := context.Background()
+		if job.OtelTrace != nil {
+			jobCtx = ContextWithOtelTrace(jobCtx, *job.OtelTrace)
+		}
+
 		jobsystem.SetStatus(ticket.Id, StatusRunning)
-		err = RunJob(job, config)
+		err = RunJob(jobCtx, job, config)
 		mailTemplate := config.Mail.Templates.Success
 		switch err.(type) {
 		case *JobExecutionError, *JobInvalidError:
 			jobsystem.SetStatus(ticket.Id, StatusError)
-			log.Print(err)
+			log.Print(err, TraceStr(jobCtx))
 			mailTemplate = config.Mail.Templates.Error
 		case *JobTimeoutError:
 			jobsystem.SetStatus(ticket.Id, StatusError)
-			log.Print(err)
+			log.Print(err, TraceStr(jobCtx))
 			mailTemplate = config.Mail.Templates.Timeout
 		case nil:
 			jobsystem.SetStatus(ticket.Id, StatusComplete)
@@ -2072,7 +2094,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 				fmt.Sprintf(mailTemplate.Body, string(ticket.Id)),
 			})
 			if err != nil {
-				log.Print(err)
+				log.Print(err, TraceStr(jobCtx))
 			}
 		}
 	}

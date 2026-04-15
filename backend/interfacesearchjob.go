@@ -48,7 +48,7 @@ func (r InterfaceSearchJob) WritePDB(path string) error {
 	return nil
 }
 
-func NewInterfaceSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, taxfilter string) (JobRequest, error) {
+func NewInterfaceSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, taxfilter string, otelTrace OtelTraceContext) (JobRequest, error) {
 	job := InterfaceSearchJob{
 		max(strings.Count(query, "HEADER"), 1),
 		dbs,
@@ -58,11 +58,12 @@ func NewInterfaceSearchJobRequest(query string, dbs []string, validDbs []Params,
 	}
 
 	request := JobRequest{
-		job.Hash(),
-		StatusPending,
-		JobInterfaceSearch,
-		job,
-		email,
+		Id:        job.Hash(),
+		Status:    StatusPending,
+		Type:      JobInterfaceSearch,
+		Job:       job,
+		Email:     email,
+		OtelTrace: otelTrace.Ptr(),
 	}
 
 	ids := make([]string, 0)

@@ -22,17 +22,18 @@ func (r IndexJob) Rank() float64 {
 	return float64(0)
 }
 
-func NewIndexJobRequest(path string, email string) (JobRequest, error) {
+func NewIndexJobRequest(path string, email string, otelTrace OtelTraceContext) (JobRequest, error) {
 	job := IndexJob{
 		path,
 	}
 
 	request := JobRequest{
-		job.Hash(),
-		StatusPending,
-		JobIndex,
-		job,
-		email,
+		Id:        job.Hash(),
+		Status:    StatusPending,
+		Type:      JobIndex,
+		Job:       job,
+		Email:     email,
+		OtelTrace: otelTrace.Ptr(),
 	}
 
 	return request, nil

@@ -68,7 +68,7 @@ func isIn(num string, params []string) int {
 
 var validTaxonFilter = regexp.MustCompile(`^[0-9]+(,!?[0-9]+)*$|^$`).MatchString
 
-func NewSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, taxfilter string) (JobRequest, error) {
+func NewSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, taxfilter string, otelTrace OtelTraceContext) (JobRequest, error) {
 	job := SearchJob{
 		max(strings.Count(query, ">"), 1),
 		dbs,
@@ -78,11 +78,12 @@ func NewSearchJobRequest(query string, dbs []string, validDbs []Params, mode str
 	}
 
 	request := JobRequest{
-		job.Hash(),
-		StatusPending,
-		JobSearch,
-		job,
-		email,
+		Id:        job.Hash(),
+		Status:    StatusPending,
+		Type:      JobSearch,
+		Job:       job,
+		Email:     email,
+		OtelTrace: otelTrace.Ptr(),
 	}
 
 	ids := make([]string, len(validDbs))
