@@ -31,11 +31,19 @@ const (
 )
 
 type JobRequest struct {
-	Id     Id          `json:"id" validate:"required"`
-	Status Status      `json:"status" validate:"required"`
-	Type   JobType     `json:"type" validate:"required"`
-	Job    interface{} `json:"job" validate:"required"`
-	Email  string      `json:"email" validate:"omitempty,email"`
+	Id        Id                `json:"id" validate:"required"`
+	Status    Status            `json:"status" validate:"required"`
+	Type      JobType           `json:"type" validate:"required"`
+	Job       interface{}       `json:"job" validate:"required"`
+	Email     string            `json:"email" validate:"omitempty,email"`
+	OtelTrace *OtelTraceContext `json:"otelTrace,omitempty"`
+}
+
+func (r JobRequest) String() string {
+	if r.OtelTrace == nil {
+		return fmt.Sprintf("ticket=%s type=%s status=%s", r.Id, r.Type, r.Status)
+	}
+	return fmt.Sprintf("ticket=%s type=%s status=%s%s", r.Id, r.Type, r.Status, *r.OtelTrace)
 }
 
 type jobRequest JobRequest

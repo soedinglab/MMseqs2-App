@@ -77,17 +77,19 @@ func NewFoldMasonMSAJobRequest(
 	fileNames []string,
 	gapOpen int64,
 	gapExtend int64,
+	otelTrace OtelTraceContext,
 ) (JobRequest, error) {
 	job := FoldMasonMSAJob{
 		queries,
 		fileNames,
 	}
 	request := JobRequest{
-		job.Hash(),
-		StatusPending,
-		JobFoldMasonMSA,
-		job,
-		"",
+		Id:        job.Hash(),
+		Status:    StatusPending,
+		Type:      JobFoldMasonMSA,
+		Job:       job,
+		Email:     "",
+		OtelTrace: otelTrace.Ptr(),
 	}
 	return request, nil
 }

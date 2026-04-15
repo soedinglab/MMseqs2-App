@@ -56,7 +56,7 @@ func (r StructureSearchJob) WritePDB(path string) error {
 	return nil
 }
 
-func NewStructureSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, iterativeSearch bool, taxfilter string) (JobRequest, error) {
+func NewStructureSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, iterativeSearch bool, taxfilter string, otelTrace OtelTraceContext) (JobRequest, error) {
 	job := StructureSearchJob{
 		max(strings.Count(query, "HEADER"), 1),
 		dbs,
@@ -67,11 +67,12 @@ func NewStructureSearchJobRequest(query string, dbs []string, validDbs []Params,
 	}
 
 	request := JobRequest{
-		job.Hash(),
-		StatusPending,
-		JobStructureSearch,
-		job,
-		email,
+		Id:        job.Hash(),
+		Status:    StatusPending,
+		Type:      JobStructureSearch,
+		Job:       job,
+		Email:     email,
+		OtelTrace: otelTrace.Ptr(),
 	}
 
 	ids := make([]string, len(validDbs))

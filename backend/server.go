@@ -38,6 +38,13 @@ func CorsCache(h http.Handler, maxAge int) http.Handler {
 	})
 }
 
+func WithRequestLogContext(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		ctx := ContextWithOtelTrace(req.Context(), CollectRequestTrace(req))
+		next.ServeHTTP(w, req.WithContext(ctx))
+	})
+}
+
 func server(jobsystem JobSystem, config ConfigRoot) {
 	go func() {
 		databases, err := Databases(config.Paths.Databases, false)
@@ -54,7 +61,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				continue
 			}
 
-			request, err := NewIndexJobRequest(db.Path, "")
+			request, err := NewIndexJobRequest(db.Path, "", OtelTraceContext{Source: "startup-index-bootstrap"})
 			if err != nil {
 				panic(err)
 			}
@@ -62,6 +69,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			_, err = jobsystem.NewJob(request, config.Paths.Results, true)
 			if err != nil {
 				panic(err)
+			}
+			if config.Verbose {
+				log.Printf("ticket created %s", request)
 			}
 		}
 	}()
@@ -74,6 +84,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		r = baseRouter
 	}
 
+	r.Use(WithRequestLogContext)
 	r.Use(Decompress)
 
 	// skip zstd for now since its not supported everywhere (e.g. firefox)
@@ -226,7 +237,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				return
 			}
 
-			request, err = NewIndexJobRequest(path, req.FormValue("email"))
+			request, err = NewIndexJobRequest(path, req.FormValue("email"), OtelTraceFromContext(req.Context()))
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -235,6 +246,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
+			}
+			if config.Verbose {
+				log.Printf("ticket created %s", request)
 			}
 
 			err = json.NewEncoder(w).Encode(result)
@@ -325,19 +339,19 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 
 		var request JobRequest
 		if config.App == AppMMseqs2 {
-			request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter)
+			request, err = NewSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, taxfilter, OtelTraceFromContext(req.Context()))
 		} else if config.App == AppFoldseek {
 			modes := strings.Split(mode, "-")
 			interfaceIdx := isIn("interface", modes)
 			modeIdx := isIn("complex", modes)
 			if interfaceIdx != -1 {
 				modeWithoutInterface := strings.Join(append(modes[:interfaceIdx], modes[interfaceIdx+1:]...), "-")
-				request, err = NewInterfaceSearchJobRequest(query, dbs, databases, modeWithoutInterface, config.Paths.Results, email, taxfilter)
+				request, err = NewInterfaceSearchJobRequest(query, dbs, databases, modeWithoutInterface, config.Paths.Results, email, taxfilter, OtelTraceFromContext(req.Context()))
 			} else if modeIdx != -1 {
 				modeWithoutComplex := strings.Join(append(modes[:modeIdx], modes[modeIdx+1:]...), "-")
-				request, err = NewComplexSearchJobRequest(query, dbs, databases, modeWithoutComplex, config.Paths.Results, email, taxfilter)
+				request, err = NewComplexSearchJobRequest(query, dbs, databases, modeWithoutComplex, config.Paths.Results, email, taxfilter, OtelTraceFromContext(req.Context()))
 			} else {
-				request, err = NewStructureSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, iterativesearch, taxfilter)
+				request, err = NewStructureSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, iterativesearch, taxfilter, OtelTraceFromContext(req.Context()))
 			}
 		} else {
 			http.Error(w, "Job type not supported by this server", http.StatusBadRequest)
@@ -351,6 +365,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+		if config.Verbose {
+			log.Printf("ticket created %s", request)
 		}
 
 		err = json.NewEncoder(w).Encode(result)
@@ -406,7 +423,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		request, err = NewMsaJobRequest(query, dbs, databases, mode, config.Paths.Results, email)
+		request, err = NewMsaJobRequest(query, dbs, databases, mode, config.Paths.Results, email, OtelTraceFromContext(req.Context()))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -415,6 +432,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+		if config.Verbose {
+			log.Printf("ticket created %s", request)
 		}
 
 		err = json.NewEncoder(w).Encode(result)
@@ -461,7 +481,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			email = req.FormValue("email")
 		}
 
-		request, err := NewPairJobRequest(query, mode, email)
+		request, err := NewPairJobRequest(query, mode, email, OtelTraceFromContext(req.Context()))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -470,6 +490,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+		if config.Verbose {
+			log.Printf("ticket created %s", request)
 		}
 
 		err = json.NewEncoder(w).Encode(result)
@@ -523,7 +546,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 		fileNames = req.Form["fileNames[]"]
 
-		request, err := NewFoldMasonMSAJobRequest(queries, fileNames, gapOpen, gapExtend)
+		request, err := NewFoldMasonMSAJobRequest(queries, fileNames, gapOpen, gapExtend, OtelTraceFromContext(req.Context()))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -532,6 +555,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+		if config.Verbose {
+			log.Printf("ticket created %s", request)
 		}
 		err = json.NewEncoder(w).Encode(result)
 		if err != nil {
@@ -591,7 +617,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		request, err := NewFoldDiscoJobRequest(query, motif, dbs, databases /*mode,*/, config.Paths.Results, email /*, taxfilter*/)
+		request, err := NewFoldDiscoJobRequest(query, motif, dbs, databases /*mode,*/, config.Paths.Results, email /*, taxfilter*/, OtelTraceFromContext(req.Context()))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -600,6 +626,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+		if config.Verbose {
+			log.Printf("ticket created %s", request)
 		}
 
 		err = json.NewEncoder(w).Encode(result)
@@ -908,6 +937,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				db_prefix := strings.TrimSuffix(database, "_folddisco")
 				db_foldcomp := db_prefix + "_foldcomp"
 				err = execCommandSync(
+					req.Context(),
 					config.Verbose,
 					[]string{
 						config.Paths.FoldComp,

@@ -43,7 +43,7 @@ func (r MsaJob) WriteFasta(path string) error {
 	return nil
 }
 
-func NewMsaJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string) (JobRequest, error) {
+func NewMsaJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, otelTrace OtelTraceContext) (JobRequest, error) {
 	job := MsaJob{
 		max(strings.Count(query, ">"), 1),
 		dbs,
@@ -52,11 +52,12 @@ func NewMsaJobRequest(query string, dbs []string, validDbs []Params, mode string
 	}
 
 	request := JobRequest{
-		job.Hash(),
-		StatusPending,
-		JobMsa,
-		job,
-		email,
+		Id:        job.Hash(),
+		Status:    StatusPending,
+		Type:      JobMsa,
+		Job:       job,
+		Email:     email,
+		OtelTrace: otelTrace.Ptr(),
 	}
 
 	ids := make([]string, len(validDbs))

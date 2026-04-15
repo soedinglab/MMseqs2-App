@@ -48,7 +48,7 @@ func (r ComplexSearchJob) WritePDB(path string) error {
 	return nil
 }
 
-func NewComplexSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, taxfilter string) (JobRequest, error) {
+func NewComplexSearchJobRequest(query string, dbs []string, validDbs []Params, mode string, resultPath string, email string, taxfilter string, otelTrace OtelTraceContext) (JobRequest, error) {
 	job := ComplexSearchJob{
 		max(strings.Count(query, "HEADER"), 1),
 		dbs,
@@ -58,11 +58,12 @@ func NewComplexSearchJobRequest(query string, dbs []string, validDbs []Params, m
 	}
 
 	request := JobRequest{
-		job.Hash(),
-		StatusPending,
-		JobComplexSearch,
-		job,
-		email,
+		Id:        job.Hash(),
+		Status:    StatusPending,
+		Type:      JobComplexSearch,
+		Job:       job,
+		Email:     email,
+		OtelTrace: otelTrace.Ptr(),
 	}
 
 	ids := make([]string, 0)
