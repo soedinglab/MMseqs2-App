@@ -543,9 +543,12 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	ticketFolddiscoHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
 		var query string
 		var motif string
+		var queries []string
+		var rawMotifs []string
 		var dbs []string
 		//var mode string
 		var email string
+		var top int
 		//var iterativesearch bool
 		// var taxfilter string
 
@@ -556,20 +559,41 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				return
 			}
 
-			f, _, err := req.FormFile("q")
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
+			// Batch mode: multiple structures via queries[] file fields
+			if files := req.MultipartForm.File["queries[]"]; len(files) > 0 {
+				for _, fh := range files {
+					file, err := fh.Open()
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusBadRequest)
+						return
+					}
+					buf := new(bytes.Buffer)
+					buf.ReadFrom(file)
+					file.Close()
+					queries = append(queries, buf.String())
+				}
+			} else if formQueries := req.Form["queries[]"]; len(formQueries) > 0 {
+				queries = formQueries
+			}
+
+			if len(queries) > 0 {
+				rawMotifs = req.Form["motifs[]"]
+			} else {
+				f, _, err := req.FormFile("q")
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				buf := new(bytes.Buffer)
+				buf.ReadFrom(f)
+				query = buf.String()
+				motif = req.FormValue("motif")
 			}
 			defer f.Close()
 
-			buf := new(bytes.Buffer)
-			buf.ReadFrom(f)
-			query = buf.String()
 			dbs = req.Form["database[]"]
 			//mode = req.FormValue("mode")
 			email = req.FormValue("email")
-			motif = req.FormValue("motif")
 			// taxfilter = req.FormValue("taxfilter")
 		} else {
 			err := req.ParseForm()
@@ -577,12 +601,23 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			query = req.FormValue("q")
+
+			queries = req.Form["queries[]"]
+			rawMotifs = req.Form["motifs[]"]
+
+			if len(queries) == 0 {
+				query = req.FormValue("q")
+				motif = req.FormValue("motif")
+			}
+
 			dbs = req.Form["database[]"]
 			//mode = req.FormValue("mode")
 			email = req.FormValue("email")
-			motif = req.FormValue("motif")
 			// taxfilter = req.FormValue("taxfilter")
+		}
+
+		if topStr := req.FormValue("top"); topStr != "" {
+			top, _ = strconv.Atoi(topStr)
 		}
 
 		databases, err := Databases(config.Paths.Databases, true)
@@ -591,7 +626,95 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		request, err := NewFoldDiscoJobRequest(query, motif, dbs, databases /*mode,*/, config.Paths.Results, email /*, taxfilter*/)
+		// Each rawMotifs[] entry may contain multiple motifs separated by ";",
+		// allowing a single uploaded structure to be searched with several motifs.
+		var motifs [][]string
+		for _, raw := range rawMotifs {
+			motifs = append(motifs, strings.Split(raw, ";"))
+		}
+
+		var request JobRequest
+		if len(queries) > 0 {
+			request, err = NewFoldDiscoBatchJobRequest(queries, motifs, dbs, databases, config.Paths.Results, email, top)
+		} else {
+			request, err = NewFoldDiscoJobRequest(query, motif, dbs, databases, config.Paths.Results, email, top)
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		err = json.NewEncoder(w).Encode(result)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	ticketFoldseekBatchHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
+		var queries []string
+		var dbs []string
+		var mode string
+		var email string
+		var taxfilter string
+
+		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
+			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			if files := req.MultipartForm.File["queries[]"]; len(files) > 0 {
+				for _, fh := range files {
+					file, err := fh.Open()
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusBadRequest)
+						return
+					}
+					buf := new(bytes.Buffer)
+					buf.ReadFrom(file)
+					file.Close()
+					queries = append(queries, buf.String())
+				}
+			} else if formQueries := req.Form["queries[]"]; len(formQueries) > 0 {
+				queries = formQueries
+			}
+
+			dbs = req.Form["database[]"]
+			mode = req.FormValue("mode")
+			email = req.FormValue("email")
+			taxfilter = req.FormValue("taxfilter")
+		} else {
+			err := req.ParseForm()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			queries = req.Form["queries[]"]
+			dbs = req.Form["database[]"]
+			mode = req.FormValue("mode")
+			email = req.FormValue("email")
+			taxfilter = req.FormValue("taxfilter")
+		}
+
+		if mode == "" {
+			mode = "3di"
+		}
+
+		databases, err := Databases(config.Paths.Databases, true)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		request, err := NewStructureSearchBatchJobRequest(queries, dbs, databases, mode, config.Paths.Results, email, taxfilter)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -643,6 +766,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if config.App == AppFoldseek {
 			r.Handle("/ticket/foldmason", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketFoldMasonMSAHandlerFunc)).Methods("POST")
 			r.Handle("/ticket/folddisco", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketFolddiscoHandlerFunc)).Methods("POST")
+			r.Handle("/ticket/foldseek/batch", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketFoldseekBatchHandlerFunc)).Methods("POST")
 		}
 	} else {
 		if config.App == AppMMseqs2 || config.App == AppFoldseek {
@@ -657,6 +781,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		if config.App == AppFoldseek {
 			r.HandleFunc("/ticket/foldmason", ticketFoldMasonMSAHandlerFunc).Methods("POST")
 			r.HandleFunc("/ticket/folddisco", ticketFolddiscoHandlerFunc).Methods("POST")
+			r.HandleFunc("/ticket/foldseek/batch", ticketFoldseekBatchHandlerFunc).Methods("POST")
 		}
 	}
 
@@ -1227,6 +1352,65 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 	})
+	r.HandleFunc("/result/foldseek/{ticket}", func(w http.ResponseWriter, req *http.Request) {
+		vars := mux.Vars(req)
+		ticket, err := jobsystem.GetTicket(Id(vars["ticket"]))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		status, err := jobsystem.Status(ticket.Id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if status != StatusComplete {
+			http.Error(w, "Job is not complete", http.StatusBadRequest)
+			return
+		}
+
+		resultBase := filepath.Join(config.Paths.Results, string(ticket.Id))
+		request, err := getJobRequestFromFile(filepath.Join(resultBase, "job.json"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		job, ok := request.Job.(StructureSearchJob)
+		if !ok {
+			http.Error(w, "Invalid job type", http.StatusBadRequest)
+			return
+		}
+
+		database := req.URL.Query().Get("database")
+		databases := job.Database
+		if database != "" {
+			if isIn(database, job.Database) == -1 {
+				http.Error(w, "Database not found", http.StatusBadRequest)
+				return
+			}
+			databases = []string{database}
+		}
+
+		results, err := FSAllAlignments(ticket.Id, databases, config.Paths.Results)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		type BatchFoldseekResponse struct {
+			Mode    string         `json:"mode"`
+			Results []SearchResult `json:"results"`
+		}
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		err = json.NewEncoder(w).Encode(BatchFoldseekResponse{job.Mode, results})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}).Methods("GET")
+
 	r.Handle("/result/{ticket}/{entry}", compressHandler(resultHandler)).Methods("GET")
 
 	r.HandleFunc("/result/queries/{ticket}/{limit}/{page}", func(w http.ResponseWriter, req *http.Request) {
