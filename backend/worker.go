@@ -869,25 +869,13 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					parameters = append(parameters, job.TaxFilter)
 				}
 
-				cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+				err = execCommandSync(config.Verbose, parameters, []string{}, 1*time.Hour)
 				if err != nil {
 					errChan <- &JobExecutionError{err}
 					return
 				}
 
-				select {
-				case <-time.After(1 * time.Hour):
-					if err := KillCommand(cmd); err != nil {
-						log.Printf("Failed to kill: %s\n", err)
-					}
-					errChan <- &JobTimeoutError{}
-				case err := <-done:
-					if err != nil {
-						errChan <- &JobExecutionError{err}
-					} else {
-						errChan <- nil
-					}
-				}
+				errChan <- nil
 			}(index, database)
 		}
 
@@ -961,6 +949,56 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		err = file.Close()
 		if err != nil {
 			return &JobExecutionError{err}
+		}
+
+		// Extract tkey column from .m8 and create subdbs for dimer coords
+		for _, database := range job.Database {
+			// RACHEL: check if we can skip this part
+			// params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
+			// if err != nil {
+			// 	return &JobExecutionError{err}
+			// }
+			// dbpath := filepath.Join(config.Paths.Databases, database)
+			// if params.OverridePath != "" {
+			// 	dbpath = filepath.Clean(params.OverridePath)
+			// }
+
+			err = execCommandSync(
+				config.Verbose,
+				[]string{
+					"awk",
+					"-F",
+					"\t",
+					"-v",
+					"out=" + filepath.Join(resultBase, "keys_"+database),
+					"{print $25 > out}",
+					filepath.Join(resultBase, "alis_"+database+".m8"),
+				},
+				[]string{},
+				1*time.Minute,
+			)
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+			// replace interfacedb_ prefix to dimerdb
+			dimerdb := strings.Replace(database, "interfacedb_", "dimerdb_", 1)
+			dimerdbpath := filepath.Join(config.Paths.Databases, dimerdb)
+
+			err = execCommandSync(
+				config.Verbose,
+				[]string{
+					config.Paths.FoldseekInterface,
+					"createsubdb",
+					filepath.Join(resultBase, "keys_"+database),
+					dimerdbpath,
+					filepath.Join(resultBase, "dimer_"+database),
+				},
+				[]string{},
+				1*time.Minute,
+			)
+			if err != nil {
+				return &JobExecutionError{err}
+			}
 		}
 
 		if config.Verbose {
