@@ -306,13 +306,12 @@ export default {
                 // return
                 await db.removeItem('msa.query.size')
                 await db.removeItem('msa.query.names')
+                await db.removeItem('msa.query.forwarded_query')
                 for (let i = 0; i < size; i++) {
                     await db.removeItem(`msa.query.chunk:${i}`)
                 }
             }
-            
-            // await clean(2)
-            // return
+
 
             const SEP = '\0'
 
@@ -333,6 +332,12 @@ export default {
             }
             names = names.split(SEP)
 
+            const query = await db.getItem('msa.query.forwarded_query')
+            let queryFile = undefined
+            if (query && query.length != 0) {
+                queryFile = query.text()
+            }
+
             for (let i = 0; i < size; i++) {
                 const entry = await db.getItem(`msa.query.chunk:${i}`)
                 if (!entry || entry.length == 0) {
@@ -352,9 +357,12 @@ export default {
                 await clean(size)
                 return
             }
+            
+            
 
             const files = []
 
+            
             for (let i = 0; i < texts.length; i++) {
                 files.push({text: texts[i], name: names[i]})
             }
@@ -375,6 +383,10 @@ export default {
             if (dupCount > 0) {
                 this.alert = true
                 this.skippedEntries = dupCount
+            }
+
+            if (queryFile) {
+                files.unshift({text: queryFile, name: "query"})
             }
 
             this.addFiles(files)

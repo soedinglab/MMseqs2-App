@@ -41,6 +41,18 @@
                         </v-tooltip>
                     </template>
                     <template v-else>
+                        <v-tooltip top color="primary" :open-on-click="false">
+                            <template v-slot:activator="{on, attrs}">
+                                <v-btn :color="includeQuery ? 'primary' : 'secondary'"
+                                v-bind="attrs" v-on="on" fab small
+                                class="mr-3 elevation-8" 
+                                :loading="loading" 
+                                @click="toggleIncludeQuery">
+                                    <v-icon>{{ includeQuery ? $MDI.IncludeQuery : $MDI.ExcludeQuery }}</v-icon>
+                                </v-btn>
+                            </template> 
+                            <span>Click to {{ includeQuery ? 'exclude' : 'include' }} query structure</span>
+                        </v-tooltip>
                         <v-tooltip top :color="errorFoldMasonBtn ? 'error' : 'primary'" :value="errorFoldMasonBtn" :open-on-click="false">
                             <template v-slot:activator="{on, attrs}">
                                 <v-btn v-bind="attrs" v-on="on" fab 
@@ -89,6 +101,7 @@ export default {
             errorFoldseekBtn: false,
             errorFoldMasonBtn: false,
             errorFoldDiscoBtn: false,
+            includeQuery: true,
             cancelCtl: null,
             loading: false,
         }
@@ -252,6 +265,7 @@ export default {
             this.errorFoldMasonBtn = false
             this.loading = true
             this.cancelCtl = new AbortController();
+
             try {
                 const signal = this.cancelCtl.signal
                 const settled = await inBatches(this.getMultipleSelectionInfo(), this.batchSize, async (i, s) => await this.getMockPdb(i, s), signal)
@@ -261,6 +275,32 @@ export default {
                 })
                 // const failed = settled.filter(r => r.status == "fulfilled" && !r.value?.pdb).map(r=> r.value?.name)
                 await saveAsChunk(values, this.chunkSize, signal)
+                if (this.includeQuery) {
+                    let queryPdb = "";
+                    if (this.$LOCAL) {
+                        if (this.hits.queries[0].hasOwnProperty('pdb')) {
+                            queryPdb = JSON.parse(this.hits.queries[0].pdb);
+                        } else {
+                            queryPdb = mockPDB(this.hits.queries[0].qCa, this.hits.queries[0].sequence, 'A');
+                        }
+                    } else if (this.$route.params.ticket.startsWith('user-')) {
+                        // Check for special 'user' ticket for when users have uploaded JSON
+                        if (this.hits.queries[0].hasOwnProperty('pdb')) {
+                            queryPdb = JSON.parse(this.hits.queries[0].pdb);
+                        } else {
+                            const localData = this.$root.userData[this.$route.params.entry];
+                            queryPdb = mockPDB(localData.queries[0].qCa, localData.queries[0].sequence, 'A');
+                        }
+                    } else {
+                        try {
+                            const request = await this.$axios.get("api/result/" + this.$route.params.ticket + '/query');
+                            queryPdb = request.data;
+                        } catch (e) {
+                            queryPdb = "";
+                        }
+                    }
+                    await localDb.setItem("msa.query.forwarded_query", new Blob([queryPdb], {type: "text/plain"}))
+                }
                 this.loading = false
                 this.cancelCtl = null
             } catch (e) {
@@ -349,7 +389,9 @@ export default {
             firstline = firstline.padEnd(80, ' ') + '\n' + prefix + this.remarkStr
             return firstline + structure
         },
-
+        toggleIncludeQuery() {
+            this.includeQuery = !this.includeQuery
+        }
     },
     computed: {
         isSelectionComplex() {
