@@ -161,7 +161,8 @@
                         </v-icon>
                     </v-btn>
                 </template>
-                <AlignmentPanel
+                <component
+                    :is="searchType === 'interfacesearch' ? 'InterfaceAlignmentPanel' : 'AlignmentPanel'"
                     slot="content"
                     :key="alignment ? `ap-${alignment.id}` : 'ap-'"
                     :alignments="alignment"
@@ -177,6 +178,7 @@
 <script>
 import Panel from './Panel.vue';
 import AlignmentPanel from './AlignmentPanel.vue';
+import InterfaceAlignmentPanel from './InterfaceAlignmentPanel.vue';
 import Ruler from './Ruler.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
 import AllAtomPredictMixin from './AllAtomPredictMixin.vue';
@@ -196,7 +198,7 @@ import Top100Foldseek from './Top100Foldseek.vue';
 export default {
     name: 'ResultView',
     mixins: [ ResultSankeyMixin, AllAtomPredictMixin ],
-    components: { Panel, AlignmentPanel, Ruler, 
+    components: { Panel, AlignmentPanel, InterfaceAlignmentPanel, Ruler, 
         NavigationButton, ResultFoldseekDB, SelectToSendPanel, 
         NameField, TopHits, Top100Foldseek },
     data() {

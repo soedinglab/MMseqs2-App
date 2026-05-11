@@ -951,6 +951,50 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 	}).Methods("GET")
 
+	r.HandleFunc("/result/interface/{ticket}", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		vars := mux.Vars(req)
+		ticket, err := jobsystem.GetTicket(Id(vars["ticket"]))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		status, err := jobsystem.Status(ticket.Id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if status != StatusComplete {
+			http.Error(w, "Job is not complete", http.StatusBadRequest)
+			return
+		}
+
+		database := req.URL.Query().Get("database")
+		target := req.URL.Query().Get("id")
+		if database == "" || target == "" {
+			http.Error(w, "Missing database or id", http.StatusBadRequest)
+			return
+		}
+
+		// Strip trailing _<chain> from target to get the dimer file basename
+		dimerName := target
+		if pos := strings.LastIndex(dimerName, "_"); pos != -1 {
+			dimerName = dimerName[:pos]
+		}
+
+		resultBase := filepath.Join(config.Paths.Results, string(ticket.Id))
+		pdbpath := filepath.Join(resultBase, "pdb_"+database, dimerName+".pdb")
+		pdb, err := os.ReadFile(pdbpath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Write(pdb)
+	}).Methods("GET")
+
 	queryHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
 		ticket, err := jobsystem.GetTicket(Id(vars["ticket"]))

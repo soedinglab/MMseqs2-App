@@ -1,7 +1,7 @@
 <template>
     <div class="alignment-panel" slot="content">
         <div class="alignment-wrapper-outer" style="width: 100%;">
-            <div style="line-height: 1.2em; display: flex; flex-direction: column; width: 100%; justify-content: space-between; margin-bottom: 1em;">
+            <!-- <div style="line-height: 1.2em; display: flex; flex-direction: column; width: 100%; justify-content: space-between; margin-bottom: 1em;">
                 <div style="display: flex; flex-direction: row; align-items: center; gap: 24px">
                     <v-select
                         persistent-hint
@@ -25,18 +25,20 @@
                         @click="clearAllSelection"
                         :disabled="hasSelection"
                     >
-                        {{ (alignments[0].hasOwnProperty("complexu")) ? "Clear all selections" : "Clear selection" }}&nbsp;
+                        Clear all selections&nbsp;
                         <v-icon style="width: 16px;">{{ $MDI.CloseCircle }}</v-icon>
                     </v-btn>
                 </div>
-                <small v-if="$APP == 'foldseek'">
-                    Select target residues to highlight their structure.<br style="height: 0.2em">
-                    Click on highlighted sequences to dehighlight the corresponding chain.
+                <small>
+                    Interface search results &mdash; query chain ➔ target chain pairs from the matched dimer.<br style="height: 0.2em">
+                    Select target residues to highlight their structure.
                 </small>
-            </div>
+            </div> -->
 
-            <template v-for="(alignment, index) in alignments">
-                {{ alignment.query.lastIndexOf('_') != -1 ? alignment.query.substring(alignment.query.lastIndexOf('_')+1) : '' }} ➔ {{ alignment.target }}
+            <!-- <template v-for="(alignment, index) in alignments">
+                <div :key="`hdr-${alignment.id}`" style="margin-top: 0.5em; font-weight: 500;">
+                    {{ chainOf(alignment.query) }} ➔ {{ alignment.target }}
+                </div>
                 <Alignment
                     :key="`aln2-${alignment.id}`"
                     :alnIndex="index"
@@ -50,13 +52,13 @@
                     @residueSelectStart="onResidueSelectStart"
                     @residuePointerUp="onResiduePointerUp"
                 />
-            </template>
+            </template> -->
         </div>
-        <div v-if=" $APP == 'foldseek'" class="alignment-structure-wrapper">
-            <StructureViewer
+        <div class="alignment-structure-wrapper">
+            <StructureViewerInterface
                 :key="`struc2-${alignments[0].id}`"
                 :alignments="alignments"
-                :highlights="structureHighlights" 
+                :highlights="structureHighlights"
                 :hits="hits"
                 bgColorLight="white"
                 bgColorDark="#1E1E1E"
@@ -65,21 +67,16 @@
                 qRepr="cartoon"
                 tRepr="cartoon"
                 ref="structureViewer"
+                searchType="interfacesearch"
             />
         </div>
     </div>
 </template>
 
 <script>
-import Alignment from './Alignment.vue'
-import { makePositionMap } from './Utilities.js'
+import Alignment from './Alignment.vue';
+import { makePositionMap } from './Utilities.js';
 
-/**
- * Count characters up until the given node in the parent span.
- * e.g. with layout <span 1/><span 2/><span 3/>
- * Text selection which starts/ends in span 3 will have offset relative only to span 3,
- * so we need to include length of spans 1 + 2
- */
 function calculateOffset(node) {
     let container = node.closest("span.residues")
     let children = container.querySelectorAll("span");
@@ -101,13 +98,14 @@ function countCharacter(string, char) {
 }
 
 export default {
+    name: 'InterfaceAlignmentPanel',
     components: {
-        StructureViewer: () => __APP__ == "foldseek" ? import('./StructureViewer.vue') : null,
+        StructureViewerInterface: () => __APP__ == "foldseek" ? import('./StructureViewerInterface.vue') : null,
         Alignment,
     },
     data: () => ({
-        queryMap: null,
-        targetMap: null,
+        queryMaps: [],
+        targetMaps: [],
         highlights: [],
         structureHighlights: [],
         isSelecting: false,
@@ -127,10 +125,9 @@ export default {
         ],
     }),
     props: {
-        alignments: { type: Array, required: true, },
-        lineLen: { type: Number, required: true, },
+        alignments: { type: Array, required: true },
+        lineLen: { type: Number, required: true },
         hits: { type: Object },
-        searchType: { type: String },
     },
     computed: {
         hasSelection() {
@@ -138,12 +135,15 @@ export default {
         }
     },
     methods: {
+        chainOf(name) {
+            const i = name.lastIndexOf('_');
+            return i !== -1 ? name.substring(i + 1) : '';
+        },
         getFirstResidueNumber(map, i) {
             let start = this.lineLen * (i - 1);
             while (map[start] === null) start--;
             return map[start];
         },
-        getQueryRowStartPos(alnIndex, i) { return this.getFirstResidueNumber(this.queryMaps[alnIndex], i) },
         getTargetRowStartPos(alnIndex, i) { return this.getFirstResidueNumber(this.targetMaps[alnIndex], i) },
         setEmptyHighlight() {
             this.highlights = this.alignments.map(a => new Array(Math.ceil(a.qAln.length / this.lineLen)).fill([undefined, undefined]))
@@ -156,7 +156,6 @@ export default {
             this.setEmptyStructureHighlight();
         },
         setAlignmentSelection(selections) {
-            // array per alignment, then array per line in alignment
             this.setEmptyHighlight();
             for (let [ alnId, startLine, startOffset, endLine, endOffset, _ ] of selections) {
                 for (let i = startLine; i <= endLine; i++) {
@@ -171,33 +170,29 @@ export default {
             }
         },
         updateMaps() {
-            if (!this.alignments) return
+            if (!this.alignments) return;
             this.queryMaps = [];
             this.targetMaps = [];
             for (let alignment of this.alignments) {
                 this.queryMaps.push(makePositionMap(alignment.qStartPos, alignment.qAln));
                 this.targetMaps.push(makePositionMap(alignment.dbStartPos, alignment.dbAln));
             }
-
         },
-        onResidueSelectStart(event, alnIndex, lineNo) {
+        onResidueSelectStart() {
             this.isSelecting = true;
             document.querySelector(".alignment-wrapper-outer")
                 .classList.add("inselection");
         },
         onResiduePointerUp(event, targetAlnIndex, targetLineNo) {
             if (!this.isSelecting) {
-                // handle as click
-                // this.highlights[targetAlnIndex].splice(targetLineNo - 1, 1, [undefined, undefined]);
                 let a = this.alignments[targetAlnIndex];
                 this.highlights.splice(targetAlnIndex, 1, new Array(Math.ceil(a.qAln.length / this.lineLen)).fill([undefined, undefined]));
                 this.structureHighlights.splice(targetAlnIndex, 1, null);
                 window.getSelection().removeAllRanges();
                 return;
             }
-            var selection = window.getSelection()
-            
-            // Get text and (sequence) starting position for each selected alignment
+            var selection = window.getSelection();
+
             let chunks = [];
             let chunk = "";
             let prevWrapper = null;
@@ -210,17 +205,12 @@ export default {
                 currWrapper = range.startContainer.parentElement.closest(".alignment-wrapper-inner");
                 alnIndex = parseInt(currWrapper.id);
                 lineNo = parseInt(range.startContainer.parentElement.closest(".line").id);
-                
-                // Start/end containers will either be:
-                // #text  - Start/end inside a span, so calculate lengths of spans until that point
-                // <span> - Start/end of entire span (e.g. multiline selection). Start = 0, end = line length
+
                 let sc = range.startContainer;
                 let ec = range.endContainer;
                 let startOffset = (sc.nodeType === 3) ? range.startOffset + calculateOffset(sc.parentElement) : 0;
                 let endOffset = (ec.nodeType === 3) ? range.endOffset + calculateOffset(ec.parentElement) : this.lineLen;
-                
-                // Test for new container (alignment), store starting line/offset & calculate position in sequence
-                // If in the same alignment, extend sequence and update end line/offset
+
                 if (!prevWrapper) {
                     prevWrapper = currWrapper;
                     let preText = range.startContainer.textContent.slice(0, range.startOffset);
@@ -244,22 +234,17 @@ export default {
                 start.endLine = lineNo;
                 start.endOffset = endOffset;
             }
-            chunks.push([parseInt(prevWrapper.id), start, chunk])
+            chunks.push([parseInt(prevWrapper.id), start, chunk]);
 
-            // For structure: aln Id, start in sequence, selection length
             for (let [ alnId, { seqStart }, text ] of chunks) {
                 this.structureHighlights.splice(alnId, 1, [seqStart, text.replace(/[-]/g, '').length]);
             }
-            
-            // For sequence: aln Id, line and start position (in start line), line and end position (in end line)
+
             this.setAlignmentSelection(chunks.map(([ alnId, { startLine, startOffset, endLine, endOffset }, chunk ]) => (
                 [ alnId, startLine - 1, startOffset, endLine - 1, endOffset, chunk.length ]
             )));
 
-            // Make everything else selectable again
             this.resetUserSelect();
-
-            // Clear selection afterwards to prevent weird highlighting after inserting spans
             window.getSelection().removeAllRanges();
         },
         resetUserSelect() {
@@ -269,12 +254,14 @@ export default {
         }
     },
     watch: {
-        'alignment': function() {
-            this.updateMaps()
+        alignments() {
+            this.updateMaps();
+            this.setEmptyHighlight();
+            this.setEmptyStructureHighlight();
         }
     },
     beforeMount() {
-        this.updateMaps()
+        this.updateMaps();
         this.setEmptyHighlight();
         this.setEmptyStructureHighlight();
     },
@@ -299,13 +286,13 @@ export default {
 }
 
 .alignment-structure-wrapper {
-    min-width:450px;
+    min-width: 450px;
     margin: 0;
     margin-bottom: auto;
 }
 
 @media screen and (max-width: 960px) {
-    .alignment-wrapper-outer, .alignment-panel  {
+    .alignment-wrapper-outer, .alignment-panel {
         display: flex;
     }
     .alignment-panel {
@@ -314,7 +301,6 @@ export default {
     .alignment-structure-wrapper {
         padding-bottom: 1em;
     }
-
     .alignment-wrapper-outer, .alignment-structure-wrapper {
         align-self: center;
     }
@@ -325,7 +311,6 @@ export default {
         padding-left: 2em;
     }
 }
-
 </style>
 
 <style>
@@ -335,9 +320,4 @@ span.selected {
     box-shadow: 0 0 .4em .1em rgba(0, 255, 255, 0.5);
     cursor: pointer;
 }
-/* TODO Some sort of banding thing here? */
-/* .alignment-wrapper-inner:nth-child(odd) span.selected {
-    background-color: rgba(0, 255, 100, 0.1);
-    box-shadow: 0 0 .4em .1em rgba(0, 255, 100, 0.5);
-} */
 </style>

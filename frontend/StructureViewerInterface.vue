@@ -408,30 +408,36 @@ END
         let lastIdx = null;
         let remoteData = null;
         let i = 0;
+        // Cache dimer PDBs by db+targetKey so we only fetch each dimer once
+        const dimerPdbCache = new Map();
         // It is wrapped in order to make it handle when it is destroyed even before it is fully mounted
         try {
             for (let alignment of this.alignments) {
                 const chain = getChainName(alignment.target);
-                // RACHEL: Change here to get dimer instead of interface coords.
-                let tSeq = alignment.tSeq;
-                let tCa = alignment.tCa;
-                if (Number.isInteger(alignment.tCa) && Number.isInteger(alignment.tSeq)) {
-                    const db = alignment.db;
-                    const idx = alignment.tCa;
-                    if (idx != lastIdx) {
-                        const ticket =  this.$route.params.ticket;
-                        const response = await this.$axios.get("api/result/" + ticket + '/' + this.$route.params.entry + '?format=brief&index=' + idx + '&database=' + db);
-                        remoteData = response.data;
-                        lastIdx = idx;
+                // Fetch the full dimer PDB from server (saved by worker via foldseek convert2pdb).
+                // Falls back to mockPDB(tCa, tSeq, chain) if target/db are not available.
+                let pdbText;
+                if (alignment.target && alignment.db) {
+                    const cacheKey = alignment.db + ':' + alignment.target;
+                    if (dimerPdbCache.has(cacheKey)) {
+                        pdbText = dimerPdbCache.get(cacheKey);
+                    } else {
+                        const ticket = this.$route.params.ticket;
+                        const url = "api/result/interface/" + ticket
+                            + '?database=' + encodeURIComponent(alignment.db)
+                            + '&id=' + encodeURIComponent(alignment.target);
+                        const response = await this.$axios.get(url, {
+                            headers: { 'Accept': 'text/plain' },
+                            transformResponse: [(d) => d],
+                        });
+                        pdbText = response.data;
+                        dimerPdbCache.set(cacheKey, pdbText);
                     }
-                    tSeq = remoteData[i].tSeq;
-                    tCa = remoteData[i].tCa;
-                    i++;
+                } else {
+                    pdbText = mockPDB(alignment.tCa, alignment.tSeq, chain);
                 }
-                const mock = mockPDB(tCa, tSeq, chain);
-                const pdb = await pulchra(mock);
+                const pdb = await pulchra(pdbText);
                 const component = await this.stage.loadFile(new Blob([pdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
-                component.structure.eachChain(c => { c.chainname = chain; });
                 component.structure.eachAtom(a => { a.serial = renumber++; });
                 targets.push(component);
                 //FIXME: this will not work because start and end positions are not coordinated

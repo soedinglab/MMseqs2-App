@@ -999,6 +999,24 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			if err != nil {
 				return &JobExecutionError{err}
 			}
+
+			err = execCommandSync(
+				config.Verbose,
+				[]string{
+					config.Paths.FoldseekInterface,
+					"convert2pdb",
+					filepath.Join(resultBase, "dimer_"+database),
+					filepath.Join(resultBase, "pdb_"+database),
+					"--pdb-output-mode",
+					"2",
+				},
+				[]string{},
+				1*time.Minute,
+			)
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+
 		}
 
 		if config.Verbose {
