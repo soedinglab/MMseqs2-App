@@ -8,26 +8,16 @@
 </template>
 
 <script>
-import { Stage, Selection, ColormakerRegistry, concatStructures, download, } from 'ngl';
-import { mockPDB, makeSubPDB, transformStructure, storeChains, revertChainInfo, wrapLog, recoverLog } from './Utilities.js';
+// import { Stage, Selection, ColormakerRegistry, concatStructures, download, } from 'ngl';
+import { MolstarStage } from './lib/molstar-stage.js';
+import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder.js';
+import { makeMat4, toMolstarColor, buildChainExpression, getSelectionLoci, transformPdb,
+    getChainName, getAccession, mockPDB, storeChains, revertChainInfo, isCg, mergePdbs, splitAlphaNum, 
+    superposeWithAlignment} from './Utilities.js';
 import { pulchra } from 'pulchra-wasm';
 import { tmalign, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 
-const getChainName = (name) => {
-    if (/_v[0-9]+$/.test(name)) return 'A';
-    let pos = name.lastIndexOf('_');
-    if (pos != -1) {
-        let match = name.substring(pos + 1);
-        return match.length >= 1 ? match[0] : 'A';
-    }
-    return 'A';
-};
-
-const getAccession = (name) => {
-    if (/_v[0-9]+$/.test(name)) return name;
-    let pos = name.lastIndexOf('_');
-    return pos != -1 ? name.substring(0, pos) : name;
-};
+const TRANSFORM_TAG = 'THUMBNAIL_TRANSFORM'
 
 const processPdb = (rawpdb) => {
     let outpdb = '';
@@ -35,9 +25,7 @@ const processPdb = (rawpdb) => {
     let ext = 'pdb';
     outpdb = rawpdb.trimStart();
     if (outpdb[0] == "#" || outpdb.startsWith("data_")) {
-        ext = 'cif';
-        // NGL doesn't like AF3's _chem_comp entries
-        outpdb = outpdb.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
+        ext = 'mmcif';
     } else {
         for (let line of outpdb.split('\n')) {
             let numCols = Math.max(0, 80 - line.length);
@@ -61,6 +49,36 @@ const getMotif = (motif) => {
     return motifSele.join(" or ");
 }
 
+const buildMotifExpression = (motif) => {
+    if (!motif || typeof motif !== 'string') {
+        return MS.struct.generator.empty()
+    }
+    
+    const byChain = new Map()
+    motif.split(',').forEach(token => {
+        const part = token.trim()
+        if (!part) return
+        const core = part.split(":")[0]
+        const [chain, pos] = splitAlphaNum(core)
+        const resno = Number.parseInt(pos, 10)
+        if (!chain || !Number.isFinite(resno)) return
+        const range = {
+            start: resno,
+            end: resno,
+        }
+        if (!byChain.has(chain)) byChain.set(chain, new Set())
+        byChain.get(chain).add(range)
+    })
+    
+    const exprs = []
+    byChain.forEach((rangeSet, chain) => {
+        exprs.push(buildChainExpression(chain, [...rangeSet]))
+    })
+    return exprs.length == 1
+        ? exprs[0]
+        : MS.struct.combinator.merge(exprs)
+}
+
 export default {
     name: "StructureViewerThumbnail",
     data() {
@@ -69,13 +87,17 @@ export default {
             isRendering: false,
             currentQueueIndex: 0,
             activeId: null,
+            cachedQueryStructureRef: null,
+            cachedTargetStructureRefs: {},
             cachedQueryPdb: null,
+            cachedTargetPdbs: {},
+            activeComponentRefs: [],
             destroyed: false,
-            schemeCounter: 0,
             isSpinning: false,
             queuePaused: false,
             activeTargetEl: null,
             pulchraFailed: false,
+            renderingToken: 0,
         }
     },
     props: {
@@ -91,24 +113,11 @@ export default {
             return this.$vuetify.theme.dark ? '#1E1E1E' : 'white';
         },
 
-        initStage() {
-            this.stage = new Stage(this.$refs.viewport, {
-                log: false,
+        async initStage() {
+            this.stage = new MolstarStage(this.$refs.viewport, {
                 backgroundColor: this.bgColor(),
-                transparent: true,
-                quality: 'low',
-                sampleLevel: 3,
-                clipNear: -1000,
-                clipFar: 1000,
-                fogFar: 1000,
-                fogNear: -1000,
-                tooltip: false,
-            });
-            this.stage.setSize(this.thumbWidth, this.thumbHeight);
-            this.stage.handleResize()
-
-            // To ignore "STAGE LOG ..." things.
-            wrapLog()
+            })
+            await this.stage.init()
         },
 
         async getQueryPdb() {
@@ -136,12 +145,29 @@ export default {
                     queryPdb = "";
                 }
             }
+            
+            const trimmed = queryPdb.trimStart()
+            const format = trimmed.startsWith('#') || trimmed.startsWith('data_') ? 'mmcif' : 'pdb';
 
-            this.cachedQueryPdb = queryPdb;
-            return queryPdb;
+            if (format == 'pdb' && isCg(trimmed)) {
+                const chains = storeChains(queryPdb)               
+                queryPdb = await pulchra(queryPdb)
+                queryPdb = revertChainInfo(queryPdb, chains)
+            }
+
+            this.cachedQueryPdb = { data: queryPdb, format: format, label: 'query'};
+            return this.cachedQueryPdb;
         },
 
         async buildTargetStructure(alignments, db) {
+            if (this.cachedTargetStructureRefs[db]) {
+                return this.cachedTargetStructureRefs[db]
+            } else if (this.cachedTargetPdbs[db]) {
+                this.cachedTargetStructureRefs[db] = 
+                    await this.stage.loadStructure(this.cachedTargetPdbs[db])
+                return this.cachedTargetStructureRefs[db]
+            }
+
             if (this.mode < 2) {
                 const targets = [];
                 let renumber = 0;
@@ -149,8 +175,10 @@ export default {
                 let remoteData = null;
                 let i = 0;
 
+                const chains = []
+                const pdbs = []
                 for (let alignment of alignments) {
-                    const chain = getChainName(alignment.target);
+                    const chain = getChainName(alignment.target)
                     let tSeq = alignment.tSeq;
                     let tCa = alignment.tCa;
 
@@ -180,24 +208,21 @@ export default {
                         pdb = mock;
                         this.pulchraFailed = true;
                     }
-                    if (this.destroyed || !this.stage) return null;
-
-                    const component = await this.stage.loadFile(
-                        new Blob([pdb], { type: 'text/plain' }),
-                        { ext: 'pdb', firstModelOnly: true }
-                    );
-                    component.structure.eachChain(c => { c.chainname = chain; });
-                    component.structure.eachAtom(a => { a.serial = renumber++; });
-                    targets.push(component);
+                    pdbs.push({ pdb, chain })
                 }
+                
+                const merged = mergePdbs(pdbs)
+                const mergedBundle = { data: merged, format: 'pdb', label: 'target' }
+                this.cachedTargetPdbs[db] = mergedBundle
+                try {
+                    this.cachedTargetStructureRefs[db] =
+                        await this.stage.loadStructure(mergedBundle)
+                } catch (e) {
+                    delete this.cachedTargetPdbs[db]
+                    throw e
+                }
+                return this.cachedTargetStructureRefs[db]
 
-                if (targets.length === 0) return null;
-
-                const structure = concatStructures(
-                    getAccession(alignments[0].target),
-                    ...targets.map(t => t.structure)
-                );
-                return this.stage.addComponentFromObject(structure);
             } else {
                 let item = alignments[0]
                 if (!item) {
@@ -206,7 +231,7 @@ export default {
 
                 let target = item.dbkey
                 if (db.startsWith('pdb')) {
-                    target = item.target                    
+                    target = item.target
                 }
 
                 const re = "api/result/folddisco/" + this.$route.params.ticket + '?database=' + db +'&id=' + target;
@@ -217,180 +242,227 @@ export default {
                     transformResponse: [(d) => d],
                 });
                 let [ targetPdb, ext ] = processPdb(request.data)
-                return await this.stage.loadFile(new Blob([targetPdb], {type: 'text/plain'}), { ext: ext, firstModelOnly: true, name: 'targetStructure'})
-            }
-        },
-
-        async loadQueryStructure(rawQueryPdb) {
-            if (!rawQueryPdb) return null;
-
-            let [ queryPdb, ext ] = processPdb(rawQueryPdb)
-
-            let query = await this.stage.loadFile(
-                new Blob([queryPdb], { type: 'text/plain' }),
-                { ext: ext, firstModelOnly: true }
-            );
-            if (this.destroyed || !this.stage) return null;
-
-            if (query && query.structure.getAtomProxy().isCg()) {
+                const targetBundle = { data: targetPdb, format: ext, label: 'target' }
+                this.cachedTargetPdbs[db] = targetBundle
                 try {
-                    let pdbText = queryPdb;
-                    if (ext == "cif") {
-                        const { PdbWriter } = await import('ngl');
-                        let pw = new PdbWriter(query.structure, { renumberSerial: false });
-                        pdbText = pw.getData().split('\n').filter(line => line.startsWith('ATOM')).join('\n');
-                    }
-                    const chains = storeChains(pdbText);
-                    let pulchraResult = await pulchra(pdbText);
-                    pulchraResult = revertChainInfo(pulchraResult, chains);
-                    if (this.destroyed || !this.stage) return null;
-                    this.stage.removeComponent(query);
-                    query = await this.stage.loadFile(
-                        new Blob([pulchraResult], { type: 'text/plain' }),
-                        { ext: 'pdb', firstModelOnly: true }
-                    );
+                    this.cachedTargetStructureRefs[db] =
+                        await this.stage.loadStructure(targetBundle)
                 } catch (e) {
-                    // Keep original CA-only query
+                    delete this.cachedTargetPdbs[db]
+                    throw e
                 }
+                return this.cachedTargetStructureRefs[db]
             }
-
-            return query;
         },
 
-        async superposeStructures(queryComp, targetComp, alignments) {
-            if (!queryComp || !targetComp) return;
+        async loadQueryStructure(queryPdb) {
+            if (!this.stage || !queryPdb) return null;
+            if (this.cachedQueryStructureRef) return this.cachedQueryStructureRef
 
+            this.cachedQueryStructureRef = await this.stage.loadStructure(queryPdb)
+
+            return this.cachedQueryStructureRef;
+        },
+
+        async superposeStructures(queryStrucRef, targetStructRef, alignments) {
+            if (!queryStrucRef || !targetStructRef) return;
+
+            let t, u, matrix;
+            matrix = null
             if (alignments[0].hasOwnProperty("complexu") && alignments[0].hasOwnProperty("complext")) {
-                const t = alignments[0].complext.split(',').map(x => parseFloat(x));
-                let u = alignments[0].complexu.split(',').map(x => parseFloat(x));
+                t = alignments[0].complext.split(',').map(x => parseFloat(x));
+                u = alignments[0].complexu.split(',').map(x => parseFloat(x));
                 u = [
                     [u[0], u[1], u[2]],
                     [u[3], u[4], u[5]],
                     [u[6], u[7], u[8]],
                 ];
-                transformStructure(targetComp.structure, t, u);
             } else if (alignments[0].hasOwnProperty("tmat") && alignments[0].hasOwnProperty("umat")) {
-                const t = alignments[0].tmat.split(',').map(x => parseFloat(x));
-                let u = alignments[0].umat.split(',').map(x => parseFloat(x));
+                t = alignments[0].tmat.split(',').map(x => parseFloat(x));
+                u = alignments[0].umat.split(',').map(x => parseFloat(x));
                 u = [
                     [u[0], u[1], u[2]],
                     [u[3], u[4], u[5]],
                     [u[6], u[7], u[8]],
                 ];
-                transformStructure(targetComp.structure, t, u);
             } else {
-                const querySele = alignments.map(
-                    a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`
-                ).join(" or ");
-                const targetSele = alignments.map(
-                    a => `${a.dbStartPos}-${a.dbEndPos}:${getChainName(a.target)}`
-                ).join(" or ");
-
-                let qSubPdb = makeSubPDB(queryComp.structure, querySele);
-                let tSubPdb = makeSubPDB(targetComp.structure, targetSele);
-                let alnFasta = `>target\n${alignments[0].dbAln}\n\n>query\n${alignments[0].qAln}`;
-
-                const tm = await tmalign(tSubPdb, qSubPdb, alnFasta);
-                if (this.destroyed || !this.stage) return;
-                let { t, u } = parseTMMatrix(tm.matrix);
-                transformStructure(targetComp.structure, t, u);
+                matrix = superposeWithAlignment(
+                    queryStrucRef,
+                    targetStructRef,
+                    alignments
+                )
             }
+            matrix = matrix ? matrix : makeMat4(t, u)
+            if (this.destroyed || !this.stage) return null
+
+            await this.stage.updateTransformMatrix(targetStructRef, matrix, TRANSFORM_TAG)
         },
 
-        addRepresentations(queryComp, targetComp, alignments) {
-            const id = this.schemeCounter++;
+        async addRepresentations(queryStructRef, targetStructRef, alignments) {
+            const token = this.renderingToken + 1
+            this.renderingToken = token
 
-            let selections_q = this.mode < 2 
+            let expr_q = this.mode < 2
                 ? alignments.map(
-                    a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`
-                ).join(" or ")
-                : getMotif(alignments[0].queryresidues)
-            let selections_t = this.mode < 2
+                    a => buildChainExpression(getChainName(a.query), 
+                        [ {start: a.qStartPos, end: a.qEndPos} ]
+                    )
+                )
+                : buildMotifExpression(alignments[0].queryresidues)
+            let expr_t = this.mode < 2
                 ? alignments.map(
-                    a => `${a.dbStartPos}-${a.dbEndPos}:${getChainName(a.target)}`
-                ).join(" or ")
-                : getMotif(alignments[0].targetresidues)
+                    a => buildChainExpression(getChainName(a.target),
+                        [ {start: a.dbStartPos, end: a.dbEndPos} ]
+                    )
+                )
+                : buildMotifExpression(alignments[0].targetresidues)
+            expr_q = Array.isArray(expr_q) 
+                ? expr_q.length > 1 
+                ? MS.struct.combinator.merge(expr_q) 
+                : expr_q[0]
+                : expr_q
+            expr_t = Array.isArray(expr_t) 
+                ? expr_t.length > 1 
+                ? MS.struct.combinator.merge(expr_t) 
+                : expr_t[0]
+                : expr_t
+            if (this.destroyed || !this.stage) return null
 
-            const qSchemeName = `_thumbQuery_${id}`;
-            const tSchemeName = `_thumbTarget_${id}`;
+            // // DIAGNOSTIC: check chain/range match for query
+            // if (queryStructRef && this.mode < 2) {
+            //     const a0 = alignments[0]
+            //     const chainGuess = getChainName(a0.query)
+            //     console.log('[thumb] query field:', a0.query,
+            //         '→ chain guess:', chainGuess,
+            //         '| range:', a0.qStartPos, '-', a0.qEndPos)
 
-            if (ColormakerRegistry.hasScheme(qSchemeName)) {
-                ColormakerRegistry.removeScheme(qSchemeName);
-            }
-            if (ColormakerRegistry.hasScheme(tSchemeName)) {
-                ColormakerRegistry.removeScheme(tSchemeName);
-            }
+            //     // Try chain-only (no range) to isolate which dimension fails
+            //     const chainOnlyExpr = buildChainExpression(chainGuess, [], true)
+            //     const chainOnlyComp = await this.stage.createComponentFromExpression(
+            //         queryStructRef, chainOnlyExpr, `diag_chain_${token}`)
+            //     console.log('[thumb] chain-only hit:', chainOnlyComp ? 'YES' : 'NO (wrong chain ID)')
+            //     if (chainOnlyComp) await this.stage.remove(chainOnlyComp)
 
-            const querySchemeId = ColormakerRegistry.addSelectionScheme([
-                ["#1E88E5", selections_q],
-                ["#A5CFF5", "*"],
-            ], qSchemeName);
+            //     // Try all-atoms to verify structure ref is still live
+            //     const allComp = await this.stage.createComponentStatic(queryStructRef, 'all')
+            //     console.log('[thumb] all-atoms hit:', allComp ? 'YES' : 'NO (stale ref?)')
+            //     if (allComp) await this.stage.remove(allComp)
+            // }
 
-            const targetSchemeId = ColormakerRegistry.addSelectionScheme([
-                ["#FFC107", selections_t],
-                ["#FFE699", "*"],
-            ], tSchemeName);
+            const queryComp = await this.stage.createComponentFromExpression
+                (queryStructRef, expr_q, `aligned_query_${token}`)
+            const targetComp = await this.stage.createComponentFromExpression
+                (targetStructRef, expr_t, `aligned_target_${token}`)
+            
+            this.activeComponentRefs.push(queryComp, targetComp)
+
+            if (this.renderingToken !== token) return
 
             const repr = this.mode < 2 
                 ? ( this.pulchraFailed ? 'backbone' : 'cartoon' ) 
-                : 'licorice'
+                : 'ball-and-stick'
+            
+            const surfaceRepr = this.mode == 1 && !this.pulchraFailed
+                ? 'molecular-surface'
+                : null
+            
+            const queryClr = toMolstarColor('#1E88E5', 0x1e88e5)
+            const targetClr = toMolstarColor('#FFC107', 0xffc107)
 
+            if (this.destroyed || !this.stage) return null
+            
+            debugger
             if (queryComp) {
-                queryComp.addRepresentation(repr, {
-                    sele: this.mode < 2 ? "" : selections_q,
-                    color: querySchemeId,
-                    smoothSheet: true,
-                });
-                queryComp.autoView(selections_q, 0);
+                await this.stage.addRepresentation(
+                    queryComp,
+                    {
+                        type: repr,
+                        color: 'uniform',
+                        colorParams: {value: queryClr}
+                    },
+                )
+                if (surfaceRepr) {
+                    await this.stage.addRepresentation(
+                        queryComp,
+                        {
+                            type: surfaceRepr,
+                            color: 'uniform',
+                            colorParams: {value: queryClr},
+                            typeParams: {alpha: 0.12},
+                        },
+                    )
+                }
             }
-
-            targetComp.addRepresentation(repr, {
-                sele: this.mode < 2 ? "" : selections_t,
-                color: targetSchemeId,
-                smoothSheet: true,
-            });
+            if (targetComp) {
+                await this.stage.addRepresentation(
+                    targetComp,
+                    {
+                        type: repr,
+                        color: 'uniform',
+                        colorParams: {value: targetClr}
+                    },
+                )
+                if (surfaceRepr) {
+                    await this.stage.addRepresentation(
+                        targetComp,
+                        {
+                            type: surfaceRepr,
+                            color: 'uniform',
+                            colorParams: {value: targetClr},
+                            typeParams: {alpha: 0.12},
+                        },
+                    )
+                }
+            }
+            if (queryComp) {
+                const qLoci = getSelectionLoci(expr_q, queryStructRef)
+                this.stage.focusLoci(qLoci)
+            } else {
+                this.stage.focusLoci(null)
+            }
         },
 
         async captureThumbnail(id) {
-            await new Promise(resolve => requestAnimationFrame(resolve));
             if (this.destroyed || !this.stage) return;
+            await this.stage.waitDraw()
 
             const canvas = document.getElementById(id+'-thumbnail-canvas');
-            const nglCanvas = this.$refs.viewport.querySelector('canvas')
+            const molstarCanvas = this.stage.canvas
             let result = false
             if (canvas) {
-
                 canvas.width = this.thumbWidth
                 canvas.height = this.thumbHeight
                 const ctx = canvas.getContext('2d')
                 ctx.clearRect(0, 0, this.thumbWidth, this.thumbHeight)
                 ctx.imageSmoothingQuality = 'high'
                 ctx.imageSmoothingEnabled = true
-                ctx.drawImage(nglCanvas, 0, 0, this.thumbWidth, this.thumbHeight)
+                ctx.drawImage(molstarCanvas, 0, 0, this.thumbWidth, this.thumbHeight)
                 result = true
-
             }
 
             this.$emit('thumbnail-ready', { id, result });
         },
 
-        clearStage() {
-            if (!this.stage) return;
-            this.stage.removeAllComponents();
+        async clearStage() {
+            const stage = this.stage
+            if (!stage) return;
             this.pulchraFailed = false;
+            const refs = this.activeComponentRefs.splice(0)
+            for (const ref of refs) {
+                await stage.remove(ref)
+            }
         },
 
         async activateViewer(id, alignments, targetEl) {
             if (this.activeId === id) return;
-            this.clearStage();
+            await this.clearStage();
             this.queuePaused = true;
             this.activeId = id;
             this.activeTargetEl = targetEl;
 
             // Move canvas into the card's viewer slot
-            const viewportEl = this.$refs.viewport;
+            const viewportEl = this.$refs.viewport
             targetEl.appendChild(viewportEl);
-            this.stage.setParameters({ quality: 'high', backgroundColor: this.bgColor() });
             viewportEl.style.width = '100%';
             viewportEl.style.height = '100%';
             this.stage.handleResize();
@@ -399,36 +471,25 @@ export default {
                 const queryPdb = await this.getQueryPdb();
                 if (this.destroyed || !this.stage) return;
 
-                let queryComp = null;
+                let queryStructRef = null;
                 if (queryPdb) {
-                    queryComp = await this.loadQueryStructure(queryPdb);
+                    queryStructRef = await this.loadQueryStructure(queryPdb);
                     if (this.destroyed || !this.stage) return;
                 }
 
-                const targetComp = await this.buildTargetStructure(alignments, id);
-                if (this.destroyed || !this.stage || !targetComp) return;
+                const targetStructRef = await this.buildTargetStructure(alignments, id);
+                if (this.destroyed || !this.stage || !targetStructRef) return;
 
-                if (queryComp) {
-                    await this.superposeStructures(queryComp, targetComp, alignments);
+                if (queryStructRef) {
+                    await this.superposeStructures(queryStructRef, targetStructRef, alignments);
                     if (this.destroyed || !this.stage) return;
                 }
 
-                this.addRepresentations(queryComp, targetComp, alignments);
-
-                if (queryComp) {
-                    const querySele = this.mode < 2 
-                        ? alignments.map(
-                            a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`
-                        ).join(" or ") 
-                        : getMotif(alignments[0].queryresidues)
-                    queryComp.autoView(querySele, 0);
-                } else {
-                    this.stage.autoView(0);
-                }
+                this.addRepresentations(queryStructRef, targetStructRef, alignments);
 
                 this.isSpinning = true;
                 this.stage.setSpin(true);
-                this.stage.viewer.renderer.domElement.addEventListener('mousedown', this.handleMouseDown);
+                this.stage.canvas.addEventListener('mousedown', this.handleMouseDown);
             } catch (e) {
                 console.warn('Interactive viewer failed for', id, e);
             }
@@ -436,19 +497,18 @@ export default {
             this.$emit('viewer-ready');
         },
 
-        deactivateViewer() {
+        async deactivateViewer() {
             if (this.activeId === null) return;
-            this.clearStage();
+            await this.clearStage();
             this.stage.setSpin(false);
             this.isSpinning = false;
-            this.stage.viewer.renderer.domElement.removeEventListener('mousedown', this.handleMouseDown);
+            this.stage.canvas.removeEventListener('mousedown', this.handleMouseDown);
 
             // Move canvas back to offscreen container
-            const viewportEl = this.$refs.viewport;
+            const viewportEl = this.$refs.viewport
             this.$refs.offscreenContainer.appendChild(viewportEl);
             viewportEl.style.width = this.thumbWidth + 'px';
             viewportEl.style.height = this.thumbHeight + 'px';
-            this.stage.setParameters({ quality: 'low', backgroundColor: this.bgColor() });
             this.stage.handleResize();
 
             this.activeId = null;
@@ -458,10 +518,10 @@ export default {
         },
 
         async switchViewer(id, alignments, newTargetEl) {
-            this.clearStage();
+            await this.clearStage();
             this.stage.setSpin(false);
             this.isSpinning = false;
-            this.stage.viewer.renderer.domElement.removeEventListener('mousedown', this.handleMouseDown);
+            this.stage.canvas.removeEventListener('mousedown', this.handleMouseDown);
 
             // Move canvas to new target
             const viewportEl = this.$refs.viewport;
@@ -474,36 +534,25 @@ export default {
                 const queryPdb = await this.getQueryPdb();
                 if (this.destroyed || !this.stage) return;
 
-                let queryComp = null;
+                let queryStructRef = null;
                 if (queryPdb) {
-                    queryComp = await this.loadQueryStructure(queryPdb);
+                    queryStructRef = await this.loadQueryStructure(queryPdb);
                     if (this.destroyed || !this.stage) return;
                 }
 
-                const targetComp = await this.buildTargetStructure(alignments, id);
-                if (this.destroyed || !this.stage || !targetComp) return;
+                const targetStructRef = await this.buildTargetStructure(alignments, id);
+                if (this.destroyed || !this.stage || !targetStructRef) return;
 
-                if (queryComp) {
-                    await this.superposeStructures(queryComp, targetComp, alignments);
+                if (queryStructRef) {
+                    await this.superposeStructures(queryStructRef, targetStructRef, alignments);
                     if (this.destroyed || !this.stage) return;
                 }
 
-                this.addRepresentations(queryComp, targetComp, alignments);
-
-                if (queryComp) {
-                    const querySele = this.mode < 2 
-                        ? alignments.map(
-                            a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`
-                        ).join(" or ") 
-                        : getMotif(alignments[0].queryresidues)
-                    queryComp.autoView(querySele, 0);
-                } else {
-                    this.stage.autoView(0);
-                }
+                this.addRepresentations(queryStructRef, targetStructRef, alignments);
 
                 this.isSpinning = true;
                 this.stage.setSpin(true);
-                this.stage.viewer.renderer.domElement.addEventListener('mousedown', this.handleMouseDown);
+                this.stage.canvas.addEventListener('mousedown', this.handleMouseDown);
             } catch (e) {
                 console.warn('Switch viewer failed for', id, e);
             }
@@ -524,11 +573,15 @@ export default {
 
         handleResetView() {
             if (!this.stage) return;
-            this.stage.autoView(100);
+            this.stage.focusLoci(null, 100);
         },
 
         async processQueue() {
-            if (this.queuePaused || this.isRendering || this.thumbnailQueue.length === 0 || this.currentQueueIndex >= this.thumbnailQueue.length) {
+            if (this.queuePaused 
+                || this.isRendering 
+                || this.thumbnailQueue.length === 0 
+                || this.currentQueueIndex >= this.thumbnailQueue.length
+            ) {
                 return;
             }
 
@@ -539,7 +592,10 @@ export default {
                 if (this.destroyed || !this.stage) return;
 
                 // Skip items without tCa data
-                if (!item.alignments || item.alignments.length === 0 || typeof item.alignments[0].tCa === 'undefined') {
+                if (!item.alignments 
+                    || item.alignments.length === 0 
+                    || typeof item.alignments[0].tCa === 'undefined'
+                ) {
                     this.currentQueueIndex++;
                     this.isRendering = false;
                     this.$nextTick(() => this.processQueue());
@@ -550,44 +606,33 @@ export default {
                 if (this.destroyed || !this.stage) return;
 
                 const hasQuery = !!queryPdb;
-                let queryComp = null;
+                let queryStructRef = null;
                 if (hasQuery) {
-                    queryComp = await this.loadQueryStructure(queryPdb);
+                    queryStructRef = await this.loadQueryStructure(queryPdb);
                     if (this.destroyed || !this.stage) return;
                 }
 
-                const targetComp = await this.buildTargetStructure(item.alignments, item.db);
-                if (this.destroyed || !this.stage || !targetComp) {
-                    this.clearStage();
+                const targetStructRef = await this.buildTargetStructure(item.alignments, item.db);
+                if (this.destroyed || !this.stage || !targetStructRef) {
+                    await this.clearStage();
                     this.currentQueueIndex++;
                     this.isRendering = false;
                     this.$nextTick(() => this.processQueue());
                     return;
                 }
 
-                if (queryComp) {
-                    await this.superposeStructures(queryComp, targetComp, item.alignments);
+                if (queryStructRef) {
+                    await this.superposeStructures(queryStructRef, targetStructRef, item.alignments);
                     if (this.destroyed || !this.stage) return;
                 }
 
-                this.addRepresentations(queryComp, targetComp, item.alignments);
-
-                if (queryComp) {
-                    const querySele = this.mode < 2 
-                        ? item.alignments.map(
-                            a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`
-                        ).join(" or ")
-                        : getMotif(item.alignments[0].queryresidues)
-                    queryComp.autoView(querySele, 0);
-                } else {
-                    this.stage.autoView(0);
-                }
+                await this.addRepresentations(queryStructRef, targetStructRef, item.alignments);
 
                 await this.captureThumbnail(item.id);
-                this.clearStage();
+                await this.clearStage();
             } catch (e) {
                 console.warn('Thumbnail generation failed for', item.id, e);
-                this.clearStage();
+                await this.clearStage();
             }
 
             this.currentQueueIndex++;
@@ -608,8 +653,8 @@ export default {
             deep: true,
         },
     },
-    mounted() {
-        this.initStage();
+    async mounted() {
+        await this.initStage();
         this.processQueue();
     },
     beforeDestroy() {
@@ -618,12 +663,11 @@ export default {
             this.stage.dispose();
             this.stage = null;
         }
-        recoverLog()
     },
 }
 </script>
 
-<style scoped>
+<style>
 .offscreen-container {
     position: absolute;
     left: -9999px;

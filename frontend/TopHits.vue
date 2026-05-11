@@ -27,7 +27,8 @@
                             :thumbnailUrl="thumbnailCache[hit.db]"
                             :isActive="activeCardId === hit.db"
                             :isSpinning="activeCardId === hit.db && viewerSpinning"
-                            @activate="handleCardActivate(hit)"
+                            @activate="e => handleCardActivate(e, hit)"
+                            @register="e => handleRegister(e, hit.db)"
                             @resetView="handleToolbarResetView"
                             @toggleSpin="handleToolbarToggleSpin"
                             @jump="$emit('jumpTo', idx)"
@@ -61,6 +62,7 @@ export default {
             activeCardId: null,
             thumbnailQueue: [],
             viewerSpinning: false,
+            dragRegistry: {_ptrDownX: 0, _ptrDownY: 0, targetDb: undefined},
         }
     },
     props: {
@@ -96,7 +98,29 @@ export default {
                 this.viewerSpinning = this.$refs.thumbnailViewer.isSpinning;
             }
         },
-        handleCardActivate(hit) {
+        handleCardActivate(event, hit) {
+            if (!hit) return
+
+            if (!this.dragRegistry.targetDb ||
+                this.dragRegistry.targetDb !== hit.db
+            ) {
+                // Came from outside. Ignore and reset registry
+                this.dragRegistry._ptrDownX = 0
+                this.dragRegistry._ptrDownY = 0
+                this.dragRegistry.targetDb = undefined
+                return 
+            }
+            
+            const deltaX = event.clientX - this.dragRegistry._ptrDownX
+            const deltaY = event.clientY - this.dragRegistry._ptrDownY
+
+            if (Math.sqrt(deltaX*deltaX + deltaY*deltaY) > 5) {
+                // dragged
+                this.dragRegistry._ptrDownX = event.clientX
+                this.dragRegistry._ptrDownY = event.clientY
+                return 
+            }
+
             if (!hit.topHit) return;
             const cardId = hit.db;
 
@@ -130,6 +154,11 @@ export default {
                     }
                 }
             });
+        },
+        handleRegister(event, db) {
+            this.dragRegistry.targetIdx = db
+            this.dragRegistry._ptrDownX = event.clientX
+            this.dragRegistry._ptrDownY = event.clientY
         },
     },
     beforeMount() {

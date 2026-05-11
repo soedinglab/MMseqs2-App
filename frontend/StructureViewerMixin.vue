@@ -1,6 +1,5 @@
 <script>
-import { Stage } from 'ngl';
-import { wrapLog, recoverLog } from './Utilities';
+import { MolstarStage } from './lib/molstar-stage'
 
 export default {
     data: () => ({
@@ -22,15 +21,7 @@ export default {
         },
         stageParameters: function() {
             return {
-                log: false,
                 backgroundColor: this.bgColor,
-                transparent: true,
-                ambientIntensity: this.ambientIntensity,
-                clipNear: -1000,
-                clipFar: 1000,
-                fogFar: 1000,
-                fogNear: -1000,
-                quality: 'high'
             }
         }
     },
@@ -38,6 +29,10 @@ export default {
         isSpinning: function() {
             if (!this.stage) return;
             this.stage.setSpin(this.isSpinning);
+        },
+        bgColor: function(val) {
+            if (!this.stage) return
+            this.stage.setBackground(val)
         }
     },
     mounted() {
@@ -56,7 +51,7 @@ export default {
         resetView() {
             if (!this.stage) return;
             // this.setSelection(this.showTarget)
-            this.stage.autoView(this.transitionDuration);
+            this.stage.focusLoci(null, this.transitionDuration);
         },
         handleResize() {
             if (!this.stage) return;
@@ -76,40 +71,36 @@ export default {
             }
             this.resetView();
         },
-        initialiseStage() {
+        async initialiseStage() {
             window.addEventListener('resize', this.handleResize, { passive: true })
-            this.stage = new Stage(this.$refs.viewport, this.stageParameters);
-            this.stage.signals.fullscreenChanged.add((isFullscreen) => {
-                if (isFullscreen) {
-                    this.stage.viewer.setBackground('#ffffff');
-                    this.stage.viewer.setLight(undefined, undefined, undefined, 0.2);
-                    this.isFullscreen = true;
-                } else {
-                    this.stage.viewer.setBackground(this.bgColor);
-                    this.stage.viewer.setLight(undefined, undefined, undefined, this.ambientIntensity);
-                    this.isFullscreen = false;
-                }
-            });
+            document.addEventListener('fullscreenchange', this.handleFullscreenChange)
+            this.stage = new MolstarStage(this.$refs.viewport, this.stageParameters)
+            this.stageReady = this.stage.init()
+            await this.stageReady
             this.stage.setSpin(this.isSpinning);
-            this.stage.viewer.renderer.domElement.addEventListener('mousedown', e => {
-                this.isSpinning = false;
-            })
+            if (this.stage.canvas) { 
+                this.stage.canvas.addEventListener('mousedown', () => {
+                    this.isSpinning = false
+                })
+            }
 
             // To ignore "STAGE LOG ..." things.
-            wrapLog()
         },
         teardownStage() {
             window.removeEventListener('resize', this.handleResize)
+            document.removeEventListener('fullscreenchange', this.handleFullscreenChange)
             if (!this.stage) return;
             this.stage.dispose()
-            recoverLog()
         },
         handleMakeImage() {
             this.makeImage();
         },
         handleMakePDB() {
             this.makePDB();
-        }
+        },
+        handleFullscreenChange() {
+            this.isFullscreen = Boolean(document.fullscreenElement)
+        },
     }
 }
 </script>

@@ -36,52 +36,89 @@
 import StructureViewerMixin from './StructureViewerMixin.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerTooltip from './StructureViewerTooltip.vue';
-import { getPdbText, transformStructure } from './Utilities.js'
-import { download, ColormakerRegistry } from 'ngl'
+import { toMolstarColor, transformPdb, extractAtomLines, buildChainExpression, getSelectionLoci, downloadBlob, splitAlphaNum } from './Utilities.js'
+import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
+
+const normalizeRepresentation = (repr, fallback) => {
+    const value = (repr || '').toLowerCase();
+    if (value === 'ribbon' || value === 'cartoon' || value === 'tube') return 'cartoon';
+    if (value === 'licorice' || value === 'ball-and-stick') return 'ball-and-stick';
+    if (value === 'surface') return 'molecular-surface';
+    return fallback;
+};
 
 const processPdb = (rawpdb) => {
-    let outpdb = '';
-    let data = '';
-    let ext = 'pdb';
-    outpdb = rawpdb.trimStart();
-    if (outpdb[0] == "#" || outpdb.startsWith("data_")) {
-        ext = 'cif';
-        // NGL doesn't like AF3's _chem_comp entries
-        outpdb = outpdb.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
-    } else {
-        for (let line of outpdb.split('\n')) {
-            let numCols = Math.max(0, 80 - line.length);
-            let newLine = line + ' '.repeat(numCols) + '\n';
-            data += newLine
+    if (!rawpdb || typeof rawpdb !== 'string') {
+        return null;
+    }
+    const trimmed = rawpdb.trimStart();
+    if (!trimmed) {
+        return null;
+    }
+    if (trimmed[0] === '#' || trimmed.startsWith('data_')) {
+        return { data: trimmed, format: 'mmcif' };
+    }
+    return { data: rawpdb, format: 'pdb' };
+};
+
+const motifToMap = (motif) => {
+    const byChain = new Map();
+    if (!motif || typeof motif !== 'string') {
+        return byChain;
+    }
+    motif.split(',').forEach(token => {
+        const part = token.trim();
+        if (!part) return;
+        const core = part.split(':')[0];
+        const [chain, pos] = splitAlphaNum(core);
+        const resno = Number.parseInt(pos, 10);
+        if (!chain || !Number.isFinite(resno)) return;
+        if (!byChain.has(chain)) byChain.set(chain, new Set());
+        byChain.get(chain).add(resno);
+    });
+    return byChain;
+};
+
+const residuesToRanges = (residueSet) => {
+    const residues = Array.from(residueSet).sort((a, b) => a - b);
+    if (residues.length === 0) return [];
+    const ranges = [];
+    let start = residues[0];
+    let end = start;
+    for (let i = 1; i < residues.length; i += 1) {
+        const value = residues[i];
+        if (value === end + 1) {
+            end = value;
+            continue;
         }
-        outpdb = data;
+        ranges.push({ start, end });
+        start = value;
+        end = value;
     }
-    return [outpdb, ext]
-}
+    ranges.push({ start, end });
+    return ranges;
+};
 
-const getMotif = (motif) => {
-    const motifList = new Set(motif.split(','));
-    const motifSele = [];
-    for (let m of motifList) {
-        const chain = m[0];
-        const resno = m.slice(1);
-        motifSele.push(`${resno}:${chain}`);
-    }
+const buildMotifExpression = (motif) => {
+    const byChain = motifToMap(motif);
+    const expressions = [];
+    byChain.forEach((residues, chain) => {
+        const ranges = residuesToRanges(residues);
+        expressions.push(buildChainExpression(chain, ranges));
+    });
+    if (expressions.length === 0) return null;
+    return expressions.length === 1 ? expressions[0] : MS.struct.combinator.merge(expressions);
+};
 
-    return motifSele.join(" or ");
-}
-
-const getMatchedChain = (motif) => {
-    const motifList = new Set(motif.split(','));
-    const chainSele = new Set();
-    for (let m of motifList) {
-        const chain = m[0];
-        if (!chainSele.has(chain)) {
-            chainSele.add(`:${chain}`);
-        }
-    }
-    return Array.from(chainSele).join(" or ");
-}
+const buildMotifChainExpression = (motif) => {
+    const byChain = motifToMap(motif);
+    const expressions = [];
+    byChain.forEach((_, chain) => {
+        expressions.push(buildChainExpression(chain));
+    });
+    if (expressions.length === 0) return null;
+    return expressions.length === 1 ? expressions[0] : MS.struct.combinator.merge(expressions);
+};
 
 export default {
     name: "StructureViewerMotif",
@@ -96,6 +133,13 @@ export default {
         // selection: null,
         showQuery: 0,
         showTarget: 0,
+        renderToken: 0,
+        queryStructureRef: null,
+        targetStructureRef: null,
+        lastQueryPdb: '',
+        lastTargetPdb: '',
+        queryData: null,
+        targetData: null,
     }),
     props: {
         alignment: { type: Object, required: true, },
@@ -121,97 +165,85 @@ export default {
         // hasSelection() {
         //     return !this.structureHighlights.some(e => e !== null);
         // }
-        bgColor() {
-            return this.$vuetify.theme.dark ? this.bgColorDark : this.bgColorLight;
-        },
+        // bgColor() {
+        //     return this.$vuetify.theme.dark ? this.bgColorDark : this.bgColorLight;
+        // },
         tmPanelBindings: function() {
             return (this.isFullscreen) ? { 'style': 'margin-top: 10px; font-size: 2em; line-height: 2em' } : {  }
         },
-        querySele: function() {
-            if (this.alignment.length === 0 || this.showQuery === 2) {
-                return '';
-            }
-            if (this.showQuery === 0) {
-                return getMotif(this.alignment.queryresidues) 
-            }
-            if (this.showQuery === 1 ) {
-                return getMatchedChain(this.alignment.queryresidues) 
-            }
-        },
-        targetSele: function() {
-            if (this.alignment.length === 0 || this.showTarget === 2) {
-                return '';
-            }
-            if (this.showTarget === 0) {
-                return getMotif(this.alignment.targetresidues);
-            }
-            if (this.showTarget === 1) {
-                return getMatchedChain(this.alignment.targetresidues);
-            }
-        },
-        stageParameters: function() {
-            return {
-                log: 'folddisco',
-                backgroundColor: this.bgColor,
-                transparent: true,
-                clipNear: -1000,
-                clipFar: 1000,
-                fogFar: 1000,
-                fogNear: -1000,
-            }
-        },
-        cartoonMatched: function() {
-            return {
-                opacity: 0.8, smmothSheet: true,
-                metalness: 0, quality:"high", tension: 0,
-            }
-        },
-        cartoonNull: function() {
-            return {
-                opacity: 0.3, smmothSheet: true,
-                metalness: 0, quality:"medium", tension: 0,
-            }
-        },
+        // querySele: function() {
+        //     if (this.alignment.length === 0 || this.showQuery === 2) {
+        //         return '';
+        //     }
+        //     if (this.showQuery === 0) {
+        //         return getMotif(this.alignment.queryresidues) 
+        //     }
+        //     if (this.showQuery === 1 ) {
+        //         return getMatchedChain(this.alignment.queryresidues) 
+        //     }
+        // },
+        // targetSele: function() {
+        //     if (this.alignment.length === 0 || this.showTarget === 2) {
+        //         return '';
+        //     }
+        //     if (this.showTarget === 0) {
+        //         return getMotif(this.alignment.targetresidues);
+        //     }
+        //     if (this.showTarget === 1) {
+        //         return getMatchedChain(this.alignment.targetresidues);
+        //     }
+        // },
+        // stageParameters: function() {
+        //     return {
+        //         log: 'folddisco',
+        //         backgroundColor: this.bgColor,
+        //         transparent: true,
+        //         clipNear: -1000,
+        //         clipFar: 1000,
+        //         fogFar: 1000,
+        //         fogNear: -1000,
+        //     }
+        // },
+        // cartoonMatched: function() {
+        //     return {
+        //         opacity: 0.8, smmothSheet: true,
+        //         metalness: 0, quality:"high", tension: 0,
+        //     }
+        // },
+        // cartoonNull: function() {
+        //     return {
+        //         opacity: 0.3, smmothSheet: true,
+        //         metalness: 0, quality:"medium", tension: 0,
+        //     }
+        // },
     },
     methods: {
         handleResetView() {
             if (!this.stage) return;
-            this.setQuerySelection();
+            this.focusSelection();
         },
         async handleMakeImage() {
-            if (!this.stage)
-                return;
+            if (!this.stage) return;
             const wasSpinning = this.isSpinning;
             this.isSpinning = false;
-            let title = this.alignment.target.replace(/\.(pdb|cif)$/, '');
-            this.stage.viewer.setLight(undefined, undefined, undefined, 0.2)
-            const blob = await this.stage.makeImage({
-                trim: true,
-                factor: (this.isFullscreen) ? 1 : 8,
-                antialias: true,
-                transparent: true,
-            });
-            this.stage.viewer.setLight(undefined, undefined, undefined, this.$vuetify.theme.dark ? 0.4 : 0.2)
-            download(blob, `folddisco-${title}.png`)
-            this.isSpinning = wasSpinning;   
+            const title = this.alignment?.target?.replace(/\.(pdb|cif)(\.gz)?$/i, '') || 'folddisco';
+            const blob = await this.stage.makeImage();
+            if (blob) {
+                downloadBlob(blob, `folddisco-${title}.png`);
+            }
+            this.isSpinning = wasSpinning;
         },
         handleMakePDB() {
-            if (!this.stage)
-                return;
-            let qPDB = this.stage.getComponentsByName("queryStructure").list.map(getPdbText); 
-            let tPDB = this.stage.getComponentsByName("targetStructure").list.map(getPdbText);
-            if (!qPDB && !tPDB) 
-                return;
-            let title = `folddisco-${this.alignment.target.replace(/\.(pdb|cif)$/, '')}`;
+            const qPDB = extractAtomLines(this.lastQueryPdb);
+            const tPDB = extractAtomLines(this.lastTargetPdb);
+            if (qPDB.length === 0 && tPDB.length === 0) return;
+            const title = `folddisco-${(this.alignment?.target || 'target').replace(/\.(pdb|cif)(\.gz)?$/i, '')}`;
             let result = null;
-            if (qPDB && tPDB) {
+            if (qPDB.length > 0 && tPDB.length > 0) {
                 result =
 `TITLE     ${title}
 REMARK     This file was generated by the Foldseek webserver:
 REMARK       https://search.foldseek.com/folddisco
-REMARK     Please cite:
-REMARK       TODO
-REMARK     Warning: Target structure has been decompressed by Foldcomp
 MODEL        1
 ${qPDB.join('\n')}
 ENDMDL
@@ -219,21 +251,19 @@ MODEL        2
 ${tPDB.join('\n')}
 ENDMDL
 END
-`
+`;
             } else {
                 result =
-`TITLE     ${title.join(" ")}
+`TITLE     ${title}
 REMARK     This file was generated by the Foldseek webserver:
 REMARK       https://search.foldseek.com/folddisco
-REMARK     Please cite:
-REMARK       TODO
 MODEL        1
 ${tPDB.join('\n')}
 ENDMDL
 END
-`
+`;
             }
-            download(new Blob([result], { type: 'text/plain' }), (title + ".pdb"));
+            downloadBlob(new Blob([result], { type: 'text/plain' }), `${title}.pdb`);
         },
         handleToggleQuery() {
             if (!this.stage) return;
@@ -253,143 +283,230 @@ END
                 this.showTarget = (this.showTarget === 2) ? 0 : this.showTarget + 1;
             }            
         },
-        setQuerySelection() {
-            let repr = this.stage.getRepresentationsByName("queryStructure");
-            if (!repr) return;
-            let sele = this.querySele;
-            repr.setSelection(sele);
-            repr.list[0].parent.autoView(sele, this.autoViewTime);
-            if (this.alignment.length === 0) {
-                return
+        focusSelection() {
+            const target = this.queryStructureRef || this.targetStructureRef;
+            if (!target) {
+                this.stage.focusLoci(null, this.autoViewTime);
+                return;
             }
-            if (this.showQuery === 0 ) {
-                this.stage.getRepresentationsByName("queryMatched").setVisibility(false);
-                this.stage.getRepresentationsByName("queryStructure").setVisibility(false);
-            } else if (this.showQuery === 1) {
-                this.stage.getRepresentationsByName("queryMatched").setVisibility(true);
-                this.stage.getRepresentationsByName("queryStructure").setVisibility(false);
-            } else if (this.showQuery === 2) {
-                this.stage.getRepresentationsByName("queryMatched").setVisibility(true);
-                this.stage.getRepresentationsByName("queryStructure").setVisibility(true);
-            }
+            const expr = this.queryStructureRef
+                ? (buildMotifExpression(this.alignment.queryresidues) || MS.struct.generator.all())
+                : (buildMotifExpression(this.alignment.targetresidues) || MS.struct.generator.all());
+            const loci = getSelectionLoci(expr, target);
+            this.stage.focusLoci(loci, this.autoViewTime);
         },
-        setTargetSelection() {
-            let repr = this.stage.getRepresentationsByName("targetStructure");
-            if (!repr) return;
-            let sele = this.targetSele;
-            repr.setSelection(sele);
-            if (this.alignment.length === 0) {
-                return
+        async loadStructureData() {
+            const query = processPdb(this.queryPdb);
+            const target = processPdb(this.targetPdb);
+            if (!query || !target) {
+                this.queryData = null;
+                this.targetData = null;
+                this.lastQueryPdb = '';
+                this.lastTargetPdb = '';
+                return;
             }
-            if (this.showTarget === 0 ) {
-                this.stage.getRepresentationsByName("targetMatched").setVisibility(false);
-                this.stage.getRepresentationsByName("targetStructure").setVisibility(false);
-            } else if (this.showTarget === 1) {
-                this.stage.getRepresentationsByName("targetMatched").setVisibility(true);
-                this.stage.getRepresentationsByName("targetStructure").setVisibility(false);
-            } else if (this.showTarget === 2) {
-                this.stage.getRepresentationsByName("targetMatched").setVisibility(true);
-                this.stage.getRepresentationsByName("targetStructure").setVisibility(true);
-            }
-        },
-        setHoverTooltip() {
-            var tooltip = document.createElement("div");
-            Object.assign(tooltip.style, {
-                display: "none",
-                position: "absolute",
-                zIndex: 10,
-                pointerEvents: "none",
-                backgroundColor: "rgba(0, 0, 0, 0)",
-                opacity: 0.7,
-                color: "black",
-                padding: "8px",
-                borderRadius: "5px",
-            });
-            this.stage.viewer.container.appendChild(tooltip);
-            this.stage.mouseControls.remove("hoverPick");
-            this.stage.signals.hovered.add(function (pickingProxy) {
-                if (pickingProxy && (pickingProxy.atom || pickingProxy.bond)) {
-                    var atom = pickingProxy.atom || pickingProxy.closestBondAtom
-                    var name = atom.structure.name;
-                    if (name === "queryStructure") {
-                        tooltip.style.backgroundColor = "#1E88E5";
-                    } else if (name === "targetStructure") {
-                        tooltip.style.backgroundColor = "#FFC107";
-                    } else {
-                        tooltip.backgroundColor = "rgba(0, 0, 0, 0.7)";
-                    }
-                    tooltip.innerText = `${atom.structure.name} ${atom.chainname} ${atom.resno} ${atom.resname}`;
-                    tooltip.style.top = "10px";
-                    tooltip.style.right = "0px";
-                    tooltip.style.display = "block";
-                } else {
-                    tooltip.innerText = "";
-                    tooltip.style.display = "none";
+
+            this.queryData = { data: query.data, format: query.format, label: 'query' };
+            this.targetData = { data: target.data, format: target.format, label: 'target' };
+            this.lastQueryPdb = query.format === 'pdb' ? query.data : '';
+
+            if (target.format === 'pdb' && this.alignment?.tmat && this.alignment?.umat) {
+                const t = this.alignment.tmat.split(',').map(x => Number.parseFloat(x));
+                const uFlat = this.alignment.umat.split(',').map(x => Number.parseFloat(x));
+                if (t.length === 3 && uFlat.length === 9 && t.every(Number.isFinite) && uFlat.every(Number.isFinite)) {
+                    const u = [
+                        [uFlat[0], uFlat[1], uFlat[2]],
+                        [uFlat[3], uFlat[4], uFlat[5]],
+                        [uFlat[6], uFlat[7], uFlat[8]],
+                    ];
+                    const transformed = transformPdb(target.data, t, u);
+                    this.targetData = { data: transformed, format: 'pdb', label: 'target' };
+                    this.lastTargetPdb = transformed;
+                    return;
                 }
-            });
+            }
+            this.lastTargetPdb = target.format === 'pdb' ? target.data : '';
         },
+        async renderStructures(focus = true) {
+            // NOTE
+            // If it is called everytime showQuery or showTarget is changed,
+            // then would overhead be negligible?
+
+            if (!this.stage || !this.stageReady) {
+                return;
+            }
+            const token = ++this.renderToken;
+            await this.stageReady;
+            if (token !== this.renderToken) {
+                return;
+            }
+
+            await this.stage.clear();
+            this.queryStructureRef = null;
+            this.targetStructureRef = null;
+
+            if (!this.queryData || !this.targetData) {
+                return;
+            }
+
+            const backboneRepr = normalizeRepresentation(this.strRepr, 'cartoon');
+            const motifRepr = normalizeRepresentation(this.motifRepr, 'ball-and-stick');
+
+            const qMotif = buildMotifExpression(this.alignment.queryresidues);
+            const tMotif = buildMotifExpression(this.alignment.targetresidues);
+            const qChains = buildMotifChainExpression(this.alignment.queryresidues);
+            const tChains = buildMotifChainExpression(this.alignment.targetresidues);
+
+            const queryStructure = await this.stage.loadStructure(this.queryData);
+            const targetStructure = await this.stage.loadStructure(this.targetData);
+            this.queryStructureRef = queryStructure;
+            this.targetStructureRef = targetStructure;
+
+            const qMotifColor = toMolstarColor(this.qmotifClr, 0x1e88e5);
+            const tMotifColor = toMolstarColor(this.tmotifClr, 0xffc107);
+            const qChainColor = toMolstarColor(this.qClr, 0xa5cff5);
+            const tChainColor = toMolstarColor(this.tClr, 0xffe699);
+            const qOutsideColor = toMolstarColor(this.qnullClr, 0xa5cff5);
+            const tOutsideColor = toMolstarColor(this.tnullClr, 0xffe699);
+
+            if (this.showQuery >= 1 && qChains) {
+                const queryChainComp = await this.stage.createComponentFromExpression(queryStructure, qChains, `query-chains-${token}`);
+                if (queryChainComp) {
+                    await this.stage.addRepresentation(queryChainComp, {
+                        type: backboneRepr,
+                        color: 'uniform',
+                        colorParams: { value: qChainColor },
+                        typeParams: { alpha: 0.8 },
+                    });
+                }
+            }
+            if (this.showQuery === 2 && qChains) {
+                const outsideExpr = MS.struct.modifier.exceptBy({ 0: MS.struct.generator.all(), by: qChains });
+                const queryOutsideComp = await this.stage.createComponentFromExpression(queryStructure, outsideExpr, `query-outside-${token}`);
+                if (queryOutsideComp) {
+                    await this.stage.addRepresentation(queryOutsideComp, {
+                        type: backboneRepr,
+                        color: 'uniform',
+                        colorParams: { value: qOutsideColor },
+                        typeParams: { alpha: 0.35 },
+                    });
+                }
+            }
+            if (qMotif) {
+                const queryMotifComp = await this.stage.createComponentFromExpression(queryStructure, qMotif, `query-motif-${token}`);
+                if (queryMotifComp) {
+                    await this.stage.addRepresentation(queryMotifComp, {
+                        type: motifRepr,
+                        color: 'uniform',
+                        colorParams: { value: qMotifColor },
+                    });
+                }
+            }
+
+            if (this.showTarget >= 1 && tChains) {
+                const targetChainComp = await this.stage.createComponentFromExpression(targetStructure, tChains, `target-chains-${token}`);
+                if (targetChainComp) {
+                    await this.stage.addRepresentation(targetChainComp, {
+                        type: backboneRepr,
+                        color: 'uniform',
+                        colorParams: { value: tChainColor },
+                        typeParams: { alpha: 0.8 },
+                    });
+                }
+            }
+            if (this.showTarget === 2 && tChains) {
+                const outsideExpr = MS.struct.modifier.exceptBy({ 0: MS.struct.generator.all(), by: tChains });
+                const targetOutsideComp = await this.stage.createComponentFromExpression(targetStructure, outsideExpr, `target-outside-${token}`);
+                if (targetOutsideComp) {
+                    await this.stage.addRepresentation(targetOutsideComp, {
+                        type: backboneRepr,
+                        color: 'uniform',
+                        colorParams: { value: tOutsideColor },
+                        typeParams: { alpha: 0.35 },
+                    });
+                }
+            }
+            if (tMotif) {
+                const targetMotifComp = await this.stage.createComponentFromExpression(targetStructure, tMotif, `target-motif-${token}`);
+                if (targetMotifComp) {
+                    await this.stage.addRepresentation(targetMotifComp, {
+                        type: motifRepr,
+                        color: 'uniform',
+                        colorParams: { value: tMotifColor },
+                    });
+                }
+            }
+
+            if (focus) {
+                this.focusSelection();
+            }
+        },
+        // setHoverTooltip() {
+        //     var tooltip = document.createElement("div");
+        //     Object.assign(tooltip.style, {
+        //         display: "none",
+        //         position: "absolute",
+        //         zIndex: 10,
+        //         pointerEvents: "none",
+        //         backgroundColor: "rgba(0, 0, 0, 0)",
+        //         opacity: 0.7,
+        //         color: "black",
+        //         padding: "8px",
+        //         borderRadius: "5px",
+        //     });
+        //     this.stage.viewer.container.appendChild(tooltip);
+        //     this.stage.mouseControls.remove("hoverPick");
+        //     this.stage.signals.hovered.add(function (pickingProxy) {
+        //         if (pickingProxy && (pickingProxy.atom || pickingProxy.bond)) {
+        //             var atom = pickingProxy.atom || pickingProxy.closestBondAtom
+        //             var name = atom.structure.name;
+        //             if (name === "queryStructure") {
+        //                 tooltip.style.backgroundColor = "#1E88E5";
+        //             } else if (name === "targetStructure") {
+        //                 tooltip.style.backgroundColor = "#FFC107";
+        //             } else {
+        //                 tooltip.backgroundColor = "rgba(0, 0, 0, 0.7)";
+        //             }
+        //             tooltip.innerText = `${atom.structure.name} ${atom.chainname} ${atom.resno} ${atom.resname}`;
+        //             tooltip.style.top = "10px";
+        //             tooltip.style.right = "0px";
+        //             tooltip.style.display = "block";
+        //         } else {
+        //             tooltip.innerText = "";
+        //             tooltip.style.display = "none";
+        //         }
+        //     });
+        // },
     },
     watch: {
         'showQuery': function() {
             if (!this.stage) return;
-            this.setQuerySelection();
+            this.renderStructures(false);
         },
         'showTarget': function() {
             if (!this.stage) return;
-            this.setTargetSelection();
+            this.renderStructures(false);
+        },
+        alignment: {
+            deep: true,
+            handler() {
+                this.loadStructureData().then(() => this.renderStructures(true))
+            },
+        },
+        queryPdb() {
+            this.loadStructureData().then(() => this.renderStructures(true));
+        },
+        targetPdb() {
+            this.loadStructureData().then(() => this.renderStructures(true));
         },
     },
-    // beforeMount() {
-    //     // this.updateMaps() // What does this do?
-    //     // this.setEmptyHighlight();
-    //     // this.setEmptyStructureHighlight();
-    // },
     async mounted() {
-        if (typeof(this.alignment.tCa) == "undefined" || typeof(this.queryPdb) == "undefined" || typeof(this.targetPdb) == "undefined")
+        if (!this.alignment || !this.queryPdb || !this.targetPdb) {
             return;
-
-        let [queryPdb, qext] = processPdb(this.queryPdb);
-        let [targetPdb, text] = processPdb(this.targetPdb);
-        const query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), { ext: qext, firstModelOnly: true, name: 'queryStructure'});
-        const target = await this.stage.loadFile(new Blob([targetPdb], { type: 'text/plain' }), { ext: text, firstModelOnly: true, name: 'targetStructure'});
-
-        const t = this.alignment.tmat.split(',').map(x => parseFloat(x));
-        let u = this.alignment.umat.split(',').map(x => parseFloat(x));
-        u = [
-            [u[0], u[1], u[2]],
-            [u[3], u[4], u[5]],
-            [u[6], u[7], u[8]],
-        ];
-        transformStructure(target.structure, t, u);
-        const matchedQuery = getMotif(this.alignment.queryresidues);
-        const matchedTarget = getMotif(this.alignment.targetresidues);
-        const matchedQchain = getMatchedChain(this.alignment.queryresidues);
-        const matchedTchain = getMatchedChain(this.alignment.targetresidues);
-
-        this.querySchemeId = ColormakerRegistry.addSelectionScheme([
-            [this.qmotifClr, matchedQuery],
-            [this.qClr, matchedQchain],
-            [this.qnullClr, "*"]
-        ], "_queryScheme")
-
-        this.targetSchemeId = ColormakerRegistry.addSelectionScheme([
-            [this.tmotifClr, matchedTarget],
-            [this.tClr, matchedTchain],
-            [this.tnullClr, "*"]
-        ], "_targetScheme")
-
-        query.addRepresentation(this.strRepr, {sele: "not (" + matchedQchain + ")", color: this.querySchemeId, name: "queryStructure", ...this.cartoonNull})
-        target.addRepresentation(this.strRepr, {sele: "not (" + matchedTchain + ")", color: this.targetSchemeId, name: "targetStructure", ...this.cartoonNull})
-        
-        query.addRepresentation(this.strRepr, { sele: matchedQchain, color: this.querySchemeId, name: "queryMatched", ...this.cartoonMatched})
-        target.addRepresentation(this.strRepr, { sele: matchedTchain, color: this.targetSchemeId, name: "targetMatched", ...this.cartoonMatched})
-        
-        query.addRepresentation(this.motifRepr, {sele: matchedQuery, color: this.qmotifClr, name: "queryMotif"})
-        target.addRepresentation(this.motifRepr, {sele: matchedTarget, color: this.tmotifClr, name: "targetMotif"})
-        this.setQuerySelection();
-        this.setTargetSelection();
-        this.setHoverTooltip();
-        query.autoView(matchedQuery, this.autoViewTime);
+        }
+        await this.stageReady;
+        await this.loadStructureData();
+        await this.renderStructures(true);
     }
 }
 </script>
@@ -421,14 +538,10 @@ END
 @media screen and (max-width: 960px) {
     .structure-panel  {
         display: flex;
-    }
-    .structure-panel {
         flex-direction: column-reverse;
     }
     .structure-wrapper {
         padding-bottom: 1em;
-    }
-    .structure-wrapper {
         align-self: center;
     }
 }

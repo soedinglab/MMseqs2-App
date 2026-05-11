@@ -409,7 +409,7 @@ export default {
             default: 1000
         },
         alignment: {
-            type: Object,
+            type: Array,
             default: null,
         },
         closeAlignment: {

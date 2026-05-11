@@ -19,7 +19,9 @@
             <span>Jump to {{ db.toUpperCase() }}</span>
         </v-tooltip>
         <template v-if="entry.topHit">
-            <div class="thumbnail-container" style="margin-left: 16px; margin-right: 16px;" @click="$emit('activate')">
+            <div class="thumbnail-container" style="margin-left: 16px; margin-right: 16px;" 
+                :data-db="entry.db"
+                @pointerdown="e => $emit('register', e)" @pointerup="$emit('activate')">
                 <div v-if="isActive" ref="viewerSlot" class="viewer-slot">
                     <StructureViewerToolbar
                         :isFullscreen="false"
@@ -37,7 +39,7 @@
                     />
                 </div>
                 <img v-else-if="thumbnailUrl" style="display: none" />
-                <v-skeleton-loader height="240" v-else type="image" />
+                <v-skeleton-loader :height="240" v-else type="image" />
                 <canvas class="thumbnail-img" :id="`${entry.db}-thumbnail-canvas`" v-show="!isActive && thumbnailUrl"></canvas>
             </div>
             <v-card-text>

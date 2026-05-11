@@ -1,4 +1,10 @@
-import { Selection, Matrix4, PdbWriter } from "ngl";
+import { MolScriptBuilder as MS } from "molstar/lib/mol-script/language/builder";
+import { MinimizeRmsd } from "molstar/lib/mol-math/linear-algebra/3d/minimize-rmsd";
+import { getPositionTable } from "molstar/lib/mol-model/structure/structure/util/superposition";
+import { Mat4, Vec3 } from "molstar/lib/mol-math/linear-algebra";
+import { Script } from "molstar/lib/mol-script/script";
+import { StructureSelection } from "molstar/lib/mol-model/structure";
+import { Color } from "molstar/lib/mol-util/color";
 import { ungzip } from "pako";
 
 function tryLinkTargetToDB(target, db) {
@@ -508,13 +514,13 @@ export const threeToOne = {
   XAA: "X",
 };
 
-export function xyz(structure, resIndex) {
-  var rp = structure.getResidueProxy();
-  var ap = structure.getAtomProxy();
-  rp.index = resIndex;
-  ap.index = rp.getAtomIndexByName("CA");
-  return [ap.x, ap.y, ap.z];
-}
+// export function xyz(structure, resIndex) {
+//   var rp = structure.getResidueProxy();
+//   var ap = structure.getAtomProxy();
+//   rp.index = resIndex;
+//   ap.index = rp.getAtomIndexByName("CA");
+//   return [ap.x, ap.y, ap.z];
+// }
 
 function atomToPDBRow(ap) {
   const { serial, atomname, resname, chainname, resno, inscode, x, y, z } = ap;
@@ -529,20 +535,27 @@ function atomToPDBRow(ap) {
 
 export function makeChainMap(structure, sele) {
   let map = new Map();
+  if (!structure || typeof structure.eachResidue !== "function") {
+    return map;
+  }
   let idx = 1;
   structure.eachResidue((rp) => {
     map.set(idx++, { index: rp.index, resno: rp.resno });
-  }, new Selection(sele));
+  });
   return map;
 }
 
-export function makeSubPDB(structure, sele) {
-  let pdb = [];
-  structure.eachAtom((ap) => {
-    pdb.push(atomToPDBRow(ap));
-  }, new Selection(sele));
-  return pdb.join("\n");
-}
+// export function makeSubPDB(structure, sele) {
+//   let pdb = [];
+//   let lastResno = null;
+//   structure.eachAtom((ap) => {
+//     if (ap.atomname === "CA" && ap.resno !== lastResno) {
+//       lastResno = ap.resno;
+//       pdb.push(atomToPDBRow(ap));
+//     }
+//   }, new Selection(sele));
+//   return pdb.join("\n");
+// }
 
 /**
  * Create a mock PDB from Ca data
@@ -756,26 +769,6 @@ export function mergeMultimer(arr) {
   return out.join("\n");
 }
 
-/* ------ The rotation matrix to rotate Chain_1 to Chain_2 ------ */
-/* m               t[m]        u[m][0]        u[m][1]        u[m][2] */
-/* 0     161.2708425765   0.0663961888  -0.6777150909  -0.7323208325 */
-/* 1     109.4205584665  -0.9559071424  -0.2536229340   0.1480437178 */
-/* 2      29.1924015422  -0.2860648199   0.6902011757  -0.6646722921 */
-/* Code for rotating Structure A from (x,y,z) to (X,Y,Z): */
-/* for(i=0; i<L; i++) */
-/* { */
-/*    X[i] = t[0] + u[0][0]*x[i] + u[0][1]*y[i] + u[0][2]*z[i]; */
-/*    Y[i] = t[1] + u[1][0]*x[i] + u[1][1]*y[i] + u[1][2]*z[i]; */
-/*    Z[i] = t[2] + u[2][0]*x[i] + u[2][1]*y[i] + u[2][2]*z[i]; */
-/* } */
-export function transformStructure(structure, t, u) {
-  structure.eachAtom((atom) => {
-    const [x, y, z] = [atom.x, atom.y, atom.z];
-    atom.x = t[0] + u[0][0] * x + u[0][1] * y + u[0][2] * z;
-    atom.y = t[1] + u[1][0] * x + u[1][1] * y + u[1][2] * z;
-    atom.z = t[2] + u[2][0] * x + u[2][1] * y + u[2][2] * z;
-  });
-}
 
 export function debounce(func, delay) {
   let timeoutId;
@@ -792,6 +785,9 @@ export function debounce(func, delay) {
 // Generate THREE.Matrix4 from 3x3 rotation and 1x3 translation matrices
 // Can give this directly to StructureComponent.setTransform() to superpose
 export function makeMatrix4(translation, rotation) {
+  if (typeof Matrix4 === "undefined") {
+    return { translation, rotation };
+  }
   const u = rotation.slice();
   for (let i = 0; i < 3; i++) {
     u[i].push(translation[i]);
@@ -802,43 +798,67 @@ export function makeMatrix4(translation, rotation) {
   return nglMatrix;
 }
 
+// Generate Mol* Mat4 from 3x3 u (rotation) and 1x3 t (translation) matrices
+export function makeMat4(t, u) {
+  const mat = u.slice();
+  for (let i = 0; i < 3; i++) {
+    mat[i].push(t[i]);
+  }
+  const flatMatrix = [].concat(...mat, [0, 0, 0, 1]);
+
+  if (typeof Mat4 === "undefined") {
+    return flatMatrix;
+  }
+
+  let mat4 = Mat4.identity();
+  mat4 = Mat4.fromArray(mat4, flatMatrix, 0);
+  return mat4;
+}
+
 // Decompose Matrix4 into Quaternion, Position and Scale
 // Slerp between Quaternions, linear interpolate position for some t (0.0-1.0)
 // Compose new Matrix4 for transformation.
-export function interpolateMatrices(a, b, t) {
-  const quaternionA = new Quaternion();
-  const positionA = new Vector3();
-  const scaleA = new Vector3();
-  const quaternionB = new Quaternion();
-  const positionB = new Vector3();
-  const scaleB = new Vector3();
-  a.decompose(positionA, quaternionA, scaleA);
-  b.decompose(positionB, quaternionB, scaleB);
-  const quaternion = new Quaternion();
-  quaternion.slerp(quaternionB, t);
-  const position = new Vector3();
-  position.lerpVectors(positionA, positionB, t);
-  const matrix = new Matrix4();
-  matrix.compose(position, quaternion, scaleA);
-  return matrix;
-}
+// export function interpolateMatrices(a, b, t) {
+//   if (
+//     typeof Quaternion === "undefined" ||
+//     typeof Vector3 === "undefined" ||
+//     typeof Matrix4 === "undefined"
+//   ) {
+//     return t >= 1 ? b : a;
+//   }
+//   const quaternionA = new Quaternion();
+//   const positionA = new Vector3();
+//   const scaleA = new Vector3();
+//   const quaternionB = new Quaternion();
+//   const positionB = new Vector3();
+//   const scaleB = new Vector3();
+//   a.decompose(positionA, quaternionA, scaleA);
+//   b.decompose(positionB, quaternionB, scaleB);
+//   const quaternion = new Quaternion();
+//   quaternion.slerp(quaternionB, t);
+//   const position = new Vector3();
+//   position.lerpVectors(positionA, positionB, t);
+//   const matrix = new Matrix4();
+//   matrix.compose(position, quaternion, scaleA);
+//   return matrix;
+// }
 
-export function animateMatrix(structure, newMatrix, duration) {
-  let startTime = null;
-  const oldMatrix = structure.matrix;
-  const animate = (currentTime) => {
-    if (!startTime) {
-      startTime = currentTime;
-    }
-    let progress = Math.min(1, (currentTime - startTime) / duration);
-    let interpolated = interpolateMatrices(oldMatrix, newMatrix, progress);
-    structure.setTransform(interpolated);
-    if (progress < 1) {
-      window.requestAnimationFrame(animate);
-    }
-  };
-  window.requestAnimationFrame(animate);
-}
+// export function animateMatrix(structure, newMatrix, duration) {
+//   let startTime = null;
+//   const oldMatrix = structure.matrix;
+//   const animate = (currentTime) => {
+//     if (!startTime) {
+//       startTime = currentTime;
+//     }
+//     let progress = Math.min(1, (currentTime - startTime) / duration);
+//     let interpolated = interpolateMatrices(oldMatrix, newMatrix, progress);
+//     structure.setTransform(interpolated);
+//     if (progress < 1) {
+//       window.requestAnimationFrame(animate);
+//     }
+//   };
+//   window.requestAnimationFrame(animate);
+// }
 
 export function checkMultimer(pdbString) {
   const lines = pdbString.split("\n");
@@ -919,14 +939,29 @@ export function checkMultimer(pdbString) {
   return Object.values(models).some((model) => model.size > 1);
 }
 
-export function getPdbText(comp) {
-  let pw = new PdbWriter(comp.structure, { renumberSerial: false });
-  return pw
-    .getData()
-    .split("\n")
-    .filter((line) => line.startsWith("ATOM"))
-    .join("\n");
-}
+// export function getPdbText(comp) {
+//   if (!comp) {
+//     return "";
+//   }
+//   if (typeof PdbWriter !== "undefined" && comp.structure) {
+//     let pw = new PdbWriter(comp.structure, { renumberSerial: false });
+//     return pw
+//       .getData()
+//       .split("\n")
+//       .filter((line) => line.startsWith("ATOM"))
+//       .join("\n");
+//   }
+//   const text =
+//     typeof comp === "string"
+//       ? comp
+//       : typeof comp.data === "string"
+//       ? comp.data
+//       : "";
+//   return text
+//     .split("\n")
+//     .filter((line) => line.startsWith("ATOM"))
+//     .join("\n");
+// }
 
 export const humanReadibleFormat = (bytes) => {
   const u = ["B", "KB", "MB", "GB"];
@@ -1131,6 +1166,7 @@ export function getResnoWithChain(
   return result;
 }
 
+// Deprecated: It was needed for ngl stage, but it became useless
 export function wrapLog() {
   const originalLog = console.log;
   console.log = function (...args) {
@@ -1148,3 +1184,315 @@ export function recoverLog() {
   console.log = tmpIframe.contentWindow.console.log;
   document.body.removeChild(tmpIframe);
 }
+
+export const toMolstarColor = (value, fallback) => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Color(value);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) {
+      const hex = trimmed.startsWith("#") ? trimmed.slice(1) : trimmed;
+      const parsed = Number.parseInt(hex, 16);
+      if (Number.isFinite(parsed)) {
+        return Color(parsed);
+      }
+    }
+  }
+  return Color(fallback);
+};
+
+export const transformPdb = (pdb, t, u) => {
+  if (!pdb) return pdb;
+  return pdb
+    .split("\n")
+    .map((line) => {
+      if (!line.startsWith("ATOM") && !line.startsWith("HETATM")) {
+        return line;
+      }
+      const x = Number.parseFloat(line.slice(30, 38));
+      const y = Number.parseFloat(line.slice(38, 46));
+      const z = Number.parseFloat(line.slice(46, 54));
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
+        return line;
+      }
+      const nx = t[0] + u[0][0] * x + u[0][1] * y + u[0][2] * z;
+      const ny = t[1] + u[1][0] * x + u[1][1] * y + u[1][2] * z;
+      const nz = t[2] + u[2][0] * x + u[2][1] * y + u[2][2] * z;
+      const prefix = line.slice(0, 30);
+      const suffix = line.slice(54);
+      return `${prefix}${nx.toFixed(3).padStart(8)}${ny
+        .toFixed(3)
+        .padStart(8)}${nz.toFixed(3).padStart(8)}${suffix}`;
+    })
+    .join("\n");
+};
+
+export const extractAtomLines = (pdb) => {
+  if (!pdb) {
+    return [];
+  }
+  return pdb
+    .split("\n")
+    .filter((line) => line.startsWith("ATOM") || line.startsWith("HETATM"));
+};
+
+// single chain expression builder
+export const buildChainExpression = (chain, ranges, useChainTest = true) => {
+  // debugger
+  const groupBy = MS.struct.atomProperty.macromolecular.residueKey();
+  const chainTest = useChainTest
+    ? MS.core.rel.eq([
+        MS.struct.atomProperty.macromolecular.auth_asym_id(),
+        chain,
+      ])
+    : null;
+  if (!ranges || ranges.length === 0) {
+    return chainTest
+      ? MS.struct.generator.atomGroups({
+          "chain-test": chainTest,
+          "group-by": groupBy,
+        })
+      : MS.struct.generator.all();
+  }
+  const rangeExpressions = ranges.map((range) =>
+    MS.struct.generator.atomGroups({
+      ...(chainTest ? { "chain-test": chainTest } : {}),
+      "residue-test": MS.core.rel.inRange([
+        MS.struct.atomProperty.macromolecular.auth_seq_id(),
+        range.start,
+        range.end,
+      ]),
+      "group-by": groupBy,
+    }),
+  );
+  return rangeExpressions.length === 1
+    ? rangeExpressions[0]
+    : MS.struct.combinator.merge(rangeExpressions);
+};
+
+export const getSelectionLoci = (expression, structureRef) => {
+  const data = structureRef?.cell?.obj?.data;
+  if (!data || !expression) {
+    return null;
+  }
+  const selection = Script.getStructureSelection(expression, data);
+  return StructureSelection.toLociWithSourceUnits(selection);
+};
+
+export const isChainToken = (token) => {
+  return typeof token === "string" && /^[A-Za-z]$/.test(token);
+};
+
+export const parseAtomLine = (line) => {
+  if (!line.startsWith("ATOM") && !line.startsWith("HETATM")) return null;
+  let atom = line.slice(12, 16).trim();
+  let chainId = line.length >= 22 ? line[21] : "";
+  let resno = Number.parseInt(line.slice(22, 26).trim(), 10);
+  let resname = line.slice(17, 20).trim();
+  if (!Number.isFinite(resno) || !resname) {
+    const parts = line.trim().split(/\s+/);
+    if (
+      parts.length >= 6 &&
+      isChainToken(parts[4]) &&
+      !Number.isNaN(Number.parseInt(parts[5], 10))
+    ) {
+      chainId = parts[4];
+      resno = Number.parseInt(parts[5], 10);
+      resname = parts[3] || resname;
+    } else if (parts.length >= 5) {
+      resno = Number.parseInt(parts[4], 10);
+      resname = parts[3] || resname;
+    }
+  }
+  return { atom, chainId, resno, resname };
+};
+
+/**
+ *
+ * @param {string} pdb
+ * @returns {Map<string, Array<number>} map, mapping chainId to resno list
+ */
+export const buildSerialResidueMap = (pdb) => {
+  const map = new Map();
+  if (!pdb) {
+    return map;
+  }
+  const lastResidue = new Map();
+  for (const line of pdb.split("\n")) {
+    const parsed = parseAtomLine(line);
+    if (!parsed) {
+      continue;
+    }
+    const chainKey =
+      parsed.chainId && parsed.chainId.trim() ? parsed.chainId.trim() : "_";
+    const residueKey = `${chainKey}:${parsed.resno}:${parsed.resname}`;
+    if (lastResidue.get(chainKey) === residueKey) {
+      continue;
+    }
+    lastResidue.set(chainKey, residueKey);
+    if (!map.has(chainKey)) map.set(chainKey, []);
+    map.get(chainKey).push(parsed.resno);
+  }
+  return map;
+};
+
+/**
+ *
+ * @param {Array<Object>} ranges: array of range objects({start, end}) consists of serial numbers
+ * @param {Array<Number>} serialMap: array of resno corresponding to the given serialId
+ * @returns {Array<Object>} array of validated resno for given ranges.
+ */
+export const mapRangesToAuth = (ranges, serialMap) => {
+  if (!serialMap || serialMap.length === 0) {
+    return ranges;
+  }
+
+  if (!ranges || ranges.length == 0) return [];
+
+  return ranges
+    .map((range) => {
+      const startIdx = Math.max(1, Math.round(range.start));
+      const endIdx = Math.max(1, Math.round(range.end));
+      const startPos = Math.min(serialMap.length, startIdx) - 1;
+      const endPos = Math.min(serialMap.length, endIdx) - 1;
+      const startResno = serialMap[startPos];
+      const endResno = serialMap[endPos];
+      if (!Number.isFinite(startResno) || !Number.isFinite(endResno))
+        return null;
+      return {
+        start: Math.min(startResno, endResno),
+        end: Math.max(startResno, endResno),
+      };
+    })
+    .filter(Boolean);
+};
+
+/**
+ *
+ * @param {string} pdb
+ * @param {Map<string, Array[Object]>} rangesByChain
+ * @returns {string} subpdb meeting the given ranges for each chain
+ */
+export const makeSubPdbFromRanges = (pdb, rangesByChain) => {
+  if (!pdb) {
+    return "";
+  }
+  const lines = pdb.split("\n");
+  const atomLines = lines.filter(
+    (line) => line.startsWith("ATOM") || line.startsWith("HETATM"),
+  );
+  const selected = [];
+  const allRanges = [];
+  rangesByChain.forEach((ranges) => {
+    ranges.forEach((range) => allRanges.push(range));
+  });
+  const residueCounters = new Map();
+  const lastResidue = new Map();
+  for (const line of atomLines) {
+    const parsed = parseAtomLine(line);
+    if (!parsed) continue;
+    const chainKey =
+      parsed.chainId && parsed.chainId.trim() ? parsed.chainId.trim() : "_";
+    const residueKey = `${chainKey}:${parsed.resno}:${parsed.resname}`;
+    let serialIndex = residueCounters.get(chainKey) || 0; // serialIndex is reset to 0 for every chain.
+    if (lastResidue.get(chainKey) !== residueKey) {
+      serialIndex += 1;
+      residueCounters.set(chainKey, serialIndex);
+      lastResidue.set(chainKey, residueKey);
+    }
+    const ranges = rangesByChain.get(parsed.chainId) || allRanges;
+    if (!ranges || ranges.length === 0) continue;
+    for (const range of ranges) {
+      if (serialIndex >= range.start && serialIndex <= range.end) {
+        selected.push(line);
+        break;
+      }
+    }
+  }
+  if (selected.length === 0) {
+    return atomLines.join("\n");
+  }
+  return selected.join("\n");
+};
+
+export const isCg = (pdb) => {
+  if (!pdb || typeof pdb !== "string") return false;
+
+  const lines = pdb.split("\n");
+  const atomLines = lines.filter(
+    (line) => line.startsWith("ATOM") || line.startsWith("HETATM"),
+  );
+  let lastResno = -1;
+  for (const line of atomLines) {
+    const parsed = parseAtomLine(line);
+    if (!parsed) continue;
+
+    const resno = parsed.resno;
+    if (lastResno < 0) {
+      lastResno = resno;
+    }
+    if (parsed.atom != "CA") return false;
+    else if (lastResno != resno) return true;
+    else continue;
+  }
+};
+
+export const superposeWithAlignment = (queryRef, targetRef, alignments) => {
+  // 1. Parse alnFasta to get gapless (qResno, tResno) pairs
+  const groupByChain = (items) => {
+    const map = new Map();
+    for (const { chain, resno } of items) {
+      if (!map.has(chain)) map.set(chain, []);
+      map.get(chain).push({ start: resno, end: resno });
+    }
+    return map;
+  };
+
+  const buildMultiChainExpr = (rangesByChain) => {
+    const exprs = [];
+    for (const [chain, ranges] of rangesByChain) {
+      exprs.push(buildChainExpression(chain, ranges));
+    }
+    return exprs.length == 1 ? exprs[0] : MS.struct.combinator.merge(exprs);
+  };
+
+  const pairs = [];
+  for (const aln of alignments) {
+    const qChain = getChainName(aln.query);
+    const tChain = getChainName(aln.target);
+    let qPos = aln.qStartPos;
+    let tPos = aln.dbStartPos;
+    for (let i = 0; i < aln.qAln.length; i++) {
+      const qAA = aln.qAln[i];
+      const tAA = aln.dbAln[i];
+      if (qAA !== "-" && tAA !== "-") {
+        pairs.push({ qChain, qResno: qPos, tChain, tResno: tPos });
+      }
+      if (qAA !== "-") qPos++;
+      if (tAA !== "-") tPos++;
+    }
+  }
+  const n = pairs.length;
+
+  // 2. Build two equal-length, correspondence-matched loci
+  const qRanges = groupByChain(
+    pairs.map((p) => ({ chain: p.qChain, resno: p.qResno })),
+  );
+  const tRanges = groupByChain(
+    pairs.map((p) => ({ chain: p.tChain, resno: p.tResno })),
+  );
+
+  const qExpr = buildMultiChainExpr(qRanges); // MS.struct.combinator.merge of per-chain exprs
+  const tExpr = buildMultiChainExpr(tRanges);
+
+  const qLoci = getSelectionLoci(qExpr, queryRef);
+  const tLoci = getSelectionLoci(tExpr, targetRef);
+
+  // 3. Extract position tables and compute Kabsch transform
+  const posQ = getPositionTable(qLoci, n);
+  const posT = getPositionTable(tLoci, n);
+  const result = MinimizeRmsd.compute({ a: posQ, b: posT });
+
+  return result.bTransform; // Mat4, ready for updateTransformMatrix
+};

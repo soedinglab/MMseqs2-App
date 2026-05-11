@@ -183,29 +183,16 @@ import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
-import {autoLoad} from 'ngl';
 import MotifSelection from "./MotifSelection.vue";
 import LigandMotifSelection from "./LigandMotifSelection.vue";
+import { parseQueryStructure } from './lib/queryStructure.js'
 
 const db = BlobDatabase();
 const storage = new StorageWrapper("folddisco");
 
-async function getStructure(data) {
-    var ext = 'pdb';
-    if (data[0] == "#" || data.startsWith("data_")) {
-        ext = 'cif';
-        data = data.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
-        data = data.replaceAll("_struct_conf.", "_struct_conf_SKIP_HACK.");
-        data = data.replaceAll("_struct_conn.", "_struct_conn_SKIP_HACK.");
-    }
-    var blob = new Blob([data], { type: 'text/plain' });
-    var promise = autoLoad(blob, {ext : ext, name: 'query', firstModelOnly: true});
-    return promise.then(structure => structure.getStructure());
-}
-
 function setDefaultMotif(structure) {
     if (!structure) {
-        return;
+        return "";
     }
 
     var motifList = new Set(); 
@@ -340,7 +327,7 @@ export default {
         async query(value) {
             let prev = await db.getItem('folddisco.query')
             db.setItem('folddisco.query', value);
-            this.queryStructure = await getStructure(this.query);
+            this.queryStructure = parseQueryStructure(value)
             if (prev && prev == value) {
                 return;
             }

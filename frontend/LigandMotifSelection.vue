@@ -61,7 +61,6 @@
 
 <script>
 import ModalDialog from "./ModalDialog.vue";
-import { Selection } from 'ngl';
 import { splitAlphaNum } from "./Utilities";
 
 function sortResidueStrings(a, b) {
@@ -187,7 +186,7 @@ export default {
 
                     const ligAtomIndices = [];
                     res.eachAtom(a => ligAtomIndices.push(a.index));
-                    const ligSel = new Selection(`@${ligAtomIndices.join(",")}`);
+                    const ligSel = new Set(ligAtomIndices)
 
                     // find all atoms within the cutoff distance of the ligand
                     const nearAtoms = structure.getAtomSetWithinSelection(ligSel, this.cutoff);

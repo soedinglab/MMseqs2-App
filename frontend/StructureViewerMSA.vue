@@ -37,10 +37,119 @@
 import StructureViewerTooltip from './StructureViewerTooltip.vue';
 import StructureViewerToolbar from './StructureViewerToolbar.vue';
 import StructureViewerMixin from './StructureViewerMixin.vue';
+import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
+import { Color } from "molstar/lib/mol-util/color";
+import { StructureElement, StructureProperties } from 'molstar/lib/mol-model/structure';
+import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
-import { mockPDB, makeSubPDB, makeMatrix4, getResidueIndices, oneToThree, decodeMultimer, storeChains, revertChainInfo, getResnoWithChain, splitMultimer, mergeMultimer } from './Utilities.js';
-import { download, PdbWriter, Matrix4, Quaternion, Vector3, concatStructures, ColormakerRegistry, Selection } from 'ngl';
+import { 
+    mockPDB, 
+    makeMat4,
+    oneToThree, 
+    decodeMultimer, 
+    storeChains, 
+    revertChainInfo, 
+    splitMultimer, 
+    mergeMultimer,
+    toMolstarColor,
+    mapRangesToAuth,
+    buildChainExpression,
+    getSelectionLoci,
+    extractAtomLines,
+    transformPdb,
+    makeSubPdbFromRanges,
+    concatenatePdbs,
+    buildSerialResidueMap,
+} from './Utilities.js';
 import { pulchra } from 'pulchra-wasm';
+import { Mat4 } from 'molstar/lib/mol-math/linear-algebra.js';
+
+const DEFAULT_REFERENCE_COLOR = 0x1e88e5;
+const DEFAULT_REGULAR_COLOR = 0xffc107;
+const DEFAULT_MASK_COLOR = 0x666666;
+const DEFAULT_HIGHLIGHT_COLOR = 0x11ffee
+const PREVIEW_OPACITY = 0.3
+const OVERPAINT_TAG = "MSA_OVERPAINT"
+const PREVIEW_TAG = "MSA_PREVIEW"
+const TRANSFORM_TAG = "MSA_TRANSFORM"
+
+/**
+ * 
+ * @param {Map<string, string[]>} serialMap 
+ * @return {Map<string, int>} Map, mapping `resno` to `serialIdx`. It overwrites duplicated `resno`
+ */
+const buildSerialIndexMap = (serialMap) => {
+    const map = new Map();
+    if (!serialMap) return map;
+    serialMap.forEach((resno, idx) => {
+        if (!map.has(resno)) {
+            map.set(resno, idx);
+        }
+    });
+    return map;
+};
+
+/**
+ * @param {int[]} positions
+ * @return {{start: int, end: int}[]} `ranges`: merged multiple positions into `resno` range
+ */
+const positionsToRanges = (positions) => {
+    if (!positions || positions.length === 0) return [];
+    const sorted = Array.from(new Set(positions)).sort((a, b) => a - b);
+    const ranges = [];
+    let start = sorted[0];
+    let end = start;
+    for (let i = 1; i < sorted.length; i += 1) {
+        const pos = sorted[i];
+        if (pos === end + 1) {
+            end = pos;
+            continue;
+        }
+        ranges.push({ start: start + 1, end: end + 1 });
+        start = pos;
+        end = pos;
+    }
+    ranges.push({ start: start + 1, end: end + 1 });
+    return ranges;
+};
+
+const positionsToChainwiseRanges = (positions, chains, offsets) => {
+    if (!positions || positions.length == 0) return {}
+    const sorted = [...positions].sort((a, b) => a - b)
+    const result = {}
+    let currentChain = chains[sorted[0]]
+    let start = sorted[0] - offsets[currentChain]
+    let end = start
+
+    for (let i = 1; i < sorted.length; i += 1) {
+        const pos = sorted[i]
+        const chain = chains[pos]
+        const idx = pos - offsets[chain]
+
+        if (!result[currentChain]) {
+            result[currentChain] = []
+        }
+        
+        if (chain != currentChain) {
+            result[currentChain].push({start: start + 1, end: end + 1})
+            currentChain = chain
+            start = end = idx
+            continue
+        }
+
+        if (idx == end + 1) {
+            end += 1
+            continue
+        }
+        
+        result[currentChain].push({start: start + 1, end: end + 1})
+        start = end = idx
+    }
+    result[currentChain].push({start: start + 1, end: end + 1})
+    
+    return result
+}
+
 
 // Mock alignment object from two (MSA-derived) aligned strings
 function mockAlignment(one, two) {
@@ -149,9 +258,7 @@ export default {
         StructureViewerMixin,
     ],
     data: () => ({
-        structures: [],  // { name, aa, 3di (ss), ca, NGL structure, alignment, map }
         curReferenceIndex: -1,  // index in ALL sequences, not just visualised subset - used as key,
-        schemeId: null, // NGL colorscheme,
         selectedColumn: -1,
         ticking: false,
         hoverTimer: null,
@@ -159,6 +266,13 @@ export default {
         registeredColumn: -1,
         isMouseDown: false,
         previewIndex: -1,
+        // For test...
+        structureItems: [],
+        structureIndexByStructure: new Map(),
+        renderToken: 0,
+        overlayToken: 0,
+        clickUnsub: null,
+        pdbCache: new Map()
     }),
     props: {
         entries: { type: Array, required: true },
@@ -168,6 +282,7 @@ export default {
         bgColorLight: { type: String, default: "white" },
         bgColorDark: { type: String, default: "#1E1E1E" },
         representationStyle: { type: String, default: "cartoon" },
+        previewStyle: {type: String, default: 'ball-and-stick'},
         referenceStyleParameters: {
             type: Object,
             default: () => ({ color: 0x1E88E5, opacity: 1.0 })
@@ -177,52 +292,20 @@ export default {
             default: () => ({ color: 0xFFC107, opacity: 0.5, side: 'front' })
         },
         selectedColumns: {
-            type: Array
+            type: Array, default: () => [],
         },
         previewColumn: { type: Number, required: false, default: -1}
     },
-    mounted() {
-        this.updateEntries(this.selection, []);
-        this.stage.setParameters({
-            hoverTimeout: 100,
-        })
+    async mounted() {
+        await this.stageReady;
+        await this.updateEntries(this.selection, [])
+        this.subscribeClicks();
 
-        this.stage.signals.clicked.add((pickingProxy) => {
-            if (!pickingProxy) {
-                // this.selectedColumn = -1;
-                // this.$emit('columnSelected', -1);
-                // this.$nextTick(() => {
-                //     setTimeout(() => {
-                //         this.updateMask()
-                //     }, 0)
-                // })
-                return;
-            }
-
-            let atom = pickingProxy.atom;
-            if (!atom) {
-                // this.selectedColumn = -1;
-                // this.updateMask()
-                // this.$emit('columnSelected', -1);
-                return;
-            }
-            let index = parseInt(atom.structure.name.replace("key-", ""));
-            let entry = this.entries[index]
-            let alnPos = getAlignmentPos(entry.aa, atom.residueIndex);
-            console.log(atom, entry, alnPos);
-            // this.selectedColumn = alnPos;
-            // this.$emit('columnSelected', alnPos);
-            if (this.selectedColumns.includes(alnPos)) {
-                this.$emit('removeHighlight', alnPos)
-            } else {
-                this.$emit('addHighlight', alnPos)
-            }
-            // this.$nextTick(() => {
-            //     setTimeout(() => {
-            //         this.updateMask()
-            //     }, 0)
-            // })
-        });
+        /*
+        // TODO: 
+        // Find out the way to implement hover-related things
+        // in molstar. It seems there are ways to subscribe some sort of
+        // hover event listener... maybe.
 
         this.stage.signals.hovered.add((pickingProxy) => {
             if (this.isMouseDown || !pickingProxy || !pickingProxy.atom) {
@@ -248,19 +331,21 @@ export default {
                 }
             }
         })
+        */
+    },
+    beforeDestroy() {
+        if (this.clickUnsub) {
+            this.clickUnsub()
+            this.clickUnsub = null
+        }
     },
     methods: {
         resetView() {
-            if (!this.stage) return;
-            if (this.selection.length > 0) {
-                this.getComponentByIndex(this.reference).autoView(this.transitionDuration);
-            } else {
-                this.stage.autoView(this.transitionDuration);
-            }
+            if (!this.stager) return
+            this.focusReference() 
         },
         makePDB() {
-            if (!this.stage) return
-            let PDB;
+            if (!this.structureItems.length) return;
             let result = `\
 TITLE     Superposed structures from Foldmason alignment
 REMARK    This file was generated by the FoldMason webserver:
@@ -270,197 +355,597 @@ REMARK      https://doi.org/10.1101/2024.08.01.606130
 REMARK    Warning: Non C-alpha atoms may have been re-generated by PULCHRA
 REMARK             if they are not present in the original PDB file.
 `;
-            this.stage.eachComponent(comp => {
-                let clone = concatStructures("clone", comp.structure)
-                let matrix = new Matrix4();
-                matrix.fromArray(comp.transform.elements);
-                clone.eachAtom(ap => {
-                    let position = new Vector3(ap.x, ap.y, ap.z);
-                    position.applyMatrix4(matrix);
-                    ap.x = position.x;
-                    ap.y = position.y;
-                    ap.z = position.z;
-                });
-                PDB = new PdbWriter(clone, { renumberSerial: false }).getData();
-                PDB = PDB.split('\n').filter(line => line.startsWith("ATOM")).join('\n');
-                let index = parseInt(comp.structure.name.replace("key-", "")); 
-                let name = this.entries[index].name;
-                let remark = `REMARK    Name: ${name}`;
-                if (index !== this.reference) {
-                    const m = matrix.elements.map(e => e.toFixed(6).padStart(12));
-                    remark += `
-REMARK    Rotation matrix (u)
-REMARK    ${m[0]} ${m[4]} ${m[8]}
-REMARK    ${m[1]} ${m[5]} ${m[9]}
-REMARK    ${m[2]} ${m[6]} ${m[10]}
-REMARK    Translation matrix (t)
-REMARK    ${m[12]} ${m[13]} ${m[14]}`;
-                }
+            for (const item of this.structureItems) {
+                const entry = this.entries[item.index];
+                const PDB = extractAtomLines(item.pdb).join('\n');
+                const name = entry?.name || `key-${item.index}`;
+                const remark = `REMARK    Name: ${name}`;
                 result += `\
-MODEL     ${index}
+MODEL     ${item.index}
 ${remark}
 ${PDB}
 ENDMDL
 `;
-            }, "structure")
+            }
             result += "END";
-            download(new Blob([result], { type: 'text/plain' }), "foldmason.pdb")
+            downloadBlob(new Blob([result], { type: 'text/plain' }), "foldmason.pdb")
         },
-        makeImage() {
-            if (!this.stage) return
-            this.stage.viewer.setLight(undefined, undefined, undefined, 0.2)
-            this.stage.makeImage({
-                trim: true,
-                factor: (this.isFullscreen) ? 1 : 8,
-                antialias: true,
-                transparent: true,
-            }).then((blob) => {
-                this.stage.viewer.setLight(undefined, undefined, undefined, this.$vuetify.theme.dark ? 0.4 : 0.2)
-                download(blob, "foldmason.png")
-            })
-        },
-        getComponentByIndex(index) {
+        async makeImage() {
             if (!this.stage) return;
-            const compList = this.stage.getComponentsByName(`key-${index}`);
-            if (compList.list.length === 0) return -1;
-            return compList.list[0];
+            const wasSpinning = this.isSpinning;
+            this.isSpinning = false;
+            const blob = await this.stage.makeImage();
+            if (blob) {
+                downloadBlob(blob, "foldmason.png");
+            }
+            this.isSpinning = wasSpinning;
         },
-        async tmAlignToReference(index) {
-            if (index === this.reference) {
+        subscribeClicks() {
+            if (this.clickUnsub) {
+                this.clickUnsub();
+            }
+            this.clickUnsub = this.stage.onClick((event) => this.handleStructureClick(event));
+        },
+        handleStructureClick(event) {
+            const loci = event?.current?.loci || event?.current;
+            if (!StructureElement.Loci.is(loci)) {
                 return;
             }
-            const refData = this.entries[this.reference];
-            const newData = this.entries[index];
-            const refComp = this.getComponentByIndex(this.reference);
-            const newComp = this.getComponentByIndex(index);
-            const aln = mockAlignment(refData.aa, newData.aa);
-            const fasta = `>target\n${aln.dbAln}\n\n>query\n${aln.qAln}`;
-            const [queryPDB, targetPDB] = await Promise.all([
-                makeSubPDB(refComp.structure, aln ? `${aln.qStartPos}-${aln.qEndPos}` : ''),
-                makeSubPDB(newComp.structure, aln ? `${aln.dbStartPos}-${aln.dbEndPos}` : '')
-            ]);
-            if (!__LOCAL__) {
-                const worker = new Worker(new URL("TMAlignWorker.js", import.meta.url));
-                return new Promise((resolve, reject) => {
-                    worker.onmessage = function (e) {
-                        const { t, u, tmResults } = e.data;
-                        resolve({
-                            matrix: makeMatrix4(t, u),
-                            tmResults: tmResults
-                        }); 
-                        worker.terminate();
-                    }
-                    worker.onerror = function (e) {
-                        reject(e);
-                        worker.terminate();
-                    }
-                    worker.postMessage({ refPDB: targetPDB, newPDB: queryPDB, alnFasta: fasta });
-                });
+            const location = StructureElement.Loci.getFirstLocation(loci);
+            if (!location) {
+                return;
             }
-            const { output, matrix } = await tmalign(targetPDB, queryPDB, fasta);
-            const { t, u }  = parseTMMatrix(matrix);
-            const tmResults = parseTMOutput(output);
-            return Promise.resolve({
-                matrix: makeMatrix4(t, u),
-                tmResults: tmResults,
-                alignment: aln
-            });
-        },
-        async addStructureToStage(index, aa, ca, suffix) {
-            const mock = mockPDB(ca, aa.replace(/-/g, ''), 'A');
-            let blob
-            if (!suffix) {
-                const pdb = await pulchra(mock)
-                blob = new Blob([pdb], { type: 'text/plain' })
+            const structure = location.structure;
+            const index = this.structureIndexByStructure.get(structure);
+            if (index === undefined) {
+                return;
+            }
+            const chainId = StructureProperties.chain.auth_asym_id(location);
+            const resno = StructureProperties.residue.auth_seq_id(location);
+            const item = this.structureItems.find(entry => entry.index === index);
+            const serialIndex = item ? this.getSerialIndex(item, chainId, resno) : null;
+            if (!Number.isFinite(serialIndex)) {
+                return;
+            }
+            const entry = this.entries[index]
+            const alnPos = getAlignmentPos(entry.aa, serialIndex + entry.offsets[chainId]);
+            if (this.selectedColumns.includes(alnPos)) {
+                this.$emit('removeHighlight', alnPos)
             } else {
-                const decoded = decodeMultimer(mock, suffix)
-                const chains = storeChains(decoded)
-                const splitted = splitMultimer(decoded)
-                const arr = []
-                for (const split of splitted) {
-                    const tmp = await pulchra(split);
-                    arr.push(tmp)
-                }
-                const pdb = mergeMultimer(arr)
-                const reverted = revertChainInfo(pdb, chains)
-                // console.log(reverted)
-                blob = new Blob([reverted], { type: 'text/plain' })
+                this.$emit('addHighlight', alnPos)
             }
-            return this.stage.loadFile(blob, { ext: 'pdb', firstModelOnly: true, name: `key-${index}` });
+            this.renderOverlays(updateHighlight = true);
         },
-        async shiftStructure({ structure }, index, shiftValue) {
-            const { x, y, z } = structure.position;
-            const offset = index * shiftValue;
-            structure.setPosition({x: x + offset, y: y + offset, z: z + offset })
-            this.stage.viewer.requestRender()
-        },
-        async explode(shiftValue) {
+        focusReference() {
             if (!this.stage) return;
-            this.structures.forEach((structure, index) => this.shiftStructure(structure, index, shiftValue));
-            this.stage.autoView();
+            const refItem = this.structureItems.find(item => item.index === this.reference) || this.structureItems[0];
+            if (!refItem) return;
+            const loci = getSelectionLoci(MS.struct.generator.all(), refItem.structureRef);
+            this.stage.focusLoci(loci, this.transitionDuration);
         },
-        async updateEntries(newValues, oldValues) {
-            if (!this.stage) {
-                return;
+        getChains(item) {
+            if (item.chainIds && item.chainIds.size > 0) {
+                return Array.from(item.chainIds.values())
             }
-
-            // custom color scheme to hightlight gappy columns and reference/targets
-            if (this.schemeId == null) {
-                let that = this;
-                this.schemeId = ColormakerRegistry.addScheme(function(params) {
-                    let index = parseInt(params.structure.name.replace("key-", ""));
-                    let color = that.regularStyleParameters.color;
-                    if (index === that.reference) {
-                        color = that.referenceStyleParameters.color;
-                    }
-                    let entry = that.entries[index]
-                    let seq = entry.aa
-                    let chains = entry.chains
-                    let offsets = entry.offsets
-                    let residueMask = getMaskedPositions(seq, that.mask);
-                    // let highlightedIndex = getResidueIndex(seq, that.selectedColumn);
-                    let hightlightedIndices = getResidueIndices(seq, that.selectedColumns);
-                    // let hightlightedIndices = getResnoWithChain(seq, that.selectedColumns, chains, offsets);
-                    // let previewIndex = getResidueIndex(seq, that.previewColumn)
-
-                    this.atomColor = (atom) => {
-                        if (hightlightedIndices.includes(atom.residueIndex)) {
-                            return that.highLightColor;
-                        }
-                        // if (highlightedIndex == atom.residueIndex) {
-                        //     // return 0x00E676;
-                        //     return that.highLightColor
-                        // }
-
-                        // if (previewIndex == atom.residueIndex) {
-                        //     return that.previewColor
-                        // }
-                        
-                        if (residueMask.includes(atom.residueIndex)) {
-                            return 0x666666;
-                        }
-                        return color;
-                    };
-                });
+            return ['A']
+        },
+        getChainMap(item, chain) {
+            if (!item.serialMap || item.serialMap.size === 0) return null;
+            let chainMap = item.serialMap.get(chain);
+            if (!chainMap && item.serialMap.size === 1) {
+                chainMap = Array.from(item.serialMap.values())[0];
             }
-
-            // Selections - structures to update/remove/add
-            const newSet = new Set(newValues);
-            const oldSet = new Set(oldValues);
+            return chainMap || null;
+        },
+        getSerialIndex(item, chain, resno) {
+            if (!item.serialIndexByChain || item.serialIndexByChain.size === 0) return null;
+            let chainMap = item.serialIndexByChain.get(chain);
+            if (!chainMap && item.serialIndexByChain.size === 1) {
+                chainMap = Array.from(item.serialIndexByChain.values())[0];
+            }
+            if (!chainMap) return null;
+            const value = chainMap.get(resno);
+            return Number.isFinite(value) ? value : null;
+        },
+        buildMaskExpression(entry, item) {
+            if (!this.mask || this.mask.length === 0) return MS.struct.generator.empty();
+            const positions = getMaskedPositions(entry.aa, this.mask);
+            if (!positions.length) return MS.struct.generator.empty();
+            const chains = this.getChains(item)
+            const ranges = positionsToChainwiseRanges(positions, entry.chains, entry.offsets)
             
-            if (newSet.size === 0) {
-                this.stage.removeAllComponents();
-                return;
+            const exps = []
+            const chainIdAvailable = item.chainIds && item.chainIds.size > 0
+
+            for (let chain of chains) {
+                const chainMap = this.getChainMap(item, chain)
+                const mappedRanges = mapRangesToAuth(ranges[chain], chainMap);
+                if (!mappedRanges || !mappedRanges.length) continue
+
+                const useChain = chainIdAvailable && item.chainIds.has(chain)
+                exps.push(buildChainExpression(chain, mappedRanges, useChain))
+            }
+            
+            return exps.length == 0 ? MS.struct.generator.empty()
+                : exps.length == 1 ? exps[0]
+                : MS.struct.combinator.merge(exps)
+        },
+        buildColumnsExpression(entry, item, columns) {
+            if (!Array.isArray(columns) || columns.length === 0) return MS.struct.generator.empty();
+
+            const residueIndices = Array.from(new Set(columns
+                .map(col => getResidueIndex(entry.aa, Number(col)))
+                .filter(resIdx => Number.isFinite(resIdx) && resIdx >= 0)))
+                .sort((a, b) => a - b);
+            if (residueIndices.length === 0) return MS.struct.generator.empty();
+            
+            const chains = this.getChains(item)
+            const ranges = positionsToChainwiseRanges(residueIndices, entry.chains, entry.offsets);
+            
+            const exps = []
+            const chainIdAvailable = item.chainIds && item.chainIds.size > 0
+            
+            for (let chain of chains) {
+                const chainMap = this.getChainMap(item, chain)
+                const mappedRanges = mapRangesToAuth(ranges[chain], chainMap);
+                if (!mappedRanges || !mappedRanges.length) continue
+
+                const useChain = chainIdAvailable && item.chainIds.has(chain)
+                exps.push(buildChainExpression(chain, mappedRanges, useChain))
+            }
+            
+            return exps.length == 0 ? MS.struct.generator.empty() 
+                : exps.length == 1 ? exps[0]
+                : MS.struct.combinator.merge(exps)
+        },
+        buildHighlightExpression(entry, item) {
+            if (this.selectedColumns.length > 0) {
+                return this.buildColumnsExpression(entry, item, this.selectedColumns);
+            } else return MS.struct.generator.empty()
+        },
+        buildPreviewExpression(entry, item) {
+            if (!Number.isFinite(this.previewColumn) || this.previewColumn < 0) return MS.struct.generator.empty();
+            
+            const residueIndex = getResidueIndex(entry.aa, this.previewColumn)
+            if (!Number.isFinite(residueIndex) || residueIndex < 0) return MS.struct.generator.empty()
+
+            const chain = entry.chains[residueIndex]
+            const processed = residueIndex - entry.offsets[chain]
+            const range = {start: processed + 1, end: processed + 1}
+            const chainMap = this.getChainMap(item, chain)
+            const mappedRanges = mapRangesToAuth([range], chainMap)
+            if (!mappedRanges || !mappedRanges.length) return MS.struct.generator.empty()
+            const useChain = item.chainIds && item.chainIds.size > 0 && item.chainIds.has(chain)
+            return buildChainExpression(chain, mappedRanges, useChain)
+        },
+        async buildEntryPdb(index, entry) {
+            if (this.pdbCache.has(index)) {
+                return this.pdbCache.get(index);
+            }
+            const seq = entry.aa ? entry.aa.replace(/-/g, '') : '';
+            const mock = mockPDB(entry.ca, seq, 'A');
+            let pdb = mock;
+            let raw = mock;
+            try {
+                if (entry.suffix) {
+                    const decoded = decodeMultimer(mock, entry.suffix)
+                    const chains = storeChains(decoded)
+                    const splitted = splitMultimer(decoded)
+                    const arr = []
+                    const forRaw = []
+
+                    for (const split of splitted) {
+                        const tmp = await pulchra(split)
+                        arr.push(tmp)
+                        forRaw.push({pdb: tmp, chain: ""})
+                    }
+                    pdb = mergeMultimer(arr)
+                    raw = concatenatePdbs(forRaw)
+                    pdb = revertChainInfo(pdb, chains)
+                    
+                } else {
+                    pdb = await pulchra(mock);
+                    raw = pdb
+                }
+            } catch (error) {
+                console.warn('pulchra failed for entry', entry?.name || index, error);
+            }
+            const result = {pdb: pdb, raw: raw}
+            this.pdbCache.set(index, result);
+            return result;
+        },
+        async alignEntryToReference(refEntry, refPdbRaw, entry, entryPdbBundle /* { pdb, raw } */) {
+            const aln = mockAlignment(refEntry.aa, entry.aa);
+            if (!Number.isFinite(aln.qStartPos) || !Number.isFinite(aln.dbStartPos)) {
+                return entryPdbBundle.pdb;
+            }
+            const qRanges = new Map([['A', [{ start: aln.qStartPos, end: aln.qEndPos }]]]);
+            const tRanges = new Map([['A', [{ start: aln.dbStartPos, end: aln.dbEndPos }]]]);
+            const qSubPdb = makeSubPdbFromRanges(refPdbRaw, qRanges);
+            const tSubPdb = makeSubPdbFromRanges(entryPdbBundle.raw, tRanges);
+            const alnFasta = `>target\n${aln.dbAln}\n\n>query\n${aln.qAln}`;
+            try {
+                const tm = await tmalign(tSubPdb, qSubPdb, alnFasta);
+                const { t, u } = parseTMMatrix(tm.matrix);
+                parseTMOutput(tm.output);
+                return transformPdb(entryPdbBundle.pdb, t, u);
+            } catch (error) {
+                console.warn('tmalign-wasm failed for entry', entry?.name || '', error);
+            }
+            return entryPdbBundle.pdb
+        },
+        
+        async getAlignedMatrix(refEntry, refPdbRaw, entry, entryPdbRaw) {
+            const aln = mockAlignment(refEntry.aa, entry.aa);
+            if (!Number.isFinite(aln.qStartPos) || !Number.isFinite(aln.dbStartPos)) {
+                return Mat4.identity()
+            }
+            const qRanges = new Map([['A', [{ start: aln.qStartPos, end: aln.qEndPos }]]]);
+            const tRanges = new Map([['A', [{ start: aln.dbStartPos, end: aln.dbEndPos }]]]);
+            const qSubPdb = makeSubPdbFromRanges(refPdbRaw, qRanges);
+            const tSubPdb = makeSubPdbFromRanges(entryPdbRaw, tRanges);
+            const alnFasta = `>target\n${aln.dbAln}\n\n>query\n${aln.qAln}`;
+            try {
+                const tm = await tmalign(tSubPdb, qSubPdb, alnFasta);
+                const { t, u } = parseTMMatrix(tm.matrix);
+                parseTMOutput(tm.output);
+                return makeMat4(t, u);
+            } catch (error) {
+                console.warn('tmalign-wasm failed for entry', entry?.name || '', error);
+            }
+            return Mat4.identity()
+        },
+        async addStructureItem(index, pdbBundle, isReference, matrix=null) {
+            if (!this.stage) return null;
+            const pdb = pdbBundle.pdb
+            const structureRef = await this.stage.loadStructure({ data: pdb, format: 'pdb', label: `key-${index}` });
+            if (!structureRef) return null;
+            await this.stage.updateTransformMatrix(structureRef, matrix, TRANSFORM_TAG)
+            const serialMap = buildSerialResidueMap(pdb);
+            const serialIndexByChain = new Map();
+            serialMap.forEach((values, chain) => {
+                serialIndexByChain.set(chain, buildSerialIndexMap(values));
+            });
+            const chainIds = new Set(storeChains(pdb));
+            const baseComponent = await this.stage.createComponentStatic(structureRef, 'all');
+            
+            let reprRef = undefined
+            let previewRef = undefined
+            
+            if (baseComponent) {
+                reprRef = await this.stage.addRepresentation(
+                    baseComponent,
+                    this.getProp(false, isReference),
+                );
+
+                previewRef = await this.stage.addRepresentation(
+                    baseComponent,
+                    this.getProp(true),
+                )
+                
+                // Initially hide preview representation.
+                await this.stage.getUpdate()
+                .to(previewRef)
+                .apply(
+                    StateTransforms.Representation.TransparencyStructureRepresentation3DFromScript,
+                    {
+                        layers: [
+                            {
+                                script: { language: 'pymol', expression: 'select all'},
+                                value: 1.0,
+                            }
+                        ]
+                    }, {
+                        tags: [PREVIEW_TAG]
+                    }
+                ).commit()
+                
+            }
+            const item = {
+                index,
+                pdb: pdbBundle,
+                structureRef,
+                reprRef,
+                previewRef,
+                chainIds,
+                serialMap,
+                serialIndexByChain,
+                baseComponent,
+                highlightExpr: null,
+                maskExpr: null,
+            };
+            this.structureItems.push(item);
+            const structure = structureRef?.cell?.obj?.data;
+            if (structure) {
+                this.structureIndexByStructure.set(structure, index);
+            }
+            return item;
+        },
+        async renderOverlays(updateMask=false, updateHighlight=false, updatePreview=false) {
+            if (!this.stage || !this.stageReady) return;
+            const token = ++this.overlayToken;
+            await this.stageReady;
+            if (token !== this.overlayToken) return;
+
+            const update = this.stage.getUpdate()
+            if (!update) return
+
+            const transparencyResetLayer = {
+                script: { language: 'mol-script', expression: MS.struct.generator.all() },
+                value: 1.0,
             }
 
-            const update = [];
+            for (const item of this.structureItems) {
+                const entry = this.entries[item.index];
+                if (!entry) continue;
+
+                if (updateMask || updateHighlight) {
+                    const layers = []
+                    let script = ""
+                    
+                    // Render highlights
+                    if (updateHighlight) {
+                        script = this.buildHighlightExpression(entry, item);
+                    } else {
+                        script = item.highlightExpr
+                    }
+
+                    if (script) {
+                        layers.push({
+                            script: { language: 'mol-script', expression: script },
+                            color: Color(DEFAULT_HIGHLIGHT_COLOR),
+                            clear: false,
+                        })
+                    }
+
+                    script = ""
+
+                    // Render mask
+                    if (updateMask) {
+                        script = this.buildMaskExpression(entry, item);
+                    } else {
+                        script = item.maskExpr
+                    }
+
+                    if (script) {
+                        layers.push({
+                            script: { language: 'mol-script', expression: script },
+                            color: Color(DEFAULT_MASK_COLOR),
+                            clear: false,
+                        })
+                    }
+
+                    if (layers.length > 0) {
+                        const nodes = this.stage.getNodes(item.reprRef, OVERPAINT_TAG)
+                        if (nodes.length > 0) {
+                            update.to(nodes[0].transform.ref).update({
+                                layers
+                            })
+                        } else {
+                            update.to(item.reprRef).apply(
+                                StateTransforms.Representation.OverpaintStructureRepresentation3DFromScript,
+                                { layers },
+                                { tags: [OVERPAINT_TAG] },
+                            )
+                        }
+                    } else {
+                        const nodes = this.stage.getNodes(item.reprRef, OVERPAINT_TAG)
+                        if (nodes.length > 0) {
+                            update.delete(nodes[0].transform.ref)
+                        }
+                    }
+                }
+
+                // Render preview
+                if (updatePreview) {
+                    const layers = []
+                    layers.push(transparencyResetLayer)
+                    
+                    const previewExpr = this.buildPreviewExpression(entry, item);
+
+                    if (previewExpr) {
+                        layers.push({
+                            script: { language: 'mol-script', expression: previewExpr },
+                            value: 0.0,
+                            // clear: true
+                        })
+                    }
+
+                    const nodes = this.stage.getNodes(item.previewRef, PREVIEW_TAG)
+                    if (nodes.length > 0) {
+                        update.to(nodes[0].transform.ref).update({
+                            layers
+                        })
+                    } else {
+                        // ERROR There must be exactly one node for this tag...!
+                    }
+                }
+            }
+            await update.commit()
+        },
+        getProp(isPreview = false, isReference = false) {
+            const reprRegular = {
+                type: this.representationStyle,
+                typeParams: {alpha: this.regularStyleParameters.opacity},
+                color: 'uniform',
+                colorParams: {value: toMolstarColor(
+                    this.regularStyleParameters.color,
+                    DEFAULT_REGULAR_COLOR
+                )},
+            }
+            const reprReference = {
+                type: this.representationStyle,
+                typeParams: {alpha: this.referenceStyleParameters.opacity},
+                color: 'uniform',
+                colorParams: {value: toMolstarColor(
+                    this.referenceStyleParameters.color,
+                    DEFAULT_REFERENCE_COLOR
+                )},
+            }
+            const previewReference = {
+                type: this.previewStyle,
+                typeParams: {alpha: PREVIEW_OPACITY},
+                color: 'uniform',
+                colorParams: {value: Color(0xec3f5f)},
+            }
+            
+            return isPreview ? previewReference : 
+                isReference ? reprReference : 
+                reprRegular
+        },
+        async updateAllHighlights() {
+            await this.renderOverlays(updateHighlight = true);
+        },
+        async updateAllPreview() {
+            await this.renderOverlays(updatePreview = true);
+        },
+        // async updateAllPreview() {
+        //     if (!this.stage) return
+
+        //     let getPreviewSelection = (index) => {
+        //         let entry = this.entries[index]
+        //         let seq = entry.aa
+        //         let resno = getResidueIndex(seq, this.previewColumn) + 1;
+
+        //         if (resno < 1) {
+        //             return "none"
+        //         }
+                
+        //         let chain = entry.chains[resno]
+        //         let processed = resno - entry.offsets[chain]
+        //         return String(processed) + ' and :' + chain
+        //     }
+            
+        //     let that = this
+        //     this.stage.eachComponent(function(comp) {
+        //         if (comp.type !== 'structure') return
+
+        //         let reprList = comp.reprList
+        //         // reprList.find(r => r.name === 'cartoon')?.build()
+        //         // return
+
+        //         // As our mockPDB doesn't contain any sidechain atoms,
+        //         // the licorice representation is useless
+                
+        //         const index = parseInt(comp.structure.name.replace("key-", ""));
+
+        //         let previewSele = getPreviewSelection(index)
+        //         let previewRepr = reprList.find(r => r.name === 'preview-repr')
+                
+        //         if (previewRepr) {
+        //             previewRepr.setSelection(previewSele).build()
+        //         } else {
+        //             comp.addRepresentation('hyperball', {
+        //                 name: 'preview-repr',
+        //                 sele: previewSele,
+        //                 color: that.highLightColor,
+        //                 opacity: 0.4,
+        //                 radius: 1.8,
+        //                 side: 'double',
+        //             }).build()
+        //         }
+        //     })
+        // },
+        moveView(idx) {
+            if (!Number.isFinite(Number(idx)) || !this.stage) return;
+            const refItem = this.structureItems.find(item => item.index === this.reference) || this.structureItems[0];
+            if (!refItem) return;
+            const entry = this.entries[refItem.index];
+            if (!entry) return;
+            
+            let intIdx = Number(idx)
+            const chain = entry.chains[intIdx]
+            const processed = intIdx - entry.offsets[chain]
+            const range = {start: processed + 1, end: processed + 1}
+            const chainMap = this.getChainMap(refItem, chain)
+            const mappedRanges = mapRangesToAuth([range], chainMap)
+            if (!mappedRanges || !mappedRanges.length) return null
+            const useChain = refItem.chainIds && refItem.chainIds.size > 0 && refItem.chainIds.has(chain)
+            const expr = buildChainExpression(chain, mappedRanges, useChain)
+
+            if (!expr) {
+                this.focusReference();
+                return;
+            }
+            const loci = getSelectionLoci(expr, refItem.structureRef);
+            if (!loci) {
+                this.focusReference();
+                return;
+            }
+            this.stage.focusLoci(loci, this.transitionDuration);
+        },
+        // Deprecated!
+        async rebuildStructures(focus = true) {
+            // FIXME make it to update only on the changes!
+            // FIXME make it use mol* Mat4 state...!
+
+            if (!this.stage || !this.stageReady) return;
+            const token = ++this.renderToken;
+            await this.stageReady;
+            if (token !== this.renderToken) return;
+
+            await this.stage.clear();
+            this.structureItems = [];
+            this.structureIndexByStructure = new Map();
+
+            const indices = [];
+            if (Number.isInteger(this.reference)) {
+                indices.push(this.reference);
+            }
+            if (Array.isArray(this.selection)) {
+                for (const idx of this.selection) {
+                    if (idx !== this.reference) {
+                        indices.push(idx);
+                    }
+                }
+            }
+
+            if (indices.length === 0) return;
+            const refEntry = this.entries[this.reference];
+            if (!refEntry) return;
+
+            const refPdbBundle = await this.buildEntryPdb(this.reference, refEntry);
+            const refPdb = refPdbBundle.pdb
+            await this.addStructureItem(this.reference, refPdb, true);
+
+            for (const idx of indices) {
+                if (idx === this.reference) continue;
+                const entry = this.entries[idx];
+                if (!entry) continue;
+                const entryPdbBundle = await this.buildEntryPdb(idx, entry);
+                const alignedPdb = await this.alignEntryToReference(refEntry, refPdbBundle.raw, entry, entryPdbBundle);
+                await this.addStructureItem(idx, alignedPdb, false);
+            }
+
+            await this.renderOverlays(updateMask = true, updateHighlight = true, updatePreview = true);
+
+            if (focus) {
+                this.focusReference();
+            }
+        },
+        async updateEntries(newValues, oldValue) {
+            if (!this.stage || !this.stageReady) return
+            const token = ++this.renderToken
+            await this.stageReady
+            if (token !== this.renderToken) return
+
+            const newSet = new Set(newValues)
+            const oldSet = new Set(oldValue)
+            if (newSet.size == 0) {
+                await this.stage.removeAllComponents()
+                this.structureItems = []
+                this.structureIndexByStructure = new Map()
+                return
+            }
+            
+            const toUpdate = [];
             const remove = [];
             const add    = [];
 
             for (const value of oldSet) {
                 if (value === this.reference) continue;
                 if (newSet.has(value)) {
-                    update.push(value);
+                    toUpdate.push(value);
                 } else {
                     remove.push(value);
                 }
@@ -469,150 +954,90 @@ ENDMDL
                 if (value === this.reference || oldSet.has(value)) continue;
                 add.push(value);
             }
+            
+            // Check the status of reference
+            const isReferenceDiff = this.reference !== this.curReferenceIndex
+            const isNewReference = !oldSet.has(this.reference)
+            const isReferenceChanged = isReferenceDiff || isNewReference
 
-            // Changed status of reference
-            const isDiffReference = this.reference !== this.curReferenceIndex;
-            const isNewReference  = !oldSet.has(this.reference);
-            const referenceChanged = isDiffReference || isNewReference;
-
-            this.curReferenceIndex = this.reference;
-
+            
             // Update the reference
-            // If reference already exists, just change the colour and reset its transform
-            // Otherwise add as new structure to the NGL Stage
-            if (referenceChanged) {
-                let data = this.entries[this.reference];
-                let ref;
-                if (isNewReference) {
-                    ref = await this.addStructureToStage(this.reference, data.aa, data.ca, data.suffix);
-                    ref.addRepresentation(this.representationStyle, {...this.referenceStyleParameters, color: this.schemeId });
-                } else {
-                    ref = this.getComponentByIndex(this.reference);
-                    ref.reprList[0].setVisibility(false);
-                    ref.reprList[0].setParameters({...this.referenceStyleParameters, color: this.schemeId })
-                    ref.setTransform(new Matrix4());
-                    ref.reprList[0].setVisibility(true);
+            if (isReferenceChanged) {
+                const oldItem = this.structureItems.find(e => e.index == this.curReferenceIndex)
+                if (oldItem && isReferenceDiff) {
+                    // Change color and alpha for previous reference representation
+                    const ref = oldItem.reprRef
+                    const params = this.getProp()
+                    const color = params.colorParams.value
+                    const alpha = params.typeParams.alpha
+                    await this.stage.updateRepresentationStyle(ref, color, alpha)
                 }
-                ref.autoView();
+                const newRef = this.structureItems.find(e => e.index == this.reference)
+                if (isNewReference || !newRef) {
+                    // build new reference representation
+                    const refEntry = this.entries[this.reference]
+                    const refPdbBundle = await this.buildEntryPdb(this.reference, refEntry)
+                    await this.addStructureItem(this.reference, refPdbBundle, true)
+                } else {
+                    // Simply change color and alpha for previous regular representation
+                    const reprRef = newRef.reprRef
+                    const params = this.getProp(false, true)
+                    const color = params.colorParams.value
+                    const alpha = params.typeParams.alpha
+                    await this.stage.updateRepresentationStyle(reprRef, color, alpha)
+                    const structRef = newRef.structureRef
+                    // initialize transform
+                    await this.stage.updateTransformMatrix(structRef, tag=TRANSFORM_TAG)
+                }
             }
-
+            this.curReferenceIndex = this.reference
+            
+            const refEntry = this.entries[this.reference]
+            const refPdbBundle = this.structureItems.find(e => e.index == this.reference)
+            
             await Promise.all(
                 add.map(async (idx) => {
-                    const data = this.entries[idx];
-                    const structure = await this.addStructureToStage(idx, data.aa, data.ca, data.suffix);
-                    const { matrix } = await this.tmAlignToReference(idx);
-                    structure.setTransform(matrix);
-                    structure.addRepresentation(this.representationStyle, {...this.regularStyleParameters, color: this.schemeId });
+                    const entry = this.entries[idx]
+                    if (!entry) return
+                    const entryPdbBundle = await this.buildEntryPdb(idx, entry)
+                    const matrix = await this.getAlignedMatrix(refEntry, refPdbBundle.raw, entry, entryPdbBundle.raw)
+                    await this.addStructureItem(idx, entryPdbBundle, false, matrix)
                 })
-            );
-
-            await Promise.all(
-                remove.map(async (idx) => { 
-                    const structure = this.getComponentByIndex(idx);
-                    this.stage.removeComponent(structure);
-                })
-            );
+            )
             
-            if (!referenceChanged) {
-                return;
+            {
+                const update = this.stage.getUpdate()
+                remove.map((idx) => {
+                    const index = this.structureItems.findIndex(e => e.index == idx)
+                    if (index == -1) return
+                    
+                    const structRef = this.structureItems[index].structureRef
+                    const structure = structRef?.cell?.obj?.data
+                    this.structureIndexByStructure.delete(structure)
+                    this.structureItems.splice(index)
+                    update.delete(structRef.ref)
+                })
+                await update.commit()
             }
 
-            await Promise.all(
-                update.map(async (idx) => {
-                    const structure = this.getComponentByIndex(idx); 
-                    if (!structure || structure.reprList.length === 0) return;
-                    const [ representation ] = structure.reprList;
-                    representation.setVisibility(false);
-                    const { matrix } = await this.tmAlignToReference(idx);
-                    representation.setParameters(this.regularStyleParameters)
-                    structure.setTransform(matrix);
-                    representation.setVisibility(true);
-                })
-            );
-            this.rebuildReprs();
-            this.clearTimer()
-        },
-        rebuildReprs() {
-            this.stage.eachRepresentation((repr) => {
-                repr.build();
-            });
-        },
-        async updateMask() {
-            this.stage.eachRepresentation((repr) => {
-                repr.update({color: true})
-            });
-        },
-        async updateAllHighlights() {
-            if (!this.stage) return
-
-            this.stage.eachComponent(function(comp) {
-                if (comp.type !== 'structure') return
-                comp.reprList.find(r => r.name === 'cartoon')?.update({ color: true })
-            })
-        },
-        async updateAllPreview() {
-            if (!this.stage) return
-
-            let getPreviewSelection = (index) => {
-                let entry = this.entries[index]
-                let seq = entry.aa
-                let resno = getResidueIndex(seq, this.previewColumn) + 1;
-
-                if (resno < 1) {
-                    return "none"
-                }
-                
-                let chain = entry.chains[resno]
-                let processed = resno - entry.offsets[chain]
-                return String(processed) + ' and :' + chain
-            }
-            
-            let that = this
-            this.stage.eachComponent(function(comp) {
-                if (comp.type !== 'structure') return
-
-                let reprList = comp.reprList
-                // reprList.find(r => r.name === 'cartoon')?.build()
-                // return
-
-                // As our mockPDB doesn't contain any sidechain atoms,
-                // the licorice representation is useless
-                
-                const index = parseInt(comp.structure.name.replace("key-", ""));
-
-                let previewSele = getPreviewSelection(index)
-                let previewRepr = reprList.find(r => r.name === 'preview-repr')
-                
-                if (previewRepr) {
-                    previewRepr.setSelection(previewSele).build()
-                } else {
-                    comp.addRepresentation('hyperball', {
-                        name: 'preview-repr',
-                        sele: previewSele,
-                        color: that.highLightColor,
-                        opacity: 0.4,
-                        radius: 1.8,
-                        side: 'double',
-                    }).build()
-                }
-            })
-        },
-        async moveView(alnPos) {
-            if (alnPos < 0 || this.reference < 0) {
+            if (!isReferenceChanged) {
                 return
             }
-            let comp = this.getComponentByIndex(this.reference)
-            let refEntry = this.entries[this.reference]
-            let resno = getResidueIndex(refEntry.aa, alnPos) + 1
-            if (resno < 1) {
-                return
-            }
-            let chain = refEntry.chains[resno]
-            const chainStr = refEntry.suffix ? " and :" + chain : ""
-            const range = 4
-            resno = resno - refEntry.offsets[chain]
-            let sele = String(resno - range) + "-" + String(resno + range) + chainStr
-            comp.autoView(sele, 200)
+
+            await Promise.all(
+                toUpdate.map(async (idx) => {
+                    const item = this.structureItems.find(e => e.index == idx)
+                    if (!item) return
+
+                    const pdb = item.pdb
+                    const matrix = await this.getAlignedMatrix(refEntry, refPdbBundle.raw, this.entries[idx], pdb.raw)
+                    const structRef = item.structureRef
+                    await this.stage.updateTransformMatrix(structRef, matrix, TRANSFORM_TAG)
+                })
+            )
+            
+            await this.renderOverlays(true, true, true)
+            this.focusReference()
         },
         setTimer(idx, structIdx) {
             this.registeredColumn = idx;
@@ -641,37 +1066,29 @@ ENDMDL
     },
     watch: {
         '$vuetify.theme.dark': function() {
-            this.stage.viewer.setBackground(this.bgColor);
+            this.stage.setBackground(this.bgColor);
         },
         selection: function(newV, oldV) {
-            this.updateEntries(newV, oldV);
+            this.updateEntries(newV, oldV)
         },
         mask: function(newM, oldM) {
             if (oldM?.length == 0 || !newM.every((v, i) => v === oldM[i])) {
-                this.updateMask();
+                this.renderOverlays(updateMask = true);
             }
-        }
+        },
+        selectedColumns: {
+            deep: true,
+            handler() {
+                this.renderOverlays(updateHighlight = true);
+            },
+        },
+        previewColumn: function() {
+            this.renderOverlays(updatePreview = true);
+        },
     },
     computed: {
         bgColor() {
             return this.$vuetify.theme.dark ? this.bgColorDark : this.bgColorLight;
-        },
-        ambientIntensity() {
-            this.$vuetify.theme.dark ? 0.4 : 0.2;
-        },
-        stageParameters: function() {
-            return {
-                log: 'none',
-                backgroundColor: this.bgColor,
-                transparent: true,
-                ambientIntensity: this.ambientIntensity,
-                clipNear: -1000,
-                clipFar: 1000,
-                fogFar: 1000,
-                fogNear: -1000,
-                quality: 'high',
-                tooltip: false,
-            }
         },
         highLightColor() {
             return 0xec3f5f
