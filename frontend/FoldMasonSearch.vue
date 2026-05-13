@@ -335,7 +335,7 @@ export default {
             const query = await db.getItem('msa.query.forwarded_query')
             let queryFile = undefined
             if (query && query.length != 0) {
-                queryFile = query.text()
+                queryFile = await query.text()
             }
 
             for (let i = 0; i < size; i++) {
@@ -386,6 +386,7 @@ export default {
             }
 
             if (queryFile) {
+                debugger
                 files.unshift({text: queryFile, name: "query"})
             }
 
