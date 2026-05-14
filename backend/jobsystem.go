@@ -206,6 +206,76 @@ func (t Ticket) Valid() bool {
 	return validId(string(t.Id))
 }
 
+// Two 2-char prefix levels keep per-directory entry counts below ext4
+// htree's ~50k hash-collision threshold (jobs/Yu/TO/YuTO...).
+func jobDir(basepath string, id Id) string {
+	s := string(id)
+	if len(s) < 4 {
+		return filepath.Join(basepath, s)
+	}
+	return filepath.Join(basepath, s[:2], s[2:4], s)
+}
+
+// Falls back to the legacy flat layout so pre-sharding jobs stay readable.
+func lookupJobDir(basepath string, id Id) string {
+	sharded := jobDir(basepath, id)
+	if _, err := os.Stat(sharded); err == nil {
+		return sharded
+	}
+	legacy := filepath.Join(basepath, string(id))
+	if _, err := os.Stat(legacy); err == nil {
+		return legacy
+	}
+	return sharded
+}
+
+func removeJobDir(basepath string, id Id) error {
+	if err := os.RemoveAll(jobDir(basepath, id)); err != nil {
+		return err
+	}
+	return os.RemoveAll(filepath.Join(basepath, string(id)))
+}
+
+// Walks both sharded and legacy layouts.
+func walkJobDirs(basepath string, fn func(jobDir string)) error {
+	root := filepath.Clean(basepath)
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if len(name) == 2 {
+			lvl1 := filepath.Join(root, name)
+			subs, err := os.ReadDir(lvl1)
+			if err != nil {
+				continue
+			}
+			for _, sub := range subs {
+				if !sub.IsDir() || len(sub.Name()) != 2 {
+					continue
+				}
+				lvl2 := filepath.Join(lvl1, sub.Name())
+				jobs, err := os.ReadDir(lvl2)
+				if err != nil {
+					continue
+				}
+				for _, j := range jobs {
+					if j.IsDir() && validId(j.Name()) {
+						fn(filepath.Join(lvl2, j.Name()))
+					}
+				}
+			}
+		} else if validId(name) {
+			fn(filepath.Join(root, name))
+		}
+	}
+	return nil
+}
+
 type JobSystem interface {
 	SetStatus(Id, Status) error
 	Status(Id) (Status, error)
@@ -243,29 +313,24 @@ func MakeRedisJobSystem(config ConfigRedis, results string, checkOld bool) (*Red
 		return jobsystem, nil
 	}
 
-	dirs, err := os.ReadDir(filepath.Clean(results))
-	if err != nil {
-		return jobsystem, err
-	}
-
-	for _, dir := range dirs {
-		if !dir.IsDir() {
-			continue
-		}
-		file := filepath.Join(filepath.Clean(results), dir.Name(), "job.json")
+	err := walkJobDirs(results, func(dir string) {
+		file := filepath.Join(dir, "job.json")
 		if _, err := os.Stat(file); err != nil {
 			if os.IsNotExist(err) {
-				continue
+				return
 			}
 		}
 		job, err := getJobRequestFromFile(file)
 		if err != nil {
-			continue
+			return
 		}
 		if job.Status != StatusComplete {
 			job.Status = StatusError
 		}
 		jobsystem.SetStatus(job.Id, job.Status)
+	})
+	if err != nil {
+		return jobsystem, err
 	}
 
 	return jobsystem, nil
@@ -278,12 +343,12 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 		return Ticket{id, StatusError}, err
 	}
 
-	workdir := filepath.Join(jobsbase, string(id))
+	workdir := jobDir(jobsbase, id)
 
 	switch res {
 	case StatusComplete:
 		if allowResubmit {
-			os.RemoveAll(workdir)
+			removeJobDir(jobsbase, id)
 			break
 		} else {
 			return Ticket{id, res}, nil
@@ -291,11 +356,11 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	case StatusPending, StatusRunning:
 		return Ticket{id, res}, nil
 	case StatusError:
-		os.RemoveAll(workdir)
+		removeJobDir(jobsbase, id)
 	}
 
 	if _, err := os.Stat(workdir); os.IsNotExist(err) {
-		err = os.Mkdir(workdir, 0755)
+		err = os.MkdirAll(workdir, 0755)
 		if err != nil {
 			return Ticket{id, StatusError}, err
 		}
@@ -406,31 +471,23 @@ func MakeLocalJobSystem(results string, CheckOld bool) (LocalJobSystem, error) {
 		return jobsystem, nil
 	}
 
-	dirs, err := os.ReadDir(filepath.Clean(results))
-	if err != nil {
-		return jobsystem, err
-	}
-
-	for _, dir := range dirs {
-		if !dir.IsDir() {
-			continue
-		}
-		file := filepath.Join(filepath.Clean(results), dir.Name(), "job.json")
+	err := walkJobDirs(results, func(dir string) {
+		file := filepath.Join(dir, "job.json")
 		if _, err := os.Stat(file); err != nil {
 			if os.IsNotExist(err) {
-				continue
+				return
 			}
 		}
 		job, err := getJobRequestFromFile(file)
 		if err != nil ||
 			job.Status == StatusError ||
 			job.Status == StatusUnknown {
-			dir := path.Dir(file)
+			parent := path.Dir(file)
 			// refuse deleting paths like /bin etc
-			if len(dir) > 4 {
-				os.RemoveAll(dir)
+			if len(parent) > 4 {
+				os.RemoveAll(parent)
 			}
-			continue
+			return
 		}
 
 		if job.Status == StatusRunning {
@@ -442,13 +499,16 @@ func MakeLocalJobSystem(results string, CheckOld bool) (LocalJobSystem, error) {
 			jobsystem.Queue = append(jobsystem.Queue, job.Id)
 			jobsystem.queued += 1
 		}
+	})
+	if err != nil {
+		return jobsystem, err
 	}
 
 	return jobsystem, nil
 }
 
 func (j *BaseJobSystem) getJobFileName(id Id) string {
-	return filepath.Join(filepath.Clean(j.Results), string(id), "job.json")
+	return filepath.Join(lookupJobDir(filepath.Clean(j.Results), id), "job.json")
 }
 
 func setStatusInJobFile(file string, status Status) error {
@@ -620,12 +680,12 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 		return Ticket{id, StatusError}, err
 	}
 
-	workdir := filepath.Join(jobsbase, string(id))
+	workdir := jobDir(jobsbase, id)
 
 	switch res {
 	case StatusComplete:
 		if allowResubmit {
-			os.RemoveAll(workdir)
+			removeJobDir(jobsbase, id)
 			break
 		} else {
 			return Ticket{id, res}, nil
@@ -633,13 +693,13 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	case StatusPending, StatusRunning:
 		return Ticket{id, res}, nil
 	case StatusError:
-		os.RemoveAll(workdir)
+		removeJobDir(jobsbase, id)
 	}
 
 	t := Ticket{id, StatusUnknown}
 
 	if _, err := os.Stat(workdir); os.IsNotExist(err) {
-		err = os.Mkdir(workdir, 0755)
+		err = os.MkdirAll(workdir, 0755)
 		if err != nil {
 			return Ticket{id, StatusError}, err
 		}

@@ -19,7 +19,8 @@ type LookupResponse struct {
 }
 
 func Lookup(ticketId Id, page uint64, limit uint64, basepath string, shouldGroup bool) (LookupResponse, error) {
-	result := filepath.Join(basepath, string(ticketId), "query.lookup")
+	base := lookupJobDir(basepath, ticketId)
+	result := filepath.Join(base, "query.lookup")
 
 	file, err := os.Open(result)
 	if err != nil {
@@ -27,7 +28,7 @@ func Lookup(ticketId Id, page uint64, limit uint64, basepath string, shouldGroup
 	}
 	defer file.Close()
 
-	request, err := getJobRequestFromFile(filepath.Join(basepath, string(ticketId), "job.json"))
+	request, err := getJobRequestFromFile(filepath.Join(base, "job.json"))
 	if err != nil {
 		return LookupResponse{}, err
 	}

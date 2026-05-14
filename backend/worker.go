@@ -166,7 +166,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 	start := time.Now()
 	switch job := request.Job.(type) {
 	case SearchJob:
-		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 		var wg sync.WaitGroup
 		errChan := make(chan error, len(job.Database))
 		maxParallel := config.Worker.ParallelDatabases
@@ -294,7 +294,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 			}
 		}
 
-		path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+		path := lookupJobDir(filepath.Clean(config.Paths.Results), request.Id)
 		file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
 		if err != nil {
 			return &JobExecutionError{err}
@@ -314,7 +314,7 @@ func RunJob(request JobRequest, config ConfigRoot) (err error) {
 		}
 		return nil
 	case StructureSearchJob:
-		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 		var wg sync.WaitGroup
 		errChan := make(chan error, len(job.Database))
 		maxParallel := config.Worker.ParallelDatabases
@@ -564,7 +564,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			}
 		}
 
-		path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+		path := lookupJobDir(filepath.Clean(config.Paths.Results), request.Id)
 		file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
 		if err != nil {
 			return &JobExecutionError{err}
@@ -584,7 +584,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		}
 		return nil
 	case ComplexSearchJob:
-		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 		var wg sync.WaitGroup
 		errChan := make(chan error, len(job.Database))
 		maxParallel := config.Worker.ParallelDatabases
@@ -754,7 +754,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			}
 		}
 
-		path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+		path := lookupJobDir(filepath.Clean(config.Paths.Results), request.Id)
 		file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
 		if err != nil {
 			return &JobExecutionError{err}
@@ -774,7 +774,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		}
 		return nil
 	case InterfaceSearchJob:
-		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 		var wg sync.WaitGroup
 		errChan := make(chan error, len(job.Database))
 		maxParallel := config.Worker.ParallelDatabases
@@ -938,7 +938,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			}
 		}
 
-		path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+		path := lookupJobDir(filepath.Clean(config.Paths.Results), request.Id)
 		file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
 		if err != nil {
 			return &JobExecutionError{err}
@@ -1026,7 +1026,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 		}
 		return nil
 	case MsaJob:
-		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 
 		scriptPath := filepath.Join(resultBase, "msa.sh")
 		script, err := os.Create(scriptPath)
@@ -1285,7 +1285,7 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 				return &JobExecutionError{err}
 			}
 
-			path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+			path := lookupJobDir(filepath.Clean(config.Paths.Results), request.Id)
 			file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
 			if err != nil {
 				return &JobExecutionError{err}
@@ -1396,7 +1396,7 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 		}
 		return nil
 	case PairJob:
-		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 
 		scriptPath := filepath.Join(resultBase, "pair.sh")
 		script, err := os.Create(scriptPath)
@@ -1602,7 +1602,7 @@ rm -rf -- "${BASE}/tmp"
 				return &JobExecutionError{err}
 			}
 
-			path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+			path := lookupJobDir(filepath.Clean(config.Paths.Results), request.Id)
 			file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
 			if err != nil {
 				return &JobExecutionError{err}
@@ -1684,7 +1684,7 @@ rm -rf -- "${BASE}/tmp"
 		}
 		return nil
 	case FoldMasonMSAJob:
-		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 		parameters := []string{
 			config.Paths.FoldMason,
 			"easy-msa",
@@ -1717,7 +1717,7 @@ rm -rf -- "${BASE}/tmp"
 		return nil
 	case FoldDiscoJob:
 		log.Print(config.Paths.FoldDisco)
-		resultBase := filepath.Join(config.Paths.Results, string(request.Id))
+		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 		var wg sync.WaitGroup
 		errChan := make(chan error, len(job.Database))
 		maxParallel := config.Worker.ParallelDatabases
@@ -1912,7 +1912,7 @@ printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.d
 			}
 		}
 
-		path := filepath.Join(filepath.Clean(config.Paths.Results), string(request.Id))
+		path := lookupJobDir(filepath.Clean(config.Paths.Results), request.Id)
 		file, err := os.Create(filepath.Join(path, "folddisco_results_"+string(request.Id)+".tar.gz"))
 		if err != nil {
 			return &JobExecutionError{err}
@@ -2088,7 +2088,7 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 			continue
 		}
 
-		jobFile := filepath.Join(config.Paths.Results, string(ticket.Id), "job.json")
+		jobFile := filepath.Join(lookupJobDir(config.Paths.Results, ticket.Id), "job.json")
 
 		f, err := os.Open(jobFile)
 		if err != nil {

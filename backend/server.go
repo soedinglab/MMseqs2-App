@@ -667,7 +667,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		request, err := getJobRequestFromFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.json"))
+		request, err := getJobRequestFromFile(filepath.Join(lookupJobDir(config.Paths.Results, ticket.Id), "job.json"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -740,7 +740,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		name := "mmseqs_results_" + string(ticket.Id) + ".tar.gz"
-		path := filepath.Join(filepath.Clean(config.Paths.Results), string(ticket.Id), name)
+		path := filepath.Join(lookupJobDir(filepath.Clean(config.Paths.Results), ticket.Id), name)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -778,7 +778,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		name := "folddisco_results_" + string(ticket.Id) + ".tar.gz"
-		path := filepath.Join(filepath.Clean(config.Paths.Results), string(ticket.Id), name)
+		path := filepath.Join(lookupJobDir(filepath.Clean(config.Paths.Results), ticket.Id), name)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -804,7 +804,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		path := filepath.Join(filepath.Clean(config.Paths.Results), string(ticket.Id), "foldmason.json")
+		path := filepath.Join(lookupJobDir(filepath.Clean(config.Paths.Results), ticket.Id), "foldmason.json")
 
 		file, err := os.Open(path)
 		if err != nil {
@@ -851,7 +851,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 		var results []FoldDiscoResult
 		var motif string
-		resultBase := filepath.Join(config.Paths.Results, string(ticket.Id))
+		resultBase := lookupJobDir(config.Paths.Results, ticket.Id)
 		request, err := getJobRequestFromFile(filepath.Join(resultBase, "job.json"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -983,7 +983,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			dimerName = dimerName[:pos]
 		}
 
-		resultBase := filepath.Join(config.Paths.Results, string(ticket.Id))
+		resultBase := lookupJobDir(config.Paths.Results, ticket.Id)
 		pdbpath := filepath.Join(resultBase, "pdb_"+database, dimerName+".pdb")
 		pdb, err := os.ReadFile(pdbpath)
 		if err != nil {
@@ -1005,8 +1005,9 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		var queryPath string
 		switch config.App {
 		case "foldseek":
-			pdbPath := filepath.Join(config.Paths.Results, string(ticket.Id), "job.pdb")
-			cifPath := filepath.Join(config.Paths.Results, string(ticket.Id), "job.cif")
+			jobBase := lookupJobDir(config.Paths.Results, ticket.Id)
+			pdbPath := filepath.Join(jobBase, "job.pdb")
+			cifPath := filepath.Join(jobBase, "job.cif")
 			if fileExists(pdbPath) {
 				queryPath = pdbPath
 			} else if fileExists(cifPath) {
@@ -1016,7 +1017,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				return
 			}
 		default:
-			queryPath = filepath.Join(config.Paths.Results, string(ticket.Id), "job.fasta")
+			queryPath = filepath.Join(lookupJobDir(config.Paths.Results, ticket.Id), "job.fasta")
 		}
 		query, err := os.ReadFile(queryPath)
 		if err != nil {
@@ -1054,7 +1055,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			return
 		}
 
-		request, err := getJobRequestFromFile(filepath.Join(config.Paths.Results, string(ticket.Id), "job.json"))
+		request, err := getJobRequestFromFile(filepath.Join(lookupJobDir(config.Paths.Results, ticket.Id), "job.json"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

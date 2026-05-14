@@ -301,7 +301,7 @@ func ReadAlignment[T any](reader io.Reader) ([]T, error) {
 }
 
 func ReadQueryByIds(id Id, ids []int64, jobsbase string) ([]FastaEntry, error) {
-	base := filepath.Join(jobsbase, string(id))
+	base := lookupJobDir(jobsbase, id)
 	query := filepath.Join(base, "query")
 	seqReader := Reader[uint32]{}
 	err := seqReader.Make(dbpaths(query))
@@ -327,7 +327,7 @@ func ReadQueryByIds(id Id, ids []int64, jobsbase string) ([]FastaEntry, error) {
 }
 
 func ReadQueryByKeys(id Id, keys []uint32, jobsbase string) ([]FastaEntry, error) {
-	base := filepath.Join(jobsbase, string(id))
+	base := lookupJobDir(jobsbase, id)
 	query := filepath.Join(base, "query")
 	seqReader := Reader[uint32]{}
 	err := seqReader.Make(dbpaths(query))
@@ -361,7 +361,7 @@ func ReadQueryByKeys(id Id, keys []uint32, jobsbase string) ([]FastaEntry, error
 }
 
 func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, databases []string, jobsbase string) ([]SearchResult, error) {
-	base := filepath.Join(jobsbase, string(id))
+	base := lookupJobDir(jobsbase, id)
 	reader := Reader[uint32]{}
 	taxonomyReader := Reader[uint32]{}
 
@@ -462,7 +462,7 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 }
 
 func ReadFoldDisco(id Id, databases []string, jobsbase string) ([]FoldDiscoResult, error) {
-	base := filepath.Join(jobsbase, string(id))
+	base := lookupJobDir(jobsbase, id)
 	taxonomyReader := Reader[uint32]{}
 
 	var allAlignments []FoldDiscoAlignmentEntry

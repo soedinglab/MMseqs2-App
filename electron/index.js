@@ -2,7 +2,7 @@ import { app, BrowserWindow, shell, dialog, Menu, systemPreferences, nativeTheme
 import { execFile, execFileSync } from 'child_process';
 import { default as fp } from 'find-free-port';
 import { default as os } from 'os';
-import { createReadStream, createWriteStream } from 'fs';
+import { createReadStream, createWriteStream, existsSync } from 'fs';
 import { randomBytes } from 'crypto';
 import { parse, join } from 'path';
 import appRootDir from 'app-root-dir';
@@ -129,6 +129,15 @@ console.log(err);
 		}
 	}
 
+	// Mirrors lookupJobDir in backend/jobsystem.go.
+	const lookupJobDir = (id) => {
+		const sharded = `${userData}/jobs/${id.slice(0, 2)}/${id.slice(2, 4)}/${id}`;
+		if (existsSync(sharded)) return sharded;
+		const legacy = `${userData}/jobs/${id}`;
+		if (existsSync(legacy)) return legacy;
+		return sharded;
+	};
+
 	app.saveResult = (id) => {
 		dialog.showSaveDialog(mainWindow, {
 			title: "Save Result",
@@ -137,7 +146,7 @@ console.log(err);
 			if (!result.filePath) {
 				return;
 			}
-			const resultPath = `${userData}/jobs/${id}/mmseqs_results_${id}.tar.gz`;
+			const resultPath = `${lookupJobDir(id)}/mmseqs_results_${id}.tar.gz`;
 			createReadStream(resultPath).pipe(createWriteStream(result.filePath));
 		});
 	}
