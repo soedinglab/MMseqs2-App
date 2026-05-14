@@ -668,6 +668,8 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					columns,
 					"--complex-report-mode",
 					"0",
+					"--min-aligned-chains",
+					"2",
 				}
 
 				par := params.Search
