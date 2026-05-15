@@ -54,6 +54,7 @@ const getMotif = (motif) => {
     const motifSele = [];
     for (let m of motifList) {
         const chain = m[0];
+        if (chain == "_") continue
         const resno = m.slice(1);
         motifSele.push(`${resno}:${chain}`);
     }
@@ -194,7 +195,7 @@ export default {
                 if (targets.length === 0) return null;
 
                 const structure = concatStructures(
-                    getAccession(alignments[0].target),
+                    getAccession(alignments.target),
                     ...targets.map(t => t.structure)
                 );
                 return this.stage.addComponentFromObject(structure);
@@ -211,11 +212,12 @@ export default {
 
                 const re = "api/result/folddisco/" + this.$route.params.ticket + '?database=' + db +'&id=' + target;
                 const request = await this.$axios.get(re, {
-                    headers: {
-                        'Accept': 'text/plain',
-                    },
+                    // headers: {
+                    //     'Accept': 'text/plain, application/octet-stream',
+                    // },
                     transformResponse: [(d) => d],
                 });
+                debugger
                 let [ targetPdb, ext ] = processPdb(request.data)
                 return await this.stage.loadFile(new Blob([targetPdb], {type: 'text/plain'}), { ext: ext, firstModelOnly: true, name: 'targetStructure'})
             }

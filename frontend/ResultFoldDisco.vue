@@ -125,6 +125,7 @@
                         @bulkToggle="(a, v) => handleBulkToggle(entryidx, a, v)"
                         @updateScroll="() => updateScrollOffsetArr()"
                         @clusterInfo="(info) => handleClusterInfo(entryidx, info)"
+                        @clearAll="clearAllEntries"
                     ></ResultFoldDiscoDB>
                 </template>
                 </panel>
@@ -429,12 +430,12 @@ export default {
             while (attempt < MAX_RETRIES) {
                 try {
                     const request = await this.$axios.get(re, {
-                        headers: {
-                            // 'Cache-Control': 'no-cache, no-store, must-revalidate',
-                            // 'Pragma': 'no-cache',
-                            // 'Expires': '0',
-                            'Accept': 'text/plain',
-                        },
+                        // headers: {
+                        //     // 'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        //     // 'Pragma': 'no-cache',
+                        //     // 'Expires': '0',
+                        //     'Accept': 'text/plain, application/octet-stream',
+                        // },
                         transformResponse: [(d) => d],
                     });
                     return request.data;

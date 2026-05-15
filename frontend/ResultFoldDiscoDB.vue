@@ -842,8 +842,8 @@ export default {
                 // simple click. just toggle it.
                 // If selected count exceeds upperbound, than simply ignore
 
-                if (!this.multipleSelectionEnabled && this.anySelected) {
-                    this.$emit('toggleSelection', this.toggleSourceIdx, false)
+                if (!this.multipleSelectionEnabled) {
+                    this.$emit('clearAll')
                 }
 
                 if (this.totalSelectedCounts > this.selectUpperbound && value) { 
