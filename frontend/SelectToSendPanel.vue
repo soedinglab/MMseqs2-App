@@ -301,7 +301,7 @@ export default {
                         }
                     }
                     // FIXME: concatenate query if it has multiple chains
-                    const isComplex = this.hits?.queries?.length > 1
+                    const isComplex = this.hits?.type == "complexsearch" || this.hits?.queries?.length > 1
                     let queryName = "query"
                     let queryBlob = null
                     if (isComplex) {

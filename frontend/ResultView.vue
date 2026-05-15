@@ -288,6 +288,7 @@ export default {
                         }, 0)
                     })
                     this.selectedDatabases = this.onlyOne ? 1 : 0
+                    debugger
                 }
             },
             immediate: false,
@@ -299,7 +300,7 @@ export default {
             return this.hits?.mode ?? "";
         },
         isComplex() {
-            if (this.hits?.queries?.length > 1) {
+            if (this.hits?.type == "complexsearch" || this.hits?.queries?.length > 1) {
                 return true;
             }
             return false;
