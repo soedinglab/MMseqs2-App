@@ -307,6 +307,7 @@ export default {
                 await db.removeItem('msa.query.size')
                 await db.removeItem('msa.query.names')
                 await db.removeItem('msa.query.forwarded_query')
+                await db.removeItem('msa.query.forwarded_query_name')
                 for (let i = 0; i < size; i++) {
                     await db.removeItem(`msa.query.chunk:${i}`)
                 }
@@ -334,9 +335,12 @@ export default {
 
             const query = await db.getItem('msa.query.forwarded_query')
             let queryFile = undefined
+            let queryName = undefined
             if (query && query.length != 0) {
                 queryFile = await query.text()
+                queryName = await db.getItem('msa.query.forwarded_query_name')
             }
+            debugger
 
             for (let i = 0; i < size; i++) {
                 const entry = await db.getItem(`msa.query.chunk:${i}`)
@@ -387,7 +391,7 @@ export default {
 
             if (queryFile) {
                 debugger
-                files.unshift({text: queryFile, name: "query"})
+                files.unshift({text: queryFile, name: queryName})
             }
 
             this.addFiles(files)

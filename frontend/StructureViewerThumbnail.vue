@@ -195,7 +195,7 @@ export default {
                 if (targets.length === 0) return null;
 
                 const structure = concatStructures(
-                    getAccession(alignments.target),
+                    getAccession(alignments[0].target),
                     ...targets.map(t => t.structure)
                 );
                 return this.stage.addComponentFromObject(structure);

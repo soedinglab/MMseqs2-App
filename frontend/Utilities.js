@@ -548,6 +548,24 @@ export function makeSubPDB(structure, sele) {
   return pdb.join("\n");
 }
 
+export function makeCgPDB(structure) {
+  let pdb = [];
+  let lastResno = null;
+  let lastChain = null;
+  structure.eachAtom((ap) => {
+    if (ap.atomname === "CA" && ap.element == 'C' && ap.resno !== lastResno) {
+      lastResno = ap.resno;
+      if (lastChain && lastChain != ap.chainname) {
+        pdb.push('TER')
+      }
+      pdb.push(atomToPDBRow(ap));
+      lastChain = ap.chainname
+    }
+  }, new Selection('all'));
+  pdb.push("TER")
+  return pdb.join("\n");
+}
+
 /**
  * Create a mock PDB from Ca data
  * Follows the spacing spec from https://www.wwpdb.org/documentation/file-format-content/format33/sect9.html#ATOM
@@ -1014,6 +1032,10 @@ export const getChainName = (name) => {
   if (/_v[0-9]+$/.test(name) || /^AF-\W+-/.test(name)) {
     return "A";
   }
+  
+  if (name.includes(' ')) {
+    name = name.split(' ')[0]
+  }
 
   let pos = name.lastIndexOf("_");
   if (pos != -1) {
@@ -1027,6 +1049,10 @@ export const getChainName = (name) => {
 export const getAccession = (name) => {
   if (/-_-_-_/.test(name)) {
     name = name.split("-_-_-_")[0];
+  }
+  
+  if (name.includes(' ')) {
+    name = name.split(' ')[0]
   }
 
   if (/^AF-\w+-/.test(name)) {

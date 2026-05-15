@@ -89,8 +89,9 @@
 <script>
 
 import { StorageWrapper} from './lib/HistoryMixin.js';
-import { getAccession, sleep } from './Utilities';
+import { encodeMultimer, getAccession, makeCgPDB, makeSubPDB, sleep, storeChains } from './Utilities';
 import { BlobDatabase } from './lib/BlobDatabase';
+import { autoLoad, PdbWriter, Selection } from "ngl"
 
 const localDb = BlobDatabase()
 
@@ -299,7 +300,42 @@ export default {
                             queryPdb = "";
                         }
                     }
-                    await localDb.setItem("msa.query.forwarded_query", new Blob([queryPdb], {type: "text/plain"}))
+                    // FIXME: concatenate query if it has multiple chains
+                    const isComplex = this.hits?.queries?.length > 1
+                    let queryName = "query"
+                    let queryBlob = null
+                    if (isComplex) {
+                        const isCif = queryPdb.trimStart().startsWith("data_") || queryPdb.trimStart().startsWith("#")
+                        let ext = "pdb"
+                        if (isCif) {
+                            queryPdb = queryPdb.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.")
+                            ext = 'cif'
+                        } 
+                        queryBlob = new Blob([queryPdb], {type: "text/plain"})
+                        let processedQuery = await autoLoad(queryBlob, {ext: ext, firstModelOnly: true }).then(o => {
+                            return makeCgPDB(o)
+                        })
+                        // I have to manually break down 
+                        const chains = storeChains(processedQuery)
+                        const pdbs = processedQuery.trim().split("\nTER").filter(s => !!s).map(s => s + "\nTER")
+                        if (pdbs.length != chains.length) {
+                            console.warn("chain info and pdb differ")
+                            console.log(chains, pdbs)
+                        } else {
+                            let arr = []
+                            for (let i = 0; i < pdbs.length; i++) {
+                                arr.push({pdb: pdbs[i], chain: chains[i]})
+                            }
+                            const result = encodeMultimer(arr)
+                            queryBlob = new Blob([result.pdb], {type: "text/plain"})
+                            queryName += result.suffix
+                        }
+                    } else {
+                        queryBlob = new Blob([queryPdb], {type: "text/plain"})
+                    }
+                    await localDb.setItem("msa.query.forwarded_query", queryBlob)
+                    await localDb.setItem("msa.query.forwarded_query_name", queryName)
+                    debugger
                 }
                 this.loading = false
                 this.cancelCtl = null
