@@ -70,7 +70,7 @@
                                 :value="sortMenuValue"
                                 >
                                 <v-list-item v-if="isComplex" @click.stop="changeSortMode('qtm')">
-                                    <v-list-item-title>Query TM-score</v-list-item-title>
+                                    <v-list-item-title>{{ searchType === 'interfacesearch' ? 'Query Interface TM-score' : 'Query TM-score' }}</v-list-item-title>
                                     <v-list-item-icon>
                                         <v-icon :style="{'opacity' : sortKey == 'qtm' ? '1' : 0}">
                                             {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
@@ -78,7 +78,7 @@
                                     </v-list-item-icon>
                                 </v-list-item>
                                 <v-list-item v-if="isComplex" @click.stop="changeSortMode('ttm')">
-                                    <v-list-item-title>Target TM-score</v-list-item-title>
+                                    <v-list-item-title>{{ searchType === 'interfacesearch' ? 'Target Interface TM-score' : 'Target TM-score' }}</v-list-item-title>
                                     <v-list-item-icon>
                                         <v-icon :style="{'opacity' : sortKey == 'ttm' ? '1' : 0}">
                                             {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
@@ -179,7 +179,7 @@
                 'background-color': $vuetify.theme.dark ? '#1e1e1e' : '#fff'}">
                 <tr v-if="isComplex">
                     <th colspan="1"></th>
-                    <th colspan="2" style="text-align:center; width:10%; border-right: 1px solid #333; border-bottom: 1px solid #333;">Complex</th>
+                    <th colspan="2" style="text-align:center; width:10%; border-right: 1px solid #333; border-bottom: 1px solid #333;">{{ searchType === 'interfacesearch' ? 'Interface' : 'Complex' }}</th>
                     <th :colspan="6 +  entry.hasDescription + entry.hasTaxonomy + ((tableMode == 1) ? 2 : 0)" style="text-align:center; border-bottom: 1px solid #333;">Chain</th>
                 </tr>
                 <tr>
@@ -200,9 +200,9 @@
                     <template v-if="isComplex">
                         <!-- <th class="thin">ID</th> -->
                         <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'qtm', 'sort-down': this.sortOrder < 0}"
-                            @click="changeSortMode('qtm')" title="Click to sort by Query TM-score">qTM</th>
+                            @click="changeSortMode('qtm')" :title="searchType === 'interfacesearch' ? 'Click to sort by Query Interface TM-score' : 'Click to sort by Query TM-score'">qTM</th>
                         <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'ttm', 'sort-down': this.sortOrder < 0}"
-                            @click="changeSortMode('ttm')" title="Click to sort by Target TM-score" style="border-right: 1px solid #333; ">tTM</th>
+                            @click="changeSortMode('ttm')" :title="searchType === 'interfacesearch' ? 'Click to sort by Target Interface TM-score' : 'Click to sort by Target TM-score'" style="border-right: 1px solid #333; ">tTM</th>
                     </template>
                     <th :class="[`wide-${3 - entry.hasDescription - entry.hasTaxonomy}`, {'sort-selected': this.sortKey == 'target', 'sort-down': this.sortOrder < 0}]" 
                         class="sort-criterion" title="Click to sort by target name" @click="changeSortMode('target')">
@@ -272,8 +272,8 @@
                         </div>
                     </td>
                     <template v-if="index == 0 && isComplex">
-                        <td class="thin" data-label="Query TM-score" :rowspan="entry.alignments[groupidx].length">{{ entry.alignments[groupidx][0].complexqtm.toFixed(2) }}</td>
-                        <td class="thin" data-label="Target TM-score" :rowspan="entry.alignments[groupidx].length">{{ entry.alignments[groupidx][0].complexttm.toFixed(2) }}</td>
+                        <td class="thin" :data-label="searchType === 'interfacesearch' ? 'Query Interface TM-score' : 'Query TM-score'" :rowspan="entry.alignments[groupidx].length">{{ entry.alignments[groupidx][0].complexqtm.toFixed(2) }}</td>
+                        <td class="thin" :data-label="searchType === 'interfacesearch' ? 'Target Interface TM-score' : 'Target TM-score'" :rowspan="entry.alignments[groupidx].length">{{ entry.alignments[groupidx][0].complexttm.toFixed(2) }}</td>
                     </template>
                     <td class="db long" data-label="Target" 
                         :style="{ 'border-width' : isComplex ? '5px' : null, 
@@ -409,7 +409,7 @@ export default {
             default: 1000
         },
         alignment: {
-            type: Object,
+            type: [Object, Array],
             default: null,
         },
         closeAlignment: {
@@ -423,6 +423,10 @@ export default {
         isComplex: {
             type: Boolean,
             default: false,
+        },
+        searchType: {
+            type: String,
+            default: "",
         },
     },
     watch: {

@@ -41,10 +41,10 @@
                 <canvas class="thumbnail-img" :id="`${entry.db}-thumbnail-canvas`" v-show="!isActive && thumbnailUrl"></canvas>
             </div>
             <v-card-text>
-                <div class="card-content-entry" data-label="Query TM-score" v-if="entry.qTM">
+                <div class="card-content-entry" :data-label="searchType === 'interfacesearch' ? 'Query Interface TM-score' : 'Query TM-score'" v-if="entry.qTM">
                     <span>{{ entry.qTM }}</span>
                 </div>
-                <div class="card-content-entry" data-label="Target TM-score" v-if="entry.tTM">
+                <div class="card-content-entry" :data-label="searchType === 'interfacesearch' ? 'Target Interface TM-score' : 'Target TM-score'" v-if="entry.tTM">
                     <span>{{ entry.tTM }}</span>
                 </div>
                 <div class="card-content-entry" :data-label="mode == 1 ? 'Chain Pairing' : 'Target'">
@@ -154,6 +154,10 @@ export default {
         isSpinning: {
             type: Boolean,
             default: false,
+        },
+        searchType: {
+            type: String,
+            default: "",
         },
     },
     beforeMount() {

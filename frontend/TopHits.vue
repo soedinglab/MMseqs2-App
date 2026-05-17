@@ -27,6 +27,7 @@
                             :thumbnailUrl="thumbnailCache[hit.db]"
                             :isActive="activeCardId === hit.db"
                             :isSpinning="activeCardId === hit.db && viewerSpinning"
+                            :searchType="searchType"
                             @activate="handleCardActivate(hit)"
                             @resetView="handleToolbarResetView"
                             @toggleSpin="handleToolbarToggleSpin"
@@ -73,6 +74,10 @@ export default {
             required: true,
         },
         alignMode: {
+            type: String,
+            default: "",
+        },
+        searchType: {
             type: String,
             default: "",
         }

@@ -98,7 +98,7 @@
                     <TopHits
                         v-if="hits && hits.results && hits.results.length > 1"
                         v-show="selectedDatabases == 0"
-                        :hits="hits" :mode="isComplex ? 1 : 0" :alignMode="mode"
+                        :hits="hits" :mode="isComplex ? 1 : 0" :alignMode="mode" :searchType="searchType"
                         @jumpTo="i => selectedDatabases = i+1" 
                     />
                     <keep-alive>
@@ -106,6 +106,7 @@
                             v-if="hits && hits.results && hits.results.length > 1 && selectedDatabases == 0" ref="top100"
                             :hits="hits" :mode="mode" :isComplex="isComplex" :tableMode="tableMode" :alignment="alignment"
                             :selectedStates="selectedStates" :selectedCounts="selectedCounts" :selectUpperbound="selectUpperbound"
+                            :searchType="searchType"
                             @switchTableMode="(n) => switchTableMode(n)" 
                             @showAlignment="(o, db, e) => showAlignment(o, db, e)"
                             @toggleSelection="(db, i, v) => handleToggleSelection(db, i, v, true)"
@@ -119,7 +120,7 @@
                         :tableMode="tableMode" :entryidx="entryidx" :entry="entry" :toggleSourceDb="toggleSourceDb"
                         :mode="mode" :selectedStates="selectedStates[entryidx]" :selectedCounts="selectedCountPerDb[entryidx]"
                         :totalSelectedCounts="selectedCounts" :selectUpperbound="selectUpperbound" :alignment="alignment"
-                        :onlyOne="hits.results.length == 1" :isComplex="isComplex"
+                        :onlyOne="hits.results.length == 1" :isComplex="isComplex" :searchType="searchType"
                         @switchTableMode="(n) => switchTableMode(n)" 
                         @forwardDropdown="(e, h) => forwardDropdown(e, h)"
                         @showAlignment="(i, e) => showAlignment(i, entry.db, e)"
