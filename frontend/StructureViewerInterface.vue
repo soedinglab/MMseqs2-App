@@ -1,7 +1,11 @@
 <template>
 <div class="structure-panel" v-if="alignments.length > 0 && 'tCa' in alignments[0]">
     <StructureViewerTooltip attach=".structure-panel" />
-    <div class="structure-wrapper" ref="structurepanel">
+    <div v-if="fetchError" class="structure-error">
+        <strong>Structure retrieval failed</strong>
+        <div style="margin-top: 0.4em; font-size: 0.9em; opacity: 0.8;">{{ fetchError }}</div>
+    </div>
+    <div class="structure-wrapper" ref="structurepanel" v-show="!fetchError">
         <table v-if="tmAlignResults" class="tmscore-panel" v-bind="tmPanelBindings">
             <tr>
                 <td class="left-cell">TM-Score:</td>
@@ -128,6 +132,87 @@ const getPdbText = comp => {
     return pw.getData().split('\n').filter(line => line.startsWith('ATOM')).join('\n');
 }
 
+// Some exported multichain PDBs omit TER records between chains.
+// Insert TER at chain boundaries so downstream tools keep chains separated.
+const ensureTerBetweenChains = (pdbText) => {
+    const out = [];
+    let prevChain = null;
+    for (const line of pdbText.split('\n')) {
+        if (line.startsWith('ATOM') || line.startsWith('HETATM')) {
+            const chain = line.charAt(21);
+            if (prevChain !== null && chain !== prevChain) {
+                out.push('TER');
+            }
+            prevChain = chain;
+        } else if (line.startsWith('TER')) {
+            prevChain = null;
+        }
+        out.push(line);
+    }
+    return out.join('\n');
+}
+
+const getPdbChains = (pdbText) => {
+    const chains = new Set();
+    for (const line of pdbText.split('\n')) {
+        if (line.startsWith('ATOM') || line.startsWith('HETATM')) {
+            const c = line.charAt(21);
+            if (c && c !== ' ') chains.add(c);
+        }
+    }
+    return chains;
+}
+
+const extractChainPdb = (pdbText, chainName) => {
+    const out = [];
+    for (const line of pdbText.split('\n')) {
+        if ((line.startsWith('ATOM') || line.startsWith('HETATM')) && line.charAt(21) === chainName) {
+            out.push(line);
+        }
+    }
+    if (out.length === 0) return null;
+    out.push('TER');
+    out.push('END');
+    return out.join('\n');
+}
+
+// Return sorted resnos on `chain` whose CA is within `cutoff` Angstrom
+// of any CA on a different chain. Used to define the interface.
+const getInterfaceResnos = (structure, chain, cutoff = 10) => {
+    const onChain = [];
+    const offChain = [];
+    structure.eachAtom(ap => {
+        if (ap.atomname !== 'CA') return;
+        const entry = { resno: ap.resno, x: ap.x, y: ap.y, z: ap.z };
+        if (ap.chainname === chain) onChain.push(entry);
+        else offChain.push(entry);
+    });
+    const c2 = cutoff * cutoff;
+    const hits = new Set();
+    for (const r of onChain) {
+        for (const o of offChain) {
+            const dx = r.x - o.x, dy = r.y - o.y, dz = r.z - o.z;
+            if (dx*dx + dy*dy + dz*dz <= c2) { hits.add(r.resno); break; }
+        }
+    }
+    return Array.from(hits).sort((a, b) => a - b);
+}
+
+// Compress an ordered list of resnos into an NGL range selection like
+// "(12-18 or 25 or 30-33) and :A". Returns null if list is empty.
+const resnosToSele = (resnos, chain) => {
+    if (!resnos || resnos.length === 0) return null;
+    const ranges = [];
+    let start = resnos[0], prev = start;
+    for (let i = 1; i < resnos.length; i++) {
+        if (resnos[i] === prev + 1) { prev = resnos[i]; continue; }
+        ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
+        start = prev = resnos[i];
+    }
+    ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
+    return `(${ranges.join(' or ')}) and :${chain}`;
+}
+
 export default {
     name: "StructureViewerInterface",
     components: {
@@ -146,16 +231,24 @@ export default {
             showTarget: 0,
             tmAlignResults: null,
             hasQuery: true,
+            fetchError: null,
+            // Interface selections per chain, populated in mounted()
+            interfaceSelesQuery: [],
+            interfaceSelesTarget: [],
         }
     },
     props: {
         alignments: { type: Array },
         highlights: { type: Array },
         queryFile: { type: String },
-        queryAlignedColor: { type: String, default: "#1E88E5" },
-        queryUnalignedColor: { type: String, default: "#A5CFF5" },
-        targetAlignedColor: { type: String, default: "#FFC107" },
-        targetUnalignedColor: { type: String, default: "#FFE699" },
+        queryChainPalette: {
+            type: Array,
+            default: () => (["#1E88E5", "#43A047"]), // chain 1: blue, chain 2: green
+        },
+        targetChainPalette: {
+            type: Array,
+            default: () => (["#FFC107", "#E53935"]), // chain 1: amber, chain 2: red
+        },
         qRepr: { type: String, default: "cartoon" },
         tRepr: { type: String, default: "cartoon" },
         hits: { type: Object },
@@ -175,9 +268,9 @@ export default {
                 const str1_xyz = getAtomXYZ(str1, new Selection(`(${sele_q}) and :${chain_q}.CA`));
                 const str2_xyz = getAtomXYZ(str2, new Selection(`(${sele_t}) and :${chain_t}.CA`));
 
-                if (str1_xyz.length != str2_xyz.length) {
-                    console.warn("Different number of CA atoms in query and target", str1_xyz.length, str2_xyz.length);
-                }
+                // if (str1_xyz.length != str2_xyz.length) {
+                //     console.warn("Different number of CA atoms in query and target", str1_xyz.length, str2_xyz.length);
+                // }
                 for (let i = 0; i < Math.min(str1_xyz.length, str2_xyz.length); i++) {
                     shape.addArrow(str1_xyz[i], str2_xyz[i], [0, 1, 1], 0.4);
                 }
@@ -239,28 +332,28 @@ export default {
         },
         setQuerySelection() {
             if (!this.stage) return;
-            let repr = this.stage.getRepresentationsByName("queryStructure");
-            if (!repr) return;
-            let sele = this.querySele;
-            repr.setSelection(sele);
-            repr.list[0].parent.autoView(sele, this.autoViewTime);
-            if (this.showQuery === 0) {
-                this.stage.getRepresentationsByName("querySurface-1").setVisibility(false);
-                this.stage.getRepresentationsByName("querySurface-2").setVisibility(false);
-            } else if (this.showQuery === 1) {
-                this.stage.getRepresentationsByName("querySurface-1").setVisibility(true);
-                this.stage.getRepresentationsByName("querySurface-2").setVisibility(false);
-            } else {
-                this.stage.getRepresentationsByName("querySurface-1").setVisibility(true);
-                this.stage.getRepresentationsByName("querySurface-2").setVisibility(true);
+            const fullOpacity = this.showQuery === 2;
+            const baseRepr = this.stage.getRepresentationsByName("queryStructure");
+            if (!baseRepr) return;
+            const sele = this.querySele;
+            baseRepr.setSelection(sele);
+            // In mode 2 show entire structure at full opacity; otherwise keep it faded
+            baseRepr.setParameters({ opacity: fullOpacity ? 1.0 : 0.3, depthWrite: fullOpacity });
+            this.stage.getRepresentationsByName("queryStructureIface").setVisibility(!fullOpacity);
+            if (baseRepr.list && baseRepr.list[0]) {
+                baseRepr.list[0].parent.autoView(sele, this.autoViewTime);
             }
         },
         setTargetSelection() {
             if (!this.stage) return;
-            let repr = this.stage.getRepresentationsByName("targetStructure");
+            const fullOpacity = this.showTarget === 2;
+            const repr = this.stage.getRepresentationsByName("targetStructure");
             if (!repr) return;
-            let sele = this.targetSele;
+            const sele = this.targetSele;
             repr.setSelection(sele);
+            // In mode 2 show entire structure at full opacity; otherwise keep it faded
+            repr.setParameters({ opacity: fullOpacity ? 1.0 : 0.3, depthWrite: fullOpacity });
+            this.stage.getRepresentationsByName("targetStructureIface").setVisibility(!fullOpacity);
         },
         async handleMakeImage() {
             if (!this.stage)
@@ -284,7 +377,7 @@ export default {
                 return;
             let qPDB = this.stage.getComponentsByName("queryStructure").list.map(getPdbText); 
             let tPDB = this.stage.getComponentsByName("targetStructure").list.map(getPdbText);
-            if (!qPDB && !tPDB) 
+            if (qPDB.length === 0 && tPDB.length === 0)
                 return;
             let title = this.alignments.map(aln => qPDB ? `${aln.query}-${aln.target}` : aln.target);
             let result = null;
@@ -350,16 +443,26 @@ END
         querySele: function() {
             if (this.alignments.length === 0 || this.showQuery == 2)
                 return '';
-            if (this.showQuery === 0)
-                return this.alignments.map(a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`).join(" or ");
+            if (this.showQuery === 0) {
+                // Show only interface residues; fall back to full chain if not yet computed
+                const iface = this.interfaceSelesQuery.filter(Boolean);
+                return iface.length > 0
+                    ? iface.join(' or ')
+                    : this.alignments.map(a => `:${getChainName(a.query)}`).join(' or ');
+            }
             if (this.showQuery === 1)
                 return this.alignments.map(a => `:${getChainName(a.query)}`).join(" or ");
         },
         targetSele: function() {
             if (this.alignments.length === 0 || this.showTarget == 2)
                 return '';
-            if (this.showTarget === 0)
-                return this.alignments.map(a => `${a.dbStartPos}-${a.dbEndPos}:${getChainName(a.target)}`).join(" or ");
+            if (this.showTarget === 0) {
+                // Show only interface residues; fall back to full chain if not yet computed
+                const iface = this.interfaceSelesTarget.filter(Boolean);
+                return iface.length > 0
+                    ? iface.join(' or ')
+                    : this.alignments.map(a => `:${getChainName(a.target)}`).join(' or ');
+            }
             if (this.showTarget === 1)
                 return this.alignments.map(a => `:${getChainName(a.target)}`).join(" or ");
         },
@@ -403,22 +506,23 @@ END
 
         // Run PULCHRA per chain then concatenate Structure objects in first StructureComponent
         const targets = [];
-        const selections_t = [];
+        // Per-chain interface selections for the target structure.
+        // Each entry: { chain, alignedSele, unalignedSele } so we can build a
+        // selection scheme that gives every chain its own (aligned, unaligned)
+        // color pair.
+        const targetChainSeles = [];
         let renumber = 0;
-        let lastIdx = null;
-        let remoteData = null;
-        let i = 0;
         // Cache dimer PDBs by db+targetKey so we only fetch each dimer once
         const dimerPdbCache = new Map();
+        const interfaceCutoff = 10;
         // It is wrapped in order to make it handle when it is destroyed even before it is fully mounted
         try {
             for (let alignment of this.alignments) {
                 const chain = getChainName(alignment.target);
                 // Fetch the full dimer PDB from server (saved by worker via foldseek convert2pdb).
-                // Falls back to mockPDB(tCa, tSeq, chain) if target/db are not available.
                 let pdbText;
                 if (alignment.target && alignment.db) {
-                    const cacheKey = alignment.db + ':' + alignment.target;
+                    const cacheKey = alignment.db + ':' + getAccession(alignment.target);
                     if (dimerPdbCache.has(cacheKey)) {
                         pdbText = dimerPdbCache.get(cacheKey);
                     } else {
@@ -434,20 +538,47 @@ END
                         dimerPdbCache.set(cacheKey, pdbText);
                     }
                 } else {
-                    pdbText = mockPDB(alignment.tCa, alignment.tSeq, chain);
+                    throw new Error(`Missing target/db for alignment ${alignment.target || '(unknown)'}`);
                 }
-                const pdb = await pulchra(pdbText);
+
+                // Run pulchra per chain (requested behavior): isolate the
+                // aligned chain, rebuild that chain only, then concatenate all
+                // chains later via concatStructures.
+                const normalizedPdb = ensureTerBetweenChains(pdbText);
+                const chainPdb = extractChainPdb(normalizedPdb, chain);
+                if (!chainPdb) {
+                    throw new Error(`Chain ${chain} not found in target ${alignment.target}`);
+                }
+                const tChains = storeChains(chainPdb);
+                let pdb = await pulchra(chainPdb);
+                pdb = revertChainInfo(pdb, tChains);
+
                 const component = await this.stage.loadFile(new Blob([pdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true});
                 component.structure.eachAtom(a => { a.serial = renumber++; });
                 targets.push(component);
-                //FIXME: this will not work because start and end positions are not coordinated
-                selections_t.push(`${alignment.dbStartPos}-${alignment.dbEndPos}:${chain}`);
+
+                targetChainSeles.push({
+                    chain,
+                    alignedSele: null,
+                    unalignedSele: `:${chain}`,
+                });
             }
         } catch (e) {
-            return 
+            this.fetchError = (e && e.message) ? e.message : String(e);
+            return;
         }
         const structure = concatStructures(getAccession(this.alignments[0].target), ...targets.map(t => t.structure));
         const target = this.stage.addComponentFromObject(structure, { name: "targetStructure" });
+
+        // Now that all chains are concatenated into one structure, compute the
+        // interface (CA-CA distance < cutoff) per chain.
+        for (const entry of targetChainSeles) {
+            const resnos = getInterfaceResnos(target.structure, entry.chain, interfaceCutoff);
+            const sele = resnosToSele(resnos, entry.chain);
+            entry.alignedSele = sele;
+        }
+        // Expose target interface seles to computed (targetSele mode 0)
+        this.interfaceSelesTarget = targetChainSeles.map(e => e.alignedSele);
         
         target.addRepresentation('tube', {
             color: 0x11FFEE,
@@ -461,13 +592,17 @@ END
         if (ColormakerRegistry.hasScheme("_targetScheme")) {
             ColormakerRegistry.removeScheme("_targetScheme")
         }
-        this.targetSchemeId = ColormakerRegistry.addSelectionScheme([
-            [this.targetAlignedColor, selections_t.join(" or ")],
-            [this.targetUnalignedColor, "*"]
-        ], "_targetScheme")
+
+        // Single color per chain; unaligned regions are dimmed via a separate
+        // low-opacity representation added below, not via a different color.
+        const targetSchemeEntries = [];
+        targetChainSeles.forEach((entry, i) => {
+            const color = this.targetChainPalette[i] || this.targetChainPalette[this.targetChainPalette.length - 1];
+            targetSchemeEntries.push([color, entry.unalignedSele]);
+        });
+        this.targetSchemeId = ColormakerRegistry.addSelectionScheme(targetSchemeEntries, "_targetScheme")
 
         if (this.hasQuery) {
-            let data = '';
             let ext = 'pdb';
             queryPdb = queryPdb.trimStart();
             if (queryPdb[0] == "#" || queryPdb.startsWith("data_")) {
@@ -475,12 +610,7 @@ END
                 // NGL doesn't like AF3's _chem_comp entries
                 queryPdb = queryPdb.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
             } else {
-                for (let line of queryPdb.split('\n')) {
-                    let numCols = Math.max(0, 80 - line.length);
-                    let newLine = line + ' '.repeat(numCols) + '\n';
-                    data += newLine
-                }
-                queryPdb = data;
+                queryPdb = queryPdb.split('\n').map(line => line + ' '.repeat(Math.max(0, 80 - line.length))).join('\n');
             }
 
             let query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), { ext: ext, firstModelOnly: true, name: 'queryStructure'});
@@ -500,25 +630,35 @@ END
 
             // Map 1-based indices to residue index/resno; only need for query structure
             // Use queryChainSele to make all selections based on actual query chain
-            const selections_q = [];
+            // Per-chain interface selections for the query structure (one entry per unique chain).
+            const seenQueryChains = new Map();
             for (let alignment of this.alignments) {
                 const chain = getChainName(alignment.query);
-
-                selections_q.push(`${alignment.qStartPos}-${alignment.qEndPos} and :${chain}`);
-
-                // Renumber to avoid residue gaps
+                if (seenQueryChains.has(chain)) continue;
+                // Renumber once per chain to avoid residue gaps
                 let renumber = 1;
                 query.structure.eachResidue(function(rp) {
                     rp.resno = renumber++;
-                }, new Selection(`:${chain}`))
+                }, new Selection(`:${chain}`));
+                const resnos = getInterfaceResnos(query.structure, chain, interfaceCutoff);
+                const sele = resnosToSele(resnos, chain);
+                seenQueryChains.set(chain, { chain, alignedSele: sele, unalignedSele: `:${chain}` });
             }
+            const queryChainSeles = Array.from(seenQueryChains.values());
+            // Expose query interface seles to computed (querySele mode 0)
+            this.interfaceSelesQuery = queryChainSeles.map(e => e.alignedSele);
             if (ColormakerRegistry.hasScheme("_queryScheme")) {
                 ColormakerRegistry.removeScheme("_queryScheme")
             }
-            this.querySchemeId = ColormakerRegistry.addSelectionScheme([
-                [this.queryAlignedColor, selections_q.join(" or ")],
-                [this.queryUnalignedColor, "*"],
-            ], "_queryScheme")
+
+            // Single color per chain; unaligned regions are dimmed via a separate
+            // low-opacity representation added below, not via a different color.
+            const querySchemeEntries = [];
+            queryChainSeles.forEach((entry, i) => {
+                const color = this.queryChainPalette[i] || this.queryChainPalette[this.queryChainPalette.length - 1];
+                querySchemeEntries.push([color, entry.unalignedSele]);
+            });
+            this.querySchemeId = ColormakerRegistry.addSelectionScheme(querySchemeEntries, "_queryScheme")
 
             // Re-align target to query using TM-align for better superposition
             // Target 1st since TM-align generates superposition matrix for 1st structure
@@ -532,8 +672,14 @@ END
                 ];
                 // Can't use setTransform since we need the actual transformed coordinates for arrows
                 transformStructure(target.structure, t, u);
-                query.addRepresentation(this.qRepr, { color: this.querySchemeId, smoothSheet: true, name: "queryStructure"});
-                target.addRepresentation(this.tRepr, { color: this.targetSchemeId, smoothSheet: true, name: "targetStructure" });
+                // Full chain at low opacity (unaligned regions appear faded)
+                query.addRepresentation(this.qRepr, { color: this.querySchemeId, smoothSheet: true, name: "queryStructure", opacity: 0.3, depthWrite: false });
+                target.addRepresentation(this.tRepr, { color: this.targetSchemeId, smoothSheet: true, name: "targetStructure", opacity: 0.3, depthWrite: false });
+                // Interface residues at full opacity on top
+                const qIfaceSele = this.interfaceSelesQuery.filter(Boolean).join(' or ');
+                const tIfaceSele = this.interfaceSelesTarget.filter(Boolean).join(' or ');
+                if (qIfaceSele) query.addRepresentation(this.qRepr, { sele: qIfaceSele, color: this.querySchemeId, smoothSheet: true, name: "queryStructureIface" });
+                if (tIfaceSele) target.addRepresentation(this.tRepr, { sele: tIfaceSele, color: this.targetSchemeId, smoothSheet: true, name: "targetStructureIface" });
 
                 // Make three separate surface representations based on query toggle state:
                 //   0: Aligned regions of aligned chains
@@ -545,19 +691,19 @@ END
                 const surfaceSele2 = [];
                 for (let alignment of this.alignments) {
                     let chain = getChainName(alignment.query);
-                    surfaceSele0.push(`${alignment.qStartPos}-${alignment.qEndPos}:${chain}`);
-                    surfaceSele1.push(`(not ${alignment.qStartPos}-${alignment.qEndPos} and :${chain})`);
-                    surfaceSele2.push(`:${chain}`);
+                    // surfaceSele0.push(`${alignment.qStartPos}-${alignment.qEndPos}:${chain}`);
+                    // surfaceSele1.push(`(not ${alignment.qStartPos}-${alignment.qEndPos} and :${chain})`);
+                    // surfaceSele2.push(`:${chain}`);
                 }
-                const surfaceParams = {
-                    color: colorblindColors,
-                    opacity: 0.1,
-                    opaqueBack: false,
-                    useWorker: false
-                }
-                query.addRepresentation("surface", { sele: surfaceSele0.join(" or "), name: "querySurface-0", ...surfaceParams });
-                query.addRepresentation("surface", { sele: surfaceSele1.join(" or "), name: "querySurface-1", visible: false, ...surfaceParams });
-                query.addRepresentation("surface", { sele: `not (${surfaceSele2.join(" or ")})`, name: "querySurface-2", visible: false, ...surfaceParams });
+                // const surfaceParams = {
+                //     color: colorblindColors,
+                //     opacity: 0.1,
+                //     opaqueBack: false,
+                //     useWorker: false
+                // }
+                // query.addRepresentation("surface", { sele: surfaceSele0.join(" or "), name: "querySurface-0", ...surfaceParams });
+                // query.addRepresentation("surface", { sele: surfaceSele1.join(" or "), name: "querySurface-1", visible: false, ...surfaceParams });
+                // query.addRepresentation("surface", { sele: `not (${surfaceSele2.join(" or ")})`, name: "querySurface-2", visible: false, ...surfaceParams });
             } else {
                 // Generate subsetted PDBs for TM-align
                 let qSubPdb = makeSubPDB(query.structure, this.querySele);
@@ -567,15 +713,21 @@ END
                 this.tmAlignResults = parseTMOutput(tm.output)
                 let { t, u } = parseTMMatrix(tm.matrix)
                 transformStructure(target.structure, t, u)
-                query.addRepresentation(this.qRepr, {color: this.querySchemeId, name: "queryStructure"});
-                target.addRepresentation(this.tRepr, {color: this.targetSchemeId, name: "targetStructure"});
+                query.addRepresentation(this.qRepr, { color: this.querySchemeId, name: "queryStructure", opacity: 0.3, depthWrite: false });
+                target.addRepresentation(this.tRepr, { color: this.targetSchemeId, name: "targetStructure", opacity: 0.3, depthWrite: false });
+                const qIfaceSele2 = this.interfaceSelesQuery.filter(Boolean).join(' or ');
+                const tIfaceSele2 = this.interfaceSelesTarget.filter(Boolean).join(' or ');
+                if (qIfaceSele2) query.addRepresentation(this.qRepr, { sele: qIfaceSele2, color: this.querySchemeId, name: "queryStructureIface" });
+                if (tIfaceSele2) target.addRepresentation(this.tRepr, { sele: tIfaceSele2, color: this.targetSchemeId, name: "targetStructureIface" });
             }
             await this.drawArrows(query.structure, target.structure)
             this.setQuerySelection();
             this.setTargetSelection();
             query.autoView(this.querySele, this.autoViewTime)
         } else {
-            target.addRepresentation(this.tRepr, {color: this.targetSchemeId, name: "targetStructure"})
+            target.addRepresentation(this.tRepr, { color: this.targetSchemeId, name: "targetStructure", opacity: 0.3, depthWrite: false });
+            const tIfaceSeleNoQ = this.interfaceSelesTarget.filter(Boolean).join(' or ');
+            if (tIfaceSeleNoQ) target.addRepresentation(this.tRepr, { sele: tIfaceSeleNoQ, color: this.targetSchemeId, name: "targetStructureIface" });
             this.setTargetSelection();
             this.stage.autoView(this.autoViewTime)
         }
@@ -610,6 +762,20 @@ END
 }
 .structure-panel {
     position: relative;
+}
+.structure-error {
+    width: 500px;
+    margin: 0 auto;
+    padding: 16px 20px;
+    border: 1px solid #E57373;
+    background: rgba(229, 115, 115, 0.08);
+    color: #C62828;
+    border-radius: 4px;
+    text-align: center;
+}
+.theme--dark .structure-error {
+    color: #FFCDD2;
+    background: rgba(229, 115, 115, 0.15);
 }
 .toolbar-panel {
     display: inline-flex;

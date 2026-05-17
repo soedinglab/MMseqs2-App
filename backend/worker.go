@@ -955,15 +955,11 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 
 		// Extract tkey column from .m8 and create subdbs for dimer coords
 		for _, database := range job.Database {
-			// RACHEL: check if we can skip this part
-			// params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
-			// if err != nil {
-			// 	return &JobExecutionError{err}
-			// }
-			// dbpath := filepath.Join(config.Paths.Databases, database)
-			// if params.OverridePath != "" {
-			// 	dbpath = filepath.Clean(params.OverridePath)
-			// }
+			m8Path := filepath.Join(resultBase, "alis_"+database+".m8")
+			if info, statErr := os.Stat(m8Path); statErr != nil || info.Size() == 0 {
+				// Skip dimer extraction if there were no hits
+				continue
+			}
 
 			err = execCommandSync(
 				config.Verbose,
@@ -982,8 +978,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			if err != nil {
 				return &JobExecutionError{err}
 			}
-			// replace interfacedb_ prefix to dimerdb
-			dimerdb := strings.Replace(database, "interfacedb_", "dimerdb_", 1)
+			dimerdb := strings.Replace(database, "_interface", "_dimer", 1)
 			dimerdbpath := filepath.Join(config.Paths.Databases, dimerdb)
 
 			err = execCommandSync(

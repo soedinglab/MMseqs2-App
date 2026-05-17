@@ -288,7 +288,6 @@ export default {
                         }, 0)
                     })
                     this.selectedDatabases = this.onlyOne ? 1 : 0
-                    debugger
                 }
             },
             immediate: false,

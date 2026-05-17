@@ -270,39 +270,18 @@ export default {
 
 <style scoped>
 .alignment-panel {
-    display: inline-flex;
-    flex-wrap: nowrap;
+    display: flex;
     justify-content: center;
     width: 100%;
 }
 
 .alignment-wrapper-outer {
-    display: inline-flex;
-    flex-direction: column;
-}
-
-.alignment-wrapper-inner {
-    padding-bottom: 1em;
-}
-
-.alignment-structure-wrapper {
-    min-width: 450px;
-    margin: 0;
-    margin-bottom: auto;
+    display: none;
 }
 
 @media screen and (max-width: 960px) {
-    .alignment-wrapper-outer, .alignment-panel {
-        display: flex;
-    }
-    .alignment-panel {
-        flex-direction: column-reverse;
-    }
     .alignment-structure-wrapper {
-        padding-bottom: 1em;
-    }
-    .alignment-wrapper-outer, .alignment-structure-wrapper {
-        align-self: center;
+        width: 100%;
     }
 }
 
