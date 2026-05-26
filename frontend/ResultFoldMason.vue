@@ -190,7 +190,14 @@ export default {
 };
 </script>
 <style scoped>
-.msa-panel {
-    margin-bottom: 600px;
+.msa-panel >>> .panel,
+.msa-panel >>> .panel-content,
+.msa-panel >>> .v-card__text {
+    contain: none;
+    overflow: visible;
+}
+
+.msa-panel >>> .panel-content {
+    padding: 0;
 }
 </style>

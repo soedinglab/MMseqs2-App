@@ -545,10 +545,14 @@ ENDMDL
         async updateAllHighlights() {
             if (!this.stage) return
 
-            this.stage.eachComponent(function(comp) {
+            this.stage.eachComponent((comp) => {
                 if (comp.type !== 'structure') return
-                comp.reprList.find(r => r.name === 'cartoon')?.update({ color: true })
+                const representation = comp.reprList.find(r => r.name === this.representationStyle)
+                if (!representation) return
+                representation.setParameters({ color: this.schemeId })
+                representation.update({ color: true })
             })
+            this.stage.viewer.requestRender()
         },
         async updateAllPreview() {
             if (!this.stage) return

@@ -1,6 +1,6 @@
 <template>
 <div>
-    <v-container fluid pa-2 style="overflow: visible; height: 100%;">
+    <v-container fluid pa-2 style="overflow: visible; min-height: 100%;">
         <v-row ref="topRow" style="justify-content: center;">
             <v-col class="flex-col" cols="12" sm="5" md="3">
                 <v-card style="height: 100%">
@@ -71,155 +71,61 @@
                 </v-card>
             </v-col>
         </v-row>
-        <v-card class="minimap fill-height">
-            <v-row dense style="align-items: center;">
-                <v-col align="center" no-gutters style="max-width: fit-content; margin-right: 4px; position: relative;">
-                    <div style="display: flex; flex-direction: row;">
-                        <div class="input-div-wrapper expansion-panel" :class="{ 'is-expanded': settingsPanelOpen }">
-                            <div class="input-div">
-                                <label
-                                    title="Toggle between AA and 3Di alphabets"
-                                    class="input-label"
-                                >Alphabet</label>
-                                <v-btn-toggle dense mandatory color="primary" v-model="alphabet">
-                                    <v-btn x-small value="aa" style="width: 40px;">AA</v-btn>
-                                    <v-btn x-small value="ss" style="width: 40px;">3Di</v-btn>
-                                </v-btn-toggle>
-                            </div>
-                            <div class="input-div">
-                                <label
-                                    title="Hide columns with percentage of gaps above this cutoff"
-                                    class="input-label"
-                                >Gaps</label>
-                                <v-text-field
-                                    v-model="matchRatio"
-                                    label="0.0"
-                                    default="0.00"
-                                    type="number"
-                                    min="0"
-                                    max="1"
-                                    step="0.01"
-                                    single-line
-                                    hide-details
-                                    solo
-                                    flat
-                                    dense
-                                    style="max-width: 80px; max-height: 20px;"
-                                />                       
-                            </div>
-                            <div class="input-div">
-                                <label
-                                    title="Toggle between per-column LDDT and 3Di score matrix-based colorschemes"
-                                    class="input-label"
-                                >Colours</label>
-                                <v-select dense flat hide-details solo
-                                    class="colorscheme-select"
-                                    style="max-width: 130px; max-height: 32px;"
-                                    v-model="colorScheme"
-                                    :items="schemes"
-                                    :menu-props="{ minWidth: '220px' }"
-                                />
-                            </div>
-                        </div>
-                        <div style="position: relative; display: flex; justify-content: center; align-items: center; width: fit-content; height: 80px;">
-                            <v-btn class="toggle-button" @click="toggleSettingsPanel" small icon title="Toggle MSA viewing options">
-                                <v-icon>{{ settingsBtnIcon }}</v-icon>
-                            </v-btn>
-                        </div>
+        <v-row>
+            <v-col>
+                <v-card pa-2 class="msa-viewer-card">
+                    <div class="msa-top-left">
+                        <MSAConfig
+                            v-if="msaViewerReady"
+                            :representations="msaViewerState.representations"
+                            :active-representation-id="msaViewerState.activeRepresentationId"
+                            :schemes="msaViewerState.schemes"
+                            :active-scheme="msaViewerState.activeScheme"
+                            :active-scheme-source-representation-id="msaViewerState.activeSchemeSourceRepresentationId"
+                            :tracks="msaViewerState.tracks"
+                            :track-display-mode="msaViewerState.trackDisplayMode"
+                            :gap-threshold="matchRatio"
+                            :selection-count="selectedColumns.length"
+                            :busy="msaViewerBusy"
+                            @change-representation="setMSAViewerRepresentation"
+                            @change-scheme="setMSAViewerScheme"
+                            @change-track="setMSAViewerTrackEnabled"
+                            @reset-track-defaults="resetMSAViewerTrackDefaults"
+                            @change-gap-threshold="setMSAViewerGapThreshold"
+                            @clear-selection="clearSelection"
+                            @export-selection-fasta="exportMSAViewerSelectionAsFasta"
+                        />
                     </div>
-                </v-col>
-                <v-col class="minimap-col">
-                    <template v-if="cssGradients">
-                        <div
-                            v-for="(block, i) in cssGradients"
-                            :key="'col-' + i"
-                            class="gradient-block-col"
-                            :style="minimapBlock(i)"
-                            @click="handleMapBlockClick(i)"
-                            >
-                            <div class="gradient-block">
-                                <div
-                                v-for="(gradient, j) in block"
-                                :key="'gradient-' + j"
-                                class="gradient-row"
-                                :style="{ 'background-image': gradient }"
-                                />
-                            </div>
-                        </div>
-                    </template>
-                </v-col>
-                <div class="pl-2">
-                    
-                    <v-tooltip bottom transition="fade-transition"
-                    nudge-left="48px" nudge-top="4px" color="primary"
-                    >
-                        <template v-slot:activator="{on, attrs}">
-                            <!-- <button 
-                                
-                                type="button"
-                                v-bind="attrs" v-on="on" 
-                                class="v-btn v-btn--icon v-btn--round v-btn--text v-size--x-large structure-panel-btn"
-                                :class="{ 
-                                            'v-btn--outlined' : showViewer,
-                                            'primary--text' : showViewer,
-                                            'theme--dark' : $vuetify.theme.dark
-                                        }"
-                            >
-                                <span class="v-btn__content">
-                                    <span aria-hidden="true" class="v-icon notranslate theme--dark">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg">
-                                        <path d="M5,13H19V11H5M3,17H17V15H3M7,7V9H21V7"></path>
-                                    </svg>
-                                    </span>
-                                </span>
-                            </button> -->
-                            <v-btn :outlined="!showViewer" color="primary" v-bind="attrs" v-on="on"
-                                @click.stop="toggleView" fab dark
-                            >
-                                <v-icon>{{ $MDI.Monomer }}</v-icon>
-                            </v-btn>
-                        </template> 
-                        <span>
-                            {{ showViewer ? 'Hide' : 'Show' }} floating viewer
-                        </span>
-                    </v-tooltip>
-                    <v-btn 
-                        icon text x-small 
-                        style="position: absolute; right: 8px; bottom: 8px" 
-                        title="Reset viewer"
-                        @click.stop="resetViewer"
-                    >
-                        <v-icon>
-                            {{ $MDI.Refresh }}
-                        </v-icon>
-                    </v-btn>
-                </div>
-            </v-row>
-        </v-card>
-        <v-card pa-2>
-            <MSAView
-                :entries="msaEntries"
-                :scores="msaViewScores"
-                :alnLen="alnLen"
-                :alphabet="alphabet"
-                :colorScheme="colorScheme"
-                :selectedStructures="structureViewerSelection"
-                :referenceStructure="structureViewerReference"
-                :matchRatio="parseFloat(matchRatio)"
-                :mask="mask"
-                :highlightedColumns="selectedColumns"
-                @cssGradients="handleCSSGradient"
-                @lineLen="handleLineLen"
-                @newStructureSelection="handleNewStructureViewerSelection"
-                @newStructureReference="handleNewStructureViewerReference"
-                @addHighlight="pushActiveIndex"
-                @removeHighlight="spliceActiveIndex"
-                @changePreview="changePreview"
-                ref="msaView"
-            />
-        </v-card>
+                    <div class="msa-bottom-left">
+                        <v-tooltip
+                            bottom
+                            transition="fade-transition"
+                            nudge-left="48px"
+                            nudge-top="4px"
+                            color="primary"
+                        >
+                            <template v-slot:activator="{ on, attrs }">
+                                <v-btn
+                                    class="floating-viewer-toggle"
+                                    :outlined="!showViewer"
+                                    color="primary"
+                                    fab
+                                    dark
+                                    v-bind="attrs"
+                                    v-on="on"
+                                    @click.stop="toggleView"
+                                >
+                                    <v-icon>{{ $MDI.Monomer }}</v-icon>
+                                </v-btn>
+                            </template>
+                            <span>{{ showViewer ? 'Hide' : 'Show' }} floating viewer</span>
+                        </v-tooltip>
+                    </div>
+                    <div ref="msaViewerRoot" id="msa-viewer-root"></div>
+                </v-card>
+            </v-col>
+        </v-row>
     </v-container>
-    
     <portal>
         <v-fade-transition
         >
@@ -276,18 +182,68 @@
 </template>
 
 <script>
-import MSAView from './MSAView.vue';
 import StructureViewer from './StructureViewer.vue';
 import StructureViewerMSA from './StructureViewerMSA.vue';
 import Tree from './Tree.vue';
-import { debounce, makePositionMap, tryFixName, mockPDB } from './Utilities.js'
-import MDI from './MDI.js';
+import { debounce, tryFixName, mockPDB } from './Utilities.js'
 import interact from 'interactjs';
+import { MSAViewer } from 'msa-webgpu';
+import MSAConfig from './MSAConfig.vue';
 
 const position = {x: 0, y: 0}
+const PAGE_HEADER_HEIGHT = 48;
+const MSA_VIEWER_HEADER_WIDTH = 200;
+const LDDT_TRACK_DEFINITION = {
+    id: "lddt",
+    label: "Column Score",
+    sublabel: "Hmean(LDDT, Occupancy)",
+    supports: {
+        alphabets: null,
+        shared: true,
+    },
+    source: {
+        type: "values",
+        representation: "active",
+        values: null,
+    },
+    valueRange: { min: 0, max: 1 },
+    lanes: [
+        {
+            layers: [
+                {
+                    type: "bar",
+                    height: 60,
+                    style: {
+                        fillStyle: "rgba(128, 128, 128, 0.2)",
+                        strokeStyle: "#080947",
+                        lineWidth: null,
+                    },
+                    colorRamps: {
+                        fill: {
+                            min: 0,
+                            max: 1,
+                            colormap: "viridis",
+                            missingValue: -1,
+                        },
+                    },
+                },
+            ],
+        },
+    ],
+};
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function downloadTextFile(text, fileName, mimeType = "text/plain;charset=utf-8") {
+    const blob = new Blob([text], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
 }
 
 function makeMatchRatioMask(entries, ratio) {
@@ -312,45 +268,9 @@ function makeMatchRatioMask(entries, ratio) {
     return mask;
 }
 
-function mockAlignment(one, two) {
-    let res = { backtrace: "" };
-    let started = false; // flag for first Match column in backtrace
-    let m = 0;           // index in msa
-    let qr = 0;          // index in seq
-    let tr = 0;
-    while (m < one.length) {
-        const qc = one[m];
-        const tc = two[m];
-        if (qc === '-' && tc === '-') {
-            // Skip gap columns
-        } else if (qc === '-') {
-            if (started) res.backtrace += 'D';
-            ++tr;
-        } else if (tc === '-') {
-            if (started) res.backtrace += 'I';
-            ++qr;
-        } else {
-            if (!started) {
-                started = true;
-                res.qStartPos = qr;
-                res.dbStartPos = tr;
-            }
-            res.backtrace += 'M';
-            res.qEndPos = qr;
-            res.dbEndPos = tr;
-            ++qr;
-            ++tr;
-        }
-        ++m;
-    }
-    res.qStartPos++;
-    res.dbStartPos++;
-    return res;
-}
-
 export default {
     components: {
-        MSAView,
+        MSAConfig,
         StructureViewer,
         StructureViewerMSA,
         Tree
@@ -365,71 +285,41 @@ export default {
     data() {
         return {
             mask: [],
-            structures: [],       
-            lineLen: 80,
-            cssGradients: null,
-            gradientRatio: null,
-            blockIndex: 0,
-            alphabet: 'aa',
-            colorScheme: 'lddt',
-            schemes: [
-                { header: "Structure-based" },
-                { text: "LDDT", value: "lddt" },
-                { text: "3Di", value: "3di" },
-                { header: "Sequence-based" },
-                { text: "Clustal", value: "clustal" },
-                { text: "Clustal2", value: "clustal2" },
-                { text: "Buried", value: "buried" },
-                { text: "Cinema", value: "cinema" },
-                { text: "Helix", value: "helix" },
-                { text: "Hydrophobicity", value: "hydrophobicity" },
-                { text: "Lesk", value: "lesk" },
-                { text: "MAE", value: "mae" },
-                { text: "Strand", value: "strand" },
-                { text: "Taylor", value: "taylor" },
-                { text: "Turn", value: "turn" },
-                { text: "Zappo", value: "zappo" },
-            ],
             matchRatioInner: 0.0,
             structureViewerSelection: [],
             structureViewerReference: 0,
             isLoadingStructure: false,
-            numMinimapGradients: 30,
-            settingsPanelOpen: true,
             treeLabelWidth: 0,
             treeLabelHeight: 0,
             showViewer: true,
             previewColumn: -1,
             selectedColumns: [],
             showViewerCondition: false,
-            msaEntries: [],
+            msaViewerReady: false,
+            msaViewerBusy: false,
+            msaViewerState: {
+                representations: [],
+                activeRepresentationId: null,
+                schemes: [],
+                tracks: [],
+                trackDisplayMode: "active-only",
+                activeScheme: "lddt",
+                activeSchemeSourceRepresentationId: null,
+            },
+            updatingFromMSAViewer: false,
             scrollTicking: false,
         }
-    },    
+    },
+    beforeCreate() {
+        this.msaViewer = null;
+    },
     watch: {
+        '$vuetify.theme.dark': function() {
+            this.applyMSAViewerTheme();
+        },
         matchRatio: debounce(function() {
             this.handleUpdateMatchRatio();
         }, 400),
-        mask: {
-            handler(n, o) {
-                if (this.msaEntries.length > 0 
-                    && (o.length == 0 || !n.every((v, i) => v === o[i]))) {
-                    this.msaEntries.forEach(( v, i ) => {
-                        const aaArr = [], ssArr = [];
-                        for (let j = 0; j < n.length; j++) {
-                            if (n[j] === 1) {
-                                aaArr.push(this.entries[i].aa[j]);
-                                ssArr.push(this.entries[i].ss[j]);
-                            }
-                        }
-                        v.aa = aaArr.join('');
-                        v.ss = ssArr.join('');
-                    })
-                }
-            },
-            immediate: false,
-            deep: true,
-        },
     },
     beforeMount() {
         const parseSuffix = (suffix) => {
@@ -498,33 +388,26 @@ export default {
             
             entry.name = tryFixName(entry.name)
         }
-        
-        this.msaEntries = this.entries.map(entry => {
-            const copy = {
-                name: entry.name,
-                aa: entry.aa,
-                ss: entry.ss,
-                offsets: entry.offsets,
-                chains: entry.chains,
-                suffix: entry.suffix,
-            }
-            return copy;
-        })
     },
     mounted() {
         window.addEventListener("scroll", this.handleScroll);
-        this.structureViewerSelection = [0, 1];
-        this.treeLabelWidth = this.$refs.treeLabel.clientWidth - 16;
-        this.treeLabelHeight = this.$refs.treeLabel.clientHeight - 32;
+        this.structureViewerSelection = this.entries.length > 1 ? [0, 1] : this.entries.length ? [0] : [];
+        if (this.$refs.treeLabel) {
+            this.treeLabelWidth = this.$refs.treeLabel.clientWidth - 16;
+            this.treeLabelHeight = this.$refs.treeLabel.clientHeight - 32;
+        }
         this.toggleView = this.toggleView.bind(this)
         this.$nextTick(() => {
             setTimeout(() => {
                 this.initInteract()
             }, 0)
         })
+        this.initMSAViewer();
     },
     beforeDestroy() {
         window.removeEventListener("scroll", this.handleScroll);
+        this.msaViewer?.destroy?.();
+        this.msaViewer = null;
     },
     computed: {
         matchRatio: {
@@ -536,34 +419,8 @@ export default {
                 this.$emit('input', this.matchRatioInner);
             }
         },
-        alnLen() {
-            if (this.entries.length > 0) {
-                return this.mask.reduce((count, value) => count + value, 0);
-                // return this.entries[0].aa.length;
-            }
-            return 0;
-        },
-        structureViewerProps() {
-            return { structures: this.entries };
-        },
-        structureViewerEntries() {
-            return this.structureViewerSelection.map(index => this.entries[index]);
-        },
-        msaViewScores() {
-            return this.scores.filter((_, index) => this.mask[index] === 1);
-        },
-        settingsBtnIcon() {
-            return this.settingsPanelOpen ? MDI.ChevronLeft : MDI.ChevronRight;
-        },
     },
     methods: {
-        log(v) {
-            console.log(v)
-            return v
-        },
-        toggleSettingsPanel() {
-            this.settingsPanelOpen = !this.settingsPanelOpen;
-        },
         handleUpdateMatchRatio: function() {
             if (!this.entries.length 
                 || !this.entries[0]?.aa 
@@ -573,18 +430,295 @@ export default {
             } else {
                 this.mask = makeMatchRatioMask(this.entries, this.matchRatio);
             }
+            this.msaViewer?.setConfig?.({
+                behavior: {
+                    masking: {
+                        gapThreshold: this.matchRatio === 0.0 ? null : this.matchRatio,
+                    },
+                },
+            })?.catch?.((error) => {
+                console.error("Failed to update MSAViewer gap threshold", error);
+            });
         },
         handleStructureLoadingChange(isLoading) {
             this.isLoadingStructure = isLoading;
         },
-        // New reference emitted from MSAView.
-        // entryIndex is based on ALL entries, not just selection (taken from row of MSA block)
-        // Add new structure to selection if index not already in selection,
-        // otherwise just switch reference index.
+        makeFasta(alphabet) {
+            return this.entries.map((entry, index) => {
+                const name = String(entry.name || `sequence_${index + 1}`).replace(/[\r\n]/g, " ");
+                return `>${name}\n${entry[alphabet] || ""}`;
+            }).join("\n") + "\n";
+        },
+        getLDDTTrackDefinition() {
+            return {
+                ...LDDT_TRACK_DEFINITION,
+                source: {
+                    ...LDDT_TRACK_DEFINITION.source,
+                    values: this.scores,
+                },
+            };
+        },
+        getMSAViewerTheme() {
+            const dark = this.$vuetify.theme.dark;
+            return {
+                mode: dark ? "dark" : "light",
+                scrollerBg: dark ? "#1e1e1e" : "#ffffff",
+                headerBg: dark ? "#1e1e1e" : "#ffffff",
+                headerBorder: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.12)",
+                gridLine: dark ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.06)",
+                text: dark ? "rgba(255, 255, 255, 0.87)" : "rgba(0, 0, 0, 0.87)",
+            };
+        },
+        applyMSAViewerTheme() {
+            const root = this.$refs.msaViewerRoot;
+            const theme = this.getMSAViewerTheme();
+            if (root) {
+                root.dataset.theme = theme.mode;
+                root.style.colorScheme = theme.mode;
+                root.style.color = theme.text;
+                root.style.setProperty("--msa-scroller-bg", theme.scrollerBg);
+                root.style.setProperty("--msa-header-bg", theme.headerBg);
+                root.style.setProperty("--msa-header-border", theme.headerBorder);
+                root.style.setProperty("--msa-grid-line", theme.gridLine);
+                root.style.setProperty("--msa-track-row-gap", "0px");
+            }
+            this.msaViewer?.setConfig?.({
+                theme: { mode: theme.mode },
+            })?.catch?.((error) => {
+                console.error("Failed to update MSAViewer theme", error);
+            });
+        },
+        resetMSAViewerState() {
+            this.msaViewerReady = false;
+            this.msaViewerBusy = false;
+            this.msaViewerState = {
+                representations: [],
+                activeRepresentationId: null,
+                schemes: [],
+                tracks: [],
+                trackDisplayMode: "active-only",
+                activeScheme: "lddt",
+                activeSchemeSourceRepresentationId: null,
+            };
+        },
+        syncMSAViewerState() {
+            if (!this.msaViewer) return;
+            const config = this.msaViewer.getConfig();
+            const activeRepresentation = this.msaViewer.getActiveRepresentation();
+            const activeRepresentationId = activeRepresentation?.id ?? null;
+            const schemes = this.msaViewer.getSchemes();
+            this.msaViewerState = {
+                representations: this.msaViewer.getRepresentations(),
+                activeRepresentationId,
+                schemes,
+                tracks: this.msaViewer.getTracks(),
+                trackDisplayMode: config.trackDisplay.defaults,
+                activeScheme: config.rendering.scheme,
+                activeSchemeSourceRepresentationId: config.rendering.schemeSourceRepresentationId ?? null,
+            };
+        },
+        async initMSAViewer() {
+            const root = this.$refs.msaViewerRoot;
+            if (!root || this.entries.length === 0) return;
+            this.resetMSAViewerState();
+            this.msaViewer?.destroy?.();
+            this.msaViewer = null;
+            root.textContent = "";
+
+            this.applyMSAViewerTheme();
+
+            let viewer = null;
+            try {
+                viewer = new MSAViewer({ root });
+                this.msaViewer = viewer;
+                await viewer.registerColorScheme("lddt", {
+                    label: "LDDT",
+                    values: this.scores,
+                    min: 0,
+                    max: 1,
+                    colormap: "viridis",
+                    missingValue: -1
+                });
+                await viewer.setConfig({
+                    theme: { mode: this.getMSAViewerTheme().mode },
+                    layout: {
+                        header: { width: MSA_VIEWER_HEADER_WIDTH },
+                    },
+                    tracks: [this.getLDDTTrackDefinition()],
+                    trackDisplay: {
+                        variants: [{ trackId: "lddt", representation: "active", enabled: true }],
+                        order: ["lddt", "consensus", "quality", "conservation", "occupancy"],
+                    },
+                    behavior: {
+                        selectionMode: "column",
+                        masking: {
+                            gapThreshold: this.matchRatio === 0.0 ? null : this.matchRatio,
+                        },
+                    },
+                    rendering: { scheme: "lddt" },
+                });
+                this.applyMSAViewerTheme();
+                viewer.addEventListener("error", (event) => {
+                    console.error("MSAViewer error", event.detail?.error || event);
+                });
+                viewer.addEventListener("sequenceclick", this.handleMSAViewerSequenceClick);
+                viewer.addEventListener("selectionchange", this.handleMSAViewerSelectionChange);
+                await viewer.loadData([
+                    { source: this.makeFasta("aa"), format: "fasta", id: "sequence", label: "Sequence", alphabetId: "aa", },
+                    { source: this.makeFasta("ss"), format: "fasta", id: "structure", label: "Structure", alphabetId: "3di", },
+                ], { activeId: "sequence" });
+                if (this.msaViewer !== viewer) return;
+                this.syncMSAViewerState();
+                this.syncMSAViewerRowStyles();
+                this.msaViewerReady = true;
+            } catch (error) {
+                console.error("Failed to initialize MSAViewer", error);
+                if (this.msaViewer === viewer) {
+                    this.msaViewer?.destroy?.();
+                    this.msaViewer = null;
+                    root.textContent = "";
+                    this.resetMSAViewerState();
+                }
+            }
+        },
+        async setMSAViewerRepresentation(representationId) {
+            if (!this.msaViewer || !representationId || representationId === this.msaViewerState.activeRepresentationId) return;
+            this.msaViewerBusy = true;
+            try {
+                await this.msaViewer.setActiveRepresentation(representationId);
+                this.syncMSAViewerState();
+            } catch (error) {
+                console.error("Failed to set MSAViewer representation", error);
+            } finally {
+                this.msaViewerBusy = false;
+            }
+        },
+        async setMSAViewerScheme({ scheme, schemeSourceRepresentationId }) {
+            if (!this.msaViewer || !scheme) return;
+            const sourceId = schemeSourceRepresentationId || null;
+            if (
+                scheme === this.msaViewerState.activeScheme
+                && sourceId === this.msaViewerState.activeSchemeSourceRepresentationId
+            ) return;
+            this.msaViewerBusy = true;
+            try {
+                await this.msaViewer.setConfig({
+                    rendering: {
+                        scheme,
+                        schemeSourceRepresentationId: sourceId,
+                    },
+                });
+                this.syncMSAViewerState();
+            } catch (error) {
+                console.error("Failed to set MSAViewer scheme", error);
+            } finally {
+                this.msaViewerBusy = false;
+            }
+        },
+        async setMSAViewerTrackEnabled({ trackId, representation, enabled }) {
+            if (!this.msaViewer || !trackId) return;
+            try {
+                await this.msaViewer.setTrackEnabled({ trackId, representation }, enabled);
+                this.syncMSAViewerState();
+            } catch (error) {
+                console.error("Failed to update MSAViewer track", error);
+            }
+        },
+        async resetMSAViewerTrackDefaults() {
+            if (!this.msaViewer) return;
+            this.msaViewerBusy = true;
+            try {
+                await this.msaViewer.setConfig({
+                    trackDisplay: {
+                        defaults: "active-only",
+                        variants: [],
+                    },
+                });
+                this.syncMSAViewerState();
+            } catch (error) {
+                console.error("Failed to reset MSAViewer tracks", error);
+            } finally {
+                this.msaViewerBusy = false;
+            }
+        },
+        setMSAViewerGapThreshold(value) {
+            this.matchRatio = value;
+        },
+        handleMSAViewerSequenceClick(event) {
+            const rowIndex = event?.detail?.rowIndex;
+            if (!Number.isInteger(rowIndex) || rowIndex < 0 || rowIndex >= this.entries.length) {
+                return;
+            }
+            if (this.structureViewerSelection.length === 0 || event.detail?.originalEvent?.altKey) {
+                this.handleNewStructureViewerReference(rowIndex);
+            } else {
+                this.handleNewStructureViewerSelection(rowIndex);
+            }
+        },
+        syncMSAViewerRowStyles() {
+            this.msaViewer?.setRowStyles?.(this.structureViewerSelection.map((rowIndex) => ({
+                rowIndex,
+                headerColor: rowIndex === this.structureViewerReference ? "#1E88E5" : "#e6ac00",
+            })));
+        },
+        getColumnsFromMSAViewerSelection(selection) {
+            const ranges = Array.isArray(selection?.ranges) ? selection.ranges : [];
+            const columns = new Set();
+            const maxCols = this.entries[0]?.aa?.length ?? 0;
+            for (const range of ranges) {
+                const start = Math.max(0, range.colStart ?? 0);
+                const end = Math.min(maxCols, range.colEnd ?? start);
+                for (let col = start; col < end; col++) {
+                    columns.add(col);
+                }
+            }
+            return Array.from(columns).sort((a, b) => a - b);
+        },
+        getMSAViewerSelectionRanges(columns) {
+            const sorted = Array.from(new Set(columns))
+                .filter(Number.isInteger)
+                .sort((a, b) => a - b);
+            const ranges = [];
+            for (const col of sorted) {
+                const last = ranges[ranges.length - 1];
+                if (last && col === last.colEnd) {
+                    last.colEnd = col + 1;
+                } else {
+                    ranges.push({
+                        rowStart: 0,
+                        rowEnd: this.entries.length,
+                        colStart: col,
+                        colEnd: col + 1,
+                    });
+                }
+            }
+            return ranges;
+        },
+        syncMSAViewerSelectionFromSelectedColumns() {
+            if (!this.msaViewer || this.updatingFromMSAViewer) return;
+            this.msaViewer.setSelection({
+                mode: "column",
+                ranges: this.getMSAViewerSelectionRanges(this.selectedColumns),
+            });
+        },
+        handleMSAViewerSelectionChange(event) {
+            const columns = this.getColumnsFromMSAViewerSelection(event?.detail?.selection);
+            this.updatingFromMSAViewer = true;
+            this.selectedColumns.splice(0, this.selectedColumns.length, ...columns);
+            this.$emit('changedSelection', this.selectedColumns);
+            this.$nextTick(() => {
+                this.$refs.structViewer?.updateAllHighlights?.();
+                if (columns.length > 0) {
+                    this.$refs.structViewer?.moveView?.(columns[columns.length - 1]);
+                }
+                this.updatingFromMSAViewer = false;
+            });
+        },
         handleNewStructureViewerReference(entryIndex) {
             if (entryIndex === this.structureViewerReference) {
                 this.structureViewerSelection = [];
                 this.structureViewerReference = -1;
+                this.syncMSAViewerRowStyles();
                 this.$emit('changedReference', -1);
                 return;
             }
@@ -595,12 +729,14 @@ export default {
             }
             this.structureViewerSelection = selection;
             this.structureViewerReference = entryIndex;
+            this.syncMSAViewerRowStyles();
             this.$emit('changedReference', entryIndex);
         },
         handleNewStructureViewerSelection(entryIndex) {
             if (entryIndex === this.structureViewerReference) {
                 this.structureViewerSelection = [];
                 this.structureViewerReference = -1;
+                this.syncMSAViewerRowStyles();
                 this.$emit('changedReference', -1);
                 return;
             }
@@ -612,54 +748,7 @@ export default {
                 selection.push(entryIndex);
             }
             this.structureViewerSelection = selection;
-        },
-        getEntry(name) {
-            return this.entries.find(item => item.name === name);
-        },
-        makeMockAlignment(one, two) {
-            const entryOne = this.entries[one];
-            const entryTwo = this.entries[two];
-            if (!entryOne || !entryTwo) {
-                return;
-            }
-            const alignment  = mockAlignment(entryOne.aa, entryTwo.aa);
-            alignment.query  = entryOne.name;
-            alignment.target = entryTwo.name;
-            alignment.qCa    = entryOne.ca;
-            alignment.tCa    = entryTwo.ca;
-            alignment.qSeq   = entryOne.aa.replace(/-/g, '');
-            alignment.qAln   = entryOne.aa;
-            alignment.tSeq   = entryTwo.aa.replace(/-/g, '');
-            alignment.dbAln  = entryTwo.aa;
-            return {
-                queryMap: makePositionMap(alignment.qStartPos, alignment.qAln), 
-                targetMap: makePositionMap(alignment.dbStartPos, alignment.dbAln), 
-                alignment: alignment
-            };
-        },
-        handleMapBlockClick(index) {
-            const top = document.querySelector('.minimap').offsetHeight + 64;  // app-bar + minimap
-            const blocks = this.$refs.msaView?.$el?.querySelectorAll?.('.msa-block-wrapper');
-            const target = blocks && blocks[index];
-            if (!target) return;
-            const box = target.getBoundingClientRect();
-            window.scrollTo({ behavior: 'smooth', top: box.top + window.scrollY - top });
-        },
-        handleAlphabetChange(event) {
-            this.alphabet = event.target.value;
-        },
-        gradientBlockCSS(gradient) {
-            return { width: '100%' };
-        },
-        handleLineLenChange: function(event) {
-            this.lineLen = parseInt(event.target.value);
-        },
-        minimapBlock: function(index) {
-            return {
-                '--bg-color': (this.blockIndex === index) ? 'rgba(255, 0, 0, 0.3)' : null,
-                '--bg-color-hover': this.$vuetify.theme.dark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(100, 100, 100, 0.5)',
-                'flex-basis': `${this.gradientRatio[index]}%`
-            }
+            this.syncMSAViewerRowStyles();
         },
         handleScroll() {
             if (!this.scrollTicking) {
@@ -671,27 +760,11 @@ export default {
             }
         },
         _doHandleScroll() {
-            const box = this.$refs.msaView.$el.getBoundingClientRect()
-            const scrollOffset = window.scrollY
-            const rowHeight = this.$refs.topRow.scrollHeight
-
-            const numBlocks = Math.ceil(this.alnLen / this.lineLen);
-            const blockSize = box.height / numBlocks;
-            const top = window.scrollY + box.top;  // top of the msa relative to entire document
-            const bot = top + box.height;          // bottom
-            let scroll = window.scrollY + 180;     // current scroll pos + minimap height
-            if (scroll < top) {
-                this.blockIndex = 0;
-            } else if (scroll > bot) {
-                this.blockIndex = numBlocks;
-            } else {
-                this.blockIndex = Math.floor((scroll - top) / blockSize);
-            }
-
             if (!!document.fullscreenElement) return
 
+            const topRowBottom = this.$refs.topRow.getBoundingClientRect().bottom
             this.showViewerCondition = this.showViewer
-                && scrollOffset >= rowHeight
+                && topRowBottom <= PAGE_HEADER_HEIGHT
 
             if (
                 this.showViewerCondition
@@ -716,53 +789,6 @@ export default {
                     })
                 }
             }
-        },
-        handleLineLen(lineLen) {
-            this.lineLen = lineLen;
-        },
-        handleCSSGradient(gradients) {
-            const numBlocks = Math.ceil(this.alnLen / this.lineLen);
-            if (!numBlocks || !isFinite(numBlocks) || !gradients.length) {
-                this.cssGradients = null;
-                this.gradientRatio = null;
-                return;
-            }
-
-            // Organise into blocks. Subsetted to numMinimapGradients for large MSAs
-            // Use a step to ensure coverage over entire MSA.
-            const blockSize = gradients.length / numBlocks;
-            this.cssGradients = Array.from({ length: numBlocks }, () => []);
-            if (blockSize < this.numMinimapGradients) {
-                this.cssGradients.forEach((arr, i) => {
-                    const block = i * blockSize;
-                    arr.push(...gradients.slice(block, block + blockSize));
-                });
-            } else {
-                const step = (blockSize - 1) / (this.numMinimapGradients - 1);
-                for (let i = 0; i < numBlocks; i++) {
-                    for (let j = 0; j < this.numMinimapGradients; j++) {
-                        this.cssGradients[i].push(gradients[Math.round(j * step) + i * blockSize]);
-                    }
-                }
-            }
-
-            // Calculate length of last block (all others will be lineLen)
-            // Get array of %s that sum to 100%
-            const lastBlock = this.cssGradients[numBlocks - 1];
-            if (!lastBlock?.length || !lastBlock[0]) {
-                this.cssGradients = null;
-                this.gradientRatio = null;
-                return;
-            }
-            const lastBlockLen = lastBlock[0].split('%,').length / 2;
-            const total = (numBlocks - 1) * this.lineLen + lastBlockLen;
-            if (!total) {
-                this.cssGradients = null;
-                this.gradientRatio = null;
-                return;
-            }
-            this.gradientRatio = new Array(numBlocks - 1).fill(this.lineLen / total * 100);
-            this.gradientRatio.push(lastBlockLen / total * 100);
         },
         initInteract() {
             const viewer = document.getElementById('floating-viewer')
@@ -829,13 +855,12 @@ export default {
             if (this.showViewerCondition) this.$refs.structViewer?.stage?.handleResize()
         },
         toggleView() {
-            const scrollOffset = window.scrollY
-            const rowHeight = this.$refs.topRow.scrollHeight
             const stage = this.$refs.structViewer
             if (!this.showViewer) {
                 this.showViewer = true
-                this.showViewerCondition = this.showViewer 
-                    && scrollOffset >= rowHeight
+                const topRowBottom = this.$refs.topRow.getBoundingClientRect().bottom
+                this.showViewerCondition = this.showViewer
+                    && topRowBottom <= PAGE_HEADER_HEIGHT
                 if (this.showViewerCondition
                     && !this.$refs.floatingWrapper.contains(stage.$el)
                 ) {
@@ -861,13 +886,14 @@ export default {
             }
         },
         pushActiveIndex(idx, move=false) {
-            this.selectedColumns.push(idx)
+            if (!this.selectedColumns.includes(idx)) {
+                this.selectedColumns.push(idx)
+            }
             if (this.selectedColumns.length > 32) {
-                this.$refs.msaView.removeHighlightColumn(this.selectedColumns[0])
                 this.selectedColumns.shift()
             }
             this.$emit('changedSelection', this.selectedColumns)
-            this.$refs.msaView.addHighlightColumn(idx, move && this.showViewer)
+            this.syncMSAViewerSelectionFromSelectedColumns()
             this.$refs.structViewer.updateAllHighlights()
             this.$refs.structViewer.moveView(idx)
         },
@@ -880,7 +906,7 @@ export default {
             
             this.selectedColumns.splice(i, 1)
             this.$emit('changedSelection', this.selectedColumns)
-            this.$refs.msaView.removeHighlightColumn(idx)
+            this.syncMSAViewerSelectionFromSelectedColumns()
             this.$refs.structViewer.updateAllHighlights()
         },
         changePreview(idx, fromStruct=false) {
@@ -893,15 +919,11 @@ export default {
                         })
                     })
 
-                    if (fromStruct) {
-                        this.$refs.msaView.resetPreviewState()
-                    }
                 }
             } else {
                 this.previewColumn = Number(idx)
 
                 if (fromStruct) {
-                    this.$refs.msaView.activateColumn(idx, true, true && this.showViewerCondition)
                     this.$nextTick(() => {
                         setTimeout(()=>{
                             this.$refs.structViewer.updateAllPreview()
@@ -921,119 +943,28 @@ export default {
         clearSelection() {
             this.selectedColumns.splice(0)
             this.$emit('changedSelection', this.selectedColumns)
-            this.$refs.msaView.clearHighlightColumns()
+            if (!this.updatingFromMSAViewer) {
+                this.msaViewer?.clearSelection?.()
+            }
             this.$refs.structViewer.updateAllHighlights()
-            this.$refs.structViewer.resetView()
+        },
+        async exportMSAViewerSelectionAsFasta() {
+            if (!this.msaViewer || this.selectedColumns.length === 0) return;
+            try {
+                const fasta = await this.msaViewer.exportSelectionAsFasta();
+                if (!fasta) return;
+                const activeRepresentation = this.msaViewer.getActiveRepresentation?.();
+                const fileStem = activeRepresentation?.id || "selection";
+                downloadTextFile(fasta, `${fileStem}-selection.fasta`, "text/fasta;charset=utf-8");
+            } catch (error) {
+                console.error("Failed to export MSAViewer selection as FASTA", error);
+            }
         },
     },
 }
 </script>
 
 <style>
-.gradient-block-col {
-    position: relative;
-    display: inline-block;
-    border: 1px solid grey; 
-    height: 80px;
-}
-.gradient-block {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-}
-.gradient-row {
-    flex: 1;
-}
-.minimap {
-    position: sticky;
-    top: 48px;
-    padding: 16px;
-    margin-top: 1em;
-    margin-bottom: 2px;
-    height: fit-content;
-    z-index: 10;
-}
-.minimap-col {
-    display: flex;
-    flex-direction: row;
-    height: 100%;
-    width: 100%;
-    padding: 0;
-    margin: 0;
-}
-.gradient-block-col::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: var(--bg-color);
-    z-index: 2;
-}
-.gradient-block-col:hover:before {
-    background-color: var(--bg-color-hover);
-    cursor: pointer;
-}
-.input-label {
-    margin: 0 8px 0 0 !important;
-}
-.input-btn {
-    height: 25px;
-}
-div.input-div-wrapper {
-    display: flex;
-    flex-direction: column;
-    font-size: 13px;
-    height: 80px;
-    text-align: center;
-    align-items: center;
-    justify-content: space-between;
-    padding: 2px 0;
-}
-div.input-div {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    width: 100%;
-}
-div.input-div .v-text-field {
-    min-height: 0 !important;
-    max-height: 20px;
-    max-width: 80px;
-    padding: 0 !important;
-}
-div.input-div .v-input__control, div.input-div .v-input__control * {
-    padding: 0;
-    min-height: 0 !important;
-    max-height: 20px;
-}
-div.input-div .v-input__slot {
-    padding: 0 4px !important;
-}
-.colorscheme-select {
-    max-width: 130px;
-}
-.colorscheme-select .v-select__selection {
-    font-size: 14px;
-}
-.colorscheme-select .v-select__selections {
-    justify-content: flex-end;
-}
-.colorscheme-select .v-select__selection {
-    width: 100%;
-    text-align: right;
-}
-.colorscheme-select .v-input__slot {
-    justify-content: flex-end;
-}
-.colorscheme-select .v-select__selections input {
-    cursor: pointer;
-    caret-color: transparent;
-}
-.colorscheme-select .v-input__slot {
-    cursor: pointer;
-}
 @media only screen and (min-width: 961px) {
     .flex-col {
         /* flex: 1 0 0px; */
@@ -1071,22 +1002,10 @@ div.input-div .v-input__slot {
         height: 300px;
     }
 }
-.expansion-panel {
-    /* transition: width 0.3s ease; */
-    overflow: hidden;
-    width: 100%;
-    position: relative;
-}
-.expansion-panel:not(.is-expanded) {
-    width: 0;
-}
-.toggle-button {
-    color: black;
-    z-index: 2;
-}
 #floating-viewer {
     position: fixed;
     display: block;
+    z-index: 100;
     width: 360px;
     height: 380px;
     bottom: 64px;
@@ -1100,6 +1019,36 @@ div.input-div .v-input__slot {
 
 #floating-viewer * {
     user-select: none;
+}
+
+#msa-viewer-root {
+    --msa-page-header-height: 48px;
+    --msa-page-vertical-spacing: 20px;
+    --msa-track-row-gap: 1px;
+    height: calc(100vh - var(--msa-page-header-height) - var(--msa-page-vertical-spacing));
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+}
+
+.msa-viewer-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.msa-top-left {
+    position: absolute;
+    top: 8px;
+    left: 20px;
+    z-index: 2;
+    width: 170px;
+}
+
+.msa-bottom-left {
+    position: absolute;
+    left: 20px;
+    bottom: 8px;
+    z-index: 2;
 }
 
 #floating-viewer > div {
@@ -1122,31 +1071,4 @@ div.input-div .v-input__slot {
     cursor: grabbing;
 }
 
-.structure-panel-btn {
-    transition: background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-.structure-panel-btn:not(.primary--text):hover {
-    background-color: rgba(0, 0, 0, 0.05);
-}
-
-.structure-panel-btn:not(.primary--text):active {
-    background-color: rgba(0, 0, 0, 0.15);
-}
-
-.theme--dark .structure-panel-btn:not(.primary--text):hover {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-
-.theme--dark .structure-panel-btn:not(.primary--text):hover {
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-.structure-panel-btn.primary--text:hover {
-    background-color: rgba(25, 118, 210, 12%);
-}
-
-.structure-panel-btn.primary--text:active {
-    background-color: rgba(25, 118, 210, 20%);
-}
 </style>

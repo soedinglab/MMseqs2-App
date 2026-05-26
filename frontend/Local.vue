@@ -47,7 +47,7 @@
         </v-container>       
     </template>
 
-    <v-container grid-list-md fluid pa-2 style="margin-bottom: 500px;">
+    <v-container grid-list-md fluid pa-2>
         <v-layout wrap>
             <v-flex xs12>
                 <v-card rounded="0">
