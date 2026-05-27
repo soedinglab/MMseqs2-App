@@ -1,7 +1,12 @@
 <template>
 <div class="msa-config">
     <div class="config-field">
-        <span class="config-label">Alphabet</span>
+        <v-tooltip right nudge-left="15px">
+            <template v-slot:activator="{ on, attrs }">
+                <span class="config-label" v-bind="attrs" v-on="on">Alphabet</span>
+            </template>
+            <span>Switch between amino acid and 3Di alignment views</span>
+        </v-tooltip>
         <v-btn-toggle
             class="alphabet-toggle"
             dense
@@ -21,7 +26,12 @@
         </v-btn-toggle>
     </div>
     <div class="config-field">
-        <label for="msa-gap-threshold-input">Gaps</label>
+        <v-tooltip right nudge-left="15px">
+            <template v-slot:activator="{ on, attrs }">
+                <span class="config-label" v-bind="attrs" v-on="on">Gaps</span>
+            </template>
+            <span>Hide columns with a gap fraction above this threshold</span>
+        </v-tooltip>
         <input
             id="msa-gap-threshold-input"
             class="control-input"
@@ -35,7 +45,12 @@
         >
     </div>
     <div class="config-field">
-        <span class="config-label">Colour</span>
+        <v-tooltip right nudge-left="15px">
+            <template v-slot:activator="{ on, attrs }">
+                <span class="config-label" v-bind="attrs" v-on="on">Colour</span>
+            </template>
+            <span>Choose the colour scheme used for alignment cells</span>
+        </v-tooltip>
         <v-menu
             offset-y
             :disabled="busy || schemes.length === 0"
@@ -74,7 +89,12 @@
         </v-menu>
     </div>
     <div class="config-field">
-        <span class="config-label">Tracks</span>
+        <v-tooltip right nudge-left="15px">
+            <template v-slot:activator="{ on, attrs }">
+                <span class="config-label" v-bind="attrs" v-on="on">Tracks</span>
+            </template>
+            <span>Show or hide annotation tracks below the alignment</span>
+        </v-tooltip>
         <v-menu
             offset-y
             :close-on-content-click="false"
@@ -139,26 +159,34 @@
         </v-menu>
     </div>
     <div class="config-field">
-        <span class="config-label">Selection</span>
+        <v-tooltip right nudge-left="15px">
+            <template v-slot:activator="{ on, attrs }">
+                <span class="config-label" v-bind="attrs" v-on="on">Selection</span>
+            </template>Clear the current column selection or export it as FASTA
+        </v-tooltip>
         <div class="selection-actions">
-            <button
-                type="button"
+            <v-btn
+                small
+                depressed
                 class="selection-action-button"
                 :disabled="busy || selectionCount === 0"
                 title="Clear selection"
+                aria-label="Clear selection"
                 @click="$emit('clear-selection')"
             >
                 <v-icon small>{{ $MDI.CloseCircleOutline }}</v-icon>
-            </button>
-            <button
-                type="button"
+            </v-btn>
+            <v-btn
+                small
+                depressed
                 class="selection-action-button"
                 :disabled="busy || selectionCount === 0"
                 title="Export selection as FASTA"
+                aria-label="Export selection as FASTA"
                 @click="$emit('export-selection-fasta')"
             >
                 <v-icon small>{{ $MDI.FileDownloadOutline }}</v-icon>
-            </button>
+            </v-btn>
         </div>
     </div>
 </div>
@@ -174,7 +202,7 @@ export default {
         trackDisplayMode: { type: String, default: "active-only" },
         activeScheme: { type: String, default: null },
         activeSchemeSourceRepresentationId: { type: String, default: null },
-        gapThreshold: { type: Number, default: 0 },
+        gapThreshold: { type: Number, default: 1 },
         selectionCount: { type: Number, default: 0 },
         busy: { type: Boolean, default: false },
     },
@@ -391,25 +419,26 @@ export default {
     height: 23px;
 }
 .selection-action-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     width: 100%;
-    height: 23px;
-    min-width: 0;
-    padding: 0;
+    height: 23px !important;
+    min-height: 23px !important;
+    max-height: 23px !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box;
     border: 1px solid rgba(25, 118, 210, 0.35);
     border-radius: 4px;
-    background: rgba(25, 118, 210, 0.08);
-    color: var(--v-primary-base, #1976d2);
-    cursor: pointer;
+    background: rgba(25, 118, 210, 0.08) !important;
+    color: var(--v-primary-base, #1976d2) !important;
 }
-.selection-action-button:disabled {
+.selection-action-button.v-btn--disabled {
     border-color: rgba(128, 128, 128, 0.25);
-    background: rgba(128, 128, 128, 0.12);
-    color: currentColor;
-    cursor: default;
+    background: rgba(128, 128, 128, 0.12) !important;
+    color: currentColor !important;
     opacity: 0.45;
+}
+.selection-action-button .v-btn__content {
+    line-height: 1;
 }
 .scheme-menu-button,
 .track-menu-button {
