@@ -152,6 +152,6 @@
     "d3-sankey": "^0.12.3",
     "interactjs": "^1.10.27",
     "mitt": "^3.0.1",
-    "msa-webgpu": "^0.0.8"
+    "msa-webgpu": "^0.0.9"
   }
 }
