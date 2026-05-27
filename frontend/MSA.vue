@@ -54,7 +54,7 @@
                             :entries="entries"
                             :selection="structureViewerSelection"
                             :reference="structureViewerReference"
-                            :mask="mask"
+                            :mask="visibleColumnMask"
                             :selectedColumns="selectedColumns"
                             :previewColumn="previewColumn"
                             @loadingChange="handleStructureLoadingChange"
@@ -84,7 +84,7 @@
                             :active-scheme-source-representation-id="msaViewerState.activeSchemeSourceRepresentationId"
                             :tracks="msaViewerState.tracks"
                             :track-display-mode="msaViewerState.trackDisplayMode"
-                            :gap-threshold="matchRatio"
+                            :gap-threshold="gapThreshold"
                             :selection-count="selectedColumns.length"
                             :busy="msaViewerBusy"
                             @change-representation="setMSAViewerRepresentation"
@@ -139,18 +139,7 @@
                             justify-content: space-between; 
                             align-items: center;"
                     >
-                        <!-- <div style="
-                            width: 36px;
-                            height: 36px;
-                            display: flex; 
-                            justify-content: center; 
-                            align-items: center;" class="drag-handle">
-                            <v-icon style="display: block;">
-                                {{ $MDI.CursorMove }}
-                            </v-icon>
-                        </div> -->
                         <div class="drag-handle" style="flex-grow: 1; align-self: stretch;"/>
-                        <!-- <v-card-title>Structure</v-card-title> -->
                         <v-btn icon @click="toggleView" style="display: block;">
                             <v-icon>
                                 {{ $MDI.CloseCircleOutline }}
@@ -158,18 +147,6 @@
                         </v-btn>
                     </div>
                     <div style="padding: 6px; height: calc(100% - 36px); width: 100%; position: relative" ref="floatingWrapper">
-                        <!-- <StructureViewerMSA
-                            :entries="entries"
-                            :selection="structureViewerSelection"
-                            :reference="structureViewerReference"
-                            :mask="mask"
-                            :selectedColumns="selectedColumns"
-                            :previewColumn="previewColumn"
-                            @loadingChange="handleStructureLoadingChange"
-                            @addHighlight="pushActiveIndex"
-                            @removeHighlight="spliceActiveIndex"
-                            ref="structViewer"
-                        /> -->
                         <v-card-text v-if="structureViewerSelection.length == 0" style="position: absolute; top: calc(50% - 45px); left: 0; text-align: center; z-index: 1;">
                             No structures loaded.
                         </v-card-text>
@@ -182,7 +159,6 @@
 </template>
 
 <script>
-import StructureViewer from './StructureViewer.vue';
 import StructureViewerMSA from './StructureViewerMSA.vue';
 import Tree from './Tree.vue';
 import { debounce, tryFixName, mockPDB } from './Utilities.js'
@@ -246,32 +222,9 @@ function downloadTextFile(text, fileName, mimeType = "text/plain;charset=utf-8")
     URL.revokeObjectURL(url);
 }
 
-function makeMatchRatioMask(entries, ratio) {
-    if (!entries.length || !entries[0]?.aa) return [];
-    const columnLength = entries[0].aa.length;
-    const mask = new Array(columnLength).fill(0);
-    for (let i = 0; i < columnLength; i++) {
-        let gap = 0;
-        let nonGap = 0;
-        for (let j = 0; j < entries.length; j++) {
-            if (entries[j].aa[i] === '-') {
-                gap++;
-            } else {
-                nonGap++;
-            }
-        }
-        let fraction = nonGap / (gap + nonGap);
-        if (fraction >= ratio) {
-            mask[i] = 1;
-        }
-    }
-    return mask;
-}
-
 export default {
     components: {
         MSAConfig,
-        StructureViewer,
         StructureViewerMSA,
         Tree
     },
@@ -284,8 +237,8 @@ export default {
     },
     data() {
         return {
-            mask: [],
-            matchRatioInner: 0.0,
+            visibleColumnMask: [],
+            gapThresholdInner: 1.0,
             structureViewerSelection: [],
             structureViewerReference: 0,
             isLoadingStructure: false,
@@ -317,8 +270,8 @@ export default {
         '$vuetify.theme.dark': function() {
             this.applyMSAViewerTheme();
         },
-        matchRatio: debounce(function() {
-            this.handleUpdateMatchRatio();
+        gapThreshold: debounce(function() {
+            this.updateMSAViewerGapThreshold();
         }, 400),
     },
     beforeMount() {
@@ -372,8 +325,6 @@ export default {
             return {chains: chains, resns: resns}
         }
         
-        this.handleUpdateMatchRatio();
-        
         for (let entry of this.entries) {
             if (/-_-_-_/.test(entry.name)) {
                 entry.suffix = entry.name.split("-_-_-_")[1];
@@ -410,35 +361,43 @@ export default {
         this.msaViewer = null;
     },
     computed: {
-        matchRatio: {
+        gapThreshold: {
             get() {
-                return this.matchRatioInner;
+                return this.gapThresholdInner;
             },
             set(value) {
-                this.matchRatioInner = clamp(value, 0.0, 1.0);
-                this.$emit('input', this.matchRatioInner);
+                this.gapThresholdInner = clamp(value, 0.0, 1.0);
+                this.$emit('input', this.gapThresholdInner);
             }
         },
     },
     methods: {
-        handleUpdateMatchRatio: function() {
-            if (!this.entries.length 
-                || !this.entries[0]?.aa 
-                    || this.entries[0].aa.length == 0) return;
-            if (this.matchRatio === 0.0) {
-                this.mask = new Array(this.entries[0].aa.length).fill(1);
-            } else {
-                this.mask = makeMatchRatioMask(this.entries, this.matchRatio);
-            }
-            this.msaViewer?.setConfig?.({
-                behavior: {
-                    masking: {
-                        gapThreshold: this.matchRatio === 0.0 ? null : this.matchRatio,
+        async updateMSAViewerGapThreshold() {
+            if (!this.msaViewer) return;
+            try {
+                await this.msaViewer.setConfig({
+                    behavior: {
+                        masking: {
+                            gapThreshold: this.normalizedMSAViewerGapThreshold(),
+                        },
                     },
-                },
-            })?.catch?.((error) => {
+                });
+                this.syncMSAViewerColumnVisibility();
+            } catch (error) {
                 console.error("Failed to update MSAViewer gap threshold", error);
-            });
+            }
+        },
+        normalizedMSAViewerGapThreshold() {
+            return this.gapThreshold;
+        },
+        syncMSAViewerColumnVisibility() {
+            const visible = this.msaViewer?.getColumnVisibility?.()?.visible;
+            this.visibleColumnMask = visible || this.defaultVisibleColumnMask();
+        },
+        defaultVisibleColumnMask() {
+            return this.entries[0]?.aa
+                ? new Uint8Array(this.entries[0].aa.length).fill(1)
+                : [];
         },
         handleStructureLoadingChange(isLoading) {
             this.isLoadingStructure = isLoading;
@@ -552,7 +511,7 @@ export default {
                     behavior: {
                         selectionMode: "column",
                         masking: {
-                            gapThreshold: this.matchRatio === 0.0 ? null : this.matchRatio,
+                            gapThreshold: this.normalizedMSAViewerGapThreshold(),
                         },
                     },
                     rendering: { scheme: "lddt" },
@@ -563,12 +522,14 @@ export default {
                 });
                 viewer.addEventListener("sequenceclick", this.handleMSAViewerSequenceClick);
                 viewer.addEventListener("selectionchange", this.handleMSAViewerSelectionChange);
+                viewer.addEventListener("visibilitychange", this.handleMSAViewerVisibilityChange);
                 await viewer.loadData([
                     { source: this.makeFasta("aa"), format: "fasta", id: "sequence", label: "Sequence", alphabetId: "aa", },
                     { source: this.makeFasta("ss"), format: "fasta", id: "structure", label: "Structure", alphabetId: "3di", },
                 ], { activeId: "sequence" });
                 if (this.msaViewer !== viewer) return;
                 this.syncMSAViewerState();
+                this.syncMSAViewerColumnVisibility();
                 this.syncMSAViewerRowStyles();
                 this.msaViewerReady = true;
             } catch (error) {
@@ -587,6 +548,7 @@ export default {
             try {
                 await this.msaViewer.setActiveRepresentation(representationId);
                 this.syncMSAViewerState();
+                this.syncMSAViewerColumnVisibility();
             } catch (error) {
                 console.error("Failed to set MSAViewer representation", error);
             } finally {
@@ -642,7 +604,11 @@ export default {
             }
         },
         setMSAViewerGapThreshold(value) {
-            this.matchRatio = value;
+            this.gapThreshold = value;
+        },
+        handleMSAViewerVisibilityChange(event) {
+            const visible = event?.detail?.columnVisibility?.visible;
+            this.visibleColumnMask = visible || this.defaultVisibleColumnMask();
         },
         handleMSAViewerSequenceClick(event) {
             const rowIndex = event?.detail?.rowIndex;
@@ -763,6 +729,8 @@ export default {
             if (!!document.fullscreenElement) return
 
             const topRowBottom = this.$refs.topRow.getBoundingClientRect().bottom
+            const structureViewerEl = this.$refs.structViewer?.$el;
+            if (!structureViewerEl) return;
             this.showViewerCondition = this.showViewer
                 && topRowBottom <= PAGE_HEADER_HEIGHT
 
@@ -770,8 +738,8 @@ export default {
                 this.showViewerCondition
             ) {
                 if (!this.$refs.floatingWrapper
-                    .contains(this.$refs.structViewer.$el)) {
-                    this.$refs.floatingWrapper.appendChild(this.$refs.structViewer.$el)
+                    .contains(structureViewerEl)) {
+                    this.$refs.floatingWrapper.appendChild(structureViewerEl)
                     this.$nextTick(() => {
                         setTimeout(() => {
                             this.$refs.structViewer?.handleResize?.()
@@ -780,8 +748,8 @@ export default {
                 }
             } else {
                 if (!this.$refs.originalWrapper
-                    .contains(this.$refs.structViewer.$el)) {
-                    this.$refs.originalWrapper.appendChild(this.$refs.structViewer.$el)
+                    .contains(structureViewerEl)) {
+                    this.$refs.originalWrapper.appendChild(structureViewerEl)
                     this.$nextTick(() => {
                         setTimeout(() => {
                             this.$refs.structViewer?.handleResize?.()
@@ -792,14 +760,9 @@ export default {
         },
         initInteract() {
             const viewer = document.getElementById('floating-viewer')
-            const structureStage = this.$refs.structViewer?.stage
+            if (!viewer) return;
+            const structureViewer = this.$refs.structViewer
             interact(viewer).draggable({
-                // modifiers: [
-                //     interact.modifiers.restrictRect({
-                //         restriction: {x: 0, y:0, width: window.innerWidth, height: document.documentElement.scrollHeight},
-                //         endOnly: false,
-                //     })
-                // ],
                 allowFrom: '.drag-handle',
                 listeners: {
                     move (event) {
@@ -840,7 +803,7 @@ export default {
                         target.style.transform = `translate(${x}px, ${y}px)`;
                         position.x = x
                         position.y = y
-                        structureStage?.handleResize?.()
+                        structureViewer?.handleResize?.()
                     }
                 }
             })
@@ -856,15 +819,17 @@ export default {
         },
         toggleView() {
             const stage = this.$refs.structViewer
+            const structureViewerEl = stage?.$el;
+            if (!structureViewerEl) return;
             if (!this.showViewer) {
                 this.showViewer = true
                 const topRowBottom = this.$refs.topRow.getBoundingClientRect().bottom
                 this.showViewerCondition = this.showViewer
                     && topRowBottom <= PAGE_HEADER_HEIGHT
                 if (this.showViewerCondition
-                    && !this.$refs.floatingWrapper.contains(stage.$el)
+                    && !this.$refs.floatingWrapper.contains(structureViewerEl)
                 ) {
-                    this.$refs.floatingWrapper.appendChild(stage.$el)
+                    this.$refs.floatingWrapper.appendChild(structureViewerEl)
                 }
                 this.$nextTick(() => {
                     setTimeout(() => {
@@ -874,9 +839,9 @@ export default {
             } else {
                 this.showViewer = false
                 this.showViewerCondition = false
-                if (!this.$refs.originalWrapper.contains(stage.$el)
+                if (!this.$refs.originalWrapper.contains(structureViewerEl)
                 ) {
-                    this.$refs.originalWrapper.appendChild(stage.$el)
+                    this.$refs.originalWrapper.appendChild(structureViewerEl)
                     this.$nextTick(() => {
                         setTimeout(() => {
                             stage?.handleResize?.()
@@ -894,8 +859,8 @@ export default {
             }
             this.$emit('changedSelection', this.selectedColumns)
             this.syncMSAViewerSelectionFromSelectedColumns()
-            this.$refs.structViewer.updateAllHighlights()
-            this.$refs.structViewer.moveView(idx)
+            this.$refs.structViewer?.updateAllHighlights?.()
+            this.$refs.structViewer?.moveView?.(idx)
         },
         spliceActiveIndex(idx) {
             let i = this.selectedColumns.indexOf(idx)
@@ -907,7 +872,7 @@ export default {
             this.selectedColumns.splice(i, 1)
             this.$emit('changedSelection', this.selectedColumns)
             this.syncMSAViewerSelectionFromSelectedColumns()
-            this.$refs.structViewer.updateAllHighlights()
+            this.$refs.structViewer?.updateAllHighlights?.()
         },
         changePreview(idx, fromStruct=false) {
             if (idx < 0) {
@@ -915,7 +880,7 @@ export default {
                     this.previewColumn = -1
                     this.$nextTick(() => {
                         setTimeout(()=> {
-                            this.$refs.structViewer.updateAllPreview()
+                            this.$refs.structViewer?.updateAllPreview?.()
                         })
                     })
 
@@ -926,14 +891,14 @@ export default {
                 if (fromStruct) {
                     this.$nextTick(() => {
                         setTimeout(()=>{
-                            this.$refs.structViewer.updateAllPreview()
+                            this.$refs.structViewer?.updateAllPreview?.()
                         })
                     })
                 } else {
                     this.$nextTick(() => {
                         setTimeout(()=>{
-                            this.$refs.structViewer.updateAllPreview()
-                            this.$refs.structViewer.moveView(Number(idx))
+                            this.$refs.structViewer?.updateAllPreview?.()
+                            this.$refs.structViewer?.moveView?.(Number(idx))
                         })
                     })
                 }
@@ -946,7 +911,7 @@ export default {
             if (!this.updatingFromMSAViewer) {
                 this.msaViewer?.clearSelection?.()
             }
-            this.$refs.structViewer.updateAllHighlights()
+            this.$refs.structViewer?.updateAllHighlights?.()
         },
         async exportMSAViewerSelectionAsFasta() {
             if (!this.msaViewer || this.selectedColumns.length === 0) return;

@@ -163,7 +163,7 @@ export default {
     props: {
         entries: { type: Array, required: true },
         selection: { type: Array, required: true, default: [0, 1] },
-        mask: { type: Array, required: true },
+        mask: { type: [Array, Uint8Array], required: true },
         reference: { type: Number, required: true },
         bgColorLight: { type: String, default: "white" },
         bgColorDark: { type: String, default: "#1E1E1E" },
@@ -541,6 +541,7 @@ ENDMDL
             this.stage.eachRepresentation((repr) => {
                 repr.update({color: true})
             });
+            this.stage.viewer.requestRender()
         },
         async updateAllHighlights() {
             if (!this.stage) return
@@ -651,7 +652,10 @@ ENDMDL
             this.updateEntries(newV, oldV);
         },
         mask: function(newM, oldM) {
-            if (oldM?.length == 0 || !newM.every((v, i) => v === oldM[i])) {
+            if (
+                oldM?.length !== newM?.length
+                || !newM.every((v, i) => v === oldM[i])
+            ) {
                 this.updateMask();
             }
         }

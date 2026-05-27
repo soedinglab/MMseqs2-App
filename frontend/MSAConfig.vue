@@ -41,6 +41,7 @@
             step="0.01"
             :disabled="busy"
             :value="gapThreshold"
+            @input="handleGapThresholdChange"
             @change="handleGapThresholdChange"
         >
     </div>
