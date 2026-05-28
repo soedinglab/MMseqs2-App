@@ -1107,20 +1107,16 @@ export function getResidueIndices(
     return result;
   }
 
+  const selectedColumns = new Set(alnPoses);
   let resno = 0;
-  let startPos = 0;
-  const sorted = [...alnPoses].sort((a, b) => a - b);
-  for (let p of sorted) {
-    for (let i = startPos; i <= p && i < seq.length; i++) {
-      if (seq[i] != "-") {
-        if (i == p) {
-          result.push(resno++);
-          startPos = i + 1;
-          break;
-        }
-        resno++;
-      }
+  for (let i = 0; i < seq.length; i++) {
+    if (seq[i] == "-") {
+      continue;
     }
+    if (selectedColumns.has(i)) {
+      result.push(resno);
+    }
+    resno++;
   }
   return result;
 }
