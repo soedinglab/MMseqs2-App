@@ -126,6 +126,17 @@
             </v-col>
         </v-row>
     </v-container>
+    <v-fade-transition>
+        <v-card
+            v-if="cellHover.visible"
+            ref="cellTooltip"
+            class="msa-cell-tooltip"
+            :style="cellHoverStyle"
+            elevation="6"
+        >
+            {{ cellHover.alignmentRow }}. {{ cellHover.name }}, {{ cellHover.residueLabel }} ({{ cellHover.alignmentColumn }})
+        </v-card>
+    </v-fade-transition>
     <portal>
         <v-fade-transition
         >
@@ -161,7 +172,7 @@
 <script>
 import StructureViewerMSA from './StructureViewerMSA.vue';
 import Tree from './Tree.vue';
-import { debounce, tryFixName, mockPDB } from './Utilities.js'
+import { debounce, tryFixName, mockPDB, oneToThree } from './Utilities.js'
 import interact from 'interactjs';
 import { MSAViewer } from 'msa-webgpu';
 import MSAConfig from './MSAConfig.vue';
@@ -261,6 +272,17 @@ export default {
             },
             updatingFromMSAViewer: false,
             scrollTicking: false,
+            scrollPositionTick: 0,
+            cellHover: {
+                visible: false,
+                x: 0,
+                y: 0,
+                name: "",
+                alignmentColumn: "",
+                alignmentRow: "",
+                residueLabel: "",
+                structureLabel: "",
+            },
         }
     },
     beforeCreate() {
@@ -369,6 +391,27 @@ export default {
                 this.gapThresholdInner = clamp(value, 0.0, 1.0);
                 this.$emit('input', this.gapThresholdInner);
             }
+        },
+        cellHoverStyle() {
+            this.scrollPositionTick;
+            const padding = 4;
+            const tooltip = this.$refs.cellTooltip?.$el;
+            const shadowRoot = this.$refs.msaViewerRoot?.shadowRoot;
+            const alnViewport = shadowRoot?.querySelector(".msa-alignment-viewport");
+            const anchorRect = alnViewport?.getBoundingClientRect();
+            const width = tooltip?.offsetWidth || 260;
+            if (!anchorRect) {
+                return {
+                    left: `${Math.max(padding, this.cellHover.x + padding)}px`,
+                    top: `${Math.max(padding, this.cellHover.y + padding)}px`,
+                };
+            }
+            const left = Math.min(
+                Math.max(padding, anchorRect.left + padding),
+                window.innerWidth - width - padding,
+            );
+            const top = Math.max(padding, anchorRect.top + padding);
+            return { left: `${left}px`, top: `${top}px`, };
         },
     },
     methods: {
@@ -523,6 +566,7 @@ export default {
                 viewer.addEventListener("sequenceclick", this.handleMSAViewerSequenceClick);
                 viewer.addEventListener("selectionchange", this.handleMSAViewerSelectionChange);
                 viewer.addEventListener("visibilitychange", this.handleMSAViewerVisibilityChange);
+                viewer.addEventListener("cellhover", this.handleMSAViewerCellHover);
                 await viewer.loadData([
                     { source: this.makeFasta("aa"), format: "fasta", id: "sequence", label: "Sequence", alphabetId: "aa", },
                     { source: this.makeFasta("ss"), format: "fasta", id: "structure", label: "Structure", alphabetId: "3di", },
@@ -609,6 +653,39 @@ export default {
         handleMSAViewerVisibilityChange(event) {
             const visible = event?.detail?.columnVisibility?.visible;
             this.visibleColumnMask = visible || this.defaultVisibleColumnMask();
+        },
+        handleMSAViewerCellHover(event) {
+            const detail = event?.detail || {};
+            const rowIndex = detail.rowIndex;
+            const rawColumn = detail.rawColumn;
+            if (!Number.isInteger(rowIndex) || !Number.isInteger(rawColumn)) {
+                this.cellHover.visible = false;
+                return;
+            }
+            const entry = this.entries[rowIndex];
+            if (!entry) {
+                this.cellHover.visible = false;
+                return;
+            }
+            const residueNumber = detail.sequenceResidueNumber;
+            const symbol = detail.symbol || entry.aa?.[rawColumn] || "";
+            const AA = oneToThree[symbol.toUpperCase()] || "";
+            const formatted = AA?.charAt(0) + AA?.toLowerCase().slice(1, 3)
+            const isGap = symbol === "-" || residueNumber == null;
+            const chain = isGap ? null : entry.chains?.[residueNumber];
+            const structureResidueNumber = isGap ? null : entry.resns?.[residueNumber];
+            this.cellHover = {
+                visible: true,
+                x: detail.originalEvent?.clientX ?? this.cellHover.x,
+                y: detail.originalEvent?.clientY ?? this.cellHover.y,
+                name: entry.name || detail.record?.name || `Sequence ${rowIndex + 1}`,
+                alignmentRow: String(rowIndex),
+                alignmentColumn: String(rawColumn + 1),
+                residueLabel: isGap ? "Gap" : `${formatted}${residueNumber}`,
+                structureLabel: chain && structureResidueNumber != null
+                    ? `${structureResidueNumber}:${chain}`
+                    : "",
+            };
         },
         handleMSAViewerSequenceClick(event) {
             const rowIndex = event?.detail?.rowIndex;
@@ -721,6 +798,7 @@ export default {
                 this.scrollTicking = true;
                 window.requestAnimationFrame(() => {
                     this._doHandleScroll();
+                    this.scrollPositionTick++;
                     this.scrollTicking = false;
                 });
             }
@@ -1014,6 +1092,18 @@ export default {
     left: 20px;
     bottom: 8px;
     z-index: 2;
+}
+
+.msa-cell-tooltip {
+    position: fixed;
+    z-index: 2147483647;
+    pointer-events: none;
+    min-width: 150px;
+    max-width: 500px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.35;
 }
 
 #floating-viewer > div {
