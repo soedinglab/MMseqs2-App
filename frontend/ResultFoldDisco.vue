@@ -97,6 +97,7 @@
                         v-if="hits && hits.results && hits.results.length > 1"
                         v-show="selectedDatabases == 0"
                         :hits="hits" :mode="2"
+                        :queryPdb="queryPdb"
                         @jumpTo="i => selectedDatabases = i+1"
                     />
                     <keep-alive>

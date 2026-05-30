@@ -22,6 +22,7 @@
                     <TopHitEntries
                             :entry="hit"
                             :key="hit.db"
+                            :ref="hitRef(hit.db)"
                             :mode="mode"
                             :columnName="columnName"
                             :thumbnailUrl="thumbnailCache[hit.db]"
@@ -40,16 +41,20 @@
             v-if="thumbnailQueue.length > 0"
             ref="thumbnailViewer"
             :thumbnailQueue="thumbnailQueue"
-            :hits="hits" :mode="mode"
+            :hits="hits"
+            :mode="mode"
+            :searchType="searchType"
+            :queryPdb="queryPdb"
             @thumbnail-ready="handleThumbnailReady"
             @viewer-ready="handleViewerReady"
+            @spin-change="viewerSpinning = $event"
         />
     </div>
 </template>
 
 <script>
 import TopHitEntries from './TopHitEntries.vue';
-import StructureViewerThumbnail from './StructureViewerThumbnail.vue';
+import StructureViewerThumbnail from './molstar/StructureViewerThumbnail.vue';
 
 export default {
     name: "TopHits",
@@ -80,12 +85,19 @@ export default {
         searchType: {
             type: String,
             default: "",
-        }
+        },
+        queryPdb: {
+            type: String,
+            default: "",
+        },
     },
     methods: {
-        handleThumbnailReady({ id, result }) {
-            // const url = URL.createObjectURL(blob);
-            this.$set(this.thumbnailCache, id, result);
+        handleThumbnailReady({ id, blob }) {
+            if (!blob) return;
+            if (this.thumbnailCache[id]) {
+                URL.revokeObjectURL(this.thumbnailCache[id]);
+            }
+            this.$set(this.thumbnailCache, id, URL.createObjectURL(blob));
         },
         handleViewerReady() {
             this.viewerSpinning = true;
@@ -98,8 +110,14 @@ export default {
         handleToolbarToggleSpin() {
             if (this.$refs.thumbnailViewer) {
                 this.$refs.thumbnailViewer.handleToggleSpin();
-                this.viewerSpinning = this.$refs.thumbnailViewer.isSpinning;
             }
+        },
+        hitRef(id) {
+            return `topHit:${id}`;
+        },
+        hitComponent(id) {
+            const ref = this.$refs[this.hitRef(id)];
+            return Array.isArray(ref) ? ref[0] : ref;
         },
         handleCardActivate(hit) {
             if (!hit.topHit) return;
@@ -121,9 +139,7 @@ export default {
             this.activeCardId = cardId;
 
             this.$nextTick(() => {
-                // Find the TopHitEntries component for this card
-                const entries = this.$children.filter(c => c.$options.name === 'TopHitEntries');
-                const targetEntry = entries.find(c => c.entry.db === cardId);
+                const targetEntry = this.hitComponent(cardId);
                 if (!targetEntry || !targetEntry.$refs.viewerSlot) return;
                 const targetEl = targetEntry.$refs.viewerSlot;
 

@@ -61,7 +61,6 @@
 
 <script>
 import ModalDialog from "./ModalDialog.vue";
-import { Selection } from 'ngl';
 import { splitAlphaNum } from "./Utilities";
 
 function sortResidueStrings(a, b) {
@@ -70,6 +69,13 @@ function sortResidueStrings(a, b) {
     if (chainA < chainB) return -1;
     if (chainA > chainB) return 1;
     return (posA - 0) - (posB - 0);
+}
+
+function distance(a, b) {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    const dz = a.z - b.z;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
 function unquoteCifString(val = "") {
@@ -185,26 +191,15 @@ export default {
                         ? `${res.resname} ${nameLookup[res.resname]} ${chain}${res.resno}`
                         : `${res.resname} ${chain}${res.resno}`;
 
-                    const ligAtomIndices = [];
-                    res.eachAtom(a => ligAtomIndices.push(a.index));
-                    const ligSel = new Selection(`@${ligAtomIndices.join(",")}`);
-
-                    // find all atoms within the cutoff distance of the ligand
-                    const nearAtoms = structure.getAtomSetWithinSelection(ligSel, this.cutoff);
-
-                    // expand this atom set to full residues
-                    const nearResidueAtoms = structure.getAtomSetWithinGroup(nearAtoms);
-
-                    // Collect the protein neighbors from the expanded set
                     const neighborResidues = new Set();
-                    nearResidueAtoms.forEach(atomIndex => {
-                        const atom = structure.getAtomProxy(atomIndex);
-                        const neighborRes = atom.residue;
-
-                        if (neighborRes.isPolymer() && neighborRes.resno !== res.resno) {
-                            neighborResidues.add(`${neighborRes.chainname}${neighborRes.resno}`);
+                    for (const ligAtom of res.atoms || []) {
+                        for (const neighborRes of structure.residues || []) {
+                            if (!neighborRes.isPolymer() || neighborRes.resno === res.resno) continue;
+                            if ((neighborRes.atoms || []).some(atom => distance(atom, ligAtom) <= this.cutoff)) {
+                                neighborResidues.add(`${neighborRes.chainname}${neighborRes.resno}`);
+                            }
                         }
-                    });
+                    }
 
                     const neighborsArray = Array.from(neighborResidues).sort(sortResidueStrings);
 
