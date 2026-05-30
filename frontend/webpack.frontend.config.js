@@ -49,7 +49,7 @@ module.exports = (env, argv) => {
             filename: isElectron ? 'renderer.js' : (isLocal ? '[name].js' : '[contenthash:20].js'),
             crossOriginLoading: 'anonymous',
         },
-        cache: {
+        cache: isLocal ? false : {
             type: 'filesystem'
         },
         module: {
@@ -58,6 +58,7 @@ module.exports = (env, argv) => {
                     test: /\.vue$/,
                     loader: 'vue-loader',
                     options: {
+                        hotReload: false,
                         transformAssetUrls: {
                             video: ['src', 'poster'],
                             source: 'src',

@@ -2,13 +2,13 @@
 <div class="toolbar-panel">
     <v-item-group class="v-btn-toggle" :light="isFullscreen">
     <v-btn
-        v-if="!disablePDBButton"
+        v-if="!structureFileButtonDisabled"
         v-bind="toolbarButtonProps"
-        @click="handleClickMakePDB"
-        title="Save PDB"
+        @click="handleClickMakeCIF"
+        :title="structureFileButtonLabel"
     >
-        <v-icon v-bind="toolbarIconProps">{{ $MDI.SavePDB }}</v-icon>
-        <span v-if="isFullscreen">&nbsp;Save PDB</span>
+        <v-icon v-bind="toolbarIconProps">{{ structureFileIcon }}</v-icon>
+        <span v-if="isFullscreen">&nbsp;{{ structureFileButtonLabel }}</span>
     </v-btn>
     <v-btn
         v-if="!disableImageButton"
@@ -64,7 +64,6 @@
         v-if="!disableSpinButton"
         v-bind="toolbarButtonProps"
         @click="handleClickSpin"
-        :disabled="isSpinning"
         title="Toggle spinning structure"
     >
         <v-icon v-bind="toolbarIconProps">{{ $MDI.AxisZRotateCounterclockwise }}</v-icon>
@@ -91,6 +90,7 @@ export default {
         showArrows: { type: Boolean, default: false },
         isFullscreen: { type: Boolean, default: false },
         isSpinning: { type: Boolean, default: true },
+        disableCIFButton: { default: null },
         disablePDBButton: { type: Boolean, default: false },
         disableSpinButton: { type: Boolean, default: false },
         disableImageButton: { type: Boolean, default: false },
@@ -99,8 +99,19 @@ export default {
         disableArrowButton: { type: Boolean, default: false },
         disableResetButton: { type: Boolean, default: false },
         disableFullscreenButton: { type: Boolean, default: false },
+        cifButtonLabel: { type: String, default: null },
+        pdbButtonLabel: { type: String, default: 'Save PDB' },
     },
     computed: {
+        structureFileButtonDisabled: function() {
+            return this.disableCIFButton !== null ? this.disableCIFButton : this.disablePDBButton;
+        },
+        structureFileButtonLabel: function() {
+            return this.cifButtonLabel || this.pdbButtonLabel;
+        },
+        structureFileIcon: function() {
+            return this.cifButtonLabel ? this.$MDI.SaveCIF : this.$MDI.SavePDB;
+        },
         toolbarIconProps: function() {
             return (this.isFullscreen) ? {
                 'right': true
@@ -122,7 +133,8 @@ export default {
         handleClickSpin() {
             this.$emit("toggleSpin");
         },
-        handleClickMakePDB() {
+        handleClickMakeCIF() {
+            this.$emit("makeCIF");
             this.$emit("makePDB");
         },
         handleClickMakeImage() {

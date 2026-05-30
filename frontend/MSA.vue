@@ -121,6 +121,11 @@
                             <span>{{ showViewer ? 'Hide' : 'Show' }} floating viewer</span>
                         </v-tooltip>
                     </div>
+                    <div
+                        v-show="structurePreviewMarker.visible"
+                        class="structure-preview-column-marker"
+                        :style="structurePreviewMarkerStyle"
+                    />
                     <div ref="msaViewerRoot" id="msa-viewer-root"></div>
                 </v-card>
             </v-col>
@@ -273,6 +278,13 @@ export default {
             updatingFromMSAViewer: false,
             scrollTicking: false,
             scrollPositionTick: 0,
+            structurePreviewMarker: {
+                visible: false,
+                left: 0,
+                top: 0,
+                width: 0,
+                height: 0,
+            },
             cellHover: {
                 visible: false,
                 x: 0,
@@ -287,6 +299,7 @@ export default {
     },
     beforeCreate() {
         this.msaViewer = null;
+        this.previewMarkerScrollHandlers = [];
     },
     watch: {
         '$vuetify.theme.dark': function() {
@@ -379,6 +392,7 @@ export default {
     },
     beforeDestroy() {
         window.removeEventListener("scroll", this.handleScroll);
+        this.unbindMSAPreviewMarkerScroll();
         this.msaViewer?.destroy?.();
         this.msaViewer = null;
     },
@@ -412,6 +426,14 @@ export default {
             );
             const top = Math.max(padding, anchorRect.top + padding);
             return { left: `${left}px`, top: `${top}px`, };
+        },
+        structurePreviewMarkerStyle() {
+            return {
+                left: `${this.structurePreviewMarker.left}px`,
+                top: `${this.structurePreviewMarker.top}px`,
+                width: `${this.structurePreviewMarker.width}px`,
+                height: `${this.structurePreviewMarker.height}px`,
+            };
         },
     },
     methods: {
@@ -576,6 +598,7 @@ export default {
                 this.syncMSAViewerColumnVisibility();
                 this.syncMSAViewerRowStyles();
                 this.msaViewerReady = true;
+                this.bindMSAPreviewMarkerScroll();
             } catch (error) {
                 console.error("Failed to initialize MSAViewer", error);
                 if (this.msaViewer === viewer) {
@@ -585,6 +608,27 @@ export default {
                     this.resetMSAViewerState();
                 }
             }
+        },
+        bindMSAPreviewMarkerScroll() {
+            this.unbindMSAPreviewMarkerScroll();
+            const shadowRoot = this.$refs.msaViewerRoot?.shadowRoot;
+            const scrollers = [
+                shadowRoot?.querySelector(".msa-alignment-horizontal-scroller"),
+                shadowRoot?.querySelector(".msa-alignment-interaction-proxy"),
+            ].filter(Boolean);
+            this.previewMarkerScrollHandlers = scrollers.map((node) => {
+                const handler = () => this.updateStructurePreviewMarker();
+                node.addEventListener("scroll", handler, { passive: true });
+                return { node, handler };
+            });
+            window.addEventListener("resize", this.updateStructurePreviewMarker, { passive: true });
+        },
+        unbindMSAPreviewMarkerScroll() {
+            for (const { node, handler } of this.previewMarkerScrollHandlers || []) {
+                node.removeEventListener("scroll", handler);
+            }
+            this.previewMarkerScrollHandlers = [];
+            window.removeEventListener("resize", this.updateStructurePreviewMarker);
         },
         async setMSAViewerRepresentation(representationId) {
             if (!this.msaViewer || !representationId || representationId === this.msaViewerState.activeRepresentationId) return;
@@ -956,6 +1000,7 @@ export default {
             if (idx < 0) {
                 if (this.previewColumn >= 0 ) {
                     this.previewColumn = -1
+                    this.structurePreviewMarker.visible = false
                     this.$nextTick(() => {
                         setTimeout(()=> {
                             this.$refs.structViewer?.updateAllPreview?.()
@@ -970,18 +1015,64 @@ export default {
                     this.$nextTick(() => {
                         setTimeout(()=>{
                             this.$refs.structViewer?.updateAllPreview?.()
+                            this.updateStructurePreviewMarker()
                         })
                     })
                 } else {
                     this.$nextTick(() => {
                         setTimeout(()=>{
                             this.$refs.structViewer?.updateAllPreview?.()
+                            this.updateStructurePreviewMarker()
                             this.$refs.structViewer?.moveView?.(Number(idx))
                         })
                     })
                 }
 
             }
+        },
+        updateStructurePreviewMarker() {
+            const column = this.previewColumn;
+            if (!this.msaViewer || !Number.isInteger(column) || column < 0) {
+                this.structurePreviewMarker.visible = false;
+                return;
+            }
+
+            const root = this.$refs.msaViewerRoot;
+            const card = root?.closest(".msa-viewer-card");
+            const shadowRoot = root?.shadowRoot;
+            const viewport = shadowRoot?.querySelector(".msa-alignment-viewport");
+            const scroller = shadowRoot?.querySelector(".msa-alignment-horizontal-scroller");
+            if (!card || !viewport || !scroller) {
+                this.structurePreviewMarker.visible = false;
+                return;
+            }
+
+            const visibility = this.msaViewer.getColumnVisibility?.();
+            const visibleColumn = visibility?.rawToVisible
+                ? visibility.rawToVisible[column]
+                : column;
+            if (!Number.isFinite(visibleColumn) || visibleColumn < 0) {
+                this.structurePreviewMarker.visible = false;
+                return;
+            }
+
+            const cellWidth = this.msaViewer.alignmentView?.getRenderedCellWidthCss?.() || 12;
+            const viewportRect = viewport.getBoundingClientRect();
+            const cardRect = card.getBoundingClientRect();
+            const x = visibleColumn * cellWidth - scroller.scrollLeft;
+            if (x + cellWidth < 0 || x > viewportRect.width) {
+                this.structurePreviewMarker.visible = false;
+                return;
+            }
+
+            const clippedX = Math.max(0, x);
+            this.structurePreviewMarker = {
+                visible: true,
+                left: viewportRect.left - cardRect.left + clippedX,
+                top: viewportRect.top - cardRect.top,
+                width: Math.max(2, Math.min(cellWidth, viewportRect.width - clippedX)),
+                height: viewportRect.height,
+            };
         },
         clearSelection() {
             this.selectedColumns.splice(0)
@@ -1104,6 +1195,16 @@ export default {
     border-radius: 6px;
     font-size: 12px;
     line-height: 1.35;
+}
+
+.structure-preview-column-marker {
+    position: absolute;
+    z-index: 3;
+    pointer-events: none;
+    border-left: 1px dashed #ec3f5f;
+    border-right: 1px dashed #ec3f5f;
+    background: rgba(236, 63, 95, 0.18);
+    box-shadow: 0 0 0 1px rgba(236, 63, 95, 0.55);
 }
 
 #floating-viewer > div {

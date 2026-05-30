@@ -124,7 +124,6 @@
     "imagemin": "^8.0.1",
     "imagemin-pngquant": "^9.0.2",
     "mini-css-extract-plugin": "^2.7.6",
-    "ngl": "2.0.1",
     "pako": "^2.1.0",
     "pulchra-wasm": "^0.0.3",
     "sass": "<1.33.0",
@@ -152,6 +151,7 @@
     "d3-sankey": "^0.12.3",
     "interactjs": "^1.10.27",
     "mitt": "^3.0.1",
+    "molstar": "^5.9.0",
     "msa-webgpu": "^0.0.10"
   }
 }

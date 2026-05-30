@@ -1,0 +1,646 @@
+import { OrderedSet } from 'molstar/lib/mol-data/int';
+import { Mat4 } from 'molstar/lib/mol-math/linear-algebra';
+import { QueryContext, StructureElement, StructureProperties, StructureSelection } from 'molstar/lib/mol-model/structure';
+import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
+import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
+import { compile } from 'molstar/lib/mol-script/runtime/query/compiler';
+import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
+import { Color } from 'molstar/lib/mol-util/color';
+import { tmalign, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
+import { pulchra } from 'pulchra-wasm';
+import { mockPDB } from './foldseekUtilities.js';
+
+const ReferenceColor = 0x1e88e5;
+const RegularColor = 0xffc107;
+const MaskColor = 0x666666;
+const oneToThree = {
+    A: 'ALA', R: 'ARG', N: 'ASN', D: 'ASP', C: 'CYS',
+    E: 'GLU', Q: 'GLN', G: 'GLY', H: 'HIS', I: 'ILE',
+    L: 'LEU', K: 'LYS', M: 'MET', F: 'PHE', P: 'PRO',
+    S: 'SER', T: 'THR', W: 'TRP', Y: 'TYR', V: 'VAL',
+    U: 'SEC', O: 'PYL', X: 'ALA',
+};
+const threeToOne = {};
+for (const [one, three] of Object.entries(oneToThree)) {
+    if (!threeToOne[three]) threeToOne[three] = one;
+}
+
+async function loadStructure(plugin, source) {
+    const raw = await plugin.builders.data.rawData(
+        { data: source.data, label: source.label },
+        { state: { isGhost: true } },
+    );
+    const trajectory = await plugin.builders.structure.parseTrajectory(raw, source.format || 'pdb');
+    const model = await plugin.builders.structure.createModel(trajectory);
+    return plugin.builders.structure.createStructure(model);
+}
+
+async function transformStructure(plugin, structure, matrix) {
+    const transformed = await plugin.state.data.build()
+        .to(structure)
+        .apply(StateTransforms.Model.TransformStructureConformation, {
+            transform: { name: 'matrix', params: { data: matrix, transpose: false } },
+        }, { tags: 'foldmason-transform' })
+        .commit();
+    return transformed;
+}
+
+function representationTypeParams(type, alpha) {
+    return {
+        quality: 'higher',
+        sizeFactor: 0.25,
+        visuals: ['polymer-trace', 'polymer-gap'],
+        helixProfile: 'rounded',
+        nucleicProfile: 'rounded',
+        linearSegments: 10,
+        radialSegments: 16,
+        alpha,
+        material: {
+            metalness: 0,
+            roughness: 0.55,
+            bumpiness: 0.1,
+        },
+    };
+}
+
+async function addRepresentation(plugin, structure, label, color, expression, alpha = 1, type = 'cartoon') {
+    if (!expression) return null;
+    const component = await plugin.builders.structure.tryCreateComponentFromExpression(
+        structure,
+        expression,
+        label,
+        { label },
+    );
+    if (!component) return null;
+
+    const representation = await plugin.builders.structure.representation.addRepresentation(component, {
+        type,
+        color: 'uniform',
+        colorParams: { value: Color(color) },
+        typeParams: representationTypeParams(type, alpha),
+    });
+    return { component, representation };
+}
+
+async function addStructure(plugin, state, input, index) {
+    const entry = input.entries[index];
+    const pdb = await structurePDB(entry);
+    const source = { data: pdb, format: 'pdb', label: `key-${index}` };
+    let structure = await loadStructure(plugin, source);
+
+    if (index !== input.reference && state.referenceStructure) {
+        const matrix = await superpositionMatrix(input.entries[input.reference], entry);
+        if (matrix) structure = await transformStructure(plugin, structure, matrix);
+    }
+
+    const color = index === input.reference ? ReferenceColor : RegularColor;
+    const item = {
+        index,
+        entry,
+        structure,
+        base: await addRepresentation(plugin, structure, `foldmason-${index}`, color, MS.struct.generator.all()),
+        mask: null,
+    };
+    item.mask = await addRepresentation(plugin, structure, `foldmason-${index}-mask`, MaskColor, maskExpression(entry, input.mask));
+    state.structures.set(index, item);
+    if (index === input.reference) state.referenceStructure = structure;
+}
+
+async function deleteRepresentation(plugin, item) {
+    if (item?.component?.ref) {
+        await plugin.state.data.build().delete(item.component.ref).commit();
+    }
+}
+
+async function removeStructure(plugin, state, index) {
+    const item = state.structures.get(index);
+    if (!item) return;
+    if (item.structure?.ref) {
+        await plugin.state.data.build().delete(item.structure.ref).commit();
+    }
+    state.structures.delete(index);
+}
+
+async function rebuildScene(plugin, state, input) {
+    await plugin.clear();
+    state.entries = input.entries;
+    state.reference = input.reference;
+    state.mask = input.mask;
+    state.structures = new Map();
+    state.referenceStructure = null;
+    state.focusKey = null;
+
+    if (!input.entries?.length || input.reference < 0) return;
+    if (input.selection.includes(input.reference)) {
+        await addStructure(plugin, state, input, input.reference);
+    }
+    for (const index of input.selection) {
+        if (index !== input.reference) await addStructure(plugin, state, input, index);
+    }
+    plugin.managers.camera.reset();
+}
+
+async function updateStructures(plugin, state, input) {
+    if (
+        state.entries !== input.entries
+        || state.reference !== input.reference
+        || !state.structures
+    ) {
+        await rebuildScene(plugin, state, input);
+        return;
+    }
+
+    const next = new Set(input.selection);
+    for (const index of Array.from(state.structures.keys())) {
+        if (!next.has(index)) await removeStructure(plugin, state, index);
+    }
+    for (const index of input.selection) {
+        if (!state.structures.has(index)) await addStructure(plugin, state, input, index);
+    }
+    if (state.mask !== input.mask) {
+        state.mask = input.mask;
+        await updateMasks(plugin, state, input);
+    }
+}
+
+async function updateMasks(plugin, state, input) {
+    for (const item of state.structures.values()) {
+        await deleteRepresentation(plugin, item.mask);
+        item.mask = await addRepresentation(
+            plugin,
+            item.structure,
+            `foldmason-${item.index}-mask`,
+            MaskColor,
+            maskExpression(item.entry, input.mask),
+        );
+    }
+}
+
+async function setSelection(plugin, state, input) {
+    const loci = lociForColumns(state, input.selectedColumns || []);
+    plugin.managers.interactivity.lociSelects.deselectAll();
+    for (const item of loci) {
+        plugin.managers.interactivity.lociSelects.select({ loci: item }, false);
+    }
+}
+
+async function setPreview(plugin, state, input) {
+    const column = input.previewColumn;
+    if (!Number.isInteger(column) || column < 0) {
+        plugin.managers.interactivity.lociHighlights.clearHighlights();
+        return;
+    }
+    if (Number.isInteger(input.previewStructureIndex) && input.previewStructureIndex >= 0) {
+        const item = state.structures.get(input.previewStructureIndex);
+        const loci = item ? lociForItem(item, [column]) : null;
+        if (loci) {
+            plugin.managers.interactivity.lociHighlights.highlightOnly({ loci }, false);
+        } else {
+            plugin.managers.interactivity.lociHighlights.clearHighlights();
+        }
+        return;
+    }
+    const loci = lociForColumns(state, [column]);
+    if (loci.length === 0) {
+        plugin.managers.interactivity.lociHighlights.clearHighlights();
+        return;
+    }
+    plugin.managers.interactivity.lociHighlights.highlightOnly({ loci: loci[0] }, false);
+}
+
+async function setFocus(plugin, state, input) {
+    const focus = input.focusColumn;
+    const key = Number.isInteger(focus) ? `${focus}:${input.focusToken || 0}` : null;
+    if (state.focusKey === key) return;
+    state.focusKey = key;
+    if (!Number.isInteger(focus) || focus < 0) return;
+
+    const reference = state.structures.get(input.reference);
+    if (!reference) return;
+    const loci = lociForItem(reference, [focus]);
+    if (!loci) return;
+    plugin.managers.camera.focusLoci(loci, {
+        durationMs: 250,
+        extraRadius: 8,
+        minRadius: 4,
+    });
+}
+
+function lociForColumns(state, columns) {
+    const loci = [];
+    for (const item of state.structures?.values?.() || []) {
+        const itemLoci = lociForItem(item, columns);
+        if (itemLoci) loci.push(itemLoci);
+    }
+    return loci;
+}
+
+function lociForItem(item, columns) {
+    const expression = columnExpression(item.entry, columns);
+    if (!expression) return null;
+    const structure = item.structure?.cell?.obj?.data;
+    if (!structure) return null;
+    const query = compile(expression);
+    const selection = query(new QueryContext(structure));
+    const loci = StructureSelection.toLociWithSourceUnits(selection);
+    return StructureElement.Loci.isEmpty(loci) ? null : loci;
+}
+
+function columnExpression(entry, columns) {
+    return mergeExpressions(columns.map(column => residueExpressionForColumn(entry, column)));
+}
+
+function maskExpression(entry, mask = []) {
+    const maskedColumns = [];
+    for (let i = 0; i < entry.aa.length; i++) {
+        if (mask[i] === 0) maskedColumns.push(i);
+    }
+    return columnExpression(entry, maskedColumns);
+}
+
+function residueExpressionForColumn(entry, column) {
+    if (!Number.isInteger(column) || entry.aa?.[column] === '-') return null;
+    const residueIndex = residueIndexForColumn(entry.aa, column);
+    if (residueIndex < 1) return null;
+    const chain = entry.chains?.[residueIndex] || 'A';
+    const residue = entry.resns?.[residueIndex] || residueIndex;
+    return mergeExpressions([
+        atomGroupExpression(chain, residue),
+        atomGroupExpression(null, residueIndex),
+    ]);
+}
+
+function atomGroupExpression(chain, residue) {
+    const { or } = MS.core.logic;
+    const { eq } = MS.core.rel;
+    const { macromolecular } = MS.struct.atomProperty;
+    const tests = {
+        'residue-test': or([
+            eq([macromolecular.auth_seq_id(), residue]),
+            eq([macromolecular.label_seq_id(), residue]),
+        ]),
+    };
+    if (chain) {
+        tests['chain-test'] = or([
+            eq([macromolecular.auth_asym_id(), chain]),
+            eq([macromolecular.label_asym_id(), chain]),
+        ]);
+    }
+    return MS.struct.generator.atomGroups(tests);
+}
+
+function mergeExpressions(expressions) {
+    const valid = expressions.filter(Boolean);
+    if (valid.length === 0) return null;
+    if (valid.length === 1) return valid[0];
+    return MS.struct.combinator.merge(valid.map(expression => MS.struct.modifier.union([expression])));
+}
+
+function structureEvent(state, current, type) {
+    if (!StructureElement.Loci.is(current?.loci) || StructureElement.Loci.isEmpty(current.loci)) {
+        return { type, column: -1, hasLoci: false };
+    }
+    const item = itemForLoci(state, current.loci);
+    if (!item) return { type, column: -1, hasLoci: true, residue: null };
+
+    const residue = residueFromLoci(current.loci);
+    if (!residue) {
+        return {
+            type,
+            index: item.index,
+            column: -1,
+            hasLoci: true,
+            residue: null,
+            name: item.entry.name,
+        };
+    }
+
+    const column = columnForResidue(item.entry, residue.chain, residue.residue);
+    const residueInfo = residueInfoForColumn(item.entry, column) || {
+        chain: residue.chain,
+        residue: residue.residue,
+        oneLetter: residue.oneLetter,
+        threeLetter: residue.threeLetter,
+    };
+    return {
+        type,
+        index: item.index,
+        column,
+        hasLoci: true,
+        name: item.entry.name,
+        residue: residueInfo,
+    };
+}
+
+function itemForLoci(state, loci) {
+    const root = loci.structure?.root || loci.structure;
+    for (const item of state.structures?.values?.() || []) {
+        const structure = item.structure?.cell?.obj?.data;
+        if (structure === loci.structure || structure === root || structure?.root === root) return item;
+    }
+    return null;
+}
+
+function residueFromLoci(loci) {
+    const entry = loci.elements?.[0];
+    if (!entry || OrderedSet.size(entry.indices) === 0) return null;
+    const loc = StructureElement.Location.create(loci.structure);
+    loc.unit = entry.unit;
+    loc.element = OrderedSet.getAt(entry.indices, 0);
+    const threeLetter = StructureProperties.residue.label_comp_id(loc)
+        || StructureProperties.residue.auth_comp_id(loc)
+        || '';
+    return {
+        chain: StructureProperties.chain.auth_asym_id(loc) || StructureProperties.chain.label_asym_id(loc) || '',
+        residue: StructureProperties.residue.auth_seq_id(loc) || StructureProperties.residue.label_seq_id(loc),
+        oneLetter: threeToOne[threeLetter] || '',
+        threeLetter,
+    };
+}
+
+function setCurrentHover(plugin, current) {
+    const loci = current?.loci;
+    if (!StructureElement.Loci.is(loci) || StructureElement.Loci.isEmpty(loci)) {
+        plugin.managers.interactivity.lociHighlights.clearHighlights();
+        return;
+    }
+    plugin.managers.interactivity.lociHighlights.highlightOnly({ loci }, false);
+}
+
+function focusCurrent(plugin, current) {
+    const loci = current?.loci;
+    if (!StructureElement.Loci.is(loci) || StructureElement.Loci.isEmpty(loci)) return;
+    plugin.managers.camera.focusLoci(loci, {
+        durationMs: 250,
+        extraRadius: 6,
+        minRadius: 3,
+    });
+}
+
+function columnForResidue(entry, chain, residue) {
+    let residueIndex = -1;
+    const hasChain = typeof chain === 'string' && chain.trim() !== '';
+    for (let i = 1; i < entry.resns.length; i++) {
+        if ((!hasChain || (entry.chains?.[i] || 'A') === chain) && entry.resns[i] === residue) {
+            residueIndex = i;
+            break;
+        }
+    }
+    if (residueIndex < 1) return -1;
+
+    let seen = 0;
+    for (let column = 0; column < entry.aa.length; column++) {
+        if (entry.aa[column] === '-') continue;
+        seen++;
+        if (seen === residueIndex) return column;
+    }
+    return -1;
+}
+
+function residueInfoForColumn(entry, column) {
+    if (!Number.isInteger(column) || column < 0 || entry.aa?.[column] === '-') return null;
+    const residueIndex = residueIndexForColumn(entry.aa, column);
+    if (residueIndex < 1) return null;
+    const oneLetter = entry.aa[column] || '';
+    return {
+        chain: entry.chains?.[residueIndex] || 'A',
+        residue: entry.resns?.[residueIndex] || residueIndex,
+        oneLetter,
+        threeLetter: oneToThree[oneLetter] || '',
+    };
+}
+
+function residueIndexForColumn(seq, column) {
+    let residueIndex = 0;
+    for (let i = 0; i <= column && i < seq.length; i++) {
+        if (seq[i] !== '-') residueIndex++;
+    }
+    return residueIndex;
+}
+
+async function superpositionMatrix(reference, target) {
+    const alignment = mockAlignment(reference.aa, target.aa);
+    const fasta = `>target\n${alignment.dbAln}\n\n>query\n${alignment.qAln}`;
+    const referencePDB = subPDB(mockPDB(reference.ca, reference.aa.replace(/-/g, ''), 'A'), alignment.qStartPos, alignment.qEndPos);
+    const targetPDB = subPDB(mockPDB(target.ca, target.aa.replace(/-/g, ''), 'A'), alignment.dbStartPos, alignment.dbEndPos);
+    const { matrix } = await tmalign(targetPDB, referencePDB, fasta);
+    const { t, u } = parseTMMatrix(matrix);
+    return makeMat4(t, u);
+}
+
+function makeMat4(t, u) {
+    return Mat4.ofRows([
+        [u[0][0], u[0][1], u[0][2], t[0]],
+        [u[1][0], u[1][1], u[1][2], t[1]],
+        [u[2][0], u[2][1], u[2][2], t[2]],
+        [0, 0, 0, 1],
+    ]);
+}
+
+function mockAlignment(one, two) {
+    const res = { backtrace: '', qAln: '', dbAln: '' };
+    let started = false;
+    let m = 0;
+    let qr = 0;
+    let tr = 0;
+    let qBuffer = '';
+    let tBuffer = '';
+    while (m < one.length) {
+        const qc = one[m];
+        const tc = two[m];
+        if (qc === '-' && tc === '-') {
+            // skip
+        } else if (qc === '-') {
+            if (started) {
+                res.backtrace += 'D';
+                qBuffer += qc;
+                tBuffer += tc;
+            }
+            tr++;
+        } else if (tc === '-') {
+            if (started) {
+                res.backtrace += 'I';
+                qBuffer += qc;
+                tBuffer += tc;
+            }
+            qr++;
+        } else {
+            if (started) {
+                res.qAln += qBuffer;
+                res.dbAln += tBuffer;
+                qBuffer = '';
+                tBuffer = '';
+            } else {
+                started = true;
+                res.qStartPos = qr;
+                res.dbStartPos = tr;
+            }
+            res.backtrace += 'M';
+            qBuffer += qc;
+            tBuffer += tc;
+            res.qEndPos = qr;
+            res.dbEndPos = tr;
+            qr++;
+            tr++;
+        }
+        m++;
+    }
+    res.qStartPos++;
+    res.dbStartPos++;
+    res.qSeq = one.replace(/-/g, '');
+    res.tSeq = two.replace(/-/g, '');
+    return res;
+}
+
+function subPDB(pdb, start, end) {
+    return pdb.split(/\r?\n/)
+        .filter((line) => {
+            if (!line.startsWith('ATOM') && !line.startsWith('HETATM')) return false;
+            const residue = Number.parseInt(line.slice(22, 26), 10);
+            return residue >= start && residue <= end;
+        })
+        .join('\n');
+}
+
+async function structurePDB(entry) {
+    const mock = mockPDB(entry.ca, entry.aa.replace(/-/g, ''), 'A');
+    try {
+        if (!entry.suffix) return await pulchra(mock);
+
+        const decoded = decodeMultimer(mock, entry.suffix);
+        const chains = storeChains(decoded);
+        const chunks = [];
+        for (const split of splitMultimer(decoded)) {
+            chunks.push(await pulchra(split));
+        }
+        return revertChainInfo(mergeMultimer(chunks), chains);
+    } catch (e) {
+        return mock;
+    }
+}
+
+function decodeMultimer(pdb, suffix) {
+    if (!suffix) return pdb;
+    const chainInfos = suffix.split('-').map((s) => {
+        const [chain, end, offset] = s.split('_');
+        return { chain, end: Number(end), offset: Number(offset) };
+    });
+
+    let index = 0;
+    const out = [];
+    for (const line of pdb.split('\n')) {
+        if (!line.startsWith('ATOM')) continue;
+        const residue = Number(line.slice(22, 26));
+        const info = chainInfos[index] || chainInfos[0];
+        out.push(
+            line.slice(0, 21) +
+            info.chain +
+            (residue - info.offset).toString().padStart(4, ' ') +
+            line.slice(26),
+        );
+        if (residue === info.end) {
+            index++;
+            out.push('TER');
+        }
+    }
+    out.push('END');
+    return out.join('\n');
+}
+
+function splitMultimer(pdb) {
+    return pdb.split('\nTER\n').slice(0, -1).map(s => `${s}\nTER\nEND`);
+}
+
+function mergeMultimer(chunks) {
+    let serial = 1;
+    const merged = chunks.map(chunk => chunk.split('\nEND')[0]).join('\n') + '\nEND';
+    const out = [];
+    for (const line of merged.split('\n')) {
+        if (line.startsWith('ATOM')) {
+            out.push(line.slice(0, 6) + serial.toString().padStart(5, ' ') + line.slice(11));
+            serial++;
+        } else if (line.startsWith('TER') || line.startsWith('END')) {
+            out.push(line);
+        }
+    }
+    return out.join('\n');
+}
+
+function storeChains(pdb) {
+    const chains = [];
+    let chain = '';
+    for (const line of pdb.split('\n')) {
+        if (line.startsWith('ATOM')) {
+            chain = line.charAt(21);
+        } else if (line.startsWith('TER')) {
+            chains.push(chain);
+        }
+    }
+    if (chains.length === 0) chains.push(chain);
+    return chains;
+}
+
+function revertChainInfo(pdb, chains) {
+    if (!chains.length || chains[0] === '') return pdb;
+    const out = [];
+    let index = 0;
+    for (let line of pdb.split('\n')) {
+        if (line.startsWith('ATOM')) {
+            line = line.slice(0, 21) + chains[index] + line.slice(22);
+        } else if (line.startsWith('TER')) {
+            index++;
+        }
+        out.push(line);
+    }
+    return out.join('\n');
+}
+
+function makeCIF(state) {
+    const blocks = [];
+    for (const item of state.structures?.values?.() || []) {
+        const structure = item.structure?.cell?.obj?.data;
+        if (structure) blocks.push(to_mmCIF(`structure_${item.index}`, structure, false, { copyAllCategories: false }));
+    }
+    return blocks.join('\n');
+}
+
+export const foldmasonResult = {
+    async mount() {
+        return {};
+    },
+
+    async update(plugin, state, input) {
+        await updateStructures(plugin, state, input);
+        await setSelection(plugin, state, input);
+        await setPreview(plugin, state, input);
+        await setFocus(plugin, state, input);
+    },
+
+    onHover(plugin, state, input, event) {
+        setCurrentHover(plugin, event?.current);
+        return structureEvent(state, event?.current, 'structure-hover');
+    },
+
+    onClick(plugin, state, input, event) {
+        focusCurrent(plugin, event?.current);
+        return structureEvent(state, event?.current, 'structure-click');
+    },
+
+    resetView(plugin, state, input) {
+        const reference = state.structures?.get?.(input.reference);
+        const loci = reference ? lociForItem(reference, input.selectedColumns || []) : null;
+        if (loci) {
+            plugin.managers.camera.focusLoci(loci, { durationMs: 250, extraRadius: 10, minRadius: 5 });
+        } else {
+            plugin.managers.camera.reset();
+        }
+    },
+
+    async makeCIF(plugin, state) {
+        return makeCIF(state);
+    },
+
+    async dispose(plugin) {
+        await plugin?.clear?.();
+    },
+};

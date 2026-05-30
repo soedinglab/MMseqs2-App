@@ -89,9 +89,8 @@
 <script>
 
 import { StorageWrapper} from './lib/HistoryMixin.js';
-import { encodeMultimer, getAccession, makeCgPDB, makeSubPDB, sleep, storeChains } from './Utilities';
+import { encodeMultimer, getAccession, makeCgPDBFromText, sleep, storeChains } from './Utilities';
 import { BlobDatabase } from './lib/BlobDatabase';
-import { autoLoad, PdbWriter, Selection } from "ngl"
 
 const localDb = BlobDatabase()
 
@@ -312,9 +311,7 @@ export default {
                             ext = 'cif'
                         } 
                         queryBlob = new Blob([queryPdb], {type: "text/plain"})
-                        let processedQuery = await autoLoad(queryBlob, {ext: ext, firstModelOnly: true }).then(o => {
-                            return makeCgPDB(o)
-                        })
+                        let processedQuery = makeCgPDBFromText(queryPdb)
                         // I have to manually break down 
                         const chains = storeChains(processedQuery)
                         const pdbs = processedQuery.trim().split("\nTER").filter(s => !!s).map(s => s + "\nTER")
