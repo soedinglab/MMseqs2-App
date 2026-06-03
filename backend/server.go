@@ -482,33 +482,58 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	ticketFoldMasonMSAHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
 		var queries [][]byte
 		var fileNames []string
-		var gapOpen int64
-		var gapExtend int64
 
 		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
-			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
+			mr, err := req.MultipartReader()
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 
-			files := req.MultipartForm.File["queries[]"]
-			if len(files) == 0 {
-				http.Error(w, "No files uploaded", http.StatusBadRequest)
-				return
-			}
+			var queriesFromParts [][]byte
+			var fileNamesFromField []string
+			var fileNamesFromFileName []string
 
-			for _, fileHeader := range files {
-				file, err := fileHeader.Open()
+			for {
+				part, err := mr.NextPart()
+				if err == io.EOF {
+					break
+				}
 				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+					http.Error(w, err.Error(), http.StatusBadRequest)
 					return
 				}
-				defer file.Close()
 
-				buf := new(bytes.Buffer)
-				buf.ReadFrom(file)
-				queries = append(queries, buf.Bytes())
+				switch part.FormName() {
+				case "queries[]":
+					buf := new(bytes.Buffer)
+					if _, err := io.Copy(buf, part); err != nil {
+						part.Close()
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+					queriesFromParts = append(queriesFromParts, buf.Bytes())
+					fileNamesFromFileName = append(fileNamesFromFileName, part.FileName())
+
+				case "fileNames[]":
+					// Backwards compatibility
+					b, err := io.ReadAll(part)
+					if err != nil {
+						part.Close()
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+					fileNamesFromField = append(fileNamesFromField, string(b))
+				}
+				part.Close()
+			}
+
+			queries = queriesFromParts
+			// honor fileNames[] if present
+			if len(fileNamesFromField) > 0 {
+				fileNames = fileNamesFromField
+			} else {
+				fileNames = fileNamesFromFileName
 			}
 		} else {
 			err := req.ParseForm()
@@ -519,11 +544,19 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			for _, query := range req.Form["queries[]"] {
 				queries = append(queries, []byte(query))
 			}
-
+			fileNames = req.Form["fileNames[]"]
 		}
-		fileNames = req.Form["fileNames[]"]
+		if len(queries) == 0 {
+			http.Error(w, "No files uploaded", http.StatusBadRequest)
+			return
+		}
 
-		request, err := NewFoldMasonMSAJobRequest(queries, fileNames, gapOpen, gapExtend)
+		if len(fileNames) != len(queries) {
+			http.Error(w, "Number of file names does not match number of queries", http.StatusBadRequest)
+			return
+		}
+
+		request, err := NewFoldMasonMSAJobRequest(queries, fileNames)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

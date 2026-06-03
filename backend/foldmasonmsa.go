@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 )
 
 type FoldMasonMSAJob struct {
@@ -62,8 +64,21 @@ func (r FoldMasonMSAJob) Rank() float64 {
 func (r FoldMasonMSAJob) WritePDB(path string) error {
 	var pdbDir = filepath.Join(path, "pdbs")
 	os.Mkdir(pdbDir, os.ModePerm)
+	seen := make(map[string]bool, len(r.Queries))
 	for idx, query := range r.Queries {
 		name := foldMasonFileName.ReplaceAllString(filepath.Base(r.FileNames[idx]), "")
+		// fix empty names
+		if name == "" || name == "." {
+			name = "query_" + strconv.Itoa(idx)
+		}
+		// fix duplicated names
+		ext := filepath.Ext(name)
+		base := strings.TrimSuffix(name, ext)
+		for i := 1; seen[name]; i++ {
+			name = base + "_" + strconv.Itoa(i) + ext
+		}
+		seen[name] = true
+
 		err := os.WriteFile(filepath.Join(pdbDir, name), query, 0644)
 		if err != nil {
 			return err
@@ -75,8 +90,6 @@ func (r FoldMasonMSAJob) WritePDB(path string) error {
 func NewFoldMasonMSAJobRequest(
 	queries [][]byte,
 	fileNames []string,
-	gapOpen int64,
-	gapExtend int64,
 ) (JobRequest, error) {
 	job := FoldMasonMSAJob{
 		queries,
