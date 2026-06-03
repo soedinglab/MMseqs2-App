@@ -10,12 +10,11 @@
 
 <script>
 import { Color } from 'molstar/lib/mol-util/color';
-import { Task } from 'molstar/lib/mol-task';
-import { canvasToBlob } from 'molstar/lib/mol-canvas3d/util';
 import { foldseekResult } from './foldseekResult.js';
 import { folddiscoResult } from './folddiscoResult.js';
-import { prepareFoldseekStructureInput } from './foldseekData.js';
-import { applyViewerCanvasProps, createMolstarPlugin, setCanvasSpin } from './viewerHelpers.js';
+import { createStructurePlugin, setCanvasSpin } from './plugin.js';
+import { prepareThumbnailInput, thumbnailSceneInput } from './thumbnailInput.js';
+import { captureThumbnailPng, renderThumbnailScene, resetThumbnailCamera } from './thumbnailRenderer.js';
 
 export default {
     name: "StructureViewerThumbnail",
@@ -30,13 +29,11 @@ export default {
             isSpinning: false,
             queuePaused: false,
             queueScheduled: false,
-            activeTargetEl: null,
             operationQueue: Promise.resolve(),
         };
     },
     props: {
         thumbnailQueue: { type: Array, default: () => [] },
-        activeAlignment: { type: Object, default: null },
         hits: { type: Object },
         thumbWidth: { type: Number, default: 286 },
         thumbHeight: { type: Number, default: 240 },
@@ -58,21 +55,10 @@ export default {
         },
     },
     methods: {
-        bgColor() {
-            return this.$vuetify.theme.dark ? '#1E1E1E' : 'white';
-        },
-
         async initPlugin() {
-            this.plugin = createMolstarPlugin();
-            await this.plugin.init();
             await this.$nextTick();
 
-            const ok = await this.plugin.initViewerAsync(this.$refs.canvas, this.$refs.viewport);
-            if (ok === false) {
-                throw new Error('Mol* thumbnail viewer initialization failed');
-            }
-
-            applyViewerCanvasProps(this.plugin, {
+            this.plugin = await createStructurePlugin(this.$refs.canvas, this.$refs.viewport, {
                 renderer: {
                     backgroundColor: Color(this.$vuetify.theme.dark ? 0x1e1e1e : 0xffffff),
                 },
@@ -91,66 +77,17 @@ export default {
             this.plugin?.canvas3d?.handleResize();
         },
 
-        alignmentsForItem(item) {
-            return (item.alignments || []).map(alignment => ({
-                ...alignment,
-                db: alignment.db || item.db,
-            }));
-        },
-
         async prepareInput(item) {
-            if (this.mode === 2) {
-                return this.prepareFolddiscoInput(item);
-            }
-            const alignments = this.alignmentsForItem(item);
-            return prepareFoldseekStructureInput({
-                alignments,
+            return prepareThumbnailInput({
+                mode: this.mode,
+                structureMode: this.structureMode,
+                queryPdb: this.queryPdb,
                 hits: this.hits,
                 axios: this.$axios,
                 route: this.$route,
                 root: this.$root,
                 isLocal: this.$LOCAL,
-                structureMode: this.structureMode,
-                interfaceCutoff: 10,
-            });
-        },
-
-        async prepareFolddiscoInput(item) {
-            const alignment = this.alignmentsForItem(item)[0];
-            if (!alignment || !this.queryPdb) return null;
-            const targetPdb = await this.fetchFolddiscoTargetPdb(alignment, item.db);
-            if (!targetPdb) return null;
-            return {
-                alignment,
-                queryPdb: this.queryPdb,
-                targetPdb,
-                showQuery: 0,
-                showTarget: 0,
-            };
-        },
-
-        async fetchFolddiscoTargetPdb(alignment, db) {
-            const target = db?.startsWith('pdb') ? alignment.target : alignment.dbkey;
-            if (!target) return null;
-            const url = `api/result/folddisco/${this.$route.params.ticket}?database=${db}&id=${target}`;
-            const response = await this.$axios.get(url, {
-                transformResponse: [(data) => data],
-            });
-            return response.data;
-        },
-
-        sceneInput(input) {
-            return {
-                ...input,
-                showQuery: this.mode === 2 ? input.showQuery : 1,
-                showTarget: this.mode === 2 ? input.showTarget : 1,
-                showArrows: false,
-                queryAlpha: 0.9,
-                targetAlpha: 0.7,
-                highlightSelections: [],
-                hoverSelection: null,
-                focusSelection: null,
-            };
+            }, item);
         },
 
         async renderItem(item) {
@@ -162,61 +99,16 @@ export default {
             if (!input || (!input.query && !input.target && (!input.queryPdb || !input.targetPdb))) return false;
 
             const scene = this.mode === 2 ? folddiscoResult : foldseekResult;
-            await scene.update(this.plugin, this.sceneState, this.sceneInput(input));
-            this.resetCamera();
-            await this.drawFrame();
+            await renderThumbnailScene(this.plugin, scene, this.sceneState, thumbnailSceneInput(input, this.mode));
             return true;
         },
 
         async captureThumbnail() {
-            if (!this.plugin?.helpers?.viewportScreenshot) return null;
-            await this.drawFrame();
-
-            const screenshot = this.plugin.helpers.viewportScreenshot;
-            const previousValues = screenshot.values;
-            const previousCropParams = screenshot.cropParams;
-
-            screenshot.behaviors.values.next({
-                ...previousValues,
-                transparent: true,
-                format: { name: 'png', params: {} },
-                resolution: {
-                    name: 'custom',
-                    params: {
-                        width: this.thumbWidth * 2,
-                        height: this.thumbHeight * 2,
-                    },
-                },
-                axes: { name: 'off', params: {} },
-            });
-            screenshot.behaviors.cropParams.next({
-                auto: false,
-                relativePadding: 0,
-            });
-            screenshot.resetCrop();
-
-            try {
-                return await this.plugin.runTask(Task.create('Generate Thumbnail', async (ctx) => {
-                    await screenshot.draw(ctx);
-                    return canvasToBlob(screenshot.canvas, 'image/png');
-                }));
-            } finally {
-                screenshot.behaviors.values.next(previousValues);
-                screenshot.behaviors.cropParams.next(previousCropParams);
-                screenshot.resetCrop();
-            }
+            return captureThumbnailPng(this.plugin, this.thumbWidth, this.thumbHeight);
         },
 
         resetCamera() {
-            this.plugin?.canvas3d?.requestCameraReset({ durationMs: 0 });
-            this.plugin?.canvas3d?.commit(true);
-        },
-
-        async drawFrame() {
-            this.plugin?.canvas3d?.commit(true);
-            await new Promise(resolve => requestAnimationFrame(resolve));
-            this.plugin?.canvas3d?.commit(true);
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            resetThumbnailCamera(this.plugin);
         },
 
         async clearPlugin() {
@@ -251,22 +143,18 @@ export default {
 
         async activateViewer(id, alignments, targetEl) {
             if (this.activeId === id || !this.plugin) return;
-            this.operationQueue = this.operationQueue
-                .catch(() => {})
-                .then(() => this.mountActiveViewer(id, alignments, targetEl, 'Interactive Mol* viewer failed for'));
+            this.enqueueOperation(() => this.mountActiveViewer(id, alignments, targetEl, 'Interactive Mol* viewer failed for'));
             await this.operationQueue;
         },
 
         async switchViewer(id, alignments, newTargetEl) {
             if (!this.plugin) return;
-            this.operationQueue = this.operationQueue
-                .catch(() => {})
-                .then(async () => {
-                    this.setSpin(false);
-                    this.isSpinning = false;
-                    this.$refs.canvas.removeEventListener('pointerdown', this.handlePointerInteraction);
-                    await this.mountActiveViewer(id, alignments, newTargetEl, 'Switch Mol* viewer failed for');
-                });
+            this.enqueueOperation(async () => {
+                this.setSpin(false);
+                this.isSpinning = false;
+                this.$refs.canvas.removeEventListener('pointerdown', this.handlePointerInteraction);
+                await this.mountActiveViewer(id, alignments, newTargetEl, 'Switch Mol* viewer failed for');
+            });
             await this.operationQueue;
         },
 
@@ -274,7 +162,6 @@ export default {
             if (!this.plugin || this.destroyed) return;
             this.queuePaused = true;
             this.activeId = id;
-            this.activeTargetEl = targetEl;
             targetEl.appendChild(this.$refs.viewport);
             this.resizeTo('100%', '100%');
 
@@ -302,7 +189,6 @@ export default {
             this.$refs.offscreenContainer.appendChild(this.$refs.viewport);
             this.resizeTo(this.thumbWidth, this.thumbHeight);
             this.activeId = null;
-            this.activeTargetEl = null;
             this.queuePaused = false;
             this.$emit('spin-change', false);
             this.scheduleProcessQueue();
@@ -310,9 +196,7 @@ export default {
 
         deactivateViewer() {
             if (this.activeId === null || !this.plugin) return;
-            this.operationQueue = this.operationQueue
-                .catch(() => {})
-                .then(() => this.deactivateViewerAsync());
+            this.enqueueOperation(() => this.deactivateViewerAsync());
         },
 
         async deactivateViewerAsync() {
@@ -325,7 +209,6 @@ export default {
             this.resizeTo(this.thumbWidth, this.thumbHeight);
 
             this.activeId = null;
-            this.activeTargetEl = null;
             this.queuePaused = false;
             this.scheduleProcessQueue();
         },
@@ -360,10 +243,15 @@ export default {
                 return;
             }
 
+            this.enqueueOperation(() => this.processQueueItem());
+            await this.operationQueue;
+        },
+
+        enqueueOperation(operation) {
             this.operationQueue = this.operationQueue
                 .catch(() => {})
-                .then(() => this.processQueueItem());
-            await this.operationQueue;
+                .then(operation);
+            return this.operationQueue;
         },
 
         async processQueueItem() {
@@ -402,11 +290,13 @@ export default {
     watch: {
         thumbnailQueue: {
             handler(newQueue, oldQueue) {
-                if (!oldQueue || newQueue.length > oldQueue.length) {
+                if (newQueue !== oldQueue) {
+                    this.currentQueueIndex = 0;
+                }
+                if (!oldQueue || newQueue !== oldQueue || newQueue.length > oldQueue.length) {
                     this.scheduleProcessQueue();
                 }
             },
-            deep: true,
         },
         queryPdb() {
             if (this.mode === 2) {

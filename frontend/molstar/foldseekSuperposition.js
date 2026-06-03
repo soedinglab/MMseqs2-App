@@ -1,29 +1,21 @@
 import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { Mat4 } from 'molstar/lib/mol-math/linear-algebra';
 import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
-import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import { rangesByChain } from './foldseekSelections.js';
+import { transformStructureConformation } from './transforms.js';
 
 export async function transformStructure(plugin, structure, matrix) {
-    return plugin.state.data.build()
-        .to(structure.ref)
-        .insert(StateTransforms.Model.TransformStructureConformation, {
-            transform: {
-                name: 'matrix',
-                params: { data: matrix, transpose: false },
-            },
-        })
-        .commit();
+    return transformStructureConformation(plugin, structure, matrix);
 }
 
-export async function superposeTargetWithFoldseekAlignment(plugin, target, query, alignments) {
+export async function superposeTargetWithFoldseekAlignment(plugin, target, query, alignments, chainOverrides = {}) {
     if (!alignments?.length || !alignments[0]?.qAln || !alignments[0]?.dbAln) {
         return { structure: target, results: null };
     }
 
-    const queryPdb = makeAlignedCaPdb(query, rangesByChain(alignments, 'query'));
-    const targetPdb = makeAlignedCaPdb(target, rangesByChain(alignments, 'target'));
+    const queryPdb = makeAlignedCaPdb(query, rangesByChain(alignments, 'query', chainResolver(chainOverrides.query)));
+    const targetPdb = makeAlignedCaPdb(target, rangesByChain(alignments, 'target', chainResolver(chainOverrides.target)));
     if (!queryPdb || !targetPdb) {
         return { structure: target, results: null };
     }
@@ -38,6 +30,10 @@ export async function superposeTargetWithFoldseekAlignment(plugin, target, query
     };
 }
 
+function chainResolver(overrides = {}) {
+    return (chain) => overrides?.[chain] || chain;
+}
+
 function makeAlignedCaPdb(structureRef, ranges) {
     const structure = structureRef?.cell?.obj?.data;
     if (!structure || ranges.size === 0) return '';
@@ -45,6 +41,9 @@ function makeAlignedCaPdb(structureRef, ranges) {
     const rows = [];
     const loc = StructureElement.Location.create(structure);
     let serial = 1;
+    const fallbackRanges = hasSingleStructureChain(structure) && ranges.size === 1
+        ? ranges.values().next().value
+        : null;
 
     for (const unit of structure.units) {
         if (!Unit.isAtomic(unit)) continue;
@@ -58,18 +57,21 @@ function makeAlignedCaPdb(structureRef, ranges) {
             const atomName = StructureProperties.atom.label_atom_id(loc);
             if (atomName !== 'CA') continue;
 
-            const chain = StructureProperties.chain.auth_asym_id(loc) || StructureProperties.chain.label_asym_id(loc) || 'A';
-            const chainRanges = ranges.get(chain) || (ranges.size === 1 ? ranges.values().next().value : null);
-            if (!chainRanges) continue;
+            const authChain = StructureProperties.chain.auth_asym_id(loc) || '';
+            const labelChain = StructureProperties.chain.label_asym_id(loc) || '';
+            const match = matchingChainRanges(ranges, authChain, labelChain, fallbackRanges);
+            if (!match) continue;
 
-            const resno = StructureProperties.residue.auth_seq_id(loc) || StructureProperties.residue.label_seq_id(loc);
-            if (!chainRanges.some(([start, end]) => resno >= start && resno <= end)) continue;
+            const authResno = StructureProperties.residue.auth_seq_id(loc);
+            const labelResno = StructureProperties.residue.label_seq_id(loc);
+            const resno = matchingResidueNumber(match.ranges, authResno, labelResno);
+            if (!Number.isFinite(resno)) continue;
 
             rows.push(atomToPdbRow({
                 serial,
                 atomName,
                 resName: StructureProperties.atom.auth_comp_id(loc) || StructureProperties.atom.label_comp_id(loc) || 'ALA',
-                chain,
+                chain: match.chain || authChain || labelChain || 'A',
                 resno,
                 x: StructureProperties.atom.x(loc),
                 y: StructureProperties.atom.y(loc),
@@ -80,6 +82,43 @@ function makeAlignedCaPdb(structureRef, ranges) {
     }
 
     return rows.join('\n');
+}
+
+function matchingChainRanges(ranges, authChain, labelChain, fallbackRanges) {
+    if (authChain && ranges.has(authChain)) {
+        return { chain: authChain, ranges: ranges.get(authChain) };
+    }
+    if (labelChain && ranges.has(labelChain)) {
+        return { chain: labelChain, ranges: ranges.get(labelChain) };
+    }
+    if (fallbackRanges) {
+        const chain = ranges.keys().next().value || authChain || labelChain || 'A';
+        return { chain, ranges: fallbackRanges };
+    }
+    return null;
+}
+
+function matchingResidueNumber(ranges, authResno, labelResno) {
+    const candidates = Array.from(new Set([labelResno, authResno].filter(Number.isFinite)));
+    return candidates.find(resno => ranges.some(([start, end]) => resno >= start && resno <= end));
+}
+
+function hasSingleStructureChain(structure) {
+    const chains = new Set();
+    const loc = StructureElement.Location.create(structure);
+    for (const unit of structure.units) {
+        if (!Unit.isAtomic(unit)) continue;
+        loc.unit = unit;
+        const size = OrderedSet.size(unit.elements);
+        for (let i = 0; i < size; i++) {
+            loc.element = OrderedSet.getAt(unit.elements, i);
+            const auth = StructureProperties.chain.auth_asym_id(loc) || '';
+            const label = StructureProperties.chain.label_asym_id(loc) || '';
+            chains.add(`${auth}:${label}`);
+            if (chains.size > 1) return false;
+        }
+    }
+    return chains.size <= 1;
 }
 
 function atomToPdbRow(atom) {

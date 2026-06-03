@@ -7,18 +7,27 @@ export async function prepareFoldseekStructureInput(ctx) {
         return emptyInput();
     }
     const query = await buildQuery(ctx);
+    const activeQuery = selectActiveQuery(ctx);
     const target = ctx.structureMode === 'interface'
         ? await buildInterfaceTarget(ctx)
         : await buildTarget(ctx);
-    const targetTransform = computeMultimerTransform(ctx.alignments);
+    const targetTransform = ctx.structureMode === 'multimer'
+        ? computeMultimerTransform(ctx.alignments)
+        : null;
+    const superpositionAlignments = targetTransform || ctx.structureMode === 'interface'
+        ? ctx.alignments
+        : ctx.alignments.slice(0, 1);
     return {
         query: query.source,
         target: target.source,
         targetTransform,
         alignments: ctx.alignments,
+        superpositionAlignments,
         hasQuery: Boolean(query.source),
         structureMode: ctx.structureMode || 'alignment',
         interfaceCutoff: ctx.interfaceCutoff || 10,
+        queryIndex: queryIndex(ctx),
+        queryChain: activeQueryChain(ctx, activeQuery),
     };
 }
 
@@ -47,18 +56,22 @@ async function buildQuery(ctx) {
 }
 
 async function loadQueryData(ctx) {
-    const query = ctx.hits?.queries?.[0];
+    const query = selectActiveQuery(ctx);
     if (!query) return '';
+    const chain = getChainName(ctx.alignments?.[0]?.query);
 
     if (ctx.isLocal) {
         if (query.hasOwnProperty('pdb')) return JSON.parse(query.pdb);
-        return mockPDB(query.qCa, query.sequence, 'A');
+        return mockPDB(query.qCa, query.sequence, chain);
     }
 
     if (ctx.route.params.ticket.startsWith('user-')) {
         if (query.hasOwnProperty('pdb')) return JSON.parse(query.pdb);
         const localData = ctx.root.userData[ctx.route.params.entry];
-        return mockPDB(localData.queries[0].qCa, localData.queries[0].sequence, 'A');
+        const localQuery = selectQueryByName(localData?.queries, ctx.alignments?.[0]?.query)
+            || selectQueryByIndex(localData?.queries, queryIndex(ctx))
+            || localData?.queries?.[0];
+        return localQuery ? mockPDB(localQuery.qCa, localQuery.sequence, chain) : '';
     }
 
     try {
@@ -67,6 +80,47 @@ async function loadQueryData(ctx) {
     } catch (e) {
         return '';
     }
+}
+
+function selectActiveQuery(ctx) {
+    return selectQueryByName(ctx.hits?.queries, ctx.alignments?.[0]?.query, { allowChainFallback: false })
+        || selectQueryByIndex(ctx.hits?.queries, queryIndex(ctx))
+        || selectQueryByName(ctx.hits?.queries, ctx.alignments?.[0]?.query, { allowChainFallback: true })
+        || ctx.hits?.queries?.[0];
+}
+
+function selectQueryByName(queries, alignmentQuery, options = {}) {
+    if (!queries?.length || !alignmentQuery) return null;
+    const queryName = getAccession(alignmentQuery);
+    const queryChain = getChainName(alignmentQuery);
+    return queries.find(query => queryNameOf(query) === alignmentQuery)
+        || queries.find(query => queryNameOf(query) === queryName)
+        || (options.allowChainFallback ? queries.find(query => getChainName(queryNameOf(query)) === queryChain) : null)
+        || null;
+}
+
+function queryNameOf(query) {
+    return query?.name || query?.header || '';
+}
+
+function activeQueryChain(ctx, activeQuery) {
+    const alignmentQuery = ctx.alignments?.[0]?.query || '';
+    if (/^[A-Za-z0-9]$/.test(alignmentQuery)) return alignmentQuery;
+    if (hasChainSuffix(alignmentQuery)) return getChainName(alignmentQuery);
+    return getChainName(queryNameOf(activeQuery));
+}
+
+function hasChainSuffix(name) {
+    return Boolean(name && !/_v[0-9]+$/.test(name) && name.lastIndexOf('_') !== -1);
+}
+
+function selectQueryByIndex(queries, index) {
+    return Number.isInteger(index) && queries?.[index] ? queries[index] : null;
+}
+
+function queryIndex(ctx) {
+    const value = Number.parseInt(ctx.route?.params?.entry, 10);
+    return Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
 async function buildTarget(ctx) {

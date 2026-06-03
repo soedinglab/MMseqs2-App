@@ -92,6 +92,45 @@ export default {
         },
     },
     methods: {
+        clearThumbnailCache() {
+            Object.values(this.thumbnailCache).forEach(url => {
+                URL.revokeObjectURL(url);
+            });
+            this.thumbnailCache = {};
+        },
+        rebuildTopHits() {
+            this.activeCardId = null;
+            this.viewerSpinning = false;
+            this.topHits = this.hits.results.map(
+                ({alignments, db, color, hasTaxonomy, hasDescription}) => {
+                    const minKey = alignments && Object.keys(alignments).length > 0
+                        ? Object.keys(alignments).map(i => Number(i))[0] : -1
+                    const firstEntry = minKey < 0 ? null : alignments[minKey]
+                    const qTM = this.mode == 1 && minKey >= 0 ? firstEntry[0].complexqtm.toFixed(2) : undefined
+                    const tTM = this.mode == 1 && minKey >= 0 ? firstEntry[0].complexttm.toFixed(2) : undefined
+                    if (firstEntry && this.mode == 1) {
+                        for (let entry of firstEntry) {
+                            const prefix =
+                                entry.query.lastIndexOf('_') != -1
+                                    ? entry.query.substring(entry.query.lastIndexOf('_')+1)
+                                    : ''
+                            entry.title = prefix + ' ➔ ' + entry.target
+                        }
+                    }
+                    return {
+                        db, color, hasDescription, hasTaxonomy, qTM, tTM,
+                        topHit: firstEntry
+                    }
+            })
+
+            this.thumbnailQueue = this.topHits
+                .filter(hit => hit.topHit && hit.topHit.length > 0)
+                .map(hit => ({
+                    id: hit.db,
+                    alignments: hit.topHit,
+                    db: hit.db,
+                }));
+        },
         handleThumbnailReady({ id, blob }) {
             if (!blob) return;
             if (this.thumbnailCache[id]) {
@@ -154,36 +193,7 @@ export default {
         },
     },
     beforeMount() {
-        this.topHits = this.hits.results.map(
-            ({alignments, db, color, hasTaxonomy, hasDescription}) => {
-                const minKey = alignments && Object.keys(alignments).length > 0
-                    ? Object.keys(alignments).map(i => Number(i))[0] : -1
-                const firstEntry = minKey < 0 ? null : alignments[minKey]
-                const qTM = this.mode == 1 && minKey >= 0 ? firstEntry[0].complexqtm.toFixed(2) : undefined
-                const tTM = this.mode == 1 && minKey >= 0 ? firstEntry[0].complexttm.toFixed(2) : undefined
-                if (firstEntry && this.mode == 1) {
-                    for (let entry of firstEntry) {
-                        const prefix =
-                            entry.query.lastIndexOf('_') != -1
-                                ? entry.query.substring(entry.query.lastIndexOf('_')+1)
-                                : ''
-                        entry.title = prefix + ' ➔ ' + entry.target
-                    }
-                }
-                return {
-                    db, color, hasDescription, hasTaxonomy, qTM, tTM,
-                    topHit: firstEntry
-                }
-        })
-
-        // Build thumbnail queue from topHits
-        this.thumbnailQueue = this.topHits
-            .filter(hit => hit.topHit && hit.topHit.length > 0)
-            .map(hit => ({
-                id: hit.db,
-                alignments: hit.topHit,
-                db: hit.db,
-            }));
+        this.rebuildTopHits();
 
         if (this.alignMode != "") {
             if (__APP__ == 'foldseek') {
@@ -202,11 +212,18 @@ export default {
             }
         }
     },
+    watch: {
+        hits() {
+            this.clearThumbnailCache();
+            this.rebuildTopHits();
+        },
+        '$route.params.entry'() {
+            this.clearThumbnailCache();
+            this.rebuildTopHits();
+        },
+    },
     beforeDestroy() {
-        // Revoke all blob URLs
-        Object.values(this.thumbnailCache).forEach(url => {
-            URL.revokeObjectURL(url);
-        });
+        this.clearThumbnailCache();
     },
 }
 </script>

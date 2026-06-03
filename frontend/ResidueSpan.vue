@@ -13,7 +13,7 @@ as child spans so they can be styled independently.
         class="residues"
         :class="sequenceType"
     ><!--
-        --><template v-if="segments.length === 1 && !segments[0].selected && !segments[0].hovered && !segments[0].interfaceRegion"><slot></slot></template><!--
+        --><template v-if="segments.length === 1 && !segments[0].selected && !segments[0].hovered && !segments[0].interfaceRegion">{{ text }}</template><!--
         --><template v-else><!--
             --><span
                 v-for="(segment, i) in segments"
@@ -34,15 +34,13 @@ export default {
     name: 'ResidueSpan',
     props: {
         sequenceType: { type: String },
+        text: { type: String, default: '' },
         selectionStart: { type: Number },
         selectionEnd: { type: Number },
         hoverOffset: { type: Number, default: null },
         interfaceRanges: { type: Array, default: () => [] },
     },
     computed: {
-        text() {
-            return this.$slots.default?.[0]?.text || '';
-        },
         hasSelection() {
             return Number.isFinite(this.selectionStart)
                 && Number.isFinite(this.selectionEnd)
