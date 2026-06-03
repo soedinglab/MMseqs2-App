@@ -28,11 +28,10 @@
 
 <script>
 import { Color } from 'molstar/lib/mol-util/color';
-import { Task } from 'molstar/lib/mol-task';
-import { canvasToBlob } from 'molstar/lib/mol-canvas3d/util';
 import StructureViewerToolbar from '../StructureViewerToolbar.vue';
 import StructureViewerTooltip from '../StructureViewerTooltip.vue';
-import { applyViewerCanvasProps, createMolstarPlugin, parseColor, setCanvasSpin } from './viewerHelpers.js';
+import { createStructurePlugin, parseColor, setCanvasSpin } from './plugin.js';
+import { captureViewportPng } from './screenshot.js';
 
 export default {
     name: 'MolstarStructureViewer',
@@ -46,7 +45,6 @@ export default {
         toolbar: { type: Object, default: () => ({}) },
         bgColorLight: { type: String, default: 'white' },
         bgColorDark: { type: String, default: '#1E1E1E' },
-        transitionDuration: { type: Number, default: 100 },
     },
     data: () => ({
         plugin: null,
@@ -54,7 +52,6 @@ export default {
         sceneState: {},
         clickSubscription: null,
         hoverSubscription: null,
-        highlightProvider: null,
         initPromise: null,
         updateQueue: Promise.resolve(),
         isDisposed: false,
@@ -111,11 +108,6 @@ export default {
             this.clickSubscription = null;
             this.hoverSubscription?.unsubscribe();
             this.hoverSubscription = null;
-            if (this.highlightProvider) {
-                this.plugin?.managers?.interactivity?.lociHighlights?.removeProvider(this.highlightProvider);
-                this.plugin?.managers?.interactivity?.lociSelects?.removeProvider(this.highlightProvider);
-                this.highlightProvider = null;
-            }
             if (this.canvas) {
                 this.canvas.removeEventListener('pointerdown', this.handlePointerInteraction);
                 this.canvas.removeEventListener('wheel', this.handlePointerInteraction);
@@ -158,7 +150,10 @@ export default {
                 .catch(() => {})
                 .then(async () => {
                     if (this.isDisposed || this.isDisposing || !this.plugin) return;
-                    await this.scene.update(this.plugin, this.sceneState, next, previous);
+                    const change = this.scene.diffInput
+                        ? this.scene.diffInput(previous, next)
+                        : null;
+                    await this.scene.update(this.plugin, this.sceneState, next, previous, change);
                     this.$emit('sceneState', this.sceneState);
                 })
                 .catch((e) => {
@@ -168,14 +163,6 @@ export default {
             return this.updateQueue;
         },
         async initialisePlugin() {
-            this.plugin = createMolstarPlugin();
-            await this.plugin.init();
-            this.highlightProvider = (loci, action) => {
-                this.plugin?.canvas3d?.mark(loci, action);
-            };
-            this.plugin.managers.interactivity.lociHighlights.addProvider(this.highlightProvider);
-            this.plugin.managers.interactivity.lociSelects.addProvider(this.highlightProvider);
-
             await this.$nextTick();
             this.canvas = this.$refs.canvas;
             const rect = this.$refs.viewport.getBoundingClientRect();
@@ -184,12 +171,7 @@ export default {
             this.canvas.addEventListener('pointerdown', this.handlePointerInteraction, { passive: true });
             this.canvas.addEventListener('wheel', this.handlePointerInteraction, { passive: true });
 
-            const ok = await this.plugin.initViewerAsync(this.canvas, this.$refs.viewport);
-            if (ok === false) {
-                throw new Error('Mol* viewer initialization failed');
-            }
-
-            applyViewerCanvasProps(this.plugin, {
+            this.plugin = await createStructurePlugin(this.canvas, this.$refs.viewport, {
                 renderer: {
                     highlightColor: Color(0xff40ff),
                     highlightStrength: 0.5,
@@ -281,38 +263,29 @@ export default {
             this.plugin?.managers?.camera?.reset();
         },
         async handleMakeImage() {
-            if (!this.plugin?.helpers?.viewportScreenshot) return;
             const wasSpinning = this.isSpinning;
             this.isSpinning = false;
 
-            const screenshot = this.plugin.helpers.viewportScreenshot;
-            const previousValues = screenshot.values;
-            const previousCropParams = screenshot.cropParams;
-            screenshot.behaviors.values.next({
-                ...previousValues,
-                transparent: true,
-                format: { name: 'png', params: {} },
-                resolution: this.isFullscreen
-                    ? { name: 'full-hd', params: {} }
-                    : { name: 'ultra-hd', params: {} },
-                axes: { name: 'off', params: {} },
-            });
-            screenshot.behaviors.cropParams.next({
-                ...previousCropParams,
-                auto: true,
-                relativePadding: 0.04,
-            });
-
             let blob = null;
             try {
-                blob = await this.plugin.runTask(Task.create('Generate Image', async (ctx) => {
-                    await screenshot.getPreview(ctx, 512);
-                    await screenshot.draw(ctx);
-                    return canvasToBlob(screenshot.canvas, 'image/png');
-                }));
+                blob = await captureViewportPng(this.plugin, (screenshot, previousValues, previousCropParams) => {
+                    screenshot.behaviors.values.next({
+                        ...previousValues,
+                        transparent: true,
+                        format: { name: 'png', params: {} },
+                        resolution: this.isFullscreen
+                            ? { name: 'full-hd', params: {} }
+                            : { name: 'ultra-hd', params: {} },
+                        axes: { name: 'off', params: {} },
+                    });
+                    screenshot.behaviors.cropParams.next({
+                        ...previousCropParams,
+                        auto: true,
+                        relativePadding: 0.04,
+                    });
+                    screenshot.resetCrop();
+                }, 'Generate Image');
             } finally {
-                screenshot.behaviors.values.next(previousValues);
-                screenshot.behaviors.cropParams.next(previousCropParams);
                 this.isSpinning = wasSpinning;
             }
 

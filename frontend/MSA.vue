@@ -57,6 +57,7 @@
                             :mask="visibleColumnMask"
                             :selectedColumns="selectedColumns"
                             :previewColumn="previewColumn"
+                            :previewStructureIndex="previewStructureIndex"
                             @loadingChange="handleStructureLoadingChange"
                             @addHighlight="i => pushActiveIndex(i, true)"
                             @removeHighlight="spliceActiveIndex"
@@ -262,6 +263,7 @@ export default {
             treeLabelHeight: 0,
             showViewer: true,
             previewColumn: -1,
+            previewStructureIndex: -1,
             selectedColumns: [],
             showViewerCondition: false,
             msaViewerReady: false,
@@ -276,6 +278,8 @@ export default {
                 activeSchemeSourceRepresentationId: null,
             },
             updatingFromMSAViewer: false,
+            lastMSAViewerHoverColumn: -1,
+            msaViewerColumnToggleCandidate: null,
             scrollTicking: false,
             scrollPositionTick: 0,
             structurePreviewMarker: {
@@ -300,6 +304,7 @@ export default {
     beforeCreate() {
         this.msaViewer = null;
         this.previewMarkerScrollHandlers = [];
+        this.msaViewerColumnToggleCleanup = null;
     },
     watch: {
         '$vuetify.theme.dark': function() {
@@ -393,6 +398,7 @@ export default {
     beforeDestroy() {
         window.removeEventListener("scroll", this.handleScroll);
         this.unbindMSAPreviewMarkerScroll();
+        this.unbindMSAViewerColumnToggle();
         this.msaViewer?.destroy?.();
         this.msaViewer = null;
     },
@@ -515,6 +521,8 @@ export default {
         resetMSAViewerState() {
             this.msaViewerReady = false;
             this.msaViewerBusy = false;
+            this.lastMSAViewerHoverColumn = -1;
+            this.msaViewerColumnToggleCandidate = null;
             this.msaViewerState = {
                 representations: [],
                 activeRepresentationId: null,
@@ -544,6 +552,7 @@ export default {
         async initMSAViewer() {
             const root = this.$refs.msaViewerRoot;
             if (!root || this.entries.length === 0) return;
+            this.unbindMSAViewerColumnToggle();
             this.resetMSAViewerState();
             this.msaViewer?.destroy?.();
             this.msaViewer = null;
@@ -589,6 +598,7 @@ export default {
                 viewer.addEventListener("selectionchange", this.handleMSAViewerSelectionChange);
                 viewer.addEventListener("visibilitychange", this.handleMSAViewerVisibilityChange);
                 viewer.addEventListener("cellhover", this.handleMSAViewerCellHover);
+                this.bindMSAViewerColumnToggle(root);
                 await viewer.loadData([
                     { source: this.makeFasta("aa"), format: "fasta", id: "sequence", label: "Sequence", alphabetId: "aa", },
                     { source: this.makeFasta("ss"), format: "fasta", id: "structure", label: "Structure", alphabetId: "3di", },
@@ -704,18 +714,28 @@ export default {
             const rawColumn = detail.rawColumn;
             if (!Number.isInteger(rowIndex) || !Number.isInteger(rawColumn)) {
                 this.cellHover.visible = false;
+                this.lastMSAViewerHoverColumn = -1;
+                this.clearStructurePreviewFromAlignment();
                 return;
             }
             const entry = this.entries[rowIndex];
             if (!entry) {
                 this.cellHover.visible = false;
+                this.lastMSAViewerHoverColumn = -1;
+                this.clearStructurePreviewFromAlignment();
                 return;
             }
+            this.lastMSAViewerHoverColumn = rawColumn;
             const residueNumber = detail.sequenceResidueNumber;
             const symbol = detail.symbol || entry.aa?.[rawColumn] || "";
             const AA = oneToThree[symbol.toUpperCase()] || "";
             const formatted = AA?.charAt(0) + AA?.toLowerCase().slice(1, 3)
             const isGap = symbol === "-" || residueNumber == null;
+            if (isGap) {
+                this.clearStructurePreviewFromAlignment();
+            } else {
+                this.previewStructureFromAlignment(rawColumn, rowIndex);
+            }
             const chain = isGap ? null : entry.chains?.[residueNumber];
             const structureResidueNumber = isGap ? null : entry.resns?.[residueNumber];
             this.cellHover = {
@@ -800,6 +820,41 @@ export default {
                 }
                 this.updatingFromMSAViewer = false;
             });
+        },
+        bindMSAViewerColumnToggle(root) {
+            this.unbindMSAViewerColumnToggle();
+
+            const onMouseDown = (event) => {
+                const column = this.lastMSAViewerHoverColumn;
+                this.msaViewerColumnToggleCandidate = event.button === 0 && this.selectedColumns.includes(column)
+                    ? { column, x: event.clientX, y: event.clientY }
+                    : null;
+            };
+            const onClick = (event) => {
+                const candidate = this.msaViewerColumnToggleCandidate;
+                this.msaViewerColumnToggleCandidate = null;
+                if (!candidate) return;
+                if (Math.abs(event.clientX - candidate.x) > 3 || Math.abs(event.clientY - candidate.y) > 3) {
+                    return;
+                }
+                this.$nextTick(() => {
+                    if (this.selectedColumns.includes(candidate.column)) {
+                        this.spliceActiveIndex(candidate.column);
+                    }
+                });
+            };
+
+            root.addEventListener('mousedown', onMouseDown, true);
+            root.addEventListener('click', onClick, true);
+            this.msaViewerColumnToggleCleanup = () => {
+                root.removeEventListener('mousedown', onMouseDown, true);
+                root.removeEventListener('click', onClick, true);
+            };
+        },
+        unbindMSAViewerColumnToggle() {
+            this.msaViewerColumnToggleCleanup?.();
+            this.msaViewerColumnToggleCleanup = null;
+            this.msaViewerColumnToggleCandidate = null;
         },
         handleNewStructureViewerReference(entryIndex) {
             if (entryIndex === this.structureViewerReference) {
@@ -937,11 +992,11 @@ export default {
             viewer.style.width = this.$vuetify.breakpoint.smAndDown ? '300px' : '360px'
             viewer.style.height = this.$vuetify.breakpoint.smAndDown ? '310px' : '380px'
             viewer.style.transform = ''
-            if (this.showViewerCondition) this.$refs.structViewer?.stage?.handleResize()
+            if (this.showViewerCondition) this.$refs.structViewer?.handleResize?.()
         },
         toggleView() {
-            const stage = this.$refs.structViewer
-            const structureViewerEl = stage?.$el;
+            const structureViewer = this.$refs.structViewer
+            const structureViewerEl = structureViewer?.$el;
             if (!structureViewerEl) return;
             if (!this.showViewer) {
                 this.showViewer = true
@@ -955,7 +1010,7 @@ export default {
                 }
                 this.$nextTick(() => {
                     setTimeout(() => {
-                        stage?.handleResize?.()
+                        structureViewer?.handleResize?.()
                     }, 0)
                 })
             } else {
@@ -966,16 +1021,18 @@ export default {
                     this.$refs.originalWrapper.appendChild(structureViewerEl)
                     this.$nextTick(() => {
                         setTimeout(() => {
-                            stage?.handleResize?.()
+                            structureViewer?.handleResize?.()
                         }, 0)
                     })
                 }
             }
         },
         pushActiveIndex(idx, move=false) {
-            if (!this.selectedColumns.includes(idx)) {
-                this.selectedColumns.push(idx)
+            if (this.selectedColumns.includes(idx)) {
+                this.spliceActiveIndex(idx)
+                return
             }
+            this.selectedColumns.push(idx)
             if (this.selectedColumns.length > 32) {
                 this.selectedColumns.shift()
             }
@@ -996,7 +1053,32 @@ export default {
             this.syncMSAViewerSelectionFromSelectedColumns()
             this.$refs.structViewer?.updateAllHighlights?.()
         },
+        clearStructurePreviewFromAlignment() {
+            this.previewColumn = -1;
+            this.previewStructureIndex = -1;
+            this.structurePreviewMarker.visible = false;
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.$refs.structViewer?.updateAllPreview?.();
+                });
+            });
+        },
+        previewStructureFromAlignment(idx, rowIndex) {
+            if (!this.structureViewerSelection.includes(rowIndex)) {
+                this.clearStructurePreviewFromAlignment();
+                return;
+            }
+            this.previewColumn = Number(idx);
+            this.previewStructureIndex = rowIndex;
+            this.structurePreviewMarker.visible = false;
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.$refs.structViewer?.updateAllPreview?.();
+                });
+            });
+        },
         changePreview(idx, fromStruct=false) {
+            this.previewStructureIndex = -1;
             if (idx < 0) {
                 if (this.previewColumn >= 0 ) {
                     this.previewColumn = -1

@@ -1,62 +1,71 @@
 <template>
     <div class="alignment-panel" slot="content">
-        <div class="alignment-wrapper-outer" style="width: 100%;">
-            <div style="line-height: 1.2em; display: flex; flex-direction: column; width: 100%; justify-content: space-between; margin-bottom: 1em;">
-                <div style="display: flex; flex-direction: row; align-items: center; gap: 24px">
-                    <v-select
-                        persistent-hint
-                        label="Colorscheme"
-                        v-model="colorscheme"
-                        :items="schemes"
-                        attach
-                    >
-                    <template v-slot:item="{ item, on, attrs }">
-                        <v-list-item two-line v-on="on" v-bind="attrs">
-                            <v-list-item-content>
-                               <v-list-item-title>{{ item.text }}</v-list-item-title>
-                               <v-list-item-subtitle :class="item.value" v-if="alignments && alignments.length > 0">{{ alignments[0].qAln.substring(0, 25) }}&hellip;</v-list-item-subtitle>
-                            </v-list-item-content>
-                        </v-list-item>
-                    </template>
-                    </v-select>
-                    <v-btn
-                        small
-                        title="Clear sequence selection"
-                        @click="clearAllSelection"
-                        :disabled="hasSelection"
-                    >
-                        {{ (alignments[0].hasOwnProperty("complexu")) ? "Clear all selections" : "Clear selection" }}&nbsp;
-                        <v-icon style="width: 16px;">{{ $MDI.CloseCircle }}</v-icon>
-                    </v-btn>
+        <div class="alignment-wrapper-outer">
+            <div class="alignment-content">
+                <div class="alignment-header">
+                    <div class="alignment-controls">
+                        <v-select
+                            class="alignment-colorscheme"
+                            persistent-hint
+                            label="Colorscheme"
+                            v-model="colorscheme"
+                            :items="schemes"
+                            attach
+                        >
+                        <template v-slot:item="{ item, on, attrs }">
+                            <v-list-item two-line v-on="on" v-bind="attrs">
+                                <v-list-item-content>
+                                   <v-list-item-title>{{ item.text }}</v-list-item-title>
+                                   <v-list-item-subtitle :class="item.value" v-if="alignments && alignments.length > 0">{{ alignments[0].qAln.substring(0, 25) }}&hellip;</v-list-item-subtitle>
+                                </v-list-item-content>
+                            </v-list-item>
+                        </template>
+                        </v-select>
+                        <v-btn
+                            class="alignment-clear-button"
+                            small
+                            title="Clear sequence selection"
+                            @click="clearAllSelection"
+                            :disabled="hasSelection"
+                        >
+                            {{ (alignments[0].hasOwnProperty("complexu")) ? "Clear all selections" : "Clear selection" }}&nbsp;
+                            <v-icon style="width: 16px;">{{ $MDI.CloseCircle }}</v-icon>
+                        </v-btn>
+                    </div>
+                    <small v-if="$APP == 'foldseek'" class="alignment-hint">
+                        Select query or target residues to highlight their structure.<br style="height: 0.2em">
+                        Click on highlighted sequences to dehighlight the corresponding chain.
+                    </small>
                 </div>
-                <small v-if="$APP == 'foldseek'">
-                    Select query or target residues to highlight their structure.<br style="height: 0.2em">
-                    Click on highlighted sequences to dehighlight the corresponding chain.
-                </small>
-            </div>
 
-            <template v-for="(alignment, index) in alignments">
-                {{ alignment.query.lastIndexOf('_') != -1 ? alignment.query.substring(alignment.query.lastIndexOf('_')+1) : '' }} ➔ {{ alignment.target }}
-                <Alignment
-                    :key="`aln2-${alignment.id}`"
-                    :alnIndex="index"
-                    :alignment="alignment"
-                    :lineLen="lineLen"
-                    :queryMap="queryMaps[index]"
-                    :targetMap="targetMaps[index]"
-                    :highlights="highlights[index]"
-                    :queryHighlights="queryHighlights[index]"
-                    :hover="getAlignmentHover(index)"
-                    :colorscheme="colorscheme"
-                    ref="alignments"
-                    @residueSelectStart="onResidueSelectStart"
-                    @residuePointerDown="onResiduePointerDown"
-                    @residuePointerUp="onResiduePointerUp"
-                    @residuePointerMove="onResiduePointerMove"
-                    @residuePointerLeave="onResiduePointerLeave"
-                    @residueClickHighlight="onResidueClickHighlight"
-                />
-            </template>
+                <div
+                    class="alignment-entry"
+                    v-for="(alignment, index) in alignments"
+                        :key="alignmentKey(alignment, index)"
+                >
+                    <div class="alignment-title">
+                        {{ alignment.query.lastIndexOf('_') != -1 ? alignment.query.substring(alignment.query.lastIndexOf('_')+1) : '' }} ➔ {{ alignment.target }}
+                    </div>
+                    <Alignment
+                        :alnIndex="index"
+                        :alignment="alignment"
+                        :lineLen="effectiveLineLen"
+                        :queryMap="queryMaps[index]"
+                        :targetMap="targetMaps[index]"
+                        :highlights="highlights[index]"
+                        :queryHighlights="queryHighlights[index]"
+                        :hover="getAlignmentHover(index)"
+                        :colorscheme="colorscheme"
+                        ref="alignments"
+                        @residueSelectStart="onResidueSelectStart"
+                        @residuePointerDown="onResiduePointerDown"
+                        @residuePointerUp="onResiduePointerUp"
+                        @residuePointerMove="onResiduePointerMove"
+                        @residuePointerLeave="onResiduePointerLeave"
+                        @residueClickHighlight="onResidueClickHighlight"
+                    />
+                </div>
+            </div>
         </div>
         <div v-if=" $APP == 'foldseek'" class="alignment-structure-wrapper">
             <MolstarStructureViewer
@@ -87,6 +96,7 @@
                             <td class="right-cell">{{ tmAlignResults.rmsd }}</td>
                         </tr>
                     </table>
+                    <StructureHoverTooltip :value="structureHoverInfo" />
                 </template>
             </MolstarStructureViewer>
         </div>
@@ -95,7 +105,9 @@
 
 <script>
 import Alignment from './Alignment.vue'
+import StructureHoverTooltip from './StructureHoverTooltip.vue'
 import { foldseekResult } from './molstar/foldseekResult.js';
+import { resolvedChainForState } from './molstar/foldseekSelections.js';
 import { getChainName } from './molstar/foldseekUtilities.js'
 import { downloadBlob, exportAlignmentTitle, getResiduePointerOffset, makePositionMap, residueTextOffset } from './alignmentPanelUtils.js';
 import { prepareFoldseekStructureInput } from './molstar/foldseekData.js';
@@ -104,6 +116,7 @@ export default {
     components: {
         MolstarStructureViewer: () => import('./molstar/StructureViewer.vue'),
         Alignment,
+        StructureHoverTooltip,
     },
     data: () => ({
         foldseekResult,
@@ -120,11 +133,18 @@ export default {
         structureHighlights: [],
         queryStructureHighlights: [],
         structureHover: null,
+        structureHoverInfo: null,
         structureFocus: null,
         alignmentHover: null,
+        sceneChainOverrides: { query: {}, target: {} },
         hoverFocusTimer: null,
         isSelecting: false,
         isPointerDown: false,
+        adaptiveLineLen: null,
+        resizeObserver: null,
+        cachedResidueCharWidth: null,
+        observedContainerWidth: null,
+        resizeFrame: null,
         colorscheme: 'clustal2',
         schemes: [
             { text: "Clustal2", value: "clustal2" },
@@ -147,6 +167,9 @@ export default {
         searchType: { type: String },
     },
     computed: {
+        effectiveLineLen() {
+            return this.adaptiveLineLen || this.lineLen;
+        },
         hasSelection() {
             return !this.structureHighlights.some(e => e !== null)
                 && !this.queryStructureHighlights.some(e => e !== null);
@@ -187,7 +210,6 @@ export default {
         structureMode() {
             if (this.searchType === 'interfacesearch') return 'interface';
             if (this.hits?.type === 'complexsearch') return 'multimer';
-            if (this.alignments?.some(alignment => alignment?.complexu && alignment?.complext)) return 'multimer';
             return 'alignment';
         },
     },
@@ -233,7 +255,7 @@ export default {
             downloadBlob(new Blob([cif], { type: 'text/plain' }), `${exportAlignmentTitle(this.alignments, this.hasQueryStructure)}.cif`);
         },
         getFirstResidueNumber(map, i) {
-            let start = this.lineLen * (i - 1);
+            let start = this.effectiveLineLen * (i - 1);
             while (map[start] === null) start--;
             return map[start];
         },
@@ -242,9 +264,75 @@ export default {
         getAlignmentHover(index) {
             return this.alignmentHover?.index === index ? this.alignmentHover : null;
         },
+        alignmentKey(alignment, index) {
+            const id = alignment.id ?? `${alignment.query || ''}-${alignment.target || ''}`;
+            return `aln2-${index}-${id}`;
+        },
+        updateAdaptiveLineLen() {
+            if (!this.$el || !this.alignments?.length || !this.observedContainerWidth) return;
+
+            const panelWidth = this.observedContainerWidth;
+            const structureEl = this.$el.querySelector('.alignment-structure-wrapper');
+            const structureWidth = structureEl
+                ? Math.round(structureEl.getBoundingClientRect().width)
+                : 0;
+            const gap = structureWidth ? this.alignmentPanelGap() : 0;
+            const labelWidth = 80;
+            const charWidth = this.cachedResidueCharWidth || this.measureResidueCharWidth();
+
+            const availableWidth = Math.max(260, panelWidth - structureWidth - gap - labelWidth);
+            const maxAlignmentLength = Math.max(...this.alignments.map(alignment => alignment.alnLength || alignment.qAln?.length || 0));
+            const next = Math.max(20, Math.min(maxAlignmentLength || this.lineLen, Math.floor(availableWidth / charWidth)));
+
+            if (!this.adaptiveLineLen || Math.abs(next - this.adaptiveLineLen) > 1) {
+                this.clearHover();
+                this.adaptiveLineLen = next;
+                this.redrawAlignmentSelections();
+            }
+        },
+        alignmentPanelGap() {
+            if (typeof window === 'undefined') return 32;
+            const style = window.getComputedStyle(this.$el);
+            return Number.parseFloat(style.columnGap || style.gap) || 32;
+        },
+        measureResidueCharWidth() {
+            if (this.cachedResidueCharWidth) return this.cachedResidueCharWidth;
+            if (typeof document === 'undefined') return 10;
+
+            const probe = document.createElement('span');
+            probe.className = 'residues';
+            probe.style.position = 'absolute';
+            probe.style.visibility = 'hidden';
+            probe.style.pointerEvents = 'none';
+            probe.style.whiteSpace = 'pre';
+            probe.textContent = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+            document.body.appendChild(probe);
+            const width = probe.getBoundingClientRect().width / probe.textContent.length;
+            document.body.removeChild(probe);
+
+            this.cachedResidueCharWidth = width > 0 ? width : 10;
+            return this.cachedResidueCharWidth;
+        },
+        resizeTarget() {
+            return this.$el?.parentElement || this.$el;
+        },
+        handleWindowResize() {
+            this.setObservedContainerWidth(this.resizeTarget()?.clientWidth);
+        },
+        setObservedContainerWidth(width) {
+            const next = Math.round(width || 0);
+            if (!next || next === this.observedContainerWidth) return;
+            this.observedContainerWidth = next;
+
+            if (this.resizeFrame) cancelAnimationFrame(this.resizeFrame);
+            this.resizeFrame = requestAnimationFrame(() => {
+                this.resizeFrame = null;
+                this.updateAdaptiveLineLen();
+            });
+        },
         setEmptyHighlight() {
-            this.highlights = this.alignments.map(a => new Array(Math.ceil(a.qAln.length / this.lineLen)).fill([undefined, undefined]))
-            this.queryHighlights = this.alignments.map(a => new Array(Math.ceil(a.qAln.length / this.lineLen)).fill([undefined, undefined]))
+            this.highlights = this.alignments.map(a => new Array(Math.ceil(a.qAln.length / this.effectiveLineLen)).fill([undefined, undefined]))
+            this.queryHighlights = this.alignments.map(a => new Array(Math.ceil(a.qAln.length / this.effectiveLineLen)).fill([undefined, undefined]))
         },
         setEmptyStructureHighlight() {
             this.structureHighlights = new Array(this.alignments.length).fill(null);
@@ -255,7 +343,7 @@ export default {
             this.setEmptyStructureHighlight();
         },
         setSideHighlight(side) {
-            const value = this.alignments.map(a => new Array(Math.ceil(a.qAln.length / this.lineLen)).fill([undefined, undefined]));
+            const value = this.alignments.map(a => new Array(Math.ceil(a.qAln.length / this.effectiveLineLen)).fill([undefined, undefined]));
             if (side === 'query') this.queryHighlights = value;
             else this.highlights = value;
         },
@@ -266,14 +354,54 @@ export default {
             for (let [ alnId, startLine, startOffset, endLine, endOffset, _ ] of selections) {
                 for (let i = startLine; i <= endLine; i++) {
                     if (i === startLine) {
-                        highlights[alnId][i] = [startOffset, (i === endLine) ? endOffset : this.lineLen];
+                        highlights[alnId][i] = [startOffset, (i === endLine) ? endOffset : this.effectiveLineLen];
                     } else if (i === endLine) {
                         highlights[alnId][i] = [0, endOffset];
                     } else {
-                        highlights[alnId][i] = [0, this.lineLen];
+                        highlights[alnId][i] = [0, this.effectiveLineLen];
                     }
                 }
             }
+        },
+        redrawAlignmentSelections() {
+            this.highlights = this.structureHighlights.map((selection, index) => (
+                this.alignmentHighlightFromResidueSelection(index, selection, 'target')
+            ));
+            this.queryHighlights = this.queryStructureHighlights.map((selection, index) => (
+                this.alignmentHighlightFromResidueSelection(index, selection, 'query')
+            ));
+        },
+        alignmentHighlightFromResidueSelection(alnIndex, selection, side) {
+            const alignment = this.alignments[alnIndex];
+            const empty = new Array(Math.ceil((alignment?.qAln?.length || 0) / this.effectiveLineLen)).fill([undefined, undefined]);
+            if (!alignment || !selection) return empty;
+
+            const [seqStart, seqLength] = selection;
+            const seqEnd = seqStart + seqLength;
+            const map = side === 'query' ? this.queryMaps[alnIndex] : this.targetMaps[alnIndex];
+            const offsets = [];
+            for (let i = 0; i < map.length; i++) {
+                const residue = map[i];
+                if (Number.isFinite(residue) && residue >= seqStart && residue < seqEnd) {
+                    offsets.push(i);
+                }
+            }
+            if (offsets.length === 0) return empty;
+
+            const start = offsets[0];
+            const end = offsets[offsets.length - 1] + 1;
+            const startLine = Math.floor(start / this.effectiveLineLen);
+            const endLine = Math.floor((end - 1) / this.effectiveLineLen);
+
+            for (let line = startLine; line <= endLine; line++) {
+                const lineStart = line * this.effectiveLineLen;
+                const lineEnd = lineStart + this.effectiveLineLen;
+                empty[line] = [
+                    Math.max(0, start - lineStart),
+                    Math.min(this.effectiveLineLen, end - lineStart, lineEnd - lineStart),
+                ];
+            }
+            return empty;
         },
         updateMaps() {
             if (!this.alignments) return
@@ -288,8 +416,9 @@ export default {
         onResidueSelectStart(event, alnIndex, lineNo, side = 'target') {
             this.isSelecting = true;
             this.clearHover();
-            document.querySelector(".alignment-wrapper-outer")
-                .classList.add("inselection");
+            const wrapper = this.$el.querySelector(".alignment-wrapper-outer");
+            wrapper?.classList.remove("inselection-query", "inselection-target");
+            wrapper?.classList.add("inselection", `inselection-${side}`);
         },
         onResiduePointerDown() {
             this.isPointerDown = true;
@@ -337,7 +466,7 @@ export default {
             const span = event.currentTarget;
             const offset = this.getResiduePointerOffset(event, span);
             const map = side === 'query' ? this.queryMaps[alnIndex] : this.targetMaps[alnIndex];
-            const residue = map?.[(lineNo - 1) * this.lineLen + offset];
+            const residue = map?.[(lineNo - 1) * this.effectiveLineLen + offset];
             if (!Number.isFinite(residue)) {
                 this.clearHover();
                 return;
@@ -365,26 +494,61 @@ export default {
                 return;
             }
 
-            const hover = this.findStructureResidueHover(event.side, event.chain, event.residues || [event.residue]);
+            const chains = event.chainCandidates?.length ? event.chainCandidates : [event.chain];
+            const hover = this.findStructureResidueHover(event.side, chains, event.residues || [event.residue]);
             if (!hover) {
-                this.clearHover();
+                if (event.type === 'structure-hover') {
+                    this.structureHoverInfo = this.structureTooltipInfo(event, null);
+                    this.structureHover = null;
+                    this.alignmentHover = null;
+                    this.clearHoverFocusTimer();
+                } else {
+                    this.clearHover();
+                }
                 return;
             }
 
+            if (event.type === 'structure-hover') {
+                this.structureHoverInfo = this.structureTooltipInfo(event, hover);
+                if (event.hoverSource === 'molstar') {
+                    hover.structureSelection = {
+                        ...hover.structureSelection,
+                        source: 'molstar',
+                        hoverKey: event.hoverKey,
+                    };
+                }
+            }
             this.setHover(hover, false);
             if (event.type === 'structure-click') {
                 this.structureFocus = { ...hover.structureSelection, token: Date.now() };
             }
         },
+        structureTooltipInfo(event, hover) {
+            return {
+                ...event,
+                name: this.structureDisplayName(event.side, hover?.index) || event.name,
+            };
+        },
+        structureDisplayName(side, index) {
+            const alignment = this.alignments[index ?? 0];
+            if (!alignment) return '';
+            return side === 'query'
+                ? (alignment.query || '')
+                : (alignment.target || '');
+        },
         handleStructureSceneState(state) {
             this.tmAlignResults = state?.tmAlignResults || null;
+            this.sceneChainOverrides = state?.chainOverrides || { query: {}, target: {} };
         },
-        findStructureResidueHover(side, chain, residues) {
+        findStructureResidueHover(side, chains, residues) {
             const residueCandidates = Array.isArray(residues) ? residues : [residues];
+            const chainCandidates = (Array.isArray(chains) ? chains : [chains]).filter(Boolean);
+            const chainState = { chainOverrides: this.sceneChainOverrides };
             for (let index = 0; index < this.alignments.length; index++) {
                 const alignment = this.alignments[index];
                 const alignmentName = side === 'query' ? alignment.query : alignment.target;
-                if (chain && getChainName(alignmentName) !== chain) continue;
+                const alignmentChain = resolvedChainForState(chainState, side, getChainName(alignmentName));
+                if (chainCandidates.length > 0 && !chainCandidates.includes(alignmentChain)) continue;
 
                 const map = side === 'query' ? this.queryMaps[index] : this.targetMaps[index];
                 const residue = residueCandidates.find(value => map?.includes(value));
@@ -394,8 +558,8 @@ export default {
                 return {
                     side,
                     index,
-                    lineNo: Math.floor(alnOffset / this.lineLen) + 1,
-                    offset: alnOffset % this.lineLen,
+                    lineNo: Math.floor(alnOffset / this.effectiveLineLen) + 1,
+                    offset: alnOffset % this.effectiveLineLen,
                     structureSelection: { side, index, start: residue, length: 1 },
                 };
             }
@@ -418,6 +582,7 @@ export default {
         },
         clearHover() {
             this.structureHover = null;
+            this.structureHoverInfo = null;
             this.alignmentHover = null;
             this.clearHoverFocusTimer();
         },
@@ -446,7 +611,7 @@ export default {
         clearSelection(side, alnIndex) {
             const alignment = this.alignments[alnIndex];
             if (!alignment) return;
-            const empty = new Array(Math.ceil(alignment.qAln.length / this.lineLen)).fill([undefined, undefined]);
+            const empty = new Array(Math.ceil(alignment.qAln.length / this.effectiveLineLen)).fill([undefined, undefined]);
             if (side === 'query') {
                 this.queryHighlights.splice(alnIndex, 1, empty);
                 this.queryStructureHighlights.splice(alnIndex, 1, null);
@@ -507,8 +672,8 @@ export default {
                 let seqLength = 0;
 
                 for (const segment of alignmentSegments) {
-                    const alnStart = (segment.lineNo - 1) * this.lineLen + segment.startOffset;
-                    const alnEnd = (segment.lineNo - 1) * this.lineLen + segment.endOffset;
+                    const alnStart = (segment.lineNo - 1) * this.effectiveLineLen + segment.startOffset;
+                    const alnEnd = (segment.lineNo - 1) * this.effectiveLineLen + segment.endOffset;
                     for (let i = alnStart; i < alnEnd; i++) {
                         if (residueMap[i] === null || typeof residueMap[i] === 'undefined') continue;
                         if (seqStart === null) seqStart = residueMap[i];
@@ -536,7 +701,9 @@ export default {
             this.isSelecting = false;
             this.isPointerDown = false;
             let noselects = document.querySelectorAll(".inselection");
-            noselects.forEach(el => { el.classList.remove("inselection") });
+            noselects.forEach(el => {
+                el.classList.remove("inselection", "inselection-query", "inselection-target")
+            });
         }
     },
     watch: {
@@ -545,6 +712,7 @@ export default {
             handler() {
                 this.updateMaps();
                 this.prepareStructureViewer();
+                this.$nextTick(() => this.setObservedContainerWidth(this.resizeTarget()?.clientWidth));
             },
         },
         hits: {
@@ -558,30 +726,98 @@ export default {
         }
     },
     beforeMount() {
+        this.adaptiveLineLen = this.lineLen;
         this.updateMaps()
         this.setEmptyHighlight();
         this.setEmptyStructureHighlight();
     },
     async mounted() {
         this.prepareStructureViewer();
+        this.$nextTick(() => {
+            this.measureResidueCharWidth();
+            this.setObservedContainerWidth(this.resizeTarget()?.clientWidth);
+            if (typeof ResizeObserver !== 'undefined') {
+                this.resizeObserver = new ResizeObserver((entries) => {
+                    const entry = entries[0];
+                    const box = Array.isArray(entry?.borderBoxSize) ? entry.borderBoxSize[0] : entry?.borderBoxSize;
+                    const width = box?.inlineSize ?? entry?.contentRect?.width;
+                    this.setObservedContainerWidth(width);
+                });
+                const target = this.resizeTarget();
+                if (target) this.resizeObserver.observe(target);
+            }
+            window.addEventListener('resize', this.handleWindowResize);
+        });
     },
     beforeDestroy() {
         this.clearHoverFocusTimer();
+        if (this.resizeObserver) this.resizeObserver.disconnect();
+        if (this.resizeFrame) cancelAnimationFrame(this.resizeFrame);
+        window.removeEventListener('resize', this.handleWindowResize);
     },
 }
 </script>
 
 <style scoped>
 .alignment-panel {
-    display: inline-flex;
+    display: flex;
     flex-wrap: nowrap;
-    justify-content: center;
+    justify-content: flex-start;
+    align-items: flex-start;
     width: 100%;
+    gap: 2em;
+    overflow-x: auto;
 }
 
 .alignment-wrapper-outer {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.alignment-content {
     display: inline-flex;
     flex-direction: column;
+    width: max-content;
+    min-width: min(100%, 28rem);
+}
+
+.alignment-header {
+    line-height: 1.2em;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    justify-content: space-between;
+    margin-bottom: 1em;
+}
+
+.alignment-controls {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+}
+
+.alignment-colorscheme {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.alignment-clear-button {
+    flex: 0 0 auto;
+}
+
+.alignment-hint {
+    display: block;
+    width: 100%;
+}
+
+.alignment-entry {
+    display: block;
+}
+
+.alignment-title {
+    display: block;
 }
 
 .alignment-wrapper-inner {
@@ -589,10 +825,11 @@ export default {
 }
 
 .alignment-structure-wrapper {
-    min-width:450px;
-    width: 500px;
+    flex: 0 0 clamp(440px, 36vw, 680px);
+    min-width: 440px;
+    width: clamp(440px, 36vw, 680px);
+    max-width: 680px;
     height: 400px;
-    flex: 0 0 500px;
     margin: 0;
     margin-bottom: auto;
     overflow: hidden;
@@ -622,28 +859,6 @@ export default {
     text-align: left;
 }
 
-@media screen and (max-width: 960px) {
-    .alignment-wrapper-outer, .alignment-panel  {
-        display: flex;
-    }
-    .alignment-panel {
-        flex-direction: column-reverse;
-    }
-    .alignment-structure-wrapper {
-        padding-bottom: 1em;
-    }
-
-    .alignment-wrapper-outer, .alignment-structure-wrapper {
-        align-self: center;
-    }
-}
-
-@media screen and (min-width: 961px) {
-    .alignment-structure-wrapper {
-        padding-left: 2em;
-    }
-}
-
 </style>
 
 <style>
@@ -658,6 +873,31 @@ span.hovered {
     background-color: rgba(255, 64, 255, 0.16);
     box-shadow: 0 0 .3em .08em rgba(255, 64, 255, 0.55);
 }
+
+.alignment-wrapper-outer.inselection,
+.alignment-wrapper-outer.inselection * {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+}
+
+.alignment-wrapper-outer.inselection-query span.residues.query,
+.alignment-wrapper-outer.inselection-query span.residues.query *,
+.alignment-wrapper-outer.inselection-target span.residues.target,
+.alignment-wrapper-outer.inselection-target span.residues.target * {
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    user-select: text !important;
+}
+
+.alignment-wrapper-outer.inselection-query span.residues.target::selection,
+.alignment-wrapper-outer.inselection-query span.residues.target *::selection,
+.alignment-wrapper-outer.inselection-target span.residues.query::selection,
+.alignment-wrapper-outer.inselection-target span.residues.query *::selection {
+    color: inherit;
+    background: transparent;
+}
+
 /* TODO Some sort of banding thing here? */
 /* .alignment-wrapper-inner:nth-child(odd) span.selected {
     background-color: rgba(0, 255, 100, 0.1);

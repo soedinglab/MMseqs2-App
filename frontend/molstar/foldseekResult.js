@@ -1,10 +1,8 @@
-import { OrderedSet } from 'molstar/lib/mol-data/int';
-import { QueryContext, StructureElement, StructureProperties, StructureSelection } from 'molstar/lib/mol-model/structure';
+import { QueryContext, StructureElement, StructureSelection } from 'molstar/lib/mol-model/structure';
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
 import { compile } from 'molstar/lib/mol-script/runtime/query/compiler';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { setSubtreeVisibility } from 'molstar/lib/mol-plugin/behavior/static/state';
-import { Color } from 'molstar/lib/mol-util/color';
 import {
     alignmentRegions,
     atomGroupExpression,
@@ -15,10 +13,14 @@ import {
     interfaceExpressionForChain,
     mergeSelectionExpressions,
     selectionExpressionForChains,
+    structureChains,
     structureSelectionExpression,
 } from './foldseekSelections.js';
 import { superposeTargetWithFoldseekAlignment, transformStructure } from './foldseekSuperposition.js';
 import { setArrows } from './foldseekArrows.js';
+import { loadStructureFromData } from './io.js';
+import { isValidLoci, residueInfoFromLoci, structuresMatch } from './interactions.js';
+import { addUniformRepresentation } from './representations.js';
 
 const QueryChainSurfaceColors = [
     0x991999,
@@ -34,7 +36,6 @@ const InterfacePalettes = {
     query: [0x1e88e5, 0xe53935, 0x991999, 0x00bfbf],
     target: [0xffc107, 0x43a047, 0xe9967a, 0x009e73],
 };
-
 async function buildStructureRepresentations(plugin, state, structure, side, input, color, alignedColor) {
     if (input?.structureMode === 'interface') {
         return buildInterfaceStructureRepresentations(plugin, state, structure, side, input);
@@ -42,14 +43,18 @@ async function buildStructureRepresentations(plugin, state, structure, side, inp
 
     const mode = input[`show${capitalize(side)}`] || 0;
     const type = input[`${side}Representation`] || 'cartoon';
-    const aligned = await addRepresentation(
-        plugin,
-        structure,
-        `${side}-aligned`,
-        type,
-        alignedColor,
-        baseSelectionExpressionForMode(state, input, side, 0),
-        representationOverrides(input, side),
+    const aligned = withInteractionChain(
+        await addRepresentation(
+            plugin,
+            structure,
+            `${side}-aligned`,
+            type,
+            alignedColor,
+            baseSelectionExpressionForMode(state, input, side, 0),
+            representationOverrides(input, side),
+        ),
+        input,
+        side,
     );
     const stateEntry = {
         structure,
@@ -57,7 +62,7 @@ async function buildStructureRepresentations(plugin, state, structure, side, inp
         mode,
         aligned,
         background: null,
-        surfaces: await addChainSurfaces(plugin, structure, side, input),
+        surfaces: await addChainSurfaces(plugin, state, structure, side, input),
         baseColor: color,
         alignedColor,
     };
@@ -69,6 +74,9 @@ async function buildStructureRepresentations(plugin, state, structure, side, inp
 async function applyVisibility(plugin, state, input) {
     const queryMode = input?.showQuery || 0;
     const targetMode = input?.showTarget || 0;
+    const key = visibilityKey(input, queryMode, targetMode);
+    if (state.visibilityKey === key) return;
+    state.visibilityKey = key;
 
     if (state.query) {
         await setSelectionMode(plugin, state, state.query, input, 'query', queryMode);
@@ -79,57 +87,40 @@ async function applyVisibility(plugin, state, input) {
     await setArrows(plugin, state, input);
 }
 
-function representationTypeParams(type, overrides = {}) {
-    if (type === 'cartoon') {
-        return {
-            quality: 'higher',
-            ignoreLight: false,
-            sizeFactor: 0.25,
-            visuals: ['polymer-trace', 'polymer-gap'],
-            helixProfile: 'rounded',
-            nucleicProfile: 'rounded',
-            linearSegments: 10,
-            radialSegments: 16,
-            material: {
-                metalness: 0,
-                roughness: 0.55,
-                bumpiness: 0.1,
-            },
-            ...overrides,
-        };
-    }
+function visibilityKey(input, queryMode, targetMode) {
+    return visibilityInputKey(input, queryMode, targetMode);
+}
 
-    return {
-        quality: 'higher',
-        ignoreLight: false,
-        ...overrides,
-    };
+function visibilityInputKey(input, queryMode = input?.showQuery || 0, targetMode = input?.showTarget || 0) {
+    return [
+        queryMode,
+        targetMode,
+        input?.showArrows ? 1 : 0,
+        input?.queryRepresentation || 'cartoon',
+        input?.targetRepresentation || 'cartoon',
+        input?.queryAlpha ?? '',
+        input?.targetAlpha ?? '',
+        input?.representationQuality || '',
+        input?.queryIndex ?? '',
+        input?.queryChain ?? '',
+    ].join(':');
 }
 
 async function addRepresentation(plugin, structure, label, type, color, expression = MS.struct.generator.all(), typeParams = {}) {
-    const component = await plugin.builders.structure.tryCreateComponentFromExpression(
-        structure,
-        expression,
+    return addUniformRepresentation(plugin, structure, {
         label,
-        { label },
-    );
-    if (!component) return null;
-
-    const representation = await plugin.builders.structure.representation.addRepresentation(component, {
         type,
-        color: 'uniform',
-        colorParams: { value: Color(color) },
-        typeParams: representationTypeParams(type, typeParams),
-    }, {
-        tag: `${label}-representation`,
+        color,
+        expression,
+        typeParams,
+        state: { tag: `${label}-representation` },
     });
-    return { component, representation };
 }
 
-async function addChainSurfaces(plugin, structure, side, input) {
+async function addChainSurfaces(plugin, state, structure, side, input) {
     if (input?.structureMode !== 'multimer' || side !== 'query') return [];
 
-    const entries = querySurfaceEntries(input.alignments);
+    const entries = querySurfaceEntries(state, input);
 
     const surfaces = [];
     for (const entry of entries) {
@@ -157,9 +148,10 @@ async function addChainSurfaces(plugin, structure, side, input) {
     return surfaces;
 }
 
-function querySurfaceEntries(alignments) {
+function querySurfaceEntries(state, input) {
     const byChain = new Map();
-    for (const region of alignmentRegions(alignments, 'query')) {
+    const resolver = (chain) => state?.chainOverrides?.query?.[chain] || chain;
+    for (const region of alignmentRegions(input.alignments, 'query', resolver)) {
         if (!byChain.has(region.chain)) byChain.set(region.chain, []);
         byChain.get(region.chain).push(atomGroupExpression(region.chain, region.start, region.end));
     }
@@ -186,7 +178,9 @@ function querySurfaceEntries(alignments) {
         i += 1;
     }
 
-    const queryChains = selectionExpressionForChains(alignments, 'query');
+    if (input?.queryChain) return entries;
+
+    const queryChains = selectionExpressionForChains(input.alignments, 'query', resolver);
     if (queryChains) {
         entries.push({
             chain: 'other',
@@ -258,6 +252,11 @@ async function setBackgroundRepresentation(plugin, state, stateEntry, input, sid
         return;
     }
 
+    if (side === 'query' && input?.queryChain && mode === 2) {
+        stateEntry.background = await addQueryFullBackgroundRepresentations(plugin, state, stateEntry, input);
+        return;
+    }
+
     stateEntry.background = await addRepresentation(
         plugin,
         stateEntry.structure,
@@ -267,6 +266,28 @@ async function setBackgroundRepresentation(plugin, state, stateEntry, input, sid
         expression,
         representationOverrides(input, side),
     );
+}
+
+async function addQueryFullBackgroundRepresentations(plugin, state, stateEntry, input) {
+    const background = [];
+    const base = baseSelectionExpressionForMode(state, input, 'query', 0);
+    const chains = structureChains(stateEntry.structure);
+    for (const chain of chains) {
+        const chainExpression = atomGroupExpression(chain);
+        const representation = await addRepresentation(
+            plugin,
+            stateEntry.structure,
+            `query-${chain}-background`,
+            stateEntry.type,
+            stateEntry.baseColor,
+            base
+                ? MS.struct.modifier.exceptBy({ 0: chainExpression, by: base })
+                : chainExpression,
+            representationOverrides(input, 'query'),
+        );
+        if (representation) background.push({ ...representation, chain });
+    }
+    return background.length > 0 ? background : null;
 }
 
 async function setInterfaceBackgroundRepresentation(plugin, state, stateEntry, input, side, mode) {
@@ -309,7 +330,15 @@ async function deleteRepresentations(plugin, representations) {
 
 function representationOverrides(input, side) {
     const alpha = input?.[`${side}Alpha`];
-    return Number.isFinite(alpha) ? { alpha } : {};
+    return {
+        ...(Number.isFinite(alpha) ? { alpha } : {}),
+        ...(input?.representationQuality ? { qualityPreset: input.representationQuality } : {}),
+    };
+}
+
+function withInteractionChain(representation, input, side) {
+    if (!representation || side !== 'query' || !input?.queryChain) return representation;
+    return { ...representation, chain: input.queryChain };
 }
 
 function setSurfaceVisibility(plugin, stateEntry, input, side, mode) {
@@ -326,37 +355,97 @@ function setSurfaceVisibility(plugin, stateEntry, input, side, mode) {
     }
 }
 
-async function loadStructure(plugin, source) {
-    const raw = await plugin.builders.data.rawData(
-        { data: source.data, label: source.label },
-        { state: { isGhost: true } },
-    );
-    const trajectory = await plugin.builders.structure.parseTrajectory(raw, source.format);
-    const model = await plugin.builders.structure.createModel(trajectory);
-    return plugin.builders.structure.createStructure(model);
+function needsBaseRebuild(state, input) {
+    return state.baseKey !== baseSceneKey(input);
 }
 
-function needsBaseRebuild(state, input) {
-    return state.querySource !== input?.query
-        || state.targetSource !== input?.target
-        || state.targetTransform !== input?.targetTransform
-        || state.alignments !== input?.alignments
-        || state.structureMode !== input?.structureMode;
+function diffInput(previous, next) {
+    if (!previous) {
+        return {
+            rebuild: true,
+            visibility: true,
+            selection: true,
+            hover: true,
+            focus: true,
+        };
+    }
+
+    const rebuild = baseSceneKey(previous) !== baseSceneKey(next);
+    return {
+        rebuild,
+        visibility: rebuild || visibilityInputKey(previous) !== visibilityInputKey(next),
+        selection: rebuild || selectionsKey(previous?.highlightSelections || []) !== selectionsKey(next?.highlightSelections || []),
+        hover: rebuild || hoverInputKey(previous?.hoverSelection) !== hoverInputKey(next?.hoverSelection),
+        focus: rebuild || focusInputKey(previous?.focusSelection) !== focusInputKey(next?.focusSelection),
+    };
 }
 
 function resetSceneState(state, input) {
-    state.querySource = input?.query || null;
-    state.targetSource = input?.target || null;
-    state.targetTransform = input?.targetTransform || null;
-    state.alignments = input?.alignments || null;
+    state.baseKey = baseSceneKey(input);
     state.structureMode = input?.structureMode || 'alignment';
+    state.activeQueryChain = input?.queryChain || null;
     state.query = null;
     state.target = null;
     state.arrows = null;
     state.tmAlignResults = null;
     state.focusKey = null;
+    state.selectionKey = null;
+    state.hoverSelectionKey = null;
+    state.visibilityKey = null;
+    state.hoverLoci = null;
+    state.hoverKey = null;
+    state.chainOverrides = { query: {}, target: {} };
     state.interfaceRegions = { query: [], target: [] };
     state.interfaceResidueMap = { query: [], target: [] };
+}
+
+function baseSceneKey(input) {
+    if (!input) return 'empty';
+    return [
+        input.structureMode || 'alignment',
+        sourceKey(input.query),
+        sourceKey(input.target),
+        transformKey(input.targetTransform),
+        alignmentsKey(input.alignments),
+        input.queryIndex ?? '',
+        input.queryChain ?? '',
+    ].join('|');
+}
+
+function sourceKey(source) {
+    if (!source) return 'none';
+    const data = source.data || '';
+    return [
+        source.format || '',
+        source.label || '',
+        data.length,
+        data.slice(0, 96),
+        data.slice(-96),
+    ].join(':');
+}
+
+function transformKey(transform) {
+    if (!transform) return 'none';
+    if (Array.isArray(transform)) return transform.join(',');
+    if (typeof transform?.ref?.value === 'string') return transform.ref.value;
+    if (Array.isArray(transform?.data)) return transform.data.join(',');
+    return JSON.stringify(transform);
+}
+
+function alignmentsKey(alignments = []) {
+    return alignments.map((alignment, index) => [
+        index,
+        alignment.id,
+        alignment.query,
+        alignment.target,
+        alignment.db,
+        alignment.qStartPos,
+        alignment.qEndPos,
+        alignment.dbStartPos,
+        alignment.dbEndPos,
+        alignment.complexu,
+        alignment.complext,
+    ].join(':')).join(';');
 }
 
 function lociFromExpression(state, expression, side = 'target') {
@@ -371,11 +460,28 @@ function lociFromExpression(state, expression, side = 'target') {
 }
 
 function structureEventFromInteraction(state, current, type) {
-    const picked = pickedComponentInfo(state, current?.loci) || pickedRepresentationInfo(state, current?.repr);
+    const picked = pickedRepresentationInfo(state, current?.repr) || pickedComponentInfo(state, current?.loci);
     const event = structureEventFromLoci(state, current?.loci, type);
     if (!event.side && picked?.side) event.side = picked.side;
-    if (!event.chain && picked?.chain) event.chain = picked.chain;
+    const shouldUsePickedChain = picked?.chain && (!event.chain || (event.side === 'query' && picked.side === event.side));
+    if (shouldUsePickedChain) {
+        event.chain = picked.chain;
+        if (event.residue && typeof event.residue === 'object') {
+            event.residue = {
+                ...event.residue,
+                chain: picked.chain,
+            };
+        }
+    }
+    event.chainCandidates = uniqueValues([
+        event.chain,
+        picked?.side === event.side ? picked?.chain : null,
+    ]);
     return event;
+}
+
+function uniqueValues(values) {
+    return Array.from(new Set(values.filter(value => value !== null && value !== undefined && value !== '')));
 }
 
 function pickedRepresentationInfo(state, repr) {
@@ -387,7 +493,7 @@ function pickedRepresentationInfo(state, repr) {
 }
 
 function pickedComponentInfo(state, loci) {
-    if (!StructureElement.Loci.is(loci) || StructureElement.Loci.isEmpty(loci)) return null;
+    if (!isValidLoci(loci)) return null;
     for (const { side, item } of structureRepresentationItems(state)) {
         if (componentStructure(item) === loci.structure) return { side, chain: item.chain };
     }
@@ -426,7 +532,7 @@ function componentStructure(item) {
 }
 
 function structureEventFromLoci(state, loci, type) {
-    if (!StructureElement.Loci.is(loci) || StructureElement.Loci.isEmpty(loci)) {
+    if (!isValidLoci(loci)) {
         return { type, residue: null };
     }
 
@@ -437,39 +543,36 @@ function structureEventFromLoci(state, loci, type) {
     });
     if (!side) return { type, residue: null };
 
-    const entry = loci.elements?.[0];
-    if (!entry || OrderedSet.size(entry.indices) === 0) {
+    const residue = residueInfoFromLoci(loci);
+    if (!residue) {
         return { type, residue: null };
     }
-
-    const loc = StructureElement.Location.create(lociStructure);
-    loc.unit = entry.unit;
-    loc.element = OrderedSet.getAt(entry.indices, 0);
-
-    const authResidue = StructureProperties.residue.auth_seq_id(loc);
-    const labelResidue = StructureProperties.residue.label_seq_id(loc);
 
     return {
         type,
         side,
-        chain: StructureProperties.chain.auth_asym_id(loc) || StructureProperties.chain.label_asym_id(loc),
-        residue: labelResidue || authResidue,
-        authResidue,
-        labelResidue,
-        residues: Array.from(new Set([labelResidue, authResidue].filter(Number.isFinite))),
+        chain: residue.chain,
+        authChain: residue.authChain,
+        labelChain: residue.labelChain,
+        chainCandidates: uniqueValues([residue.chain]),
+        residue: {
+            chain: residue.chain,
+            residue: residue.residue,
+            oneLetter: residue.oneLetter,
+            threeLetter: residue.threeLetter,
+        },
+        authResidue: residue.authResidue,
+        labelResidue: residue.labelResidue,
+        residues: residue.residues,
     };
-}
-
-function structuresMatch(a, b) {
-    if (!a || !b) return false;
-    if (a === b) return true;
-    if (a.root && a.root === b) return true;
-    if (a.root && b.root && a.root === b.root) return true;
-    return false;
 }
 
 async function setStructureSelection(plugin, state, input) {
     const selections = input?.highlightSelections || [];
+    const key = selectionsKey(selections);
+    if (state.selectionKey === key) return;
+    state.selectionKey = key;
+
     if (selections.length === 0) {
         plugin.managers.interactivity.lociSelects.deselectAll();
         return;
@@ -499,13 +602,64 @@ async function setStructureSelection(plugin, state, input) {
 }
 
 async function setStructureHover(plugin, state, input) {
-    const loci = lociFromInputSelection(state, input, input?.hoverSelection);
+    const key = hoverSelectionKey(input?.hoverSelection, state);
+    if (state.hoverSelectionKey === key) return;
+    state.hoverSelectionKey = key;
+
+    const loci = input?.hoverSelection?.source === 'molstar'
+        ? state.hoverLoci
+        : lociFromInputSelection(state, input, input?.hoverSelection);
     if (!loci) {
         plugin.managers.interactivity.lociHighlights.clearHighlights();
         return;
     }
 
     plugin.managers.interactivity.lociHighlights.highlightOnly({ loci }, false);
+}
+
+function selectionsKey(selections) {
+    return selections.map(selection => [
+        selection.side || 'target',
+        selection.index,
+        selection.start,
+        selection.length,
+    ].join(':')).join(';');
+}
+
+function hoverSelectionKey(selection, state) {
+    if (!selection) return 'none';
+    if (selection.source === 'molstar') {
+        return `molstar:${selection.hoverKey || state.hoverKey || ''}`;
+    }
+    return [
+        selection.side || 'target',
+        selection.index,
+        selection.start,
+        selection.length,
+    ].join(':');
+}
+
+function hoverInputKey(selection) {
+    if (!selection) return 'none';
+    return [
+        selection.source || 'sequence',
+        selection.hoverKey || '',
+        selection.side || 'target',
+        selection.index,
+        selection.start,
+        selection.length,
+    ].join(':');
+}
+
+function focusInputKey(selection) {
+    if (!selection) return 'none';
+    return [
+        selection.side || 'target',
+        selection.index,
+        selection.start,
+        selection.length,
+        selection.token || 0,
+    ].join(':');
 }
 
 async function setTargetFocus(plugin, state, input) {
@@ -533,18 +687,57 @@ function lociFromInputSelection(state, input, selection) {
     return lociFromExpression(state, structureSelectionExpression(state, input, selection), side);
 }
 
+function resolveChainOverrides(structure, input, side) {
+    const chains = structureChains(structure);
+    if (chains.length === 0) return {};
+
+    const requested = Array.from(new Set(alignmentRegions(input?.alignments || [], side).map(region => region.chain)));
+    const explicitQueryChain = side === 'query' && input?.queryChain ? input.queryChain : null;
+    const useQueryIndexFallback = side === 'query'
+        && !explicitQueryChain
+        && requested.length === 1
+        && Number.isInteger(input?.queryIndex)
+        && chains.length > 1
+        && chains[input.queryIndex];
+    const overrides = {};
+    for (const chain of requested) {
+        if (explicitQueryChain) {
+            overrides[chain] = explicitQueryChain;
+        } else if (useQueryIndexFallback) {
+            overrides[chain] = chains[input.queryIndex];
+        } else if (chains.includes(chain)) {
+            overrides[chain] = chain;
+        } else if (side === 'query' && Number.isInteger(input?.queryIndex) && chains[input.queryIndex]) {
+            overrides[chain] = chains[input.queryIndex];
+        } else if (chains.length === 1) {
+            overrides[chain] = chains[0];
+        }
+    }
+    return overrides;
+}
+
 async function rebuildBaseScene(plugin, state, input) {
     await plugin.clear();
     resetSceneState(state, input);
     if (!input) return;
 
-    let target = input.target ? await loadStructure(plugin, input.target) : null;
-    const query = input.query ? await loadStructure(plugin, input.query) : null;
+    let target = input.target ? await loadStructureFromData(plugin, input.target) : null;
+    const query = input.query ? await loadStructureFromData(plugin, input.query) : null;
+    state.chainOverrides = {
+        query: resolveChainOverrides(query, input, 'query'),
+        target: resolveChainOverrides(target, input, 'target'),
+    };
 
     if (target && input.targetTransform) {
         target = await transformStructure(plugin, target, input.targetTransform);
     } else if (target && query) {
-        const superposition = await superposeTargetWithFoldseekAlignment(plugin, target, query, input.alignments);
+        const superposition = await superposeTargetWithFoldseekAlignment(
+            plugin,
+            target,
+            query,
+            input.superpositionAlignments || input.alignments,
+            state.chainOverrides,
+        );
         target = superposition.structure;
         state.tmAlignResults = superposition.results;
     }
@@ -600,18 +793,42 @@ export const foldseekResult = {
         return {};
     },
 
-    async update(plugin, state, input) {
-        if (needsBaseRebuild(state, input)) {
+    diffInput,
+
+    async update(plugin, state, input, previous, change = null) {
+        const plan = change || {
+            rebuild: true,
+            visibility: true,
+            selection: true,
+            hover: true,
+            focus: true,
+        };
+
+        if (plan.rebuild && needsBaseRebuild(state, input)) {
             await rebuildBaseScene(plugin, state, input);
         }
-        await applyVisibility(plugin, state, input);
-        await setStructureSelection(plugin, state, input);
-        await setStructureHover(plugin, state, input);
-        await setTargetFocus(plugin, state, input);
+        if (plan.visibility) await applyVisibility(plugin, state, input);
+        if (plan.selection) await setStructureSelection(plugin, state, input);
+        if (plan.hover) await setStructureHover(plugin, state, input);
+        if (plan.focus) await setTargetFocus(plugin, state, input);
     },
 
     onHover(plugin, state, input, event) {
-        return structureEventFromInteraction(state, event?.current, 'structure-hover');
+        const sceneEvent = structureEventFromInteraction(state, event?.current, 'structure-hover');
+        if (sceneEvent?.residue && isValidLoci(event?.current?.loci)) {
+            state.hoverLoci = event.current.loci;
+            state.hoverKey = `${sceneEvent.side}:${sceneEvent.chain}:${sceneEvent.labelResidue}:${sceneEvent.authResidue}`;
+            state.hoverSelectionKey = `molstar:${state.hoverKey}`;
+            plugin.managers.interactivity.lociHighlights.highlightOnly({ loci: state.hoverLoci }, false);
+            sceneEvent.hoverSource = 'molstar';
+            sceneEvent.hoverKey = state.hoverKey;
+        } else {
+            state.hoverLoci = null;
+            state.hoverKey = null;
+            state.hoverSelectionKey = 'none';
+            plugin.managers.interactivity.lociHighlights.clearHighlights();
+        }
+        return sceneEvent;
     },
 
     onClick(plugin, state, input, event) {

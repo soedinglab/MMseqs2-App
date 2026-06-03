@@ -24,15 +24,7 @@
                     <td class="right-cell">{{ alignment.rmsd }}</td>
                 </tr>
             </table>
-            <v-fade-transition>
-                <v-card
-                    v-if="hoverInfo"
-                    class="motif-tooltip"
-                    elevation="6"
-                >
-                    {{ hoverInfo.side }} {{ hoverInfo.chain }}{{ hoverInfo.residue }} {{ hoverInfo.residueName }}
-                </v-card>
-            </v-fade-transition>
+            <StructureHoverTooltip :value="hoverInfo" />
         </template>
     </MolstarStructureViewer>
 </div>
@@ -40,6 +32,7 @@
 
 <script>
 import MolstarStructureViewer from './molstar/StructureViewer.vue';
+import StructureHoverTooltip from './StructureHoverTooltip.vue';
 import { folddiscoResult } from './molstar/folddiscoResult.js';
 import { downloadBlob } from './alignmentPanelUtils.js';
 
@@ -47,6 +40,7 @@ export default {
     name: "StructureViewerMotif",
     components: {
         MolstarStructureViewer,
+        StructureHoverTooltip,
     },
     data: () => ({
         scene: folddiscoResult,
@@ -150,15 +144,4 @@ export default {
     text-align: left;
 }
 
-.motif-tooltip {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 2;
-    pointer-events: none;
-    padding: 8px 10px;
-    border-radius: 6px;
-    font-size: 12px;
-    line-height: 1.35;
-}
 </style>

@@ -300,10 +300,7 @@ export default {
             return this.hits?.mode ?? "";
         },
         isComplex() {
-            if (this.hits?.type == "complexsearch" || this.hits?.queries?.length > 1) {
-                return true;
-            }
-            return false;
+            return this.hits?.type == "complexsearch";
         },
         fluidLineLen() {
             if (this.$vuetify.breakpoint.xsOnly) {

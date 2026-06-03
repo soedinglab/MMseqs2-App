@@ -1,129 +1,19 @@
-import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { Mat4 } from 'molstar/lib/mol-math/linear-algebra';
-import { QueryContext, StructureElement, StructureProperties, StructureSelection } from 'molstar/lib/mol-model/structure';
+import { QueryContext, StructureElement, StructureSelection } from 'molstar/lib/mol-model/structure';
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
-import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
 import { compile } from 'molstar/lib/mol-script/runtime/query/compiler';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
-import { Color } from 'molstar/lib/mol-util/color';
 import { mockPDB } from './foldseekUtilities.js';
+import { loadStructureFromData, normalizedPdbSourceFromText } from './io.js';
+import { isValidLoci, residueInfoFromLoci, structuresMatch } from './interactions.js';
+import { addUniformRepresentation, ballAndStickParams, cartoonParams } from './representations.js';
+import { transformStructureConformation } from './transforms.js';
 
 const QueryColor = 0x1e88e5;
 const TargetColor = 0xffc107;
 const QueryLightColor = 0xa5cff5;
 const TargetLightColor = 0xffe699;
 const MotifRadius = 0.28;
-
-function processStructure(raw) {
-    const text = raw?.trimStart?.() || '';
-    const format = text[0] === '#' || text.startsWith('data_') ? 'mmcif' : 'pdb';
-    return {
-        // Folddisco PDB ATOM rows are whitespace-token valid, but Mol* reads
-        // coordinates from fixed columns. Re-emit strict columns before parsing.
-        data: format === 'pdb'
-            ? normalizePdbText(text)
-            : text,
-        format,
-    };
-}
-
-function normalizePdbText(text) {
-    return text
-        .split(/\r?\n/)
-        .map(normalizePdbLine)
-        .filter(Boolean)
-        .join('\n');
-}
-
-function normalizePdbLine(line) {
-    const recordLine = line.trimStart();
-    if (recordLine.startsWith('ATOM') || recordLine.startsWith('HETATM')) {
-        const atom = parseAtomLine(recordLine);
-        return atom ? formatPdbAtomLine(atom) : null;
-    }
-    if (recordLine.startsWith('TER') || recordLine.startsWith('MODEL') || recordLine.startsWith('ENDMDL') || recordLine.startsWith('END')) {
-        return recordLine.padEnd(80, ' ');
-    }
-    if (recordLine.startsWith('HELIX') || recordLine.startsWith('SHEET') || recordLine.startsWith('SEQRES')) {
-        return recordLine.padEnd(80, ' ');
-    }
-    return null;
-}
-
-function parseAtomLine(line) {
-    const parts = line.trim().split(/\s+/);
-    if (parts.length < 9) return null;
-    const hasChain = !/^-?\d+$/.test(parts[4]);
-    const coordOffset = hasChain ? 6 : 5;
-    const atom = {
-        record: parts[0] === 'HETATM' ? 'HETATM' : 'ATOM',
-        serial: Number.parseInt(parts[1], 10),
-        name: parts[2],
-        altLoc: '',
-        resName: parts[3],
-        chain: hasChain ? parts[4] : 'A',
-        resSeq: Number.parseInt(hasChain ? parts[5] : parts[4], 10),
-        iCode: '',
-        x: Number.parseFloat(parts[coordOffset]),
-        y: Number.parseFloat(parts[coordOffset + 1]),
-        z: Number.parseFloat(parts[coordOffset + 2]),
-        occupancy: Number.parseFloat(parts[coordOffset + 3]),
-        bFactor: Number.parseFloat(parts[coordOffset + 4]),
-        element: parts[coordOffset + 5] || '',
-        charge: parts[coordOffset + 6] || '',
-    };
-    if (!atom.name || !atom.resName || !Number.isFinite(atom.resSeq) || !coordinatesAreFinite(atom)) return null;
-    return atom;
-}
-
-function coordinatesAreFinite(atom) {
-    return Number.isFinite(atom.x) && Number.isFinite(atom.y) && Number.isFinite(atom.z);
-}
-
-function formatPdbAtomLine(atom) {
-    const serial = Number.isFinite(atom.serial) ? atom.serial : 1;
-    const occupancy = Number.isFinite(atom.occupancy) ? atom.occupancy : 1;
-    const bFactor = Number.isFinite(atom.bFactor) ? atom.bFactor : 0;
-    const element = (atom.element || atom.name.replace(/[^A-Za-z]/g, '').slice(0, 2)).toUpperCase();
-    return [
-        atom.record.padEnd(6).slice(0, 6),
-        String(serial).padStart(5).slice(-5),
-        ' ',
-        formatAtomName(atom.name, element),
-        (atom.altLoc || ' ').slice(0, 1),
-        atom.resName.padStart(3).slice(-3),
-        ' ',
-        (atom.chain || 'A').slice(0, 1),
-        String(atom.resSeq).padStart(4).slice(-4),
-        (atom.iCode || ' ').slice(0, 1),
-        '   ',
-        atom.x.toFixed(3).padStart(8),
-        atom.y.toFixed(3).padStart(8),
-        atom.z.toFixed(3).padStart(8),
-        occupancy.toFixed(2).padStart(6),
-        bFactor.toFixed(2).padStart(6),
-        '          ',
-        element.padStart(2).slice(-2),
-        (atom.charge || '  ').padStart(2).slice(-2),
-    ].join('');
-}
-
-function formatAtomName(name, element) {
-    const value = String(name || '').slice(0, 4);
-    return element.length === 1 && value.length < 4
-        ? ` ${value.padEnd(3)}`
-        : value.padStart(4);
-}
-
-async function loadStructure(plugin, source, label) {
-    const raw = await plugin.builders.data.rawData(
-        { data: source.data, label },
-        { state: { isGhost: true } },
-    );
-    const trajectory = await plugin.builders.structure.parseTrajectory(raw, source.format);
-    const model = await plugin.builders.structure.createModel(trajectory);
-    return plugin.builders.structure.createStructure(model);
-}
 
 function transformParams(alignment) {
     const t = String(alignment?.tmat || '').split(',').map(Number);
@@ -150,55 +40,20 @@ function makeMat4({ t, u }) {
 
 async function transformStructure(plugin, structure, params) {
     if (!params) return structure;
-    return plugin.state.data.build()
-        .to(structure.ref)
-        .insert(StateTransforms.Model.TransformStructureConformation, {
-            transform: {
-                name: 'matrix',
-                params: { data: makeMat4(params), transpose: false },
-            },
-        })
-        .commit();
+    return transformStructureConformation(plugin, structure, makeMat4(params));
 }
 
-function representationTypeParams(type, alpha = 1) {
-    if (type === 'ball-and-stick') {
-        return {
-            alpha,
-            sizeFactor: MotifRadius,
-            sizeAspectRatio: 0.7,
-            aromaticBonds: true,
-            material: { metalness: 0, roughness: 0.5, bumpiness: 0.1 },
-        };
-    }
-    return {
-        alpha,
-        quality: 'higher',
-        sizeFactor: 0.2,
-        helixProfile: 'rounded',
-        nucleicProfile: 'rounded',
-        linearSegments: 10,
-        radialSegments: 16,
-        material: { metalness: 0, roughness: 0.55, bumpiness: 0.1 },
-    };
-}
-
-async function addRepresentation(plugin, structure, label, expression, color, alpha = 1, type = 'cartoon') {
-    if (!expression) return null;
-    const component = await plugin.builders.structure.tryCreateComponentFromExpression(
-        structure,
-        expression,
+async function addRepresentation(plugin, structure, label, expression, color, alpha = 1, type = 'cartoon', qualityPreset = 'viewer') {
+    const item = await addUniformRepresentation(plugin, structure, {
         label,
-        { label },
-    );
-    if (!component) return null;
-
-    return plugin.builders.structure.representation.addRepresentation(component, {
         type,
-        color: 'uniform',
-        colorParams: { value: Color(color) },
-        typeParams: representationTypeParams(type, alpha),
+        color,
+        expression,
+        typeParams: type === 'ball-and-stick'
+            ? ballAndStickParams({ alpha, sizeFactor: MotifRadius })
+            : cartoonParams({ alpha, sizeFactor: 0.2, qualityPreset }),
     });
+    return item?.representation || null;
 }
 
 function parseMotif(value = '') {
@@ -297,8 +152,17 @@ async function deleteReprGroup(plugin, state) {
     state.reprRefs = [];
 }
 
-async function addRepr(plugin, state, structure, label, expression, color, alpha, type) {
-    const repr = await addRepresentation(plugin, structure, label, expression, color, alpha, type);
+async function addRepr(plugin, state, input, structure, label, expression, color, alpha, type) {
+    const repr = await addRepresentation(
+        plugin,
+        structure,
+        label,
+        expression,
+        color,
+        alpha,
+        type,
+        input?.representationQuality || 'viewer',
+    );
     const ref = repr?.ref || repr?.cell?.transform?.ref;
     if (ref) state.reprRefs.push(ref);
 }
@@ -324,38 +188,42 @@ async function applyRepresentations(plugin, state, input) {
     const targetChains = chainSetExpression(input.alignment?.targetresidues);
 
     if (input.showQuery === 2) {
-        await addRepr(plugin, state, state.query, 'query-rest', nonChainSetExpression(input.alignment?.queryresidues), QueryLightColor, 0.3, 'cartoon');
+        await addRepr(plugin, state, input, state.query, 'query-rest', nonChainSetExpression(input.alignment?.queryresidues), QueryLightColor, 0.3, 'cartoon');
     }
     if (input.showQuery >= 1) {
-        await addRepr(plugin, state, state.query, 'query-matched', queryChains, QueryLightColor, 0.8, 'cartoon');
+        await addRepr(plugin, state, input, state.query, 'query-matched', queryChains, QueryLightColor, 0.8, 'cartoon');
     }
-    await addRepr(plugin, state, state.query, 'query-motif', queryMotif, QueryColor, 1, 'ball-and-stick');
+    await addRepr(plugin, state, input, state.query, 'query-motif', queryMotif, QueryColor, 1, 'ball-and-stick');
 
     if (input.showTarget === 2) {
-        await addRepr(plugin, state, state.target, 'target-rest', nonChainSetExpression(input.alignment?.targetresidues), TargetLightColor, 0.3, 'cartoon');
+        await addRepr(plugin, state, input, state.target, 'target-rest', nonChainSetExpression(input.alignment?.targetresidues), TargetLightColor, 0.3, 'cartoon');
     }
     if (input.showTarget >= 1) {
-        await addRepr(plugin, state, state.target, 'target-matched', targetChains, TargetLightColor, 0.8, 'cartoon');
+        await addRepr(plugin, state, input, state.target, 'target-matched', targetChains, TargetLightColor, 0.8, 'cartoon');
     }
-    await addRepr(plugin, state, state.targetMotif || state.target, 'target-motif', targetMotif, TargetColor, 1, 'ball-and-stick');
+    await addRepr(plugin, state, input, state.targetMotif || state.target, 'target-motif', targetMotif, TargetColor, 1, 'ball-and-stick');
 }
 
-async function rebuildScene(plugin, state, input) {
-    await plugin.clear();
+function resetSceneState(state) {
     state.query = null;
     state.target = null;
     state.targetMotif = null;
     state.reprRefs = [];
     state.reprKey = null;
+}
 
-    state.query = await loadStructure(plugin, processStructure(input.queryPdb), 'queryStructure');
-    const targetSource = processStructure(input.targetPdb);
+async function rebuildScene(plugin, state, input) {
+    await plugin.clear();
+    resetSceneState(state);
+
+    state.query = await loadStructureFromData(plugin, normalizedPdbSourceFromText(input.queryPdb, 'queryStructure'));
+    const targetSource = normalizedPdbSourceFromText(input.targetPdb, 'targetStructure');
     const targetTransform = transformParams(input.alignment);
-    state.target = await loadStructure(plugin, targetSource, 'targetStructure');
+    state.target = await loadStructureFromData(plugin, targetSource, 'targetStructure');
     state.target = await transformStructure(plugin, state.target, targetTransform);
     const motifSource = targetMotifSource(input.alignment);
     if (motifSource) {
-        state.targetMotif = await loadStructure(plugin, motifSource, 'targetMotifStructure');
+        state.targetMotif = await loadStructureFromData(plugin, motifSource, 'targetMotifStructure');
         state.targetMotif = await transformStructure(plugin, state.targetMotif, targetTransform);
     }
     await applyRepresentations(plugin, state, input);
@@ -374,35 +242,23 @@ function lociFromExpression(structureRef, expression) {
 }
 
 function structureEvent(state, current, type) {
-    if (!StructureElement.Loci.is(current?.loci) || StructureElement.Loci.isEmpty(current.loci)) {
+    if (!isValidLoci(current?.loci)) {
         return { type, hasLoci: false };
     }
-    const root = current.loci.structure?.root || current.loci.structure;
-    const side = state.query?.cell?.obj?.data?.root === root || state.query?.cell?.obj?.data === root
+    const side = structuresMatch(current.loci.structure, state.query?.cell?.obj?.data)
         ? 'query'
         : 'target';
-    const entry = current.loci.elements?.[0];
-    if (!entry) return { type, side, hasLoci: true };
-    const loc = StructureElement.Location.create(current.loci.structure);
-    loc.unit = entry.unit;
-    loc.element = OrderedSet.getAt(entry.indices, 0);
+    const residue = residueInfoFromLoci(current.loci);
+    if (!residue) return { type, side, hasLoci: true };
+
     return {
         type,
         side,
         hasLoci: true,
-        chain: StructureProperties.chain.auth_asym_id(loc) || StructureProperties.chain.label_asym_id(loc) || '',
-        residue: StructureProperties.residue.auth_seq_id(loc) || StructureProperties.residue.label_seq_id(loc),
-        residueName: StructureProperties.residue.label_comp_id(loc) || StructureProperties.residue.auth_comp_id(loc) || '',
+        chain: residue.chain,
+        residue: residue.residue,
+        residueName: residue.threeLetter,
     };
-}
-
-function setCurrentHover(plugin, current) {
-    const loci = current?.loci;
-    if (!StructureElement.Loci.is(loci) || StructureElement.Loci.isEmpty(loci)) {
-        plugin.managers.interactivity.lociHighlights.clearHighlights();
-        return;
-    }
-    plugin.managers.interactivity.lociHighlights.highlightOnly({ loci }, false);
 }
 
 function makeCIF(state) {
@@ -438,7 +294,6 @@ export const folddiscoResult = {
     },
 
     onHover(plugin, state, input, event) {
-        setCurrentHover(plugin, event?.current);
         return structureEvent(state, event?.current, 'structure-hover');
     },
 

@@ -3,26 +3,26 @@ import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-mod
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { getChainName } from './foldseekUtilities.js';
 
-export function rangesByChain(alignments, side) {
+export function rangesByChain(alignments, side, chainResolver = null) {
     const ranges = new Map();
-    for (const { chain, start, end } of alignmentRegions(alignments, side)) {
+    for (const { chain, start, end } of alignmentRegions(alignments, side, chainResolver)) {
         if (!ranges.has(chain)) ranges.set(chain, []);
         ranges.get(chain).push([start, end]);
     }
     return ranges;
 }
 
-function chainsBySide(alignments, side) {
-    return Array.from(new Set(alignmentRegions(alignments, side).map(({ chain }) => chain)));
+function chainsBySide(alignments, side, chainResolver = null) {
+    return Array.from(new Set(alignmentRegions(alignments, side, chainResolver).map(({ chain }) => chain)));
 }
 
-function selectionExpressionForRanges(alignments, side) {
+function selectionExpressionForRanges(alignments, side, chainResolver = null) {
     return mergeSelectionExpressions(
-        alignmentRegions(alignments, side).map(({ chain, start, end }) => atomGroupExpression(chain, start, end)),
+        alignmentRegions(alignments, side, chainResolver).map(({ chain, start, end }) => atomGroupExpression(chain, start, end)),
     );
 }
 
-export function alignmentRegions(alignments, side) {
+export function alignmentRegions(alignments, side, chainResolver = null) {
     const regions = [];
     for (const alignment of alignments || []) {
         const name = side === 'query' ? alignment.query : alignment.target;
@@ -30,7 +30,7 @@ export function alignmentRegions(alignments, side) {
         const end = side === 'query' ? alignment.qEndPos : alignment.dbEndPos;
         if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
         regions.push({
-            chain: getChainName(name),
+            chain: resolveChain(chainResolver, getChainName(name)),
             start: Math.min(start, end),
             end: Math.max(start, end),
         });
@@ -38,8 +38,8 @@ export function alignmentRegions(alignments, side) {
     return regions;
 }
 
-export function selectionExpressionForChains(alignments, side) {
-    return mergeSelectionExpressions(chainsBySide(alignments, side).map(chain => atomGroupExpression(chain)));
+export function selectionExpressionForChains(alignments, side, chainResolver = null) {
+    return mergeSelectionExpressions(chainsBySide(alignments, side, chainResolver).map(chain => atomGroupExpression(chain)));
 }
 
 export function chainColorEntries(input, side, palettes) {
@@ -65,22 +65,30 @@ export function interfaceExpressionForChain(state, side, chain) {
 }
 
 export function baseSelectionExpressionForMode(state, input, side, mode) {
+    const chainResolver = stateChainResolver(state, side);
     if (input?.structureMode === 'interface' && mode === 0) {
         return selectionExpressionForInterface(state, side)
-            || selectionExpressionForChains(input.alignments, side)
+            || selectionExpressionForChains(input.alignments, side, chainResolver)
             || MS.struct.generator.all();
     }
-    return selectionExpressionForRanges(input.alignments, side) || MS.struct.generator.all();
+    return selectionExpressionForRanges(input.alignments, side, chainResolver) || MS.struct.generator.all();
 }
 
 function selectionExpressionForMode(state, input, side, mode) {
+    const queryChain = activeQueryChainExpression(input, side);
     if (mode === 0) {
         return baseSelectionExpressionForMode(state, input, side, mode);
     }
     if (mode === 1) {
-        return selectionExpressionForChains(input.alignments, side) || MS.struct.generator.all();
+        if (queryChain) return queryChain;
+        return selectionExpressionForChains(input.alignments, side, stateChainResolver(state, side)) || MS.struct.generator.all();
     }
     return MS.struct.generator.all();
+}
+
+function activeQueryChainExpression(input, side) {
+    if (side !== 'query' || !input?.queryChain) return null;
+    return atomGroupExpression(input.queryChain);
 }
 
 export function backgroundExpressionForMode(state, input, side, mode) {
@@ -103,7 +111,7 @@ export function structureSelectionExpression(state, input, selection) {
     const start = selection.start;
     const end = selection.start + Math.max(0, selection.length - 1);
     if (!Number.isFinite(end) || end < start) return null;
-    const chain = getChainName(alignment[side]);
+    const chain = resolvedChainForState(state, side, getChainName(alignment[side]));
 
     if (input?.structureMode === 'interface') {
         const residueMap = (state.interfaceResidueMap?.[side] || []).filter(entry => entry.chain === chain);
@@ -115,6 +123,18 @@ export function structureSelectionExpression(state, input, selection) {
     }
 
     return atomGroupExpression(chain, start, end);
+}
+
+export function resolvedChainForState(state, side, chain) {
+    return resolveChain(stateChainResolver(state, side), chain);
+}
+
+export function stateChainResolver(state, side) {
+    return (chain) => state?.chainOverrides?.[side]?.[chain] || chain;
+}
+
+function resolveChain(chainResolver, chain) {
+    return typeof chainResolver === 'function' ? chainResolver(chain) : chain;
 }
 
 export function atomGroupExpression(chain, start, end) {
@@ -134,6 +154,47 @@ export function atomGroupExpression(chain, start, end) {
         ]);
     }
     return MS.struct.generator.atomGroups(tests);
+}
+
+export function structureChains(structureRef) {
+    const structure = structureRef?.cell?.obj?.data;
+    if (!structure) return [];
+
+    const entries = [];
+    const seenEntries = new Set();
+    const loc = StructureElement.Location.create(structure);
+    for (const unit of structure.units) {
+        if (!Unit.isAtomic(unit)) continue;
+        loc.unit = unit;
+        const size = OrderedSet.size(unit.elements);
+        for (let i = 0; i < size; i++) {
+            loc.element = OrderedSet.getAt(unit.elements, i);
+            const auth = StructureProperties.chain.auth_asym_id(loc) || '';
+            const label = StructureProperties.chain.label_asym_id(loc) || '';
+            const key = `${auth}:${label}`;
+            if (seenEntries.has(key)) continue;
+            seenEntries.add(key);
+            entries.push({ auth, label });
+        }
+    }
+
+    const authChains = uniqueChains(entries.map(entry => entry.auth).filter(Boolean));
+    const labelChains = uniqueChains(entries.map(entry => entry.label).filter(Boolean));
+    if (labelChains.length > authChains.length) return labelChains;
+    if (authChains.length > 0) return authChains;
+    if (labelChains.length > 0) return labelChains;
+    return [];
+}
+
+function uniqueChains(values) {
+    const seen = new Set();
+    const chains = [];
+    for (const value of values) {
+        if (seen.has(value)) continue;
+        seen.add(value);
+        chains.push(value);
+    }
+    return chains;
 }
 
 export function mergeSelectionExpressions(expressions) {

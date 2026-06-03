@@ -1,13 +1,39 @@
 import { PluginContext } from 'molstar/lib/mol-plugin/context';
 import { PluginConfig } from 'molstar/lib/mol-plugin/config';
+import { PluginSpec } from 'molstar/lib/mol-plugin/spec';
+import { PluginBehaviors } from 'molstar/lib/mol-plugin/behavior';
+import { SsaoParams } from 'molstar/lib/mol-canvas3d/passes/ssao';
 import { Color } from 'molstar/lib/mol-util/color';
+import { ParamDefinition as PD } from 'molstar/lib/mol-util/param-definition';
 
 export const DEFAULT_SPIN_SPEED = 0.05;
+
+const DefaultSsaoParams = PD.getDefaultValues(SsaoParams);
+
+export async function createStructurePlugin(canvas, viewport, options = {}) {
+    const plugin = createMolstarPlugin();
+    await plugin.init();
+
+    const ok = await plugin.initViewerAsync(canvas, viewport);
+    if (ok === false) {
+        throw new Error('Mol* viewer initialization failed');
+    }
+
+    applyViewerCanvasProps(plugin, options);
+    return plugin;
+}
 
 export function createMolstarPlugin() {
     return new PluginContext({
         actions: [],
-        behaviors: [],
+        behaviors: [
+            PluginSpec.Behavior(PluginBehaviors.Representation.HighlightLoci),
+            PluginSpec.Behavior(PluginBehaviors.Representation.SelectLoci),
+            PluginSpec.Behavior(PluginBehaviors.Camera.FocusLoci),
+            PluginSpec.Behavior(PluginBehaviors.Camera.CameraControls),
+            PluginSpec.Behavior(PluginBehaviors.CustomProps.SecondaryStructure),
+            PluginSpec.Behavior(PluginBehaviors.CustomProps.ValenceModel),
+        ],
         animations: [],
         config: [
             [PluginConfig.General.Transparency, 'blended'],
@@ -58,9 +84,9 @@ export function applyViewerCanvasProps(plugin, options = {}) {
         },
         postprocessing: {
             enabled: true,
-            occlusion: { name: 'off', params: {} },
+            occlusion: options.occlusion || { name: 'on', params: DefaultSsaoParams },
             shadow: { name: 'off', params: {} },
-            outline: {
+            outline: options.outline || {
                 name: 'on',
                 params: {
                     scale: 0.5,
@@ -70,8 +96,22 @@ export function applyViewerCanvasProps(plugin, options = {}) {
                 },
             },
             dof: { name: 'off', params: {} },
-            bloom: { name: 'off', params: {} },
-            antialiasing: { name: 'off', params: {} },
+            bloom: {
+                name: 'on',
+                params: {
+                    strength: 1,
+                    radius: 0,
+                    threshold: 0,
+                    mode: 'emissive',
+                },
+            },
+            antialiasing: {
+                name: 'smaa',
+                params: {
+                    edgeThreshold: 0.1,
+                    maxSearchSteps: 16,
+                },
+            },
         },
     });
 }

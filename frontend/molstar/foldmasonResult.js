@@ -1,92 +1,42 @@
 import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { Mat4 } from 'molstar/lib/mol-math/linear-algebra';
-import { QueryContext, StructureElement, StructureProperties, StructureSelection } from 'molstar/lib/mol-model/structure';
+import { QueryContext, StructureElement, StructureSelection } from 'molstar/lib/mol-model/structure';
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
-import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
 import { compile } from 'molstar/lib/mol-script/runtime/query/compiler';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
-import { Color } from 'molstar/lib/mol-util/color';
 import { tmalign, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import { pulchra } from 'pulchra-wasm';
 import { mockPDB } from './foldseekUtilities.js';
+import { loadStructureFromData } from './io.js';
+import { focusCurrentLoci, isValidLoci, OneToThree, residueInfoFromLoci, structuresMatch } from './interactions.js';
+import { addUniformRepresentation, cartoonParams } from './representations.js';
+import { transformStructureConformation } from './transforms.js';
 
 const ReferenceColor = 0x1e88e5;
 const RegularColor = 0xffc107;
 const MaskColor = 0x666666;
-const oneToThree = {
-    A: 'ALA', R: 'ARG', N: 'ASN', D: 'ASP', C: 'CYS',
-    E: 'GLU', Q: 'GLN', G: 'GLY', H: 'HIS', I: 'ILE',
-    L: 'LEU', K: 'LYS', M: 'MET', F: 'PHE', P: 'PRO',
-    S: 'SER', T: 'THR', W: 'TRP', Y: 'TYR', V: 'VAL',
-    U: 'SEC', O: 'PYL', X: 'ALA',
-};
-const threeToOne = {};
-for (const [one, three] of Object.entries(oneToThree)) {
-    if (!threeToOne[three]) threeToOne[three] = one;
-}
-
-async function loadStructure(plugin, source) {
-    const raw = await plugin.builders.data.rawData(
-        { data: source.data, label: source.label },
-        { state: { isGhost: true } },
-    );
-    const trajectory = await plugin.builders.structure.parseTrajectory(raw, source.format || 'pdb');
-    const model = await plugin.builders.structure.createModel(trajectory);
-    return plugin.builders.structure.createStructure(model);
-}
-
 async function transformStructure(plugin, structure, matrix) {
-    const transformed = await plugin.state.data.build()
-        .to(structure)
-        .apply(StateTransforms.Model.TransformStructureConformation, {
-            transform: { name: 'matrix', params: { data: matrix, transpose: false } },
-        }, { tags: 'foldmason-transform' })
-        .commit();
-    return transformed;
-}
-
-function representationTypeParams(type, alpha) {
-    return {
-        quality: 'higher',
-        sizeFactor: 0.25,
-        visuals: ['polymer-trace', 'polymer-gap'],
-        helixProfile: 'rounded',
-        nucleicProfile: 'rounded',
-        linearSegments: 10,
-        radialSegments: 16,
-        alpha,
-        material: {
-            metalness: 0,
-            roughness: 0.55,
-            bumpiness: 0.1,
-        },
-    };
-}
-
-async function addRepresentation(plugin, structure, label, color, expression, alpha = 1, type = 'cartoon') {
-    if (!expression) return null;
-    const component = await plugin.builders.structure.tryCreateComponentFromExpression(
-        structure,
-        expression,
-        label,
-        { label },
-    );
-    if (!component) return null;
-
-    const representation = await plugin.builders.structure.representation.addRepresentation(component, {
-        type,
-        color: 'uniform',
-        colorParams: { value: Color(color) },
-        typeParams: representationTypeParams(type, alpha),
+    return transformStructureConformation(plugin, structure, matrix, {
+        method: 'apply',
+        tags: 'foldmason-transform',
     });
-    return { component, representation };
+}
+
+async function addRepresentation(plugin, structure, label, color, expression, alpha = 1, type = 'cartoon', qualityPreset = 'viewer') {
+    return addUniformRepresentation(plugin, structure, {
+        label,
+        type,
+        color,
+        expression,
+        typeParams: cartoonParams({ alpha, qualityPreset }),
+    });
 }
 
 async function addStructure(plugin, state, input, index) {
     const entry = input.entries[index];
     const pdb = await structurePDB(entry);
     const source = { data: pdb, format: 'pdb', label: `key-${index}` };
-    let structure = await loadStructure(plugin, source);
+    let structure = await loadStructureFromData(plugin, source);
 
     if (index !== input.reference && state.referenceStructure) {
         const matrix = await superpositionMatrix(input.entries[input.reference], entry);
@@ -98,10 +48,10 @@ async function addStructure(plugin, state, input, index) {
         index,
         entry,
         structure,
-        base: await addRepresentation(plugin, structure, `foldmason-${index}`, color, MS.struct.generator.all()),
+        base: await addRepresentation(plugin, structure, `foldmason-${index}`, color, MS.struct.generator.all(), 1, 'cartoon', input.representationQuality),
         mask: null,
     };
-    item.mask = await addRepresentation(plugin, structure, `foldmason-${index}-mask`, MaskColor, maskExpression(entry, input.mask));
+    item.mask = await addRepresentation(plugin, structure, `foldmason-${index}-mask`, MaskColor, maskExpression(entry, input.mask), 1, 'cartoon', input.representationQuality);
     state.structures.set(index, item);
     if (index === input.reference) state.referenceStructure = structure;
 }
@@ -121,14 +71,18 @@ async function removeStructure(plugin, state, index) {
     state.structures.delete(index);
 }
 
-async function rebuildScene(plugin, state, input) {
-    await plugin.clear();
+function resetSceneState(state, input) {
     state.entries = input.entries;
     state.reference = input.reference;
     state.mask = input.mask;
     state.structures = new Map();
     state.referenceStructure = null;
     state.focusKey = null;
+}
+
+async function rebuildScene(plugin, state, input) {
+    await plugin.clear();
+    resetSceneState(state, input);
 
     if (!input.entries?.length || input.reference < 0) return;
     if (input.selection.includes(input.reference)) {
@@ -172,6 +126,9 @@ async function updateMasks(plugin, state, input) {
             `foldmason-${item.index}-mask`,
             MaskColor,
             maskExpression(item.entry, input.mask),
+            1,
+            'cartoon',
+            input.representationQuality,
         );
     }
 }
@@ -297,13 +254,13 @@ function mergeExpressions(expressions) {
 }
 
 function structureEvent(state, current, type) {
-    if (!StructureElement.Loci.is(current?.loci) || StructureElement.Loci.isEmpty(current.loci)) {
+    if (!isValidLoci(current?.loci)) {
         return { type, column: -1, hasLoci: false };
     }
     const item = itemForLoci(state, current.loci);
     if (!item) return { type, column: -1, hasLoci: true, residue: null };
 
-    const residue = residueFromLoci(current.loci);
+    const residue = residueInfoFromLoci(current.loci);
     if (!residue) {
         return {
             type,
@@ -333,48 +290,15 @@ function structureEvent(state, current, type) {
 }
 
 function itemForLoci(state, loci) {
-    const root = loci.structure?.root || loci.structure;
     for (const item of state.structures?.values?.() || []) {
         const structure = item.structure?.cell?.obj?.data;
-        if (structure === loci.structure || structure === root || structure?.root === root) return item;
+        if (structuresMatch(loci.structure, structure)) return item;
     }
     return null;
 }
 
-function residueFromLoci(loci) {
-    const entry = loci.elements?.[0];
-    if (!entry || OrderedSet.size(entry.indices) === 0) return null;
-    const loc = StructureElement.Location.create(loci.structure);
-    loc.unit = entry.unit;
-    loc.element = OrderedSet.getAt(entry.indices, 0);
-    const threeLetter = StructureProperties.residue.label_comp_id(loc)
-        || StructureProperties.residue.auth_comp_id(loc)
-        || '';
-    return {
-        chain: StructureProperties.chain.auth_asym_id(loc) || StructureProperties.chain.label_asym_id(loc) || '',
-        residue: StructureProperties.residue.auth_seq_id(loc) || StructureProperties.residue.label_seq_id(loc),
-        oneLetter: threeToOne[threeLetter] || '',
-        threeLetter,
-    };
-}
-
-function setCurrentHover(plugin, current) {
-    const loci = current?.loci;
-    if (!StructureElement.Loci.is(loci) || StructureElement.Loci.isEmpty(loci)) {
-        plugin.managers.interactivity.lociHighlights.clearHighlights();
-        return;
-    }
-    plugin.managers.interactivity.lociHighlights.highlightOnly({ loci }, false);
-}
-
 function focusCurrent(plugin, current) {
-    const loci = current?.loci;
-    if (!StructureElement.Loci.is(loci) || StructureElement.Loci.isEmpty(loci)) return;
-    plugin.managers.camera.focusLoci(loci, {
-        durationMs: 250,
-        extraRadius: 6,
-        minRadius: 3,
-    });
+    focusCurrentLoci(plugin, current);
 }
 
 function columnForResidue(entry, chain, residue) {
@@ -406,7 +330,7 @@ function residueInfoForColumn(entry, column) {
         chain: entry.chains?.[residueIndex] || 'A',
         residue: entry.resns?.[residueIndex] || residueIndex,
         oneLetter,
-        threeLetter: oneToThree[oneLetter] || '',
+        threeLetter: OneToThree[oneLetter] || '',
     };
 }
 
@@ -617,7 +541,6 @@ export const foldmasonResult = {
     },
 
     onHover(plugin, state, input, event) {
-        setCurrentHover(plugin, event?.current);
         return structureEvent(state, event?.current, 'structure-hover');
     },
 

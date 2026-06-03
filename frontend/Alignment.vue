@@ -5,6 +5,7 @@
                 <span class="protsolata-auto">Q&nbsp;{{padNumber(getQueryRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;</span><!--
                 --><ResidueSpan
                     sequenceType="query"
+                    :text="alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)"
                     :selectionStart="getSelectionStart(i, 'query')"
                     :selectionEnd="getSelectionEnd(i, 'query')"
                     :hoverOffset="getHoverOffset(i, 'query')"
@@ -16,14 +17,13 @@
                     @pointerleave="onPointerLeave($event, alnIndex, i, 'query')"
                     @clickHighlight="onClickHighlight($event, alnIndex, i, 'query')"
                     :class="colorscheme ? colorscheme : null"
-                ><!--
-                    -->{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}<!--
-                --></ResidueSpan><br><!--
+                /><br><!--
                 --><span class="protsolata-auto">{{'&nbsp;'.repeat(3+(Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length)}}</span><!--
                 --><span class="residues diff" :class="colorscheme ? colorscheme : null">{{formatAlnDiff(alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen), alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen))}}</span><br><!--
                 --><span class="protsolata-auto">T&nbsp;{{padNumber(getTargetRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;</span><!--
                 --><ResidueSpan
                     sequenceType="target"
+                    :text="alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)"
                     :selectionStart="getSelectionStart(i, 'target')"
                     :selectionEnd="getSelectionEnd(i, 'target')"
                     :hoverOffset="getHoverOffset(i, 'target')"
@@ -35,8 +35,7 @@
                     @pointerleave="onPointerLeave($event, alnIndex, i, 'target')"
                     @clickHighlight="onClickHighlight($event, alnIndex, i, 'target')"
                     :class="colorscheme ? colorscheme : null"
-                >{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}<!--
-                --></ResidueSpan>
+                />
             </span><br>
         </span>
     </div>
