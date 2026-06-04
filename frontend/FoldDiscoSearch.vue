@@ -69,10 +69,11 @@
                     <div class="input-buttons-left">
                         <load-acession-button
                             @select="query = $event"
+                            @motif="onMotifSelect"
                             @loading="accessionLoading = $event"
                             :preload-source="preloadSource"
                             :preload-accession="preloadAccession"
-                            :extra-enabled="[/*'AlphaFill'*/]"
+                            :extra-enabled="['QBioLip']"
                         ></load-acession-button>
                         <file-button id="file" :label="$STRINGS.UPLOAD_LABEL" v-on:upload="upload"></file-button>
                     </div>
@@ -248,6 +249,7 @@ export default {
             predictable: false,
             accessionLoading: false,
             motif: storage.getItem('motif') || "",
+            pendingMotif: null,
         };
     },
     async mounted() {
@@ -344,7 +346,12 @@ export default {
             if (prev && prev == value) {
                 return;
             }
-            this.motif = setDefaultMotif(this.queryStructure);
+            if (this.pendingMotif !== null && this.pendingMotif.query === value) {
+                this.motif = this.pendingMotif.motif;
+            } else {
+                this.motif = setDefaultMotif(this.queryStructure);
+            }
+            this.pendingMotif = null;
         },
         database(value) {
             storage.setItem('database', JSON.stringify(value));
@@ -413,6 +420,12 @@ export default {
             } finally {
                 this.inSearch = false;
             }
+        },
+        // In a structure that arrives with its own motif, the structure is emitted first
+        // Tag the motif to that structure and apply it right away
+        onMotifSelect(motif) {
+            this.pendingMotif = { query: this.query, motif };
+            this.motif = motif;
         },
         async upload(files) {
             try {

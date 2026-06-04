@@ -15,13 +15,40 @@
             </v-card-title>
             <v-card-text>
                 <v-select :items="sources" v-model="source" label="Source"></v-select>
-                <v-text-field ref="accession" label="Accession" v-model="accession" @keydown="error = false"></v-text-field>
+                <template v-if="source == 'QBioLip'">
+                    <v-text-field ref="accession" label="PDB ID" v-model="accession" @keydown="error = false"></v-text-field>
+                    <div v-if="results !== null && results.length === 0" class="text-center my-4 grey--text">
+                        No binding sites found for this PDB ID.
+                    </div>
+                    <v-list v-else-if="results && results.length > 0" dense class="qbiolip-result-list">
+                        <v-subheader>Select a binding site to load its structure and motif</v-subheader>
+                        <v-list-item
+                            v-for="(item, i) in results"
+                            :key="i"
+                            @click="selectResult(item)"
+                            :disabled="loading"
+                            class="qbiolip-motif-item"
+                        >
+                            <v-list-item-content>
+                                <v-list-item-title>
+                                    <strong>Ligand:</strong> {{ item.Ligand.ligname }}
+                                    <span class="grey--text">({{ item.Receptor.assembly }})</span>
+                                    <v-chip x-small class="ml-1" v-if="item.Complex.relvant === '1'" color="success" text-color="white">biologically relevant</v-chip>
+                                </v-list-item-title>
+                                <v-list-item-subtitle>
+                                    <strong>Binding site ({{ bindingResidues(item).length }}):</strong> {{ bindingResidues(item).join(', ') }}
+                                </v-list-item-subtitle>
+                            </v-list-item-content>
+                        </v-list-item>
+                    </v-list>
+                </template>
+                <v-text-field v-else ref="accession" label="Accession" v-model="accession" @keydown="error = false"></v-text-field>
                 <v-sheet v-if="error" style="display: flex; align-items: center; justify-content: center;" color="error" rounded width="100%" height="48">{{error}}</v-sheet>
             </v-card-text>
             <v-card-actions>
                 <v-spacer></v-spacer>
                 <v-btn text @click.native="show = false">Cancel</v-btn>
-                <v-btn type="submit" color="primary" text @click.native="loadSelected" :disabled="this.accession.length == 0 || loading">Load</v-btn>
+                <v-btn type="submit" color="primary" text @click.native="loadSelected" :disabled="this.accession.length == 0 || loading">{{ source == 'QBioLip' ? 'Search' : 'Load' }}</v-btn>
             </v-card-actions>
             </form>
         </v-card>
@@ -30,6 +57,106 @@
 
 <script>
 import { create } from 'axios';
+
+// map label_asym_id to auth_asym_id
+function parseCifResidueChainMap(cifText) {
+    const map = new Map();
+    const lines = cifText.split('\n');
+
+    let i = 0;
+    while (i < lines.length) {
+        if (lines[i].trim() !== 'loop_') {
+            i++;
+            continue;
+        }
+        i++;
+
+        const headers = [];
+        while (i < lines.length && lines[i].trim().startsWith('_')) {
+            headers.push(lines[i].trim().split(/\s+/)[0]);
+            i++;
+        }
+        if (headers.length === 0 || !headers[0].startsWith('_atom_site.')) {
+            continue;
+        }
+
+        const labelIdx = headers.indexOf('_atom_site.label_asym_id');
+        const authIdx  = headers.indexOf('_atom_site.auth_asym_id');
+        const seqIdx   = headers.indexOf('_atom_site.auth_seq_id');
+        if (labelIdx < 0 || authIdx < 0 || seqIdx < 0) {
+            return map;
+        }
+        const maxIdx = Math.max(labelIdx, authIdx, seqIdx);
+
+        for (; i < lines.length; i++) {
+            const t = lines[i].trim();
+            if (t === '' || t === 'loop_' || t.startsWith('_') || t.startsWith('#') || t.startsWith('data_')) {
+                // end of atom_site
+                break;
+            }
+            const cols = t.split(/\s+/);
+            if (cols.length <= maxIdx) {
+                continue;
+            }
+            const auth = cols[authIdx];
+            const seq  = cols[seqIdx];
+            const keyLabel = `${cols[labelIdx]}|${seq}`;
+            const keyAuth  = `${auth}|${seq}`;
+            if (!map.has(keyLabel)) {
+                map.set(keyLabel, auth);
+            }
+            if (!map.has(keyAuth)) {
+                map.set(keyAuth, auth);
+            }
+        }
+        break;
+    }
+    return map;
+}
+
+// Convert Q-BioLiP format to internal motif format.
+// With a residueMap each residue's chain is
+// resolved to the structure's auth chain and residues absent
+//  Without a map the reported chain letters are kept as-is
+function qbiolipBsToMotif(bs, residueMap) {
+    if (!bs) {
+        return '';
+    }
+    const parts = bs.trim().split(/\s+/);
+    let currentChain = '';
+    const residues = [];
+    for (const part of parts) {
+        let resToken;
+        if (part.includes(':')) {
+            const colonIdx = part.indexOf(':');
+            currentChain = part.slice(0, colonIdx);
+            resToken = part.slice(colonIdx + 1);
+        } else {
+            resToken = part;
+        }
+        if (!resToken) {
+            continue;
+        }
+        // strip leading one-letter amino acid code, keep residue number
+        const resno = resToken.replace(/^[A-Za-z]/, '');
+        if (!resno) {
+            continue;
+        }
+
+        if (!residueMap) {
+            residues.push(`${currentChain}${resno}`);
+            continue;
+        }
+        const seqMatch = resno.match(/-?\d+/);
+        const authChain = seqMatch ? residueMap.get(`${currentChain}|${seqMatch[0]}`) : undefined;
+        if (authChain === undefined) {
+            // drop residue not present in the loaded structure
+            continue;
+        }
+        residues.push(`${authChain}${resno}`);
+    }
+    return residues.join(',');
+}
 
 export default {
     name: 'load-accession-button',
@@ -46,6 +173,7 @@ export default {
             show: false,
             source: 'PDB',
             accession: '',
+            results: null,
             sources: [
                 { text: 'PDB (rcsb.org)', value: 'PDB' },
                 { text: 'AlphaFoldDB (ebi.ac.uk)', value: 'AlphaFoldDB' },
@@ -53,6 +181,7 @@ export default {
             ],
             extraSources: {
                 'AlphaFill' : { text: 'AlphaFill (alphafill.eu)', value: 'AlphaFill' },
+                'QBioLip' : { text: 'Q-BioLiP (yanglab.qd.sdu.edu.cn)', value: 'QBioLip' },
             }
         };
     },
@@ -101,9 +230,19 @@ export default {
                 this.$emit('loading', val);
             }
         },
+        source: function (val, old) {
+            if (val != old) {
+                this.results = null;
+                this.error = "";
+            }
+        },
     },
     methods: {
         loadSelected() {
+            if (this.source == 'QBioLip') {
+                this.search();
+                return;
+            }
             if (this.multiple) {
                 const list = this.accession.split(/[,\s]+/).filter(x => x.length);
                 if (list.length === 0) {
@@ -190,8 +329,88 @@ export default {
                     this.error   = "Accession not found";
                     this.loading = false;
                 });
+        },
+        // Q-BioLiP: binding-site residues for display (label-chain letters, as
+        // reported by Q-BioLiP). The final motif is auth-chain mapped on select.
+        bindingResidues(item) {
+        console.log(item.Complex)
+            const motif = qbiolipBsToMotif(item.Complex && item.Complex.bs, null);
+            return motif ? motif.split(',') : [];
+        },
+        // Q-BioLiP: look up binding sites for a PDB ID.
+        search() {
+            const id = this.accession.trim().toUpperCase();
+            if (!id) {
+                return;
+            }
+
+            this.loading = true;
+            this.error   = "";
+            this.results = null;
+
+            const axios = create();
+            axios.post(
+                "https://yanglab.qd.sdu.edu.cn/cgi-bin/Q-BioLiP/qbio1.cgi",
+                new URLSearchParams({ PDB_ID: id }),
+                { headers: { 'Accept': 'application/json' } }
+            )
+                .then(response => {
+                    this.results = Array.isArray(response.data) ? response.data : [];
+                })
+                .catch(() => {
+                    this.error = "Search failed. Please check the PDB ID and try again.";
+                })
+                .finally(() => {
+                    this.loading = false;
+                });
+        },
+        // Q-BioLiP: load the chosen binding site's structure and emit its motif.
+        selectResult(item) {
+            const assembly = item.Receptor.assembly;
+
+            this.loading = true;
+            this.error   = "";
+
+            const axios = create();
+            axios.get(`https://yanglab.qd.sdu.edu.cn/Q-BioLiP/DATA/rec_cif/${assembly}.cif`)
+                .then(response => {
+                    const cifText = response.data;
+                    // Q-BioLiP uses label_asym_id for chains; we use auth_asym_id
+                    const residueMap = parseCifResidueChainMap(cifText);
+                    const motif = qbiolipBsToMotif(item.Complex.bs, residueMap);
+                    this.$emit('select', cifText);
+                    this.$emit('motif', motif);
+                    this.show = false;
+                })
+                .catch(() => {
+                    this.error = `Failed to load structure for ${assembly}.`;
+                })
+                .finally(() => {
+                    this.loading = false;
+                });
         }
     }
 }
 </script>
+
+<style scoped>
+.qbiolip-result-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.qbiolip-motif-item {
+    cursor: pointer;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.qbiolip-motif-item:hover {
+    background-color: rgba(128, 128, 128, 0.1);
+}
+
+.qbiolip-motif-item .v-list-item__subtitle {
+    white-space: normal;
+    overflow: hidden;
+}
+</style>
 
