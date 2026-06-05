@@ -1,27 +1,19 @@
 import { OrderedSet } from 'molstar/lib/mol-data/int';
-import { Mat4 } from 'molstar/lib/mol-math/linear-algebra';
-import { QueryContext, StructureElement, StructureSelection } from 'molstar/lib/mol-model/structure';
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
-import { compile } from 'molstar/lib/mol-script/runtime/query/compiler';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { tmalign, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import { pulchra } from 'pulchra-wasm';
+import { decodeMultimer, mergeMultimer, revertChainInfo, splitMultimer, storeChains } from '../Utilities.js';
 import { mockPDB } from './foldseekUtilities.js';
 import { loadStructureFromData } from './io.js';
-import { focusCurrentLoci, isValidLoci, OneToThree, residueInfoFromLoci, structuresMatch } from './interactions.js';
+import { focusCurrentLoci, isValidLoci, lociFromExpression, OneToThree, residueInfoFromLoci, structuresMatch } from './interactions.js';
 import { addUniformRepresentation, cartoonParams } from './representations.js';
-import { transformStructureConformation } from './transforms.js';
+import { mat4FromRotationTranslation, transformStructureConformation } from './transforms.js';
+import { mergeExpressions, residueExpression } from './selectionExpressions.js';
 
 const ReferenceColor = 0x1e88e5;
 const RegularColor = 0xffc107;
 const MaskColor = 0x666666;
-async function transformStructure(plugin, structure, matrix) {
-    return transformStructureConformation(plugin, structure, matrix, {
-        method: 'apply',
-        tags: 'foldmason-transform',
-    });
-}
-
 async function addRepresentation(plugin, structure, label, color, expression, alpha = 1, type = 'cartoon', qualityPreset = 'viewer') {
     return addUniformRepresentation(plugin, structure, {
         label,
@@ -40,7 +32,10 @@ async function addStructure(plugin, state, input, index) {
 
     if (index !== input.reference && state.referenceStructure) {
         const matrix = await superpositionMatrix(input.entries[input.reference], entry);
-        if (matrix) structure = await transformStructure(plugin, structure, matrix);
+        structure = await transformStructureConformation(plugin, structure, matrix, {
+            method: 'apply',
+            tags: 'foldmason-transform',
+        });
     }
 
     const color = index === input.reference ? ReferenceColor : RegularColor;
@@ -195,12 +190,7 @@ function lociForColumns(state, columns) {
 function lociForItem(item, columns) {
     const expression = columnExpression(item.entry, columns);
     if (!expression) return null;
-    const structure = item.structure?.cell?.obj?.data;
-    if (!structure) return null;
-    const query = compile(expression);
-    const selection = query(new QueryContext(structure));
-    const loci = StructureSelection.toLociWithSourceUnits(selection);
-    return StructureElement.Loci.isEmpty(loci) ? null : loci;
+    return lociFromExpression(item.structure, expression);
 }
 
 function columnExpression(entry, columns) {
@@ -222,35 +212,9 @@ function residueExpressionForColumn(entry, column) {
     const chain = entry.chains?.[residueIndex] || 'A';
     const residue = entry.resns?.[residueIndex] || residueIndex;
     return mergeExpressions([
-        atomGroupExpression(chain, residue),
-        atomGroupExpression(null, residueIndex),
+        residueExpression(chain, residue),
+        residueExpression(null, residueIndex),
     ]);
-}
-
-function atomGroupExpression(chain, residue) {
-    const { or } = MS.core.logic;
-    const { eq } = MS.core.rel;
-    const { macromolecular } = MS.struct.atomProperty;
-    const tests = {
-        'residue-test': or([
-            eq([macromolecular.auth_seq_id(), residue]),
-            eq([macromolecular.label_seq_id(), residue]),
-        ]),
-    };
-    if (chain) {
-        tests['chain-test'] = or([
-            eq([macromolecular.auth_asym_id(), chain]),
-            eq([macromolecular.label_asym_id(), chain]),
-        ]);
-    }
-    return MS.struct.generator.atomGroups(tests);
-}
-
-function mergeExpressions(expressions) {
-    const valid = expressions.filter(Boolean);
-    if (valid.length === 0) return null;
-    if (valid.length === 1) return valid[0];
-    return MS.struct.combinator.merge(valid.map(expression => MS.struct.modifier.union([expression])));
 }
 
 function structureEvent(state, current, type) {
@@ -295,10 +259,6 @@ function itemForLoci(state, loci) {
         if (structuresMatch(loci.structure, structure)) return item;
     }
     return null;
-}
-
-function focusCurrent(plugin, current) {
-    focusCurrentLoci(plugin, current);
 }
 
 function columnForResidue(entry, chain, residue) {
@@ -349,16 +309,7 @@ async function superpositionMatrix(reference, target) {
     const targetPDB = subPDB(mockPDB(target.ca, target.aa.replace(/-/g, ''), 'A'), alignment.dbStartPos, alignment.dbEndPos);
     const { matrix } = await tmalign(targetPDB, referencePDB, fasta);
     const { t, u } = parseTMMatrix(matrix);
-    return makeMat4(t, u);
-}
-
-function makeMat4(t, u) {
-    return Mat4.ofRows([
-        [u[0][0], u[0][1], u[0][2], t[0]],
-        [u[1][0], u[1][1], u[1][2], t[1]],
-        [u[2][0], u[2][1], u[2][2], t[2]],
-        [0, 0, 0, 1],
-    ]);
+    return mat4FromRotationTranslation(t, u);
 }
 
 function mockAlignment(one, two) {
@@ -443,82 +394,6 @@ async function structurePDB(entry) {
     }
 }
 
-function decodeMultimer(pdb, suffix) {
-    if (!suffix) return pdb;
-    const chainInfos = suffix.split('-').map((s) => {
-        const [chain, end, offset] = s.split('_');
-        return { chain, end: Number(end), offset: Number(offset) };
-    });
-
-    let index = 0;
-    const out = [];
-    for (const line of pdb.split('\n')) {
-        if (!line.startsWith('ATOM')) continue;
-        const residue = Number(line.slice(22, 26));
-        const info = chainInfos[index] || chainInfos[0];
-        out.push(
-            line.slice(0, 21) +
-            info.chain +
-            (residue - info.offset).toString().padStart(4, ' ') +
-            line.slice(26),
-        );
-        if (residue === info.end) {
-            index++;
-            out.push('TER');
-        }
-    }
-    out.push('END');
-    return out.join('\n');
-}
-
-function splitMultimer(pdb) {
-    return pdb.split('\nTER\n').slice(0, -1).map(s => `${s}\nTER\nEND`);
-}
-
-function mergeMultimer(chunks) {
-    let serial = 1;
-    const merged = chunks.map(chunk => chunk.split('\nEND')[0]).join('\n') + '\nEND';
-    const out = [];
-    for (const line of merged.split('\n')) {
-        if (line.startsWith('ATOM')) {
-            out.push(line.slice(0, 6) + serial.toString().padStart(5, ' ') + line.slice(11));
-            serial++;
-        } else if (line.startsWith('TER') || line.startsWith('END')) {
-            out.push(line);
-        }
-    }
-    return out.join('\n');
-}
-
-function storeChains(pdb) {
-    const chains = [];
-    let chain = '';
-    for (const line of pdb.split('\n')) {
-        if (line.startsWith('ATOM')) {
-            chain = line.charAt(21);
-        } else if (line.startsWith('TER')) {
-            chains.push(chain);
-        }
-    }
-    if (chains.length === 0) chains.push(chain);
-    return chains;
-}
-
-function revertChainInfo(pdb, chains) {
-    if (!chains.length || chains[0] === '') return pdb;
-    const out = [];
-    let index = 0;
-    for (let line of pdb.split('\n')) {
-        if (line.startsWith('ATOM')) {
-            line = line.slice(0, 21) + chains[index] + line.slice(22);
-        } else if (line.startsWith('TER')) {
-            index++;
-        }
-        out.push(line);
-    }
-    return out.join('\n');
-}
-
 function makeCIF(state) {
     const blocks = [];
     for (const item of state.structures?.values?.() || []) {
@@ -545,7 +420,7 @@ export const foldmasonResult = {
     },
 
     onClick(plugin, state, input, event) {
-        focusCurrent(plugin, event?.current);
+        focusCurrentLoci(plugin, event?.current);
         return structureEvent(state, event?.current, 'structure-click');
     },
 

@@ -171,12 +171,12 @@ function alignmentArrowPairs(state, input) {
     const pairs = [];
 
     for (const alignment of input?.alignments || []) {
-        const queryChain = getChainName(alignment.query);
-        const targetChain = getChainName(alignment.target);
+        const queryChain = state.chainOverrides?.query?.[getChainName(alignment.query)] || getChainName(alignment.query);
+        const targetChain = state.chainOverrides?.target?.[getChainName(alignment.target)] || getChainName(alignment.target);
 
         for (const match of getMatchingResiduePairs(alignment)) {
             const query = queryCoords.get(`${queryChain}:${match.query}`);
-            const target = targetCoords.get(`${targetChain}:${match.target}`);
+            const target = targetCoords.get(`${targetChain}:${match.target - alignment.dbStartPos + 1}`);
             if (query && target) pairs.push([query, target]);
         }
     }

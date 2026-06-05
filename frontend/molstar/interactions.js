@@ -36,6 +36,13 @@ export function isValidLoci(loci) {
     return StructureElement.Loci.is(loci) && !StructureElement.Loci.isEmpty(loci);
 }
 
+export function lociFromExpression(structureRef, expression) {
+    const structure = structureRef?.cell?.obj?.data || structureRef;
+    if (!structure || !expression) return null;
+    const loci = StructureElement.Loci.fromExpression(structure, expression);
+    return StructureElement.Loci.isEmpty(loci) ? null : loci;
+}
+
 export function structureElementLocationFromLoci(loci) {
     if (!isValidLoci(loci)) return null;
     const entry = loci.elements?.[0];

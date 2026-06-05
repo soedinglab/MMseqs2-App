@@ -12,9 +12,9 @@
 import { Color } from 'molstar/lib/mol-util/color';
 import { foldseekResult } from './foldseekResult.js';
 import { folddiscoResult } from './folddiscoResult.js';
+import { prepareFoldseekStructureInput } from './foldseekData.js';
 import { createStructurePlugin, setCanvasSpin } from './plugin.js';
-import { prepareThumbnailInput, thumbnailSceneInput } from './thumbnailInput.js';
-import { captureThumbnailPng, renderThumbnailScene, resetThumbnailCamera } from './thumbnailRenderer.js';
+import { captureViewportPng, drawStableFrame } from './screenshot.js';
 
 export default {
     name: "StructureViewerThumbnail",
@@ -78,16 +78,66 @@ export default {
         },
 
         async prepareInput(item) {
-            return prepareThumbnailInput({
-                mode: this.mode,
-                structureMode: this.structureMode,
-                queryPdb: this.queryPdb,
+            const alignments = this.alignmentsForItem(item);
+            if (this.mode === 2) {
+                const alignment = alignments[0];
+                if (!alignment || !this.queryPdb) return null;
+
+                const targetPdb = await this.fetchFolddiscoTargetPdb(alignment, item.db);
+                if (!targetPdb) return null;
+
+                return {
+                    alignment,
+                    queryPdb: this.queryPdb,
+                    targetPdb,
+                    showQuery: 0,
+                    showTarget: 0,
+                };
+            }
+
+            return prepareFoldseekStructureInput({
+                alignments,
                 hits: this.hits,
                 axios: this.$axios,
                 route: this.$route,
                 root: this.$root,
                 isLocal: this.$LOCAL,
-            }, item);
+                structureMode: this.structureMode,
+                interfaceCutoff: 10,
+            });
+        },
+
+        alignmentsForItem(item) {
+            return (item.alignments || []).map(alignment => ({
+                ...alignment,
+                db: alignment.db || item.db,
+            }));
+        },
+
+        async fetchFolddiscoTargetPdb(alignment, db) {
+            const target = db?.startsWith('pdb') ? alignment.target : alignment.dbkey;
+            if (!target) return null;
+
+            const url = `api/result/folddisco/${this.$route.params.ticket}?database=${db}&id=${target}`;
+            const response = await this.$axios.get(url, {
+                transformResponse: [(data) => data],
+            });
+            return response.data;
+        },
+
+        thumbnailSceneInput(input) {
+            return {
+                ...input,
+                showQuery: this.mode === 2 ? input.showQuery : 1,
+                showTarget: this.mode === 2 ? input.showTarget : 1,
+                showArrows: false,
+                queryAlpha: 0.9,
+                targetAlpha: 0.7,
+                representationQuality: 'thumbnail',
+                highlightSelections: [],
+                hoverSelection: null,
+                focusSelection: null,
+            };
         },
 
         async renderItem(item) {
@@ -99,16 +149,38 @@ export default {
             if (!input || (!input.query && !input.target && (!input.queryPdb || !input.targetPdb))) return false;
 
             const scene = this.mode === 2 ? folddiscoResult : foldseekResult;
-            await renderThumbnailScene(this.plugin, scene, this.sceneState, thumbnailSceneInput(input, this.mode));
+            await scene.update(this.plugin, this.sceneState, this.thumbnailSceneInput(input));
+            this.resetCamera();
+            await drawStableFrame(this.plugin);
             return true;
         },
 
         async captureThumbnail() {
-            return captureThumbnailPng(this.plugin, this.thumbWidth, this.thumbHeight);
+            return captureViewportPng(this.plugin, (screenshot, previousValues) => {
+                screenshot.behaviors.values.next({
+                    ...previousValues,
+                    transparent: true,
+                    format: { name: 'png', params: {} },
+                    resolution: {
+                        name: 'custom',
+                        params: {
+                            width: this.thumbWidth * 2,
+                            height: this.thumbHeight * 2,
+                        },
+                    },
+                    axes: { name: 'off', params: {} },
+                });
+                screenshot.behaviors.cropParams.next({
+                    auto: false,
+                    relativePadding: 0,
+                });
+                screenshot.resetCrop();
+            }, 'Generate Thumbnail');
         },
 
         resetCamera() {
-            resetThumbnailCamera(this.plugin);
+            this.plugin?.canvas3d?.requestCameraReset({ durationMs: 0 });
+            this.plugin?.canvas3d?.commit(true);
         },
 
         async clearPlugin() {

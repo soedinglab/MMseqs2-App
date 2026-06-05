@@ -494,8 +494,19 @@ export default {
                 return;
             }
 
-            const chains = event.chainCandidates?.length ? event.chainCandidates : [event.chain];
-            const hover = this.findStructureResidueHover(event.side, chains, event.residues || [event.residue]);
+            if (event.sequenceMappable === false) {
+                if (event.type === 'structure-hover') {
+                    this.structureHoverInfo = this.structureTooltipInfo(event, null);
+                    this.structureHover = null;
+                    this.alignmentHover = null;
+                    this.clearHoverFocusTimer();
+                } else {
+                    this.clearHover();
+                }
+                return;
+            }
+
+            const hover = this.findStructureResidueHover(event.side, event.chain, event.residues || [event.residue]);
             if (!hover) {
                 if (event.type === 'structure-hover') {
                     this.structureHoverInfo = this.structureTooltipInfo(event, null);
@@ -526,7 +537,9 @@ export default {
         structureTooltipInfo(event, hover) {
             return {
                 ...event,
-                name: this.structureDisplayName(event.side, hover?.index) || event.name,
+                name: hover
+                    ? this.structureDisplayName(event.side, hover.index) || event.name
+                    : event.name,
             };
         },
         structureDisplayName(side, index) {
@@ -540,15 +553,14 @@ export default {
             this.tmAlignResults = state?.tmAlignResults || null;
             this.sceneChainOverrides = state?.chainOverrides || { query: {}, target: {} };
         },
-        findStructureResidueHover(side, chains, residues) {
+        findStructureResidueHover(side, chain, residues) {
             const residueCandidates = Array.isArray(residues) ? residues : [residues];
-            const chainCandidates = (Array.isArray(chains) ? chains : [chains]).filter(Boolean);
             const chainState = { chainOverrides: this.sceneChainOverrides };
             for (let index = 0; index < this.alignments.length; index++) {
                 const alignment = this.alignments[index];
                 const alignmentName = side === 'query' ? alignment.query : alignment.target;
                 const alignmentChain = resolvedChainForState(chainState, side, getChainName(alignmentName));
-                if (chainCandidates.length > 0 && !chainCandidates.includes(alignmentChain)) continue;
+                if (chain && chain !== alignmentChain) continue;
 
                 const map = side === 'query' ? this.queryMaps[index] : this.targetMaps[index];
                 const residue = residueCandidates.find(value => map?.includes(value));
