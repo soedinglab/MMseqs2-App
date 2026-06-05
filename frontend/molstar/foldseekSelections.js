@@ -2,6 +2,11 @@ import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { getChainName } from './foldseekUtilities.js';
+import {
+    mergeExpressions,
+    residueRangeExpression,
+    residueRangeTest,
+} from './selectionExpressions.js';
 
 export function rangesByChain(alignments, side, chainResolver = null) {
     const ranges = new Map();
@@ -14,12 +19,6 @@ export function rangesByChain(alignments, side, chainResolver = null) {
 
 function chainsBySide(alignments, side, chainResolver = null) {
     return Array.from(new Set(alignmentRegions(alignments, side, chainResolver).map(({ chain }) => chain)));
-}
-
-function selectionExpressionForRanges(alignments, side, chainResolver = null) {
-    return mergeSelectionExpressions(
-        alignmentRegions(alignments, side, chainResolver).map(({ chain, start, end }) => atomGroupExpression(chain, start, end)),
-    );
 }
 
 export function alignmentRegions(alignments, side, chainResolver = null) {
@@ -71,7 +70,7 @@ export function baseSelectionExpressionForMode(state, input, side, mode) {
             || selectionExpressionForChains(input.alignments, side, chainResolver)
             || MS.struct.generator.all();
     }
-    return selectionExpressionForRanges(input.alignments, side, chainResolver) || MS.struct.generator.all();
+    return alignedSelectionExpression(state, input, side) || MS.struct.generator.all();
 }
 
 function selectionExpressionForMode(state, input, side, mode) {
@@ -95,13 +94,21 @@ export function backgroundExpressionForMode(state, input, side, mode) {
     if (mode === 0) return null;
 
     const visible = selectionExpressionForMode(state, input, side, mode);
-    const base = baseSelectionExpressionForMode(state, input, side, 0);
+    const base = alignedSelectionExpression(state, input, side);
     if (!base) return visible;
 
     return MS.struct.modifier.exceptBy({
         0: visible,
         by: base,
     });
+}
+
+export function alignedSelectionExpression(state, input, side) {
+    return mergeSelectionExpressions(
+        alignmentRegions(input?.alignments, side, stateChainResolver(state, side)).map(({ chain, start, end }) => (
+            atomGroupExpressionForAlignmentRange(state, side, chain, start, end, start)
+        )),
+    );
 }
 
 export function structureSelectionExpression(state, input, selection) {
@@ -112,17 +119,17 @@ export function structureSelectionExpression(state, input, selection) {
     const end = selection.start + Math.max(0, selection.length - 1);
     if (!Number.isFinite(end) || end < start) return null;
     const chain = resolvedChainForState(state, side, getChainName(alignment[side]));
+    const alignmentStart = side === 'query' ? alignment.qStartPos : alignment.dbStartPos;
 
     if (input?.structureMode === 'interface') {
-        const residueMap = (state.interfaceResidueMap?.[side] || []).filter(entry => entry.chain === chain);
-        let residues = residueMap.filter(entry => entry.alignmentResidue >= start && entry.alignmentResidue <= end);
-        if (residues.length === 0) {
-            residues = residueMap.filter(entry => entry.authResidue >= start && entry.authResidue <= end);
-        }
+        const residues = (state.interfaceResidueMap?.[side]?.[chain] || []).filter(entry => (
+            (entry.labelResidue >= start && entry.labelResidue <= end)
+            || (entry.authResidue >= start && entry.authResidue <= end)
+        ));
         return atomGroupExpressionForResidueMap(chain, residues);
     }
 
-    return atomGroupExpression(chain, start, end);
+    return atomGroupExpressionForAlignmentRange(state, side, chain, start, end, alignmentStart);
 }
 
 export function resolvedChainForState(state, side, chain) {
@@ -138,22 +145,7 @@ function resolveChain(chainResolver, chain) {
 }
 
 export function atomGroupExpression(chain, start, end) {
-    const { and, or } = MS.core.logic;
-    const { eq, gre, lte } = MS.core.rel;
-    const { macromolecular } = MS.struct.atomProperty;
-    const tests = {
-        'chain-test': or([
-            eq([macromolecular.auth_asym_id(), chain]),
-            eq([macromolecular.label_asym_id(), chain]),
-        ]),
-    };
-    if (Number.isFinite(start) || Number.isFinite(end)) {
-        tests['residue-test'] = or([
-            residueRangeTest(macromolecular.auth_seq_id(), start, end),
-            residueRangeTest(macromolecular.label_seq_id(), start, end),
-        ]);
-    }
-    return MS.struct.generator.atomGroups(tests);
+    return residueRangeExpression(chain, start, end);
 }
 
 export function structureChains(structureRef) {
@@ -198,10 +190,14 @@ function uniqueChains(values) {
 }
 
 export function mergeSelectionExpressions(expressions) {
-    const valid = expressions.filter(Boolean);
-    if (valid.length === 0) return null;
-    if (valid.length === 1) return valid[0];
-    return MS.struct.combinator.merge(valid.map(expression => MS.struct.modifier.union([expression])));
+    return mergeExpressions(expressions);
+}
+
+export function computeResidueMaps(query, target, input, chainOverrides = {}) {
+    return {
+        query: structureResidueMap(query, chainsBySide(input.alignments, 'query', stateChainResolver({ chainOverrides }, 'query'))),
+        target: structureResidueMap(target, chainsBySide(input.alignments, 'target', stateChainResolver({ chainOverrides }, 'target'))),
+    };
 }
 
 function residueRanges(residues) {
@@ -226,7 +222,7 @@ export function computeInterfaceRegions(query, target, input) {
     if (input?.structureMode !== 'interface') {
         return {
             regions: { query: [], target: [] },
-            residueMap: { query: [], target: [] },
+            residueMap: { query: {}, target: {} },
         };
     }
     const queryChains = chainsBySide(input.alignments, 'query');
@@ -270,6 +266,19 @@ function atomGroupExpressionForResidueMap(chain, residues) {
     return mergeSelectionExpressions(expressions);
 }
 
+function atomGroupExpressionForAlignmentRange(state, side, chain, start, end, alignmentStart) {
+    const residueMap = state.residueMap?.[side]?.[chain] || [];
+    const residues = residuesForFoldseekRange(residueMap, start, end, alignmentStart);
+    return atomGroupExpressionForResidueMap(chain, residues);
+}
+
+function residuesForFoldseekRange(residueMap, start, end, alignmentStart) {
+    if (!Number.isFinite(alignmentStart)) return [];
+    const from = Math.max(0, start - alignmentStart);
+    const to = end - alignmentStart;
+    return to >= 0 ? residueMap.slice(from, to + 1) : [];
+}
+
 function atomGroupExpressionForProperty(chain, residueProperty, start, end) {
     const { or } = MS.core.logic;
     const { eq } = MS.core.rel;
@@ -281,15 +290,6 @@ function atomGroupExpressionForProperty(chain, residueProperty, start, end) {
         ]),
         'residue-test': residueRangeTest(residueProperty, start, end),
     });
-}
-
-function residueRangeTest(property, start, end) {
-    const { and } = MS.core.logic;
-    const { gre, lte } = MS.core.rel;
-    const tests = [];
-    if (Number.isFinite(start)) tests.push(gre([property, start]));
-    if (Number.isFinite(end)) tests.push(lte([property, end]));
-    return tests.length === 1 ? tests[0] : and(tests);
 }
 
 function interfaceRegions(structureRef, chains, cutoff = 10) {
@@ -350,10 +350,11 @@ function interfaceRegions(structureRef, chains, cutoff = 10) {
 
 function structureResidueMap(structureRef, chains) {
     const structure = structureRef?.cell?.obj?.data;
-    if (!structure) return [];
+    if (!structure) return {};
 
     const chainSet = new Set(chains);
-    const residuesByChain = new Map(Array.from(chainSet).map(chain => [chain, new Map()]));
+    const residuesByChain = new Map(Array.from(chainSet).map(chain => [chain, []]));
+    const seenResidues = new Set();
     const loc = StructureElement.Location.create(structure);
 
     for (const unit of structure.units) {
@@ -371,23 +372,14 @@ function structureResidueMap(structureRef, chains) {
 
             const authResidue = StructureProperties.residue.auth_seq_id(loc);
             const labelResidue = StructureProperties.residue.label_seq_id(loc);
-            const alignmentResidue = labelResidue || authResidue;
-            if (Number.isFinite(alignmentResidue)) {
-                residuesByChain.get(chain)?.set(alignmentResidue, {
-                    chain,
-                    alignmentResidue,
-                    labelResidue,
-                    authResidue,
-                });
-            }
+            const key = `${chain}:${labelResidue}:${authResidue}`;
+            if (seenResidues.has(key)) continue;
+            seenResidues.add(key);
+            residuesByChain.get(chain)?.push({ labelResidue, authResidue });
         }
     }
 
-    const residueMap = [];
-    for (const residues of residuesByChain.values()) {
-        residueMap.push(...Array.from(residues.values()).sort((a, b) => a.alignmentResidue - b.alignmentResidue));
-    }
-    return residueMap;
+    return Object.fromEntries(residuesByChain);
 }
 
 function squaredDistance(a, b) {

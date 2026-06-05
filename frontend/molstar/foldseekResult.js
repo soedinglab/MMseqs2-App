@@ -1,26 +1,28 @@
-import { QueryContext, StructureElement, StructureSelection } from 'molstar/lib/mol-model/structure';
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
-import { compile } from 'molstar/lib/mol-script/runtime/query/compiler';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { setSubtreeVisibility } from 'molstar/lib/mol-plugin/behavior/static/state';
 import {
     alignmentRegions,
+    alignedSelectionExpression,
     atomGroupExpression,
     backgroundExpressionForMode,
     baseSelectionExpressionForMode,
     chainColorEntries,
     computeInterfaceRegions,
+    computeResidueMaps,
     interfaceExpressionForChain,
     mergeSelectionExpressions,
     selectionExpressionForChains,
     structureChains,
     structureSelectionExpression,
 } from './foldseekSelections.js';
-import { superposeTargetWithFoldseekAlignment, transformStructure } from './foldseekSuperposition.js';
+import { superposeTargetWithFoldseekAlignment } from './foldseekSuperposition.js';
+import { transformStructureConformation } from './transforms.js';
 import { setArrows } from './foldseekArrows.js';
 import { loadStructureFromData } from './io.js';
-import { isValidLoci, residueInfoFromLoci, structuresMatch } from './interactions.js';
+import { isValidLoci, lociFromExpression as lociFromStructureExpression, residueInfoFromLoci, structuresMatch } from './interactions.js';
 import { addUniformRepresentation } from './representations.js';
+import { getChainName } from './foldseekUtilities.js';
 
 const QueryChainSurfaceColors = [
     0x991999,
@@ -56,6 +58,7 @@ async function buildStructureRepresentations(plugin, state, structure, side, inp
         input,
         side,
     );
+    registerInteraction(state, aligned, { side, chain: aligned?.chain, sequenceMappable: true });
     const stateEntry = {
         structure,
         type,
@@ -87,11 +90,7 @@ async function applyVisibility(plugin, state, input) {
     await setArrows(plugin, state, input);
 }
 
-function visibilityKey(input, queryMode, targetMode) {
-    return visibilityInputKey(input, queryMode, targetMode);
-}
-
-function visibilityInputKey(input, queryMode = input?.showQuery || 0, targetMode = input?.showTarget || 0) {
+function visibilityKey(input, queryMode = input?.showQuery || 0, targetMode = input?.showTarget || 0) {
     return [
         queryMode,
         targetMode,
@@ -143,7 +142,14 @@ async function addChainSurfaces(plugin, state, structure, side, input) {
                 },
             },
         );
-        if (surface) surfaces.push({ ...surface, level: entry.level || 'base' });
+        if (surface) {
+            registerInteraction(state, surface, {
+                side,
+                chain: entry.chain,
+                sequenceMappable: entry.level === 'aligned',
+            });
+            surfaces.push({ ...surface, chain: entry.chain, level: entry.level || 'base' });
+        }
     }
     return surfaces;
 }
@@ -210,7 +216,10 @@ async function buildInterfaceStructureRepresentations(plugin, state, structure, 
             color,
             expression,
         );
-        if (representation) aligned.push({ ...representation, chain, color });
+        if (representation) {
+            registerInteraction(state, representation, { side, chain, sequenceMappable: true });
+            aligned.push({ ...representation, chain, color });
+        }
     }
 
     const stateEntry = {
@@ -266,11 +275,12 @@ async function setBackgroundRepresentation(plugin, state, stateEntry, input, sid
         expression,
         representationOverrides(input, side),
     );
+    registerInteraction(state, stateEntry.background, { side, sequenceMappable: false });
 }
 
 async function addQueryFullBackgroundRepresentations(plugin, state, stateEntry, input) {
     const background = [];
-    const base = baseSelectionExpressionForMode(state, input, 'query', 0);
+    const base = alignedSelectionExpression(state, input, 'query');
     const chains = structureChains(stateEntry.structure);
     for (const chain of chains) {
         const chainExpression = atomGroupExpression(chain);
@@ -285,7 +295,10 @@ async function addQueryFullBackgroundRepresentations(plugin, state, stateEntry, 
                 : chainExpression,
             representationOverrides(input, 'query'),
         );
-        if (representation) background.push({ ...representation, chain });
+        if (representation) {
+            registerInteraction(state, representation, { side: 'query', chain, sequenceMappable: false });
+            background.push({ ...representation, chain });
+        }
     }
     return background.length > 0 ? background : null;
 }
@@ -312,7 +325,10 @@ async function setInterfaceBackgroundRepresentation(plugin, state, stateEntry, i
             expression,
             { alpha },
         );
-        if (representation) background.push({ ...representation, chain, color });
+        if (representation) {
+            registerInteraction(state, representation, { side, chain, sequenceMappable: false });
+            background.push({ ...representation, chain, color });
+        }
     }
     stateEntry.background = background;
 }
@@ -373,7 +389,7 @@ function diffInput(previous, next) {
     const rebuild = baseSceneKey(previous) !== baseSceneKey(next);
     return {
         rebuild,
-        visibility: rebuild || visibilityInputKey(previous) !== visibilityInputKey(next),
+        visibility: rebuild || visibilityKey(previous) !== visibilityKey(next),
         selection: rebuild || selectionsKey(previous?.highlightSelections || []) !== selectionsKey(next?.highlightSelections || []),
         hover: rebuild || hoverInputKey(previous?.hoverSelection) !== hoverInputKey(next?.hoverSelection),
         focus: rebuild || focusInputKey(previous?.focusSelection) !== focusInputKey(next?.focusSelection),
@@ -396,7 +412,10 @@ function resetSceneState(state, input) {
     state.hoverKey = null;
     state.chainOverrides = { query: {}, target: {} };
     state.interfaceRegions = { query: [], target: [] };
-    state.interfaceResidueMap = { query: [], target: [] };
+    state.interfaceResidueMap = { query: {}, target: {} };
+    state.residueMap = { query: {}, target: {} };
+    state.interactionByRepr = new WeakMap();
+    state.interactionByComponent = new WeakMap();
 }
 
 function baseSceneKey(input) {
@@ -450,21 +469,14 @@ function alignmentsKey(alignments = []) {
 
 function lociFromExpression(state, expression, side = 'target') {
     if (!state[side] || !expression) return null;
-    const structure = state[side].structure?.cell?.obj?.data;
-    if (!structure) return null;
-
-    const query = compile(expression);
-    const selection = query(new QueryContext(structure));
-    const loci = StructureSelection.toLociWithSourceUnits(selection);
-    return StructureElement.Loci.isEmpty(loci) ? null : loci;
+    return lociFromStructureExpression(state[side].structure, expression);
 }
 
-function structureEventFromInteraction(state, current, type) {
-    const picked = pickedRepresentationInfo(state, current?.repr) || pickedComponentInfo(state, current?.loci);
+function structureEventFromInteraction(state, input, current, type) {
+    const picked = interactionInfoFromCurrent(state, current);
     const event = structureEventFromLoci(state, current?.loci, type);
     if (!event.side && picked?.side) event.side = picked.side;
-    const shouldUsePickedChain = picked?.chain && (!event.chain || (event.side === 'query' && picked.side === event.side));
-    if (shouldUsePickedChain) {
+    if (picked?.chain && picked.side === event.side) {
         event.chain = picked.chain;
         if (event.residue && typeof event.residue === 'object') {
             event.residue = {
@@ -473,48 +485,53 @@ function structureEventFromInteraction(state, current, type) {
             };
         }
     }
-    event.chainCandidates = uniqueValues([
-        event.chain,
-        picked?.side === event.side ? picked?.chain : null,
-    ]);
+    if (picked?.sequenceMappable === false) {
+        event.sequenceMappable = false;
+    }
+    addFoldseekResidueMapping(state, input, event);
     return event;
 }
 
-function uniqueValues(values) {
-    return Array.from(new Set(values.filter(value => value !== null && value !== undefined && value !== '')));
+function addFoldseekResidueMapping(state, input, event) {
+    if (!event?.side || !event.chain || !event.residue || event.sequenceMappable === false) return;
+
+    const chainResidues = state.residueMap?.[event.side]?.[event.chain] || [];
+    const residueIndex = chainResidues.findIndex(entry => (
+        (Number.isFinite(event.labelResidue) && entry.labelResidue === event.labelResidue)
+        || (Number.isFinite(event.authResidue) && entry.authResidue === event.authResidue)
+    ));
+    if (residueIndex < 0) return;
+
+    const alignment = (input?.alignments || []).find(entry => {
+        const sideName = event.side === 'query' ? entry.query : entry.target;
+        const chain = state.chainOverrides?.[event.side]?.[getChainName(sideName)] || getChainName(sideName);
+        return chain === event.chain;
+    });
+    if (!alignment) return;
+
+    const alignmentStart = event.side === 'query' ? 1 : alignment.dbStartPos;
+    if (!Number.isFinite(alignmentStart)) return;
+
+    event.foldseekResidue = alignmentStart + residueIndex;
+    event.residues = [event.foldseekResidue];
 }
 
-function pickedRepresentationInfo(state, repr) {
-    if (!repr) return null;
-    for (const { side, item } of structureRepresentationItems(state)) {
-        if (representationObject(item) === repr) return { side, chain: item.chain };
-    }
-    return null;
+function registerInteraction(state, item, meta) {
+    if (!item || !meta?.side) return;
+    const repr = representationObject(item);
+    if (repr) state.interactionByRepr?.set(repr, meta);
+    const component = componentStructure(item);
+    if (component) state.interactionByComponent?.set(component, meta);
 }
 
-function pickedComponentInfo(state, loci) {
-    if (!isValidLoci(loci)) return null;
-    for (const { side, item } of structureRepresentationItems(state)) {
-        if (componentStructure(item) === loci.structure) return { side, chain: item.chain };
-    }
-    return null;
-}
-
-function* structureRepresentationItems(state) {
-    for (const side of ['query', 'target']) {
-        const entry = state[side];
-        if (!entry) continue;
-        for (const item of representationItems(entry.aligned)) {
-            yield { side, item };
-        }
-        for (const item of representationItems(entry.background)) {
-            yield { side, item };
-        }
-    }
-}
-
-function representationItems(value) {
-    return Array.isArray(value) ? value : (value ? [value] : []);
+function interactionInfoFromCurrent(state, current) {
+    const byRepresentation = current?.repr
+        ? state.interactionByRepr?.get(current.repr)
+        : null;
+    if (byRepresentation) return byRepresentation;
+    return isValidLoci(current?.loci)
+        ? state.interactionByComponent?.get(current.loci.structure)
+        : null;
 }
 
 function representationObject(item) {
@@ -554,7 +571,6 @@ function structureEventFromLoci(state, loci, type) {
         chain: residue.chain,
         authChain: residue.authChain,
         labelChain: residue.labelChain,
-        chainCandidates: uniqueValues([residue.chain]),
         residue: {
             chain: residue.chain,
             residue: residue.residue,
@@ -729,7 +745,7 @@ async function rebuildBaseScene(plugin, state, input) {
     };
 
     if (target && input.targetTransform) {
-        target = await transformStructure(plugin, target, input.targetTransform);
+        target = await transformStructureConformation(plugin, target, input.targetTransform);
     } else if (target && query) {
         const superposition = await superposeTargetWithFoldseekAlignment(
             plugin,
@@ -745,6 +761,7 @@ async function rebuildBaseScene(plugin, state, input) {
     const interfaceData = computeInterfaceRegions(query, target, input);
     state.interfaceRegions = interfaceData.regions;
     state.interfaceResidueMap = interfaceData.residueMap;
+    state.residueMap = computeResidueMaps(query, target, input, state.chainOverrides);
 
     if (target) {
         state.target = await buildStructureRepresentations(
@@ -814,7 +831,7 @@ export const foldseekResult = {
     },
 
     onHover(plugin, state, input, event) {
-        const sceneEvent = structureEventFromInteraction(state, event?.current, 'structure-hover');
+        const sceneEvent = structureEventFromInteraction(state, input, event?.current, 'structure-hover');
         if (sceneEvent?.residue && isValidLoci(event?.current?.loci)) {
             state.hoverLoci = event.current.loci;
             state.hoverKey = `${sceneEvent.side}:${sceneEvent.chain}:${sceneEvent.labelResidue}:${sceneEvent.authResidue}`;
@@ -832,7 +849,7 @@ export const foldseekResult = {
     },
 
     onClick(plugin, state, input, event) {
-        return structureEventFromInteraction(state, event?.current, 'structure-click');
+        return structureEventFromInteraction(state, input, event?.current, 'structure-click');
     },
 
     resetView(plugin) {

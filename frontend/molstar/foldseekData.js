@@ -18,12 +18,12 @@ export async function prepareFoldseekStructureInput(ctx) {
         ? ctx.alignments
         : ctx.alignments.slice(0, 1);
     return {
-        query: query.source,
-        target: target.source,
+        query,
+        target,
         targetTransform,
         alignments: ctx.alignments,
         superpositionAlignments,
-        hasQuery: Boolean(query.source),
+        hasQuery: Boolean(query),
         structureMode: ctx.structureMode || 'alignment',
         interfaceCutoff: ctx.interfaceCutoff || 10,
         queryIndex: queryIndex(ctx),
@@ -44,15 +44,10 @@ function emptyInput() {
 
 async function buildQuery(ctx) {
     const data = await loadQueryData(ctx);
-    if (!data) {
-        return { source: null, pdb: '' };
-    }
+    if (!data) return null;
 
     const format = detectFormat(data);
-    return {
-        source: { data, format, label: 'query' },
-        pdb: format === 'pdb' ? data : '',
-    };
+    return { data, format, label: 'query' };
 }
 
 async function loadQueryData(ctx) {
@@ -153,7 +148,7 @@ async function buildTarget(ctx) {
 
         if (!tSeq || !tCa) continue;
 
-        const mock = mockPDB(tCa, tSeq, chain);
+        const mock = mockPDB(tCa, tSeq, chain, alignment.dbStartPos || 1);
         try {
             targets.push(applyChainId(await pulchra(mock), chain));
         } catch (e) {
@@ -161,11 +156,8 @@ async function buildTarget(ctx) {
         }
     }
 
-    const pdb = mergePdbChunks(targets);
-    return {
-        source: pdb ? { data: pdb, format: 'pdb', label: 'target' } : null,
-        pdb,
-    };
+    const data = mergePdbChunks(targets);
+    return data ? { data, format: 'pdb', label: 'target' } : null;
 }
 
 async function buildInterfaceTarget(ctx) {
@@ -189,11 +181,8 @@ async function buildInterfaceTarget(ctx) {
         chunks.push(response.data);
     }
 
-    const pdb = mergePdbChunks(chunks);
-    return {
-        source: pdb ? { data: pdb, format: 'pdb', label: 'target' } : null,
-        pdb,
-    };
+    const data = mergePdbChunks(chunks);
+    return data ? { data, format: 'pdb', label: 'target' } : null;
 }
 
 function computeMultimerTransform(alignments) {
@@ -210,11 +199,6 @@ function computeMultimerTransform(alignments) {
     ]);
 }
 
-function extractAtomLines(pdb) {
-    if (!pdb) return [];
-    return pdb.split(/\r?\n/).filter(line => line.startsWith('ATOM') || line.startsWith('HETATM'));
-}
-
 function applyChainId(pdb, chain) {
     if (!pdb || !chain) return pdb;
     return pdb.split('\n').map((line) => {
@@ -225,7 +209,7 @@ function applyChainId(pdb, chain) {
 
 function mergePdbChunks(chunks) {
     return chunks
-        .flatMap(chunk => extractAtomLines(chunk))
+        .flatMap(chunk => (chunk || '').split(/\r?\n/).filter(line => line.startsWith('ATOM') || line.startsWith('HETATM')))
         .join('\n');
 }
 

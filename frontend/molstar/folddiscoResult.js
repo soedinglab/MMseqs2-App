@@ -1,47 +1,16 @@
-import { Mat4 } from 'molstar/lib/mol-math/linear-algebra';
-import { QueryContext, StructureElement, StructureSelection } from 'molstar/lib/mol-model/structure';
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
-import { compile } from 'molstar/lib/mol-script/runtime/query/compiler';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
-import { mockPDB } from './foldseekUtilities.js';
 import { loadStructureFromData, normalizedPdbSourceFromText } from './io.js';
-import { isValidLoci, residueInfoFromLoci, structuresMatch } from './interactions.js';
+import { isValidLoci, lociFromExpression, residueInfoFromLoci, structuresMatch } from './interactions.js';
 import { addUniformRepresentation, ballAndStickParams, cartoonParams } from './representations.js';
-import { transformStructureConformation } from './transforms.js';
+import { mat4FromCommaStrings, transformStructureConformation } from './transforms.js';
+import { chainExpression, mergeExpressions, residueExpression } from './selectionExpressions.js';
 
 const QueryColor = 0x1e88e5;
 const TargetColor = 0xffc107;
 const QueryLightColor = 0xa5cff5;
 const TargetLightColor = 0xffe699;
 const MotifRadius = 0.28;
-
-function transformParams(alignment) {
-    const t = String(alignment?.tmat || '').split(',').map(Number);
-    const u = String(alignment?.umat || '').split(',').map(Number);
-    if (t.length < 3 || u.length < 9 || t.some(Number.isNaN) || u.some(Number.isNaN)) return null;
-    return {
-        t,
-        u: [
-            [u[0], u[1], u[2]],
-            [u[3], u[4], u[5]],
-            [u[6], u[7], u[8]],
-        ],
-    };
-}
-
-function makeMat4({ t, u }) {
-    return Mat4.ofRows([
-        [u[0][0], u[0][1], u[0][2], t[0]],
-        [u[1][0], u[1][1], u[1][2], t[1]],
-        [u[2][0], u[2][1], u[2][2], t[2]],
-        [0, 0, 0, 1],
-    ]);
-}
-
-async function transformStructure(plugin, structure, params) {
-    if (!params) return structure;
-    return transformStructureConformation(plugin, structure, makeMat4(params));
-}
 
 async function addRepresentation(plugin, structure, label, expression, color, alpha = 1, type = 'cartoon', qualityPreset = 'viewer') {
     const item = await addUniformRepresentation(plugin, structure, {
@@ -93,43 +62,8 @@ function splitAlphaNum(str) {
     return [value.slice(0, i), value.slice(i, j)];
 }
 
-function atomGroupExpression(chain, residue) {
-    const { or } = MS.core.logic;
-    const { eq } = MS.core.rel;
-    const { macromolecular } = MS.struct.atomProperty;
-    return MS.struct.generator.atomGroups({
-        'chain-test': or([
-            eq([macromolecular.auth_asym_id(), chain]),
-            eq([macromolecular.label_asym_id(), chain]),
-        ]),
-        'residue-test': or([
-            eq([macromolecular.auth_seq_id(), residue]),
-            eq([macromolecular.label_seq_id(), residue]),
-        ]),
-    });
-}
-
-function chainExpression(chain) {
-    const { or } = MS.core.logic;
-    const { eq } = MS.core.rel;
-    const { macromolecular } = MS.struct.atomProperty;
-    return MS.struct.generator.atomGroups({
-        'chain-test': or([
-            eq([macromolecular.auth_asym_id(), chain]),
-            eq([macromolecular.label_asym_id(), chain]),
-        ]),
-    });
-}
-
-function mergeExpressions(expressions) {
-    const valid = expressions.filter(Boolean);
-    if (valid.length === 0) return null;
-    if (valid.length === 1) return valid[0];
-    return MS.struct.combinator.merge(valid.map(expression => MS.struct.modifier.union([expression])));
-}
-
 function motifExpression(motif) {
-    return mergeExpressions(parseMotif(motif).residues.map(({ chain, residue }) => atomGroupExpression(chain, residue)));
+    return mergeExpressions(parseMotif(motif).residues.map(({ chain, residue }) => residueExpression(chain, residue)));
 }
 
 function chainSetExpression(motif) {
@@ -167,15 +101,6 @@ async function addRepr(plugin, state, input, structure, label, expression, color
     if (ref) state.reprRefs.push(ref);
 }
 
-function targetMotifSource(alignment) {
-    if (!alignment?.tCa) return null;
-    return {
-        data: mockPDB(alignment.tCa, '', 'A'),
-        format: 'pdb',
-        label: 'targetMotifStructure',
-    };
-}
-
 async function applyRepresentations(plugin, state, input) {
     const key = `${input.showQuery}:${input.showTarget}:${input.alignment?.queryresidues}:${input.alignment?.targetresidues}`;
     if (state.reprKey === key) return;
@@ -183,7 +108,7 @@ async function applyRepresentations(plugin, state, input) {
     await deleteReprGroup(plugin, state);
 
     const queryMotif = motifExpression(input.alignment?.queryresidues);
-    const targetMotif = state.targetMotif ? MS.struct.generator.all() : motifExpression(input.alignment?.targetresidues);
+    const targetMotif = motifExpression(input.alignment?.targetresidues);
     const queryChains = chainSetExpression(input.alignment?.queryresidues);
     const targetChains = chainSetExpression(input.alignment?.targetresidues);
 
@@ -201,13 +126,12 @@ async function applyRepresentations(plugin, state, input) {
     if (input.showTarget >= 1) {
         await addRepr(plugin, state, input, state.target, 'target-matched', targetChains, TargetLightColor, 0.8, 'cartoon');
     }
-    await addRepr(plugin, state, input, state.targetMotif || state.target, 'target-motif', targetMotif, TargetColor, 1, 'ball-and-stick');
+    await addRepr(plugin, state, input, state.target, 'target-motif', targetMotif, TargetColor, 1, 'ball-and-stick');
 }
 
 function resetSceneState(state) {
     state.query = null;
     state.target = null;
-    state.targetMotif = null;
     state.reprRefs = [];
     state.reprKey = null;
 }
@@ -217,28 +141,14 @@ async function rebuildScene(plugin, state, input) {
     resetSceneState(state);
 
     state.query = await loadStructureFromData(plugin, normalizedPdbSourceFromText(input.queryPdb, 'queryStructure'));
-    const targetSource = normalizedPdbSourceFromText(input.targetPdb, 'targetStructure');
-    const targetTransform = transformParams(input.alignment);
+    const targetSource = normalizedPdbSourceFromText(input.targetPdb, 'targetStructure', { dropConect: true });
+    const targetTransform = mat4FromCommaStrings(input.alignment?.tmat, input.alignment?.umat);
     state.target = await loadStructureFromData(plugin, targetSource, 'targetStructure');
-    state.target = await transformStructure(plugin, state.target, targetTransform);
-    const motifSource = targetMotifSource(input.alignment);
-    if (motifSource) {
-        state.targetMotif = await loadStructureFromData(plugin, motifSource, 'targetMotifStructure');
-        state.targetMotif = await transformStructure(plugin, state.targetMotif, targetTransform);
-    }
+    state.target = await transformStructureConformation(plugin, state.target, targetTransform);
     await applyRepresentations(plugin, state, input);
     const loci = lociFromExpression(state.query, motifExpression(input.alignment?.queryresidues));
     if (loci) plugin.managers.camera.focusLoci(loci, { durationMs: 100, extraRadius: 10, minRadius: 5 });
     else plugin.managers.camera.reset();
-}
-
-function lociFromExpression(structureRef, expression) {
-    const structure = structureRef?.cell?.obj?.data;
-    if (!structure || !expression) return null;
-    const query = compile(expression);
-    const selection = query(new QueryContext(structure));
-    const loci = StructureSelection.toLociWithSourceUnits(selection);
-    return StructureElement.Loci.isEmpty(loci) ? null : loci;
 }
 
 function structureEvent(state, current, type) {

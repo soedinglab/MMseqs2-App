@@ -22,29 +22,39 @@ export function structureSourceFromText(raw, label) {
     };
 }
 
-export function normalizedPdbSourceFromText(raw, label) {
+export function normalizedPdbSourceFromText(raw, label, options = {}) {
     const data = raw?.trimStart?.() || '';
     const format = detectStructureFormat(data);
     return {
-        data: format === 'pdb' ? normalizeWhitespacePdb(data) : data,
+        data: format === 'pdb' ? normalizeWhitespacePdb(data, options) : data,
         label,
         format,
     };
 }
 
-function normalizeWhitespacePdb(text) {
+function normalizeWhitespacePdb(text, options = {}) {
     return text
         .split(/\r?\n/)
         .map(line => {
             const trimmed = line.trim();
             if (!trimmed) return '';
+            if (options.dropConect && trimmed.startsWith('CONECT')) return '';
             if (!trimmed.startsWith('ATOM') && !trimmed.startsWith('HETATM')) {
                 return trimmed;
             }
+            if (hasFixedAtomColumns(line)) return line.trimEnd();
             return formatWhitespaceAtom(trimmed.split(/\s+/));
         })
         .filter(Boolean)
         .join('\n');
+}
+
+function hasFixedAtomColumns(line) {
+    return line.length >= 54
+        && Number.isFinite(Number.parseInt(line.slice(22, 26), 10))
+        && Number.isFinite(Number.parseFloat(line.slice(30, 38)))
+        && Number.isFinite(Number.parseFloat(line.slice(38, 46)))
+        && Number.isFinite(Number.parseFloat(line.slice(46, 54)));
 }
 
 function formatWhitespaceAtom(parts) {

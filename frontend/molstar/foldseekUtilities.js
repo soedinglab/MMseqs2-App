@@ -1,28 +1,4 @@
-const oneToThree = {
-    A: 'ALA',
-    R: 'ARG',
-    N: 'ASN',
-    D: 'ASP',
-    C: 'CYS',
-    E: 'GLU',
-    Q: 'GLN',
-    G: 'GLY',
-    H: 'HIS',
-    I: 'ILE',
-    L: 'LEU',
-    K: 'LYS',
-    M: 'MET',
-    F: 'PHE',
-    P: 'PRO',
-    S: 'SER',
-    T: 'THR',
-    W: 'TRP',
-    Y: 'TYR',
-    V: 'VAL',
-    U: 'SEC',
-    O: 'PYL',
-    X: 'ALA',
-};
+import { OneToThree } from './interactions.js';
 
 export function getChainName(name) {
     if (!name || /_v[0-9]+$/.test(name)) return 'A';
@@ -37,20 +13,21 @@ export function getAccession(name) {
     return pos !== -1 ? name.substring(0, pos) : name;
 }
 
-export function mockPDB(ca, seq, chain) {
+export function mockPDB(ca, seq, chain, start = 1) {
     const atoms = ca.split(',');
     const pdb = [];
     let j = 1;
     for (let i = 0; i < atoms.length; i += 3, j++) {
+        const resno = start + j - 1;
         const [x, y, z] = atoms.slice(i, i + 3).map(element => Number.parseFloat(element));
         const residue = seq !== '' && atoms.length / 3 === seq.length ? seq[i / 3] : 'A';
         pdb.push(
             'ATOM  ' +
             j.toString().padStart(5) +
             '  CA  ' +
-            (oneToThree[residue] || 'ALA') +
+            (OneToThree[residue] || 'ALA') +
             chain.toString().padStart(2) +
-            j.toString().padStart(4) +
+            resno.toString().padStart(4) +
             '    ' +
             x.toFixed(3).padStart(8) +
             y.toFixed(3).padStart(8) +

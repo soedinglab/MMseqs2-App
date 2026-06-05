@@ -11,20 +11,7 @@ export const DEFAULT_SPIN_SPEED = 0.05;
 const DefaultSsaoParams = PD.getDefaultValues(SsaoParams);
 
 export async function createStructurePlugin(canvas, viewport, options = {}) {
-    const plugin = createMolstarPlugin();
-    await plugin.init();
-
-    const ok = await plugin.initViewerAsync(canvas, viewport);
-    if (ok === false) {
-        throw new Error('Mol* viewer initialization failed');
-    }
-
-    applyViewerCanvasProps(plugin, options);
-    return plugin;
-}
-
-export function createMolstarPlugin() {
-    return new PluginContext({
+    const plugin = new PluginContext({
         actions: [],
         behaviors: [
             PluginSpec.Behavior(PluginBehaviors.Representation.HighlightLoci),
@@ -39,6 +26,15 @@ export function createMolstarPlugin() {
             [PluginConfig.General.Transparency, 'blended'],
         ],
     });
+    await plugin.init();
+
+    const ok = await plugin.initViewerAsync(canvas, viewport);
+    if (ok === false) {
+        throw new Error('Mol* viewer initialization failed');
+    }
+
+    applyViewerCanvasProps(plugin, options);
+    return plugin;
 }
 
 export function parseColor(value, fallback = 0xffffff) {
