@@ -28,7 +28,7 @@
                 <v-list-item-title>Multimer search</v-list-item-title>
             </v-list-item-content>
         </v-list-item>
-        <v-list-item to="/interface" v-if="$APP == 'foldseek'">
+        <v-list-item to="/interface" v-if="false && $APP == 'foldseek'">
             <v-list-item-action>
                 <v-icon>{{ $MDI.Interface }}</v-icon>
             </v-list-item-action>
