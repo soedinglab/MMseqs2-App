@@ -282,7 +282,7 @@ export default {
                 transformStructure(targetComp.structure, t, u);
             } else {
                 const querySele = alignments.map(
-                    a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`
+                    a => `:${getChainName(a.query)}`
                 ).join(" or ");
                 const targetSele = alignments.map(
                     a => `${a.dbStartPos}-${a.dbEndPos}:${getChainName(a.target)}`
@@ -304,7 +304,7 @@ export default {
 
             let selections_q = this.mode < 2 
                 ? alignments.map(
-                    a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`
+                    a => `:${getChainName(a.query)}`
                 ).join(" or ")
                 : getMotif(alignments[0].queryresidues)
             let selections_t = this.mode < 2
@@ -420,7 +420,7 @@ export default {
                 if (queryComp) {
                     const querySele = this.mode < 2 
                         ? alignments.map(
-                            a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`
+                            a => `:${getChainName(a.query)}`
                         ).join(" or ") 
                         : getMotif(alignments[0].queryresidues)
                     queryComp.autoView(querySele, 0);
@@ -495,7 +495,7 @@ export default {
                 if (queryComp) {
                     const querySele = this.mode < 2 
                         ? alignments.map(
-                            a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`
+                            a => `:${getChainName(a.query)}`
                         ).join(" or ") 
                         : getMotif(alignments[0].queryresidues)
                     queryComp.autoView(querySele, 0);
@@ -577,7 +577,7 @@ export default {
                 if (queryComp) {
                     const querySele = this.mode < 2 
                         ? item.alignments.map(
-                            a => `${a.qStartPos}-${a.qEndPos}:${getChainName(a.query)}`
+                            a => `:${getChainName(a.query)}`
                         ).join(" or ")
                         : getMotif(item.alignments[0].queryresidues)
                     queryComp.autoView(querySele, 0);
