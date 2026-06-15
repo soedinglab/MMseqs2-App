@@ -370,6 +370,7 @@ export default {
     },
     created() {
         this.BATCH_SIZE = 100;
+        this.sortKey = this.isComplex ? 'qtm' : 'score'
     },
     props: {
         tableMode: {

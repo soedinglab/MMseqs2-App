@@ -40,6 +40,12 @@ const processPdb = (rawpdb) => {
         outpdb = outpdb.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
     } else {
         for (let line of outpdb.split('\n')) {
+            if (line.startsWith('ATOM')) {
+                const process_resn = line[20] != ' ' // 17
+                const process_coord = line[60] != ' ' // 30
+                line = process_coord ? line.slice(0, 30) + line.slice(31) : line
+                line = process_resn ? line.slice(0, 17) + line.slice(18) : line
+            }
             let numCols = Math.max(0, 80 - line.length);
             let newLine = line + ' '.repeat(numCols) + '\n';
             data += newLine

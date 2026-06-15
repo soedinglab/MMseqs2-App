@@ -272,7 +272,7 @@ export default {
             toggleSourceIdx: -1,
             idxToDb: {},
             idxToColor: {},
-            sortKey: 'node',
+            sortKey: 'idf',
             isCollapsed: false,
             gapFilter: "",
             multipleSelectionEnabled: false,

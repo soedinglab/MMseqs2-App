@@ -507,6 +507,9 @@ export default {
         }
         
         this.sortKeyCache = obj
+        if (this.isComplex) {
+            this.sortKey = 'qtm'
+        }
     },
     mounted() {
         this.$nextTick(() => {

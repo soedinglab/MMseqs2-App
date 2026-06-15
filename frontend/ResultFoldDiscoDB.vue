@@ -333,7 +333,7 @@ export default {
             toggleSourceIdx: -1,
             visibilityTable: [],
             selectedDb: "",
-            sortKey: 'node',
+            sortKey: 'idf',
             isCollapsed: false,
             sortOrder: -1,
             clusters: {},
@@ -588,7 +588,7 @@ export default {
         colheadTop() {
             const addend = !this.onlyOne ? 140 : 92
             const breakpointAddend = this.$vuetify.breakpoint.xsOnly ? 176 : this.$vuetify.breakpoint.mdAndDown ? 124 : 0
-            const auxOffset = this.isCollapsed ? this.$vuetify.breakpoint.mdAndDown ? -248 : -116 : 0
+            const auxOffset = this.isCollapsed ? this.$vuetify.breakpoint.mdAndDown ? ( this.$vuetify.breakpoint.md ? -236 : -248 ) : -116 : 0
             const taxOffset = this.$vuetify.breakpoint.xsOnly && this.isCollapsed ? -52 : 0
             return String(180 + addend + breakpointAddend + auxOffset + taxOffset) + 'px'
         },
