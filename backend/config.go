@@ -87,7 +87,9 @@ var defaultFileContent = []byte(`{
             "uniref"        : "~databases/uniref30_2103",
             "pdb"           : "~databases/pdb70",
             "environmental" : "~databases/colabfold_envdb_202108",
-			"environmentalpair" : "~databases/spire_ctg10_2401_db",
+            "environmentalpair" : "~databases/spire_ctg10_2401_db",
+            // riboseek nucleotide db
+            "nucl"          : "~databases/nucl",
             // paths for templates
             "pdb70"         : "~databases/pdb70",
             "pdbdivided"    : "~databases/pdbdivided",
@@ -96,13 +98,15 @@ var defaultFileContent = []byte(`{
         */
         // path to foldseek binary
         "foldseek"     : "~foldseek",
-		"foldseekinterface" : "~foldseek-interface",
+        "foldseekinterface" : "~foldseek-interface",
         "foldmason"    : "~foldmason",
-		"folddisco"    : "~folddisco",
-		"foldcomp"     : "~foldcomp",
-		"pdb100"       : "~pdb100",
+        "folddisco"    : "~folddisco",
+        "foldcomp"     : "~foldcomp",
+        "pdb100"       : "~pdb100",
         // path to mmseqs binary
         "mmseqs"       : "~mmseqs",
+        // path to riboseek binary
+        "riboseek"     : "~riboseek",
     },
     // connection details for redis database, not used in -local mode
     "redis" : {
@@ -189,6 +193,7 @@ type ConfigColabFoldPaths struct {
 	Pdb               string `json:"pdb"`
 	Environmental     string `json:"environmental"`
 	EnvironmentalPair string `json:"environmentalpair"`
+	Nucleotide        string `json:"nucl"`
 	Pdb70             string `json:"pdb70"`
 	PdbDivided        string `json:"pdbdivided"`
 	PdbObsolete       string `json:"pdbobsolete"`
@@ -201,6 +206,7 @@ type ConfigPaths struct {
 	Results           string                `json:"results"`
 	Temporary         string                `json:"temporary"`
 	Mmseqs            string                `json:"mmseqs"`
+	Riboseek          string                `json:"riboseek"`
 	Foldseek          string                `json:"foldseek"`
 	FoldseekInterface string                `json:"foldseekinterface"`
 	FoldMason         string                `json:"foldmason"`
@@ -352,10 +358,12 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 	if config.App == AppColabFold && config.Paths.ColabFold != nil {
 		paths = append(
 			paths,
+			&config.Paths.Riboseek,
 			&config.Paths.ColabFold.Uniref,
 			&config.Paths.ColabFold.Pdb,
 			&config.Paths.ColabFold.Environmental,
 			&config.Paths.ColabFold.EnvironmentalPair,
+			&config.Paths.ColabFold.Nucleotide,
 			&config.Paths.ColabFold.Pdb70,
 			&config.Paths.ColabFold.PdbDivided,
 			&config.Paths.ColabFold.PdbObsolete,

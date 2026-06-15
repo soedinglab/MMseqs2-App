@@ -1390,6 +1390,115 @@ rm -rf -- "${BASE}/tmp1" "${BASE}/tmp2" "${BASE}/tmp3"
 			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
 		}
 		return nil
+	case NuclMsaJob:
+		resultBase := lookupJobDir(config.Paths.Results, request.Id)
+
+		scriptPath := filepath.Join(resultBase, "riboseek.sh")
+		script, err := os.Create(scriptPath)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		script.WriteString(`#!/bin/bash -e
+RIBOSEEK="$1"
+QUERY="$2"
+BASE="$4"
+DB1="$5"
+export MMSEQS_CALL_DEPTH=1
+mkdir -p "${BASE}"
+"${RIBOSEEK}" createdb "${QUERY}" "${BASE}/qdb"
+"${RIBOSEEK}" search "${BASE}/qdb" "${DB1}" "${BASE}/res" "${BASE}/tmp1" --db-load-mode 2
+"${RIBOSEEK}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res" "${BASE}/riboseek.a3m" --msa-format-mode 6 --db-load-mode 2
+"${RIBOSEEK}" rmdb "${BASE}/qdb"
+"${RIBOSEEK}" rmdb "${BASE}/qdb_h"
+"${RIBOSEEK}" rmdb "${BASE}/res"
+rm -rf -- "${BASE}/tmp1"
+`)
+		err = script.Close()
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+
+		parameters := []string{
+			"/bin/sh",
+			scriptPath,
+			config.Paths.Riboseek,
+			filepath.Join(resultBase, "job.fasta"),
+			"",
+			resultBase,
+			config.Paths.ColabFold.Nucleotide,
+		}
+
+		cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+
+		select {
+		case <-time.After(1 * time.Hour):
+			if err := KillCommand(cmd); err != nil {
+				log.Printf("Failed to kill: %s\n", err)
+			}
+			return &JobTimeoutError{}
+		case err := <-done:
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+
+			path := lookupJobDir(filepath.Clean(config.Paths.Results), request.Id)
+			file, err := os.Create(filepath.Join(path, "riboseek_results_"+string(request.Id)+".tar.gz"))
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+
+			err = func() (err error) {
+				gw := gzip.NewWriter(file)
+				defer func() {
+					cerr := gw.Close()
+					if err == nil {
+						err = cerr
+					}
+				}()
+				tw := tar.NewWriter(gw)
+				defer func() {
+					cerr := tw.Close()
+					if err == nil {
+						err = cerr
+					}
+				}()
+
+				path := filepath.Join(resultBase, "riboseek.a3m")
+				if err := addFile(tw, path); err != nil {
+					return err
+				}
+				os.Remove(path)
+
+				if err := addFile(tw, scriptPath); err != nil {
+					return err
+				}
+				os.Remove(scriptPath)
+
+				return nil
+			}()
+
+			if err != nil {
+				file.Close()
+				return &JobExecutionError{err}
+			}
+
+			if err = file.Sync(); err != nil {
+				file.Close()
+				return &JobExecutionError{err}
+			}
+
+			if err = file.Close(); err != nil {
+				return &JobExecutionError{err}
+			}
+		}
+
+		if config.Verbose {
+			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
+		}
+		return nil
 	case PairJob:
 		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 

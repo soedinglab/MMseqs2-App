@@ -424,6 +424,61 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 	}
 
+	ticketNuclMsaHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
+		var request JobRequest
+
+		var query string
+		var mode string
+		var email string
+
+		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
+			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			f, _, err := req.FormFile("q")
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			defer f.Close()
+
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(f)
+			query = buf.String()
+			mode = req.FormValue("mode")
+			email = req.FormValue("email")
+		} else {
+			err := req.ParseForm()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			query = req.FormValue("q")
+			mode = req.FormValue("mode")
+			email = req.FormValue("email")
+		}
+
+		request, err := NewNuclMsaJobRequest(query, mode, config.Paths.Results, email)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		err = json.NewEncoder(w).Encode(result)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	ticketPairHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
 		var request JobRequest
 
@@ -672,6 +727,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 		if config.App == AppColabFold {
 			r.Handle("/ticket/pair", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketPairHandlerFunc)).Methods("POST")
+			r.Handle("/ticket/nuclmsa", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketNuclMsaHandlerFunc)).Methods("POST")
 		}
 		if config.App == AppFoldseek {
 			r.Handle("/ticket/foldmason", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketFoldMasonMSAHandlerFunc)).Methods("POST")
@@ -686,6 +742,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 		if config.App == AppColabFold {
 			r.HandleFunc("/ticket/pair", ticketPairHandlerFunc).Methods("POST")
+			r.HandleFunc("/ticket/nuclmsa", ticketNuclMsaHandlerFunc).Methods("POST")
 		}
 		if config.App == AppFoldseek {
 			r.HandleFunc("/ticket/foldmason", ticketFoldMasonMSAHandlerFunc).Methods("POST")
@@ -811,6 +868,44 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		name := "folddisco_results_" + string(ticket.Id) + ".tar.gz"
+		path := filepath.Join(lookupJobDir(filepath.Clean(config.Paths.Results), ticket.Id), name)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		io.Copy(w, bufio.NewReader(file))
+	}).Methods("GET")
+
+	r.HandleFunc("/result/nuclmsa/download/{ticket}", func(w http.ResponseWriter, req *http.Request) {
+		vars := mux.Vars(req)
+		ticket, err := jobsystem.GetTicket(Id(vars["ticket"]))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		status, err := jobsystem.Status(ticket.Id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if status != StatusComplete {
+			http.Error(w, "Job is not complete", http.StatusBadRequest)
+			return
+		}
+
+		name := "riboseek_results_" + string(ticket.Id) + ".tar.gz"
 		path := filepath.Join(lookupJobDir(filepath.Clean(config.Paths.Results), ticket.Id), name)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
