@@ -1403,10 +1403,19 @@ RIBOSEEK="$1"
 QUERY="$2"
 BASE="$4"
 DB1="$5"
+GPU="$6"
+GPUSERVER="$7"
 export MMSEQS_CALL_DEPTH=1
+SEARCH_PARAM="--db-load-mode 2"
+if [ "${GPU}" = "1" ]; then
+  SEARCH_PARAM="${SEARCH_PARAM} --gpu 1 --prefilter-mode 1"
+fi
+if [ "${GPUSERVER}" = "1" ]; then
+  SEARCH_PARAM="${SEARCH_PARAM} --gpu-server 1"
+fi
 mkdir -p "${BASE}"
 "${RIBOSEEK}" createdb "${QUERY}" "${BASE}/qdb"
-"${RIBOSEEK}" search "${BASE}/qdb" "${DB1}" "${BASE}/res" "${BASE}/tmp1" --db-load-mode 2
+"${RIBOSEEK}" search "${BASE}/qdb" "${DB1}" "${BASE}/res" "${BASE}/tmp1" ${SEARCH_PARAM}
 "${RIBOSEEK}" result2msa "${BASE}/qdb" "${DB1}.idx" "${BASE}/res" "${BASE}/riboseek.a3m" --msa-format-mode 6 --db-load-mode 2
 "${RIBOSEEK}" rmdb "${BASE}/qdb"
 "${RIBOSEEK}" rmdb "${BASE}/qdb_h"
@@ -1418,6 +1427,16 @@ rm -rf -- "${BASE}/tmp1"
 			return &JobExecutionError{err}
 		}
 
+		gpuEnabled := "0"
+		gpuServerEnabled := "0"
+		environ := []string{}
+		if config.Paths.ColabFold.Gpu != nil {
+			var b2i = map[bool]int{false: 0, true: 1}
+			gpuEnabled = strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseGpu])
+			gpuServerEnabled = strconv.Itoa(b2i[config.Paths.ColabFold.Gpu.UseServer])
+			_, environ = gpuParameters(&config.Paths.ColabFold.Gpu.GpuConfig)
+		}
+
 		parameters := []string{
 			"/bin/sh",
 			scriptPath,
@@ -1426,9 +1445,11 @@ rm -rf -- "${BASE}/tmp1"
 			"",
 			resultBase,
 			config.Paths.ColabFold.Nucleotide,
+			gpuEnabled,
+			gpuServerEnabled,
 		}
 
-		cmd, done, err := execCommand(config.Verbose, parameters, []string{})
+		cmd, done, err := execCommand(config.Verbose, parameters, environ)
 		if err != nil {
 			return &JobExecutionError{err}
 		}
@@ -2132,9 +2153,9 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 		}()
 	} else if config.App == AppColabFold {
 		if config.Paths.ColabFold.Gpu != nil && config.Paths.ColabFold.Gpu.UseGpu && config.Paths.ColabFold.Gpu.UseServer {
-			startserver := func(db string, deviceOverride string, maxSeqs string) {
+			startserver := func(executable string, db string, deviceOverride string, maxSeqs string) {
 				parameters := []string{
-					config.Paths.Mmseqs,
+					executable,
 					"gpuserver",
 					db + ".idx",
 					"--db-load-mode",
@@ -2164,12 +2185,15 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 					maxDuration,
 				)
 			}
-			go startserver(config.Paths.ColabFold.Uniref, config.Paths.ColabFold.Gpu.UnirefDevices, "10000")
+			go startserver(config.Paths.Mmseqs, config.Paths.ColabFold.Uniref, config.Paths.ColabFold.Gpu.UnirefDevices, "10000")
 			if config.Paths.ColabFold.Pdb != "" {
-				go startserver(config.Paths.ColabFold.Pdb, config.Paths.ColabFold.Gpu.PdbDevices, "300")
+				go startserver(config.Paths.Mmseqs, config.Paths.ColabFold.Pdb, config.Paths.ColabFold.Gpu.PdbDevices, "300")
 			}
 			if config.Paths.ColabFold.Environmental != "" {
-				go startserver(config.Paths.ColabFold.Environmental, config.Paths.ColabFold.Gpu.EnvironmentalDevices, "10000")
+				go startserver(config.Paths.Mmseqs, config.Paths.ColabFold.Environmental, config.Paths.ColabFold.Gpu.EnvironmentalDevices, "10000")
+			}
+			if config.Paths.ColabFold.Nucleotide != "" {
+				go startserver(config.Paths.Riboseek, config.Paths.ColabFold.Nucleotide, config.Paths.ColabFold.Gpu.Devices, "300")
 			}
 		}
 	}
