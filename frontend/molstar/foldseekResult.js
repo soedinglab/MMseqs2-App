@@ -3,6 +3,7 @@ import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
+import { MarkerAction } from 'molstar/lib/mol-util/marker-action';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import {
     addUniformRepresentation,
@@ -364,7 +365,6 @@ async function buildFoldseekRepresentations(plugin, state, structure, side, inpu
 async function addQuerySurfaces(plugin, state, structure, input) {
     const defaultAlpha = input.chainSurfaceAlpha ?? 0.14;
     const promises = alignmentChains(state, 'query').map(async (chain, i) => {
-        const initialState = { pickable: false };
         const typeParams = {
             alpha: defaultAlpha,
             visuals: ['structure-gaussian-surface-mesh'],
@@ -395,10 +395,10 @@ async function addQuerySurfaces(plugin, state, structure, input) {
                 type: 'gaussian-surface',
                 color: ChainSurfaceColors[i % ChainSurfaceColors.length],
                 typeParams,
-                initialState,
             },
         );
         if (!surface) return null;
+        setRepresentationNonPickable(surface);
         markNonSequenceMappable(state, surface);
         markNonHoverable(state, surface);
         return { ...surface, chain, level: 'chain' };
@@ -642,6 +642,13 @@ function markNonSequenceMappable(state, item) {
 function markNonHoverable(state, item) {
     const repr = representationObject(item);
     if (repr) state.nonHoverable?.add(repr);
+}
+
+function setRepresentationNonPickable(item) {
+    representationObject(item)?.setState?.({
+        pickable: false,
+        markerActions: MarkerAction.None,
+    });
 }
 
 function isNonHoverable(state, current) {
