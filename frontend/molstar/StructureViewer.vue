@@ -30,8 +30,7 @@
 import { Color } from 'molstar/lib/mol-util/color';
 import StructureViewerToolbar from '../StructureViewerToolbar.vue';
 import StructureViewerTooltip from '../StructureViewerTooltip.vue';
-import { createStructurePlugin, parseColor, setCanvasSpin } from './plugin.js';
-import { captureViewportPng } from './screenshot.js';
+import { applyViewerCanvasProps, captureViewportPng, createStructurePlugin, parseColor, setCanvasSpin } from './molstarViewer.js';
 
 export default {
     name: 'MolstarStructureViewer',
@@ -54,6 +53,7 @@ export default {
         hoverSubscription: null,
         initPromise: null,
         updateQueue: Promise.resolve(),
+        resizeObserver: null,
         isDisposed: false,
         isDisposing: false,
         isFullscreen: false,
@@ -84,9 +84,11 @@ export default {
         this.initPromise = this.initialisePlugin();
         await this.initPromise;
         if (this.isDisposed) return;
-        await this.scene?.mount?.(this.plugin, this.sceneState, this.sceneInput);
-        if (this.isDisposed) return;
         this.bindSceneEvents();
+        if (typeof ResizeObserver !== 'undefined') {
+            this.resizeObserver = new ResizeObserver(() => this.handleResize());
+            this.resizeObserver.observe(this.$refs.structurepanel);
+        }
         await this.runSceneUpdate(this.sceneInput, null);
     },
     beforeDestroy() {
@@ -104,6 +106,8 @@ export default {
 
             window.removeEventListener('resize', this.handleResize);
             document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
+            this.resizeObserver?.disconnect();
+            this.resizeObserver = null;
             this.clickSubscription?.unsubscribe();
             this.clickSubscription = null;
             this.hoverSubscription?.unsubscribe();
@@ -131,7 +135,11 @@ export default {
             this.plugin = null;
             if (plugin) {
                 try {
-                    await this.scene?.dispose?.(plugin, this.sceneState);
+                    if (this.scene?.dispose) {
+                        await this.scene.dispose(plugin, this.sceneState);
+                    } else {
+                        await plugin.clear();
+                    }
                 } catch (e) {
                     // The plugin state may already be partially disposed during teardown.
                 }
@@ -153,6 +161,8 @@ export default {
                     const change = this.scene.diffInput
                         ? this.scene.diffInput(previous, next)
                         : null;
+                    applyViewerCanvasProps(this.plugin, this.scene?.canvasProps?.(next, this.sceneState) || {});
+                    this.setBackground(this.bgColor);
                     await this.scene.update(this.plugin, this.sceneState, next, previous, change);
                     this.$emit('sceneState', this.sceneState);
                 })
@@ -294,8 +304,7 @@ export default {
             }
         },
         async handleMakeCIF() {
-            const makeCIF = this.scene?.makeCIF || this.scene?.makePDB;
-            const cif = await makeCIF?.(this.plugin, this.sceneState, this.sceneInput);
+            const cif = await this.scene?.makeCIF?.(this.plugin, this.sceneState, this.sceneInput);
             this.$emit('makeCIF', cif);
         },
     },

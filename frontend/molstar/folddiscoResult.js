@@ -1,10 +1,21 @@
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
-import { loadStructureFromData, normalizedPdbSourceFromText } from './io.js';
-import { isValidLoci, lociFromExpression, residueInfoFromLoci, structuresMatch } from './interactions.js';
-import { addUniformRepresentation, ballAndStickParams, cartoonParams } from './representations.js';
-import { mat4FromCommaStrings, transformStructureConformation } from './transforms.js';
-import { chainExpression, mergeExpressions, residueExpression } from './selectionExpressions.js';
+import { Color } from 'molstar/lib/mol-util/color';
+import {
+    ballAndStickParams,
+    cartoonParams,
+    chainExpression,
+    isValidLoci,
+    loadStructureFromData,
+    lociFromExpression,
+    mat4FromCommaStrings,
+    mergeExpressions,
+    normalizedPdbSourceFromText,
+    residueExpression,
+    residueInfoFromLoci,
+    structuresMatch,
+    transformStructureConformation,
+} from './molstarStructure.js';
 
 const QueryColor = 0x1e88e5;
 const TargetColor = 0xffc107;
@@ -13,16 +24,23 @@ const TargetLightColor = 0xffe699;
 const MotifRadius = 0.28;
 
 async function addRepresentation(plugin, structure, label, expression, color, alpha = 1, type = 'cartoon', qualityPreset = 'viewer') {
-    const item = await addUniformRepresentation(plugin, structure, {
-        label,
-        type,
-        color,
+    if (!expression) return null;
+    const component = await plugin.builders.structure.tryCreateComponentFromExpression(
+        structure,
         expression,
+        label,
+        { label },
+    );
+    if (!component) return null;
+    const representation = await plugin.builders.structure.representation.addRepresentation(component, {
+        type,
+        color: 'uniform',
+        colorParams: { value: Color(color) },
         typeParams: type === 'ball-and-stick'
             ? ballAndStickParams({ alpha, sizeFactor: MotifRadius })
             : cartoonParams({ alpha, sizeFactor: 0.2, qualityPreset }),
     });
-    return item?.representation || null;
+    return representation;
 }
 
 function parseMotif(value = '') {
@@ -181,10 +199,6 @@ function makeCIF(state) {
 }
 
 export const folddiscoResult = {
-    async mount() {
-        return {};
-    },
-
     async update(plugin, state, input) {
         const key = `${input.alignment?.dbkey || input.alignment?.target}:${input.alignment?.queryresidues}:${input.alignment?.targetresidues}`;
         if (state.loadKey !== key) {
@@ -207,17 +221,13 @@ export const folddiscoResult = {
         return structureEvent(state, event?.current, 'structure-hover');
     },
 
-    resetView(plugin, state, input) {
+    resetView(plugin, state, input, options = {}) {
         const loci = lociFromExpression(state.query, motifExpression(input.alignment?.queryresidues));
-        if (loci) plugin.managers.camera.focusLoci(loci, { durationMs: 250, extraRadius: 10, minRadius: 5 });
+        if (loci) plugin.managers.camera.focusLoci(loci, { durationMs: options.durationMs ?? 250, extraRadius: 10, minRadius: 5 });
         else plugin.managers.camera.reset();
     },
 
     async makeCIF(plugin, state) {
         return makeCIF(state);
-    },
-
-    async dispose(plugin) {
-        await plugin?.clear?.();
     },
 };

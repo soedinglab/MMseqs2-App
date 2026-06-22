@@ -1,27 +1,45 @@
 import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
+import { Color } from 'molstar/lib/mol-util/color';
 import { tmalign, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import { pulchra } from 'pulchra-wasm';
 import { decodeMultimer, mergeMultimer, revertChainInfo, splitMultimer, storeChains } from '../Utilities.js';
-import { mockPDB } from './foldseekUtilities.js';
-import { loadStructureFromData } from './io.js';
-import { focusCurrentLoci, isValidLoci, lociFromExpression, OneToThree, residueInfoFromLoci, structuresMatch } from './interactions.js';
-import { addUniformRepresentation, cartoonParams } from './representations.js';
-import { mat4FromRotationTranslation, transformStructureConformation } from './transforms.js';
-import { mergeExpressions, residueExpression } from './selectionExpressions.js';
+import {
+    cartoonParams,
+    focusCurrentLoci,
+    isValidLoci,
+    loadStructureFromData,
+    lociFromExpression,
+    mat4FromRotationTranslation,
+    mergeExpressions,
+    mockPDB,
+    OneToThree,
+    residueExpression,
+    residueInfoFromLoci,
+    structuresMatch,
+    transformStructureConformation,
+} from './molstarStructure.js';
 
-const ReferenceColor = 0x1e88e5;
-const RegularColor = 0xffc107;
+const ReferenceColor = 0x49a9fc;
+const RegularColor = 0xffd761;
 const MaskColor = 0x666666;
 async function addRepresentation(plugin, structure, label, color, expression, alpha = 1, type = 'cartoon', qualityPreset = 'viewer') {
-    return addUniformRepresentation(plugin, structure, {
-        label,
-        type,
-        color,
+    if (!expression) return null;
+    const component = await plugin.builders.structure.tryCreateComponentFromExpression(
+        structure,
         expression,
+        label,
+        { label },
+    );
+    if (!component) return null;
+    const representation = await plugin.builders.structure.representation.addRepresentation(component, {
+        type,
+        color: 'uniform',
+        colorParams: { value: Color(color) },
         typeParams: cartoonParams({ alpha, qualityPreset }),
     });
+    return { component, representation };
 }
 
 async function addStructure(plugin, state, input, index) {
@@ -39,14 +57,15 @@ async function addStructure(plugin, state, input, index) {
     }
 
     const color = index === input.reference ? ReferenceColor : RegularColor;
+    const alpha = index === input.reference ? 1.0 : 0.7;
     const item = {
         index,
         entry,
         structure,
-        base: await addRepresentation(plugin, structure, `foldmason-${index}`, color, MS.struct.generator.all(), 1, 'cartoon', input.representationQuality),
+        base: await addRepresentation(plugin, structure, `foldmason-${index}`, color, MS.struct.generator.all(), alpha, 'cartoon', input.representationQuality),
         mask: null,
     };
-    item.mask = await addRepresentation(plugin, structure, `foldmason-${index}-mask`, MaskColor, maskExpression(entry, input.mask), 1, 'cartoon', input.representationQuality);
+    item.mask = await addRepresentation(plugin, structure, `foldmason-${index}-mask`, MaskColor, maskExpression(entry, input.mask), alpha, 'cartoon', input.representationQuality);
     state.structures.set(index, item);
     if (index === input.reference) state.referenceStructure = structure;
 }
@@ -121,7 +140,7 @@ async function updateMasks(plugin, state, input) {
             `foldmason-${item.index}-mask`,
             MaskColor,
             maskExpression(item.entry, input.mask),
-            1,
+            item.index === input.reference ? 1.0 : 0.5,
             'cartoon',
             input.representationQuality,
         );
@@ -166,10 +185,9 @@ async function setFocus(plugin, state, input) {
     if (state.focusKey === key) return;
     state.focusKey = key;
     if (!Number.isInteger(focus) || focus < 0) return;
-
     const reference = state.structures.get(input.reference);
     if (!reference) return;
-    const loci = lociForItem(reference, [focus]);
+    const loci = lociForItem(reference, input.selectedColumns || [focus]);
     if (!loci) return;
     plugin.managers.camera.focusLoci(loci, {
         durationMs: 250,
@@ -235,7 +253,6 @@ function structureEvent(state, current, type) {
             name: item.entry.name,
         };
     }
-
     const column = columnForResidue(item.entry, residue.chain, residue.residue);
     const residueInfo = residueInfoForColumn(item.entry, column) || {
         chain: residue.chain,
@@ -404,10 +421,6 @@ function makeCIF(state) {
 }
 
 export const foldmasonResult = {
-    async mount() {
-        return {};
-    },
-
     async update(plugin, state, input) {
         await updateStructures(plugin, state, input);
         await setSelection(plugin, state, input);
@@ -436,9 +449,5 @@ export const foldmasonResult = {
 
     async makeCIF(plugin, state) {
         return makeCIF(state);
-    },
-
-    async dispose(plugin) {
-        await plugin?.clear?.();
     },
 };

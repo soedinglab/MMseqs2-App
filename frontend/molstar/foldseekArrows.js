@@ -1,21 +1,17 @@
-import { Color } from 'molstar/lib/mol-util/color';
-import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { Vec3 } from 'molstar/lib/mol-math/linear-algebra';
-import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
-import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
-import { PluginStateObject } from 'molstar/lib/mol-plugin-state/objects';
-import { StateTransformer } from 'molstar/lib/mol-state';
-import { Task } from 'molstar/lib/mol-task';
 import { Shape } from 'molstar/lib/mol-model/shape';
 import { Mesh } from 'molstar/lib/mol-geo/geometry/mesh/mesh';
 import { MeshBuilder } from 'molstar/lib/mol-geo/geometry/mesh/mesh-builder';
 import { addCylinder } from 'molstar/lib/mol-geo/geometry/mesh/builder/cylinder';
 import { Sphere3D } from 'molstar/lib/mol-math/geometry';
+import { PluginStateObject } from 'molstar/lib/mol-plugin-state/objects';
+import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
+import { StateTransformer } from 'molstar/lib/mol-state';
+import { Task } from 'molstar/lib/mol-task';
+import { Color } from 'molstar/lib/mol-util/color';
 import { ParamDefinition as PD } from 'molstar/lib/mol-util/param-definition';
-import { getChainName } from './foldseekUtilities.js';
 
-const FoldseekTransform = StateTransformer.builderFactory('foldseek');
-const FoldseekArrowsShape = FoldseekTransform({
+const FoldseekArrowsShape = StateTransformer.builderFactory('foldseek')({
     name: 'alignment-arrows-shape',
     display: { name: 'Alignment Arrows' },
     from: PluginStateObject.Root,
@@ -126,60 +122,23 @@ function getMatchingResiduePairs(alignment) {
     return pairs;
 }
 
-function caOrdinalCoordinateMap(structure) {
-    const map = new Map();
-    if (!structure) return map;
-
-    const loc = StructureElement.Location.create(structure);
-    const chainCounts = new Map();
-    for (const unit of structure.units) {
-        if (!Unit.isAtomic(unit)) continue;
-        loc.unit = unit;
-
-        const { elements } = unit;
-        const size = OrderedSet.size(elements);
-        for (let i = 0; i < size; i++) {
-            loc.element = OrderedSet.getAt(elements, i);
-            if (StructureProperties.atom.label_atom_id(loc) !== 'CA') continue;
-
-            const authChain = StructureProperties.chain.auth_asym_id(loc);
-            const labelChain = StructureProperties.chain.label_asym_id(loc);
-            const coordinate = [
-                StructureProperties.atom.x(loc),
-                StructureProperties.atom.y(loc),
-                StructureProperties.atom.z(loc),
-            ];
-
-            for (const chain of new Set([authChain, labelChain].filter(Boolean))) {
-                const ordinal = (chainCounts.get(chain) || 0) + 1;
-                chainCounts.set(chain, ordinal);
-                map.set(`${chain}:${ordinal}`, coordinate);
-            }
-        }
-    }
-
-    return map;
-}
-
 function alignmentArrowPairs(state, input) {
-    const queryStructure = state.query?.structure?.cell?.obj?.data;
-    const targetStructure = state.target?.structure?.cell?.obj?.data;
-    if (!queryStructure || !targetStructure) return [];
-
-    const queryCoords = caOrdinalCoordinateMap(queryStructure);
-    const targetCoords = caOrdinalCoordinateMap(targetStructure);
     const pairs = [];
 
-    for (const alignment of input?.alignments || []) {
-        const queryChain = state.chainOverrides?.query?.[getChainName(alignment.query)] || getChainName(alignment.query);
-        const targetChain = state.chainOverrides?.target?.[getChainName(alignment.target)] || getChainName(alignment.target);
-
+    for (const [index, alignment] of (input?.alignments || []).entries()) {
+        const queryMap = state.alignmentMaps?.query?.[index];
+        const targetMap = state.alignmentMaps?.target?.[index];
+        if (!queryMap || !targetMap) continue;
         for (const match of getMatchingResiduePairs(alignment)) {
-            const query = queryCoords.get(`${queryChain}:${match.query}`);
-            const target = targetCoords.get(`${targetChain}:${match.target - alignment.dbStartPos + 1}`);
+            const query = residueCoordinate(queryMap.toStructure.get(match.query));
+            const target = residueCoordinate(targetMap.toStructure.get(match.target));
             if (query && target) pairs.push([query, target]);
         }
     }
 
     return pairs;
+}
+
+function residueCoordinate(residue) {
+    return residue ? [residue.x, residue.y, residue.z] : null;
 }
