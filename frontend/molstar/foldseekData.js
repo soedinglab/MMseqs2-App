@@ -1,6 +1,19 @@
 import { Mat4 } from 'molstar/lib/mol-math/linear-algebra';
 import { pulchra } from 'pulchra-wasm';
-import { getAccession, getChainName, mockPDB } from './foldseekUtilities.js';
+import { detectStructureFormat, mockPDB } from './molstarStructure.js';
+
+export function getChainName(name) {
+    if (!name || /_v[0-9]+$/.test(name)) return 'A';
+    if (/^[A-Za-z0-9]$/.test(name)) return name;
+    const pos = name.lastIndexOf('_');
+    return pos !== -1 ? name.substring(pos + 1, pos + 2) : 'A';
+}
+
+function getAccession(name) {
+    if (!name || /_v[0-9]+$/.test(name)) return name;
+    const pos = name.lastIndexOf('_');
+    return pos !== -1 ? name.substring(0, pos) : name;
+}
 
 export async function prepareFoldseekStructureInput(ctx) {
     if (!ctx.alignments?.length || (ctx.structureMode !== 'interface' && typeof ctx.alignments[0].tCa === 'undefined')) {
@@ -27,7 +40,9 @@ export async function prepareFoldseekStructureInput(ctx) {
         structureMode: ctx.structureMode || 'alignment',
         interfaceCutoff: ctx.interfaceCutoff || 10,
         queryIndex: queryIndex(ctx),
-        queryChain: activeQueryChain(ctx, activeQuery),
+        queryChain: ctx.structureMode === 'multimer' || ctx.structureMode === 'interface'
+            ? null
+            : activeQueryChain(ctx, activeQuery),
     };
 }
 
@@ -46,7 +61,7 @@ async function buildQuery(ctx) {
     const data = await loadQueryData(ctx);
     if (!data) return null;
 
-    const format = detectFormat(data);
+    const format = detectStructureFormat(data);
     return { data, format, label: 'query' };
 }
 
@@ -211,9 +226,4 @@ function mergePdbChunks(chunks) {
     return chunks
         .flatMap(chunk => (chunk || '').split(/\r?\n/).filter(line => line.startsWith('ATOM') || line.startsWith('HETATM')))
         .join('\n');
-}
-
-function detectFormat(data) {
-    const trimmed = (data || '').trimStart();
-    return trimmed.startsWith('#') || trimmed.startsWith('data_') ? 'mmcif' : 'pdb';
 }

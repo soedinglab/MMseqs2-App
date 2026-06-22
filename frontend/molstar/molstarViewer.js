@@ -1,12 +1,14 @@
-import { PluginContext } from 'molstar/lib/mol-plugin/context';
-import { PluginConfig } from 'molstar/lib/mol-plugin/config';
-import { PluginSpec } from 'molstar/lib/mol-plugin/spec';
-import { PluginBehaviors } from 'molstar/lib/mol-plugin/behavior';
+import { canvasToBlob } from 'molstar/lib/mol-canvas3d/util';
 import { SsaoParams } from 'molstar/lib/mol-canvas3d/passes/ssao';
+import { PluginBehaviors } from 'molstar/lib/mol-plugin/behavior';
+import { PluginConfig } from 'molstar/lib/mol-plugin/config';
+import { PluginContext } from 'molstar/lib/mol-plugin/context';
+import { PluginSpec } from 'molstar/lib/mol-plugin/spec';
+import { Task } from 'molstar/lib/mol-task';
 import { Color } from 'molstar/lib/mol-util/color';
 import { ParamDefinition as PD } from 'molstar/lib/mol-util/param-definition';
 
-export const DEFAULT_SPIN_SPEED = 0.05;
+const DEFAULT_SPIN_SPEED = 0.05;
 
 const DefaultSsaoParams = PD.getDefaultValues(SsaoParams);
 
@@ -123,4 +125,33 @@ export function setCanvasSpin(plugin, enabled) {
                 : { name: 'off', params: {} },
         },
     });
+}
+
+export async function drawStableFrame(plugin) {
+    plugin?.canvas3d?.commit(true);
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    plugin?.canvas3d?.commit(true);
+    await new Promise(resolve => requestAnimationFrame(resolve));
+}
+
+export async function captureViewportPng(plugin, configure, taskName = 'Generate Image') {
+    const screenshot = plugin?.helpers?.viewportScreenshot;
+    if (!screenshot) return null;
+
+    await drawStableFrame(plugin);
+
+    const previousValues = screenshot.values;
+    const previousCropParams = screenshot.cropParams;
+    configure(screenshot, previousValues, previousCropParams);
+
+    try {
+        return await plugin.runTask(Task.create(taskName, async (ctx) => {
+            await screenshot.draw(ctx);
+            return canvasToBlob(screenshot.canvas, 'image/png');
+        }));
+    } finally {
+        screenshot.behaviors.values.next(previousValues);
+        screenshot.behaviors.cropParams.next(previousCropParams);
+        screenshot.resetCrop();
+    }
 }

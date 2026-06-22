@@ -13,8 +13,7 @@ import { Color } from 'molstar/lib/mol-util/color';
 import { foldseekResult } from './foldseekResult.js';
 import { folddiscoResult } from './folddiscoResult.js';
 import { prepareFoldseekStructureInput } from './foldseekData.js';
-import { createStructurePlugin, setCanvasSpin } from './plugin.js';
-import { captureViewportPng, drawStableFrame } from './screenshot.js';
+import { captureViewportPng, createStructurePlugin, drawStableFrame, setCanvasSpin } from './molstarViewer.js';
 
 export default {
     name: "StructureViewerThumbnail",
@@ -140,7 +139,7 @@ export default {
             };
         },
 
-        async renderItem(item) {
+        async renderSceneForItem(item) {
             if (!item?.alignments?.length || !this.plugin) return false;
             await this.plugin.clear();
             this.sceneState = {};
@@ -149,10 +148,19 @@ export default {
             if (!input || (!input.query && !input.target && (!input.queryPdb || !input.targetPdb))) return false;
 
             const scene = this.mode === 2 ? folddiscoResult : foldseekResult;
-            await scene.update(this.plugin, this.sceneState, this.thumbnailSceneInput(input));
-            this.resetCamera();
+            const sceneInput = this.thumbnailSceneInput(input);
+            await scene.update(this.plugin, this.sceneState, sceneInput);
+            this.fitScene(scene, sceneInput);
             await drawStableFrame(this.plugin);
             return true;
+        },
+
+        fitScene(scene, sceneInput) {
+            if (scene.resetView) {
+                scene.resetView(this.plugin, this.sceneState, sceneInput, { durationMs: 0 });
+            } else {
+                this.resetCamera();
+            }
         },
 
         async captureThumbnail() {
@@ -189,6 +197,22 @@ export default {
             this.sceneState = {};
         },
 
+        moveViewportTo(targetEl, width, height) {
+            if (!targetEl || !this.$refs.viewport) return;
+            targetEl.appendChild(this.$refs.viewport);
+            this.resizeTo(width, height);
+        },
+
+        restoreThumbnailViewport() {
+            this.moveViewportTo(this.$refs.offscreenContainer, this.thumbWidth, this.thumbHeight);
+        },
+
+        stopActiveViewerInteraction() {
+            this.setSpin(false);
+            this.isSpinning = false;
+            this.$refs.canvas?.removeEventListener('pointerdown', this.handlePointerInteraction);
+        },
+
         canProcessQueue() {
             return !this.destroyed
                 && !this.queuePaused
@@ -222,9 +246,7 @@ export default {
         async switchViewer(id, alignments, newTargetEl) {
             if (!this.plugin) return;
             this.enqueueOperation(async () => {
-                this.setSpin(false);
-                this.isSpinning = false;
-                this.$refs.canvas.removeEventListener('pointerdown', this.handlePointerInteraction);
+                this.stopActiveViewerInteraction();
                 await this.mountActiveViewer(id, alignments, newTargetEl, 'Switch Mol* viewer failed for');
             });
             await this.operationQueue;
@@ -234,11 +256,10 @@ export default {
             if (!this.plugin || this.destroyed) return;
             this.queuePaused = true;
             this.activeId = id;
-            targetEl.appendChild(this.$refs.viewport);
-            this.resizeTo('100%', '100%');
+            this.moveViewportTo(targetEl, '100%', '100%');
 
             try {
-                const rendered = await this.renderItem({ id, db: id, alignments });
+                const rendered = await this.renderSceneForItem({ id, db: id, alignments });
                 if (!rendered || this.destroyed || !this.plugin) {
                     await this.restoreOffscreenViewer(id);
                     return;
@@ -254,12 +275,9 @@ export default {
 
         async restoreOffscreenViewer(id) {
             if (this.activeId !== id) return;
-            this.setSpin(false);
-            this.isSpinning = false;
-            this.$refs.canvas.removeEventListener('pointerdown', this.handlePointerInteraction);
+            this.stopActiveViewerInteraction();
             await this.clearPlugin();
-            this.$refs.offscreenContainer.appendChild(this.$refs.viewport);
-            this.resizeTo(this.thumbWidth, this.thumbHeight);
+            this.restoreThumbnailViewport();
             this.activeId = null;
             this.queuePaused = false;
             this.$emit('spin-change', false);
@@ -272,13 +290,10 @@ export default {
         },
 
         async deactivateViewerAsync() {
-            this.setSpin(false);
-            this.isSpinning = false;
-            this.$refs.canvas.removeEventListener('pointerdown', this.handlePointerInteraction);
+            this.stopActiveViewerInteraction();
             await this.clearPlugin();
 
-            this.$refs.offscreenContainer.appendChild(this.$refs.viewport);
-            this.resizeTo(this.thumbWidth, this.thumbHeight);
+            this.restoreThumbnailViewport();
 
             this.activeId = null;
             this.queuePaused = false;
@@ -333,29 +348,30 @@ export default {
 
             this.isRendering = true;
             const item = this.thumbnailQueue[this.currentQueueIndex];
+            let advanceQueue = true;
 
             try {
-                const rendered = await this.renderItem(item);
+                const rendered = await this.renderSceneForItem(item);
                 if (!this.canProcessQueue()) {
-                    await this.clearPlugin();
-                    this.isRendering = false;
+                    advanceQueue = false;
                     return;
                 }
                 if (rendered) {
                     const blob = await this.captureThumbnail();
                     this.$emit('thumbnail-ready', { id: item.id, blob });
                 }
-                await this.clearPlugin();
             } catch (e) {
                 console.warn('Mol* thumbnail generation failed for', item.id, e);
+            } finally {
                 await this.clearPlugin();
-            }
+                this.isRendering = false;
 
-            this.currentQueueIndex++;
-            this.isRendering = false;
-
-            if (!this.destroyed) {
-                this.$nextTick(() => this.scheduleProcessQueue());
+                if (advanceQueue) {
+                    this.currentQueueIndex++;
+                    if (!this.destroyed) {
+                        this.$nextTick(() => this.scheduleProcessQueue());
+                    }
+                }
             }
         },
     },

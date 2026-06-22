@@ -152,9 +152,12 @@
             </v-flex>
         </v-layout>
         <portal>
-            <panel v-if="alignment != null" class="alignment" :style="{ 'top': alnBoxOffset + 'px',  
-            width: $vuetify.breakpoint.smAndDown ? 'calc(100% - 16px)' : 'calc(100% - 32px)', 
-            right: $vuetify.breakpoint.smAndDown ? '8px' : '16px'}" ref="alignment_panel" v-click-outside="closeAlignment">
+            <panel
+                v-if="alignment != null"
+                :class="alignmentModalClass"
+                ref="alignment_panel"
+                v-click-outside="closeAlignment"
+            >
                 <template slot="desc">
                     <v-btn icon @click="closeAlignment" style="display: block; margin-left: auto;">
                         <v-icon>
@@ -162,8 +165,7 @@
                         </v-icon>
                     </v-btn>
                 </template>
-                <component
-                    :is="searchType === 'interfacesearch' ? 'InterfaceAlignmentPanel' : 'AlignmentPanel'"
+                <AlignmentPanel
                     slot="content"
                     :key="alignment ? `ap-${alignment.id}` : 'ap-'"
                     :alignments="alignment"
@@ -179,17 +181,15 @@
 <script>
 import Panel from './Panel.vue';
 import AlignmentPanel from './AlignmentPanel.vue';
-import InterfaceAlignmentPanel from './InterfaceAlignmentPanel.vue';
 import Ruler from './Ruler.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
 import AllAtomPredictMixin from './AllAtomPredictMixin.vue';
 import NavigationButton from './NavigationButton.vue';
 
-import { mockPDB, mergePdbs, concatenatePdbs, 
-    getChainName, getAccession, getAbsOffsetTop,
+import { mockPDB, mergePdbs, concatenatePdbs,
+    getChainName, getAccession,
     encodeMultimer} from './Utilities';
 
-import { debounce } from './lib/debounce';
 import ResultFoldseekDB from './ResultFoldseekDB.vue';
 import SelectToSendPanel from './SelectToSendPanel.vue';
 import NameField from './NameField.vue';
@@ -199,14 +199,12 @@ import Top100Foldseek from './Top100Foldseek.vue';
 export default {
     name: 'ResultView',
     mixins: [ ResultSankeyMixin, AllAtomPredictMixin ],
-    components: { Panel, AlignmentPanel, InterfaceAlignmentPanel, Ruler, 
+    components: { Panel, AlignmentPanel, Ruler,
         NavigationButton, ResultFoldseekDB, SelectToSendPanel, 
         NameField, TopHits, Top100Foldseek },
     data() {
         return {
             alignment: null,
-            activeTarget: null,
-            alnBoxOffset: 0,
             selectedDatabases: 0,
             selectedStates: null,
             selectedCountsPerDb: null,
@@ -239,7 +237,6 @@ export default {
         this.fetchStructureFileURL = this.fetchStructureFileURL.bind(this)
     },
     mounted() {
-        window.addEventListener("resize", this.handleAlignmentBoxResize, { passive: true });
         if (this.hits && !this.selectedStates && !this.selectedCountPerDb && !this.dbToIdx) {
             const obj = Object.fromEntries(
                 n.results.map(( e, i ) => [i, Object.fromEntries(
@@ -261,9 +258,6 @@ export default {
                 }, 0)
             })
         }
-    },
-    beforeDestroy() {
-        window.removeEventListener("resize", this.handleAlignmentBoxResize);
     },
     watch: {
         hits: {
@@ -301,6 +295,9 @@ export default {
         },
         isComplex() {
             return this.hits?.type == "complexsearch";
+        },
+        alignmentModalClass() {
+            return ['alignment', this.isComplex || this.searchType === 'interfacesearch' ? 'alignment--large' : 'alignment--compact'];
         },
         fluidLineLen() {
             if (this.$vuetify.breakpoint.xsOnly) {
@@ -351,8 +348,6 @@ export default {
                 this.$nextTick(() => {
                     item.map(item => item.db = db);
                     this.alignment = item;
-                    this.activeTarget = event.target.closest('.alignment-action');
-                    this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight;
                 });
             }
         },
@@ -362,14 +357,8 @@ export default {
         closeAlignment() {
             this.$nextTick(() => {
                 this.alignment = null;
-                this.activeTarget = null;
             })
         },
-        handleAlignmentBoxResize: debounce(function() {
-            if (this.activeTarget != null) {
-                this.alnBoxOffset = getAbsOffsetTop(this.activeTarget) + this.activeTarget.offsetHeight;
-            }
-        }, 32, false),
         forwardDropdown(event, items) {
             if (this.menuActivator) {
                 this.menuItems = items;
@@ -727,9 +716,71 @@ export default {
 } 
 
 .alignment {
-    position:absolute;
+    position: fixed;
+    top: 64px;
+    right: 16px;
+    left: 16px;
     z-index: 999;
+    overflow: hidden;
+    overscroll-behavior: contain;
     box-shadow: 0 3px 5px -1px rgba(0,0,0,.2),0 6px 10px 0 rgba(0,0,0,.14),0 1px 18px 0 rgba(0,0,0,.12) !important;
+}
+
+.alignment--large {
+    bottom: 16px;
+}
+
+.alignment--compact {
+    height: clamp(520px, 72vh, 760px);
+    max-height: calc(100vh - 80px);
+}
+
+.alignment .panel {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.alignment .subheading {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 2;
+    padding: 4px 8px;
+}
+
+.alignment .panel-content {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    position: absolute;
+    top: 44px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    min-width: 0;
+    min-height: 0;
+    box-sizing: border-box;
+    padding: 16px;
+    overflow: hidden;
+}
+
+@media print, screen and (max-width: 599px) {
+    .alignment {
+        top: 56px;
+        right: 8px;
+        left: 8px;
+    }
+
+    .alignment--large {
+        bottom: 8px;
+    }
+
+    .alignment--compact {
+        height: calc(100vh - 64px);
+        max-height: calc(100vh - 64px);
+    }
 }
 
 </style>

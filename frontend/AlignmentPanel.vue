@@ -1,43 +1,42 @@
 <template>
-    <div class="alignment-panel" slot="content">
+    <div :class="['alignment-panel', `alignment-panel--${structureMode}`]" slot="content">
+        <div class="alignment-header">
+            <div class="alignment-controls">
+                <v-select
+                    class="alignment-colorscheme"
+                    persistent-hint
+                    label="Colorscheme"
+                    v-model="colorscheme"
+                    :items="schemes"
+                    attach
+                >
+                <template v-slot:item="{ item, on, attrs }">
+                    <v-list-item two-line v-on="on" v-bind="attrs">
+                        <v-list-item-content>
+                           <v-list-item-title>{{ item.text }}</v-list-item-title>
+                           <v-list-item-subtitle :class="item.value" v-if="alignments && alignments.length > 0">{{ alignments[0].qAln.substring(0, 25) }}&hellip;</v-list-item-subtitle>
+                        </v-list-item-content>
+                    </v-list-item>
+                </template>
+                </v-select>
+                <v-btn
+                    class="alignment-clear-button"
+                    small
+                    title="Clear sequence selection"
+                    @click="clearAllSelection"
+                    :disabled="hasSelection"
+                >
+                    {{ (alignments[0].hasOwnProperty("complexu")) ? "Clear all selections" : "Clear selection" }}&nbsp;
+                    <v-icon style="width: 16px;">{{ $MDI.CloseCircle }}</v-icon>
+                </v-btn>
+            </div>
+            <small v-if="$APP == 'foldseek'" class="alignment-hint">
+                Select query or target residues to highlight their structure.<br style="height: 0.2em">
+                Click on highlighted sequences to dehighlight the corresponding chain.
+            </small>
+        </div>
         <div class="alignment-wrapper-outer">
             <div class="alignment-content">
-                <div class="alignment-header">
-                    <div class="alignment-controls">
-                        <v-select
-                            class="alignment-colorscheme"
-                            persistent-hint
-                            label="Colorscheme"
-                            v-model="colorscheme"
-                            :items="schemes"
-                            attach
-                        >
-                        <template v-slot:item="{ item, on, attrs }">
-                            <v-list-item two-line v-on="on" v-bind="attrs">
-                                <v-list-item-content>
-                                   <v-list-item-title>{{ item.text }}</v-list-item-title>
-                                   <v-list-item-subtitle :class="item.value" v-if="alignments && alignments.length > 0">{{ alignments[0].qAln.substring(0, 25) }}&hellip;</v-list-item-subtitle>
-                                </v-list-item-content>
-                            </v-list-item>
-                        </template>
-                        </v-select>
-                        <v-btn
-                            class="alignment-clear-button"
-                            small
-                            title="Clear sequence selection"
-                            @click="clearAllSelection"
-                            :disabled="hasSelection"
-                        >
-                            {{ (alignments[0].hasOwnProperty("complexu")) ? "Clear all selections" : "Clear selection" }}&nbsp;
-                            <v-icon style="width: 16px;">{{ $MDI.CloseCircle }}</v-icon>
-                        </v-btn>
-                    </div>
-                    <small v-if="$APP == 'foldseek'" class="alignment-hint">
-                        Select query or target residues to highlight their structure.<br style="height: 0.2em">
-                        Click on highlighted sequences to dehighlight the corresponding chain.
-                    </small>
-                </div>
-
                 <div
                     class="alignment-entry"
                     v-for="(alignment, index) in alignments"
@@ -54,6 +53,8 @@
                         :targetMap="targetMaps[index]"
                         :highlights="highlights[index]"
                         :queryHighlights="queryHighlights[index]"
+                        :interfaceHighlights="interfaceHighlights.target[index]"
+                        :queryInterfaceHighlights="interfaceHighlights.query[index]"
                         :hover="getAlignmentHover(index)"
                         :colorscheme="colorscheme"
                         ref="alignments"
@@ -107,8 +108,7 @@
 import Alignment from './Alignment.vue'
 import StructureHoverTooltip from './StructureHoverTooltip.vue'
 import { foldseekResult } from './molstar/foldseekResult.js';
-import { resolvedChainForState } from './molstar/foldseekSelections.js';
-import { getChainName } from './molstar/foldseekUtilities.js'
+import { getChainName } from './molstar/foldseekData.js'
 import { downloadBlob, exportAlignmentTitle, getResiduePointerOffset, makePositionMap, residueTextOffset } from './alignmentPanelUtils.js';
 import { prepareFoldseekStructureInput } from './molstar/foldseekData.js';
 
@@ -136,7 +136,7 @@ export default {
         structureHoverInfo: null,
         structureFocus: null,
         alignmentHover: null,
-        sceneChainOverrides: { query: {}, target: {} },
+        sceneInterfaceRegions: { query: [], target: [] },
         hoverFocusTimer: null,
         isSelecting: false,
         isPointerDown: false,
@@ -212,6 +212,22 @@ export default {
             if (this.hits?.type === 'complexsearch') return 'multimer';
             return 'alignment';
         },
+        interfaceHighlights() {
+            if (this.structureMode !== 'interface') {
+                const empty = this.alignments.map(alignment => (
+                    new Array(Math.ceil((alignment?.qAln?.length || 0) / this.effectiveLineLen)).fill([])
+                ));
+                return { query: empty, target: empty };
+            }
+            return {
+                query: this.alignments.map((alignment, index) => (
+                    this.lineRangesForInterface(index, 'query', getChainName(alignment.query))
+                )),
+                target: this.alignments.map((alignment, index) => (
+                    this.lineRangesForInterface(index, 'target', getChainName(alignment.target))
+                )),
+            };
+        },
     },
     methods: {
         async prepareStructureViewer() {
@@ -271,18 +287,11 @@ export default {
         updateAdaptiveLineLen() {
             if (!this.$el || !this.alignments?.length || !this.observedContainerWidth) return;
 
-            const panelWidth = this.observedContainerWidth;
-            const structureEl = this.$el.querySelector('.alignment-structure-wrapper');
-            const structureWidth = structureEl
-                ? Math.round(structureEl.getBoundingClientRect().width)
-                : 0;
-            const gap = structureWidth ? this.alignmentPanelGap() : 0;
-            const labelWidth = 80;
             const charWidth = this.cachedResidueCharWidth || this.measureResidueCharWidth();
-
-            const availableWidth = Math.max(260, panelWidth - structureWidth - gap - labelWidth);
+            const paneWidth = Math.round(this.resizeTarget()?.clientWidth || this.observedContainerWidth);
+            const availableWidth = Math.max(260, paneWidth - this.alignmentLabelWidth(charWidth));
             const maxAlignmentLength = Math.max(...this.alignments.map(alignment => alignment.alnLength || alignment.qAln?.length || 0));
-            const next = Math.max(20, Math.min(maxAlignmentLength || this.lineLen, Math.floor(availableWidth / charWidth)));
+            const next = Math.max(20, Math.min(maxAlignmentLength || this.lineLen, Math.floor(availableWidth / charWidth) - 1));
 
             if (!this.adaptiveLineLen || Math.abs(next - this.adaptiveLineLen) > 1) {
                 this.clearHover();
@@ -290,10 +299,13 @@ export default {
                 this.redrawAlignmentSelections();
             }
         },
-        alignmentPanelGap() {
-            if (typeof window === 'undefined') return 32;
-            const style = window.getComputedStyle(this.$el);
-            return Number.parseFloat(style.columnGap || style.gap) || 32;
+        alignmentLabelWidth(charWidth) {
+            const maxPosition = Math.max(...this.alignments.map(alignment => (
+                Math.max(alignment.qStartPos || 0, alignment.dbStartPos || 0)
+                    + (alignment.alnLength || alignment.qAln?.length || 0)
+            )));
+            const labelChars = 3 + String(maxPosition || 0).length;
+            return labelChars * charWidth + 8;
         },
         measureResidueCharWidth() {
             if (this.cachedResidueCharWidth) return this.cachedResidueCharWidth;
@@ -305,6 +317,8 @@ export default {
             probe.style.visibility = 'hidden';
             probe.style.pointerEvents = 'none';
             probe.style.whiteSpace = 'pre';
+            probe.style.fontFamily = 'Protsolata, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace';
+            probe.style.fontSize = '1rem';
             probe.textContent = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
             document.body.appendChild(probe);
             const width = probe.getBoundingClientRect().width / probe.textContent.length;
@@ -314,13 +328,13 @@ export default {
             return this.cachedResidueCharWidth;
         },
         resizeTarget() {
-            return this.$el?.parentElement || this.$el;
+            return this.$el?.querySelector('.alignment-wrapper-outer') || this.$el;
         },
         handleWindowResize() {
             this.setObservedContainerWidth(this.resizeTarget()?.clientWidth);
         },
         setObservedContainerWidth(width) {
-            const next = Math.round(width || 0);
+            const next = Math.round(this.resizeTarget()?.clientWidth || width || 0);
             if (!next || next === this.observedContainerWidth) return;
             this.observedContainerWidth = next;
 
@@ -341,27 +355,6 @@ export default {
         clearAllSelection() {
             this.setEmptyHighlight();
             this.setEmptyStructureHighlight();
-        },
-        setSideHighlight(side) {
-            const value = this.alignments.map(a => new Array(Math.ceil(a.qAln.length / this.effectiveLineLen)).fill([undefined, undefined]));
-            if (side === 'query') this.queryHighlights = value;
-            else this.highlights = value;
-        },
-        setAlignmentSelection(selections, side = 'target') {
-            // array per alignment, then array per line in alignment
-            this.setSideHighlight(side);
-            const highlights = side === 'query' ? this.queryHighlights : this.highlights;
-            for (let [ alnId, startLine, startOffset, endLine, endOffset, _ ] of selections) {
-                for (let i = startLine; i <= endLine; i++) {
-                    if (i === startLine) {
-                        highlights[alnId][i] = [startOffset, (i === endLine) ? endOffset : this.effectiveLineLen];
-                    } else if (i === endLine) {
-                        highlights[alnId][i] = [0, endOffset];
-                    } else {
-                        highlights[alnId][i] = [0, this.effectiveLineLen];
-                    }
-                }
-            }
         },
         redrawAlignmentSelections() {
             this.highlights = this.structureHighlights.map((selection, index) => (
@@ -403,6 +396,34 @@ export default {
             }
             return empty;
         },
+        lineRangesForInterface(index, side, chain) {
+            const map = side === 'query' ? this.queryMaps[index] : this.targetMaps[index];
+            const alignment = this.alignments[index];
+            if (!map || !alignment) return [];
+
+            const regions = (this.sceneInterfaceRegions[side] || []).filter(region => region.chain === chain);
+            const lineCount = Math.ceil((alignment.qAln?.length || 0) / this.effectiveLineLen);
+            const lines = Array.from({ length: lineCount }, () => []);
+            if (regions.length === 0) return lines;
+
+            for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
+                let start = null;
+                for (let offset = 0; offset < this.effectiveLineLen; offset++) {
+                    const alnOffset = lineIndex * this.effectiveLineLen + offset;
+                    if (alnOffset >= map.length) break;
+                    const residue = map[alnOffset];
+                    const isInterface = Number.isFinite(residue)
+                        && regions.some(region => residue >= region.start && residue <= region.end);
+                    if (isInterface && start === null) start = offset;
+                    if ((!isInterface || offset === this.effectiveLineLen - 1 || alnOffset === map.length - 1) && start !== null) {
+                        const end = isInterface ? offset + 1 : offset;
+                        lines[lineIndex].push([start, end]);
+                        start = null;
+                    }
+                }
+            }
+            return lines;
+        },
         updateMaps() {
             if (!this.alignments) return
             this.queryMaps = [];
@@ -443,10 +464,7 @@ export default {
                 }
             }
             
-            // For sequence: aln Id, line and start position (in start line), line and end position (in end line)
-            this.setAlignmentSelection(chunks.map(([ alnId, { startLine, startOffset, endLine, endOffset }, chunk ]) => (
-                [ alnId, startLine - 1, startOffset, endLine - 1, endOffset, chunk.length ]
-            )), side);
+            this.redrawAlignmentSelections();
 
             // Make everything else selectable again
             this.resetUserSelect();
@@ -506,7 +524,7 @@ export default {
                 return;
             }
 
-            const hover = this.findStructureResidueHover(event.side, event.chain, event.residues || [event.residue]);
+            const hover = this.findStructureResidueHover(event.side, event.residues || [event.residue], event.alignmentIndex);
             if (!hover) {
                 if (event.type === 'structure-hover') {
                     this.structureHoverInfo = this.structureTooltipInfo(event, null);
@@ -551,31 +569,33 @@ export default {
         },
         handleStructureSceneState(state) {
             this.tmAlignResults = state?.tmAlignResults || null;
-            this.sceneChainOverrides = state?.chainOverrides || { query: {}, target: {} };
+            this.sceneInterfaceRegions = state?.interfaceRegions || { query: [], target: [] };
         },
-        findStructureResidueHover(side, chain, residues) {
+        findStructureResidueHover(side, residues, preferredIndex = null) {
+            if (!Number.isInteger(preferredIndex)) return null;
+
             const residueCandidates = Array.isArray(residues) ? residues : [residues];
-            const chainState = { chainOverrides: this.sceneChainOverrides };
-            for (let index = 0; index < this.alignments.length; index++) {
-                const alignment = this.alignments[index];
-                const alignmentName = side === 'query' ? alignment.query : alignment.target;
-                const alignmentChain = resolvedChainForState(chainState, side, getChainName(alignmentName));
-                if (chain && chain !== alignmentChain) continue;
+            const map = side === 'query' ? this.queryMaps[preferredIndex] : this.targetMaps[preferredIndex];
+            if (!map) return null;
 
-                const map = side === 'query' ? this.queryMaps[index] : this.targetMaps[index];
-                const residue = residueCandidates.find(value => map?.includes(value));
-                const alnOffset = map?.indexOf(residue);
-                if (alnOffset < 0) continue;
-
-                return {
-                    side,
-                    index,
-                    lineNo: Math.floor(alnOffset / this.effectiveLineLen) + 1,
-                    offset: alnOffset % this.effectiveLineLen,
-                    structureSelection: { side, index, start: residue, length: 1 },
-                };
+            let residue = null;
+            let alnOffset = -1;
+            for (const candidate of residueCandidates) {
+                const offset = map.indexOf(candidate);
+                if (offset < 0) continue;
+                residue = candidate;
+                alnOffset = offset;
+                break;
             }
-            return null;
+            if (alnOffset < 0) return null;
+
+            return {
+                side,
+                index: preferredIndex,
+                lineNo: Math.floor(alnOffset / this.effectiveLineLen) + 1,
+                offset: alnOffset % this.effectiveLineLen,
+                structureSelection: { side, index: preferredIndex, start: residue, length: 1 },
+            };
         },
         setHover(hover, allowDelayedFocus) {
             this.alignmentHover = {
@@ -772,28 +792,43 @@ export default {
 
 <style scoped>
 .alignment-panel {
-    display: flex;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    align-items: flex-start;
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: 16px;
     width: 100%;
-    gap: 2em;
-    overflow-x: auto;
+    height: auto;
+    align-self: stretch;
+    justify-self: stretch;
+    min-width: 0;
+    min-height: 0;
+    max-height: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .alignment-wrapper-outer {
-    flex: 0 1 auto;
+    grid-column: 1;
+    grid-row: 2;
     min-width: 0;
+    min-height: 0;
+    max-height: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
 }
 
 .alignment-content {
     display: inline-flex;
     flex-direction: column;
-    width: max-content;
-    min-width: min(100%, 28rem);
+    width: 100%;
+    min-width: 0;
 }
 
 .alignment-header {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
     line-height: 1.2em;
     display: flex;
     flex-direction: column;
@@ -834,22 +869,30 @@ export default {
 
 .alignment-wrapper-inner {
     padding-bottom: 1em;
+    width: 100%;
+    min-width: 0;
 }
 
 .alignment-structure-wrapper {
-    flex: 0 0 clamp(440px, 36vw, 680px);
-    min-width: 440px;
-    width: clamp(440px, 36vw, 680px);
-    max-width: 680px;
-    height: 400px;
+    grid-column: 2;
+    grid-row: 1 / 3;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
     margin: 0;
-    margin-bottom: auto;
     overflow: hidden;
+}
+
+.alignment-panel--alignment .alignment-structure-wrapper {
+    min-height: 360px;
 }
 
 .structure-panel {
     width: 100%;
     height: 100%;
+    min-height: 0;
     margin: 0 auto;
 }
 
