@@ -237,22 +237,17 @@ export default {
             }
         },
 
-        async activateViewer(id, alignments, targetEl) {
-            if (this.activeId === id || !this.plugin) return;
-            this.enqueueOperation(() => this.mountActiveViewer(id, alignments, targetEl, 'Interactive Mol* viewer failed for'));
-            await this.operationQueue;
-        },
-
-        async switchViewer(id, alignments, newTargetEl) {
+        async setActiveViewer(id, alignments, targetEl) {
             if (!this.plugin) return;
             this.enqueueOperation(async () => {
+                if (this.activeId === id) return;
                 this.stopActiveViewerInteraction();
-                await this.mountActiveViewer(id, alignments, newTargetEl, 'Switch Mol* viewer failed for');
+                await this.mountActiveViewer(id, alignments, targetEl);
             });
             await this.operationQueue;
         },
 
-        async mountActiveViewer(id, alignments, targetEl, errorPrefix) {
+        async mountActiveViewer(id, alignments, targetEl) {
             if (!this.plugin || this.destroyed) return;
             this.queuePaused = true;
             this.activeId = id;
@@ -268,7 +263,7 @@ export default {
                 this.$refs.canvas.addEventListener('pointerdown', this.handlePointerInteraction, { passive: true });
                 this.$emit('viewer-ready');
             } catch (e) {
-                console.warn(errorPrefix, id, e);
+                console.warn('Interactive Mol* viewer failed for', id, e);
                 await this.restoreOffscreenViewer(id);
             }
         },
@@ -284,20 +279,10 @@ export default {
             this.scheduleProcessQueue();
         },
 
-        deactivateViewer() {
+        clearActiveViewer() {
             if (this.activeId === null || !this.plugin) return;
-            this.enqueueOperation(() => this.deactivateViewerAsync());
-        },
-
-        async deactivateViewerAsync() {
-            this.stopActiveViewerInteraction();
-            await this.clearPlugin();
-
-            this.restoreThumbnailViewport();
-
-            this.activeId = null;
-            this.queuePaused = false;
-            this.scheduleProcessQueue();
+            const id = this.activeId;
+            this.enqueueOperation(() => this.restoreOffscreenViewer(id));
         },
 
         handlePointerInteraction() {
@@ -325,13 +310,9 @@ export default {
             this.plugin?.managers?.camera?.reset();
         },
 
-        async processQueue() {
-            if (!this.canProcessQueue() || this.isRendering || this.thumbnailQueue.length === 0 || this.currentQueueIndex >= this.thumbnailQueue.length) {
-                return;
-            }
-
-            this.enqueueOperation(() => this.processQueueItem());
-            await this.operationQueue;
+        nextQueueItem() {
+            if (!this.canProcessQueue() || this.isRendering) return null;
+            return this.thumbnailQueue[this.currentQueueIndex] || null;
         },
 
         enqueueOperation(operation) {
@@ -341,13 +322,17 @@ export default {
             return this.operationQueue;
         },
 
+        async processQueue() {
+            if (!this.nextQueueItem()) return;
+            this.enqueueOperation(() => this.processQueueItem());
+            await this.operationQueue;
+        },
+
         async processQueueItem() {
-            if (!this.canProcessQueue() || this.isRendering || this.thumbnailQueue.length === 0 || this.currentQueueIndex >= this.thumbnailQueue.length) {
-                return;
-            }
+            const item = this.nextQueueItem();
+            if (!item) return;
 
             this.isRendering = true;
-            const item = this.thumbnailQueue[this.currentQueueIndex];
             let advanceQueue = true;
 
             try {

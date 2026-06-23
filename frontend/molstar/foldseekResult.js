@@ -3,13 +3,12 @@ import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
-import { MarkerAction } from 'molstar/lib/mol-util/marker-action';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import {
     addUniformRepresentation,
+    addRepresentationToSet,
     atomToPdbRow,
     chainExpression,
-    componentStructure,
     expressionForResidues,
     isValidLoci,
     loadStructureFromData,
@@ -17,8 +16,9 @@ import {
     mat4FromRotationTranslation,
     mergeExpressions,
     residueInfosFromLoci,
-    representationObject,
+    representationRef,
     residuesForMappedRange,
+    setRepresentationNonPickable,
     structureResidueKeys,
     transformStructureConformation,
 } from './molstarStructure.js';
@@ -414,8 +414,8 @@ async function setSelectionMode(plugin, state, stateEntry, input, side, mode) {
 }
 
 async function applyFoldseekVisualState(plugin, state, stateEntry, input, side, mode) {
-    const representationRef = representationStateRef(stateEntry.base);
-    if (!representationRef) return;
+    const ref = representationRef(stateEntry.base);
+    if (!ref) return;
 
     const all = MS.struct.generator.all();
     const alignedExpression = mergeExpressions(
@@ -433,9 +433,9 @@ async function applyFoldseekVisualState(plugin, state, stateEntry, input, side, 
     stateEntry.visibleExpression = visibleExpression;
 
     await plugin.state.data.build()
-        .to(representationRef)
+        .to(ref)
         .applyOrUpdate(
-            `${representationRef}-foldseek-overpaint`,
+            `${ref}-foldseek-overpaint`,
             StateTransforms.Representation.OverpaintStructureRepresentation3DFromBundle,
             {
                 kind: 'element-loci',
@@ -445,9 +445,9 @@ async function applyFoldseekVisualState(plugin, state, stateEntry, input, side, 
             },
             { tags: ['foldseek-visual-state'] },
         )
-        .to(representationRef)
+        .to(ref)
         .applyOrUpdate(
-            `${representationRef}-foldseek-transparency`,
+            `${ref}-foldseek-transparency`,
             StateTransforms.Representation.TransparencyStructureRepresentation3DFromBundle,
             {
                 kind: 'element-loci',
@@ -632,23 +632,11 @@ function mappedFoldseekResidue(state, side, residue) {
 }
 
 function markNonSequenceMappable(state, item) {
-    if (!item) return;
-    const repr = representationObject(item);
-    if (repr) state.nonSequenceMappable?.add(repr);
-    const component = componentStructure(item);
-    if (component) state.nonSequenceMappable?.add(component);
+    addRepresentationToSet(state.nonSequenceMappable, item, { includeComponent: true });
 }
 
 function markNonHoverable(state, item) {
-    const repr = representationObject(item);
-    if (repr) state.nonHoverable?.add(repr);
-}
-
-function setRepresentationNonPickable(item) {
-    representationObject(item)?.setState?.({
-        pickable: false,
-        markerActions: MarkerAction.None,
-    });
+    addRepresentationToSet(state.nonHoverable, item);
 }
 
 function isNonHoverable(state, current) {
@@ -660,13 +648,6 @@ function isNonSequenceMappable(state, current) {
         (current?.repr && state.nonSequenceMappable?.has(current.repr))
         || (isValidLoci(current?.loci) && state.nonSequenceMappable?.has(current.loci.structure)),
     );
-}
-
-function representationStateRef(item) {
-    return item?.representation?.ref
-        || item?.representation?.cell?.transform?.ref
-        || item?.representation?.cell?.ref
-        || null;
 }
 
 async function setStructureSelection(plugin, state, input) {

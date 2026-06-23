@@ -1,12 +1,12 @@
 import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
-import { Color } from 'molstar/lib/mol-util/color';
 import { tmalign, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import { pulchra } from 'pulchra-wasm';
 import { decodeMultimer, mergeMultimer, revertChainInfo, splitMultimer, storeChains } from '../Utilities.js';
 import {
-    cartoonParams,
+    addUniformRepresentation,
+    deleteComponent,
     focusCurrentLoci,
     isValidLoci,
     loadStructureFromData,
@@ -24,22 +24,14 @@ import {
 const ReferenceColor = 0x49a9fc;
 const RegularColor = 0xffd761;
 const MaskColor = 0x666666;
-async function addRepresentation(plugin, structure, label, color, expression, alpha = 1, type = 'cartoon', qualityPreset = 'viewer') {
-    if (!expression) return null;
-    const component = await plugin.builders.structure.tryCreateComponentFromExpression(
-        structure,
-        expression,
+
+function addRepresentation(plugin, structure, label, color, expression, alpha = 1, qualityPreset = 'viewer') {
+    return addUniformRepresentation(plugin, structure, {
         label,
-        { label },
-    );
-    if (!component) return null;
-    const representation = await plugin.builders.structure.representation.addRepresentation(component, {
-        type,
-        color: 'uniform',
-        colorParams: { value: Color(color) },
-        typeParams: cartoonParams({ alpha, qualityPreset }),
+        expression,
+        color,
+        typeParams: { alpha, qualityPreset },
     });
-    return { component, representation };
 }
 
 async function addStructure(plugin, state, input, index) {
@@ -62,18 +54,12 @@ async function addStructure(plugin, state, input, index) {
         index,
         entry,
         structure,
-        base: await addRepresentation(plugin, structure, `foldmason-${index}`, color, MS.struct.generator.all(), alpha, 'cartoon', input.representationQuality),
+        base: await addRepresentation(plugin, structure, `foldmason-${index}`, color, MS.struct.generator.all(), alpha, input.representationQuality),
         mask: null,
     };
-    item.mask = await addRepresentation(plugin, structure, `foldmason-${index}-mask`, MaskColor, maskExpression(entry, input.mask), alpha, 'cartoon', input.representationQuality);
+    item.mask = await addRepresentation(plugin, structure, `foldmason-${index}-mask`, MaskColor, maskExpression(entry, input.mask), alpha, input.representationQuality);
     state.structures.set(index, item);
     if (index === input.reference) state.referenceStructure = structure;
-}
-
-async function deleteRepresentation(plugin, item) {
-    if (item?.component?.ref) {
-        await plugin.state.data.build().delete(item.component.ref).commit();
-    }
 }
 
 async function removeStructure(plugin, state, index) {
@@ -133,7 +119,7 @@ async function updateStructures(plugin, state, input) {
 
 async function updateMasks(plugin, state, input) {
     for (const item of state.structures.values()) {
-        await deleteRepresentation(plugin, item.mask);
+        await deleteComponent(plugin, item.mask);
         item.mask = await addRepresentation(
             plugin,
             item.structure,
@@ -141,7 +127,6 @@ async function updateMasks(plugin, state, input) {
             MaskColor,
             maskExpression(item.entry, input.mask),
             item.index === input.reference ? 1.0 : 0.5,
-            'cartoon',
             input.representationQuality,
         );
     }

@@ -1269,9 +1269,10 @@ export default {
             this.selectedColumns.splice(0, this.selectedColumns.length, ...columns);
             this.$emit('changedSelection', this.selectedColumns);
             this.$nextTick(() => {
-                this.$refs.structViewer?.updateAllHighlights?.();
                 if (columns.length > 0) {
                     this.$refs.structViewer?.moveView?.(columns[columns.length - 1]);
+                } else {
+                    this.$refs.structViewer?.refreshScene?.();
                 }
                 this.updatingFromMSAViewer = false;
             });
@@ -1493,7 +1494,6 @@ export default {
             }
             this.$emit('changedSelection', this.selectedColumns)
             this.syncMSAViewerSelectionFromSelectedColumns()
-            this.$refs.structViewer?.updateAllHighlights?.()
             this.$refs.structViewer?.moveView?.(idx)
         },
         spliceActiveIndex(idx) {
@@ -1506,7 +1506,7 @@ export default {
             this.selectedColumns.splice(i, 1)
             this.$emit('changedSelection', this.selectedColumns)
             this.syncMSAViewerSelectionFromSelectedColumns()
-            this.$refs.structViewer?.updateAllHighlights?.()
+            this.$refs.structViewer?.refreshScene?.()
         },
         clearStructurePreviewFromAlignment() {
             this.previewColumn = -1;
@@ -1514,7 +1514,7 @@ export default {
             this.structurePreviewMarker.visible = false;
             this.$nextTick(() => {
                 setTimeout(() => {
-                    this.$refs.structViewer?.updateAllPreview?.();
+                    this.$refs.structViewer?.refreshScene?.();
                 });
             });
         },
@@ -1528,7 +1528,7 @@ export default {
             this.structurePreviewMarker.visible = false;
             this.$nextTick(() => {
                 setTimeout(() => {
-                    this.$refs.structViewer?.updateAllPreview?.();
+                    this.$refs.structViewer?.refreshScene?.();
                 });
             });
         },
@@ -1540,7 +1540,7 @@ export default {
                     this.structurePreviewMarker.visible = false
                     this.$nextTick(() => {
                         setTimeout(()=> {
-                            this.$refs.structViewer?.updateAllPreview?.()
+                            this.$refs.structViewer?.refreshScene?.()
                         })
                     })
 
@@ -1551,14 +1551,14 @@ export default {
                 if (fromStruct) {
                     this.$nextTick(() => {
                         setTimeout(()=>{
-                            this.$refs.structViewer?.updateAllPreview?.()
+                            this.$refs.structViewer?.refreshScene?.()
                             this.updateStructurePreviewMarker()
                         })
                     })
                 } else {
                     this.$nextTick(() => {
                         setTimeout(()=>{
-                            this.$refs.structViewer?.updateAllPreview?.()
+                            this.$refs.structViewer?.refreshScene?.()
                             this.updateStructurePreviewMarker()
                             this.$refs.structViewer?.moveView?.(Number(idx))
                         })
@@ -1618,7 +1618,7 @@ export default {
             if (!this.updatingFromMSAViewer) {
                 this.msaViewer?.clearSelection?.()
             }
-            this.$refs.structViewer?.updateAllHighlights?.()
+            this.$refs.structViewer?.refreshScene?.()
             return { ok: true, count: this.selectedColumns.length, cleared };
         },
         async exportMSAViewerSelectionAsFasta() {

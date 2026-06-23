@@ -4,7 +4,7 @@
     <v-btn
         v-if="!structureFileButtonDisabled"
         v-bind="toolbarButtonProps"
-        @click="handleClickMakeCIF"
+        @click="$emit('makeCIF'); $emit('makePDB')"
         :title="structureFileButtonLabel"
     >
         <v-icon v-bind="toolbarIconProps">{{ structureFileIcon }}</v-icon>
@@ -13,7 +13,7 @@
     <v-btn
         v-if="!disableImageButton"
         v-bind="toolbarButtonProps"
-        @click="handleClickMakeImage"
+        @click="$emit('makeImage')"
         title="Save image"
     >
         <v-icon v-bind="toolbarIconProps">{{ $MDI.SavePNG }}</v-icon>
@@ -22,7 +22,7 @@
     <v-btn
         v-if="!disableQueryButton"
         v-bind="toolbarButtonProps"
-        @click="handleClickCycleQuery"
+        @click="$emit('toggleQuery')"
         title="Toggle between the entire query structure and aligned region"
     >
         <span v-if="queryColorList.length >= 2" class="two-tone-icon">
@@ -49,7 +49,7 @@
     <v-btn
         v-if="!disableTargetButton"
         v-bind="toolbarButtonProps"
-        @click="handleClickToggleTarget"
+        @click="$emit('toggleTarget')"
         title="Toggle between the entire target structure and aligned region"
     >
         <span v-if="targetColorList.length >= 2" class="two-tone-icon">
@@ -73,7 +73,7 @@
     <v-btn
         v-if="!disableArrowButton"
         v-bind="toolbarButtonProps"
-        @click="handleClickToggleArrows"
+        @click="$emit('toggleArrows')"
         title="Draw arrows between aligned residues"
     >
         <v-icon v-bind="toolbarIconProps" v-if="showArrows">{{ $MDI.ArrowRightCircle }}</v-icon>
@@ -83,7 +83,7 @@
     <v-btn
         v-if="!disableResetButton"
         v-bind="toolbarButtonProps"
-        @click="handleClickResetView"
+        @click="$emit('resetView')"
         title="Reset the view to the original position and zoom level"
     >
         <v-icon v-bind="toolbarIconProps">{{ $MDI.Restore }}</v-icon>
@@ -92,7 +92,7 @@
     <v-btn
         v-if="!disableSpinButton"
         v-bind="toolbarButtonProps"
-        @click="handleClickSpin"
+        @click="$emit('toggleSpin')"
         title="Toggle spinning structure"
     >
         <v-icon v-bind="toolbarIconProps">{{ $MDI.AxisZRotateCounterclockwise }}</v-icon>
@@ -101,7 +101,7 @@
     <v-btn
         v-if="!disableFullscreenButton"
         v-bind="toolbarButtonProps"
-        @click="handleClickFullscreen"
+        @click="$emit('toggleFullscreen')"
         title="Enter fullscreen mode - press ESC to exit"
     >
         <v-icon v-bind="toolbarIconProps">{{ $MDI.Fullscreen }}</v-icon>
@@ -151,16 +151,11 @@ export default {
             return this.cifButtonLabel ? this.$MDI.SaveCIF : this.$MDI.SavePDB;
         },
         toolbarIconProps: function() {
-            return (this.isFullscreen) ? {
-                'right': true
-            } : {
-                
-            }
+            return this.isFullscreen ? { right: true } : {};
         },
         toolbarButtonProps: function() {
             return (this.isFullscreen) ? {
                 small: false,
-                style: 'margin-bottom: 15px;',
             } : {
                 small: true,
                 style: "width: 24px;",
@@ -227,33 +222,6 @@ export default {
             return base;
         },
     },
-    methods: {
-        handleClickSpin() {
-            this.$emit("toggleSpin");
-        },
-        handleClickMakeCIF() {
-            this.$emit("makeCIF");
-            this.$emit("makePDB");
-        },
-        handleClickMakeImage() {
-            this.$emit("makeImage");
-        },
-        handleClickResetView() {
-            this.$emit("resetView");
-        },
-        handleClickFullscreen() {
-            this.$emit("toggleFullscreen");
-        },
-        handleClickCycleQuery() {
-            this.$emit("toggleQuery");
-        },
-        handleClickToggleTarget() {
-            this.$emit("toggleTarget");
-        },
-        handleClickToggleArrows() {
-            this.$emit("toggleArrows");
-        } 
-    }
 }
 </script>
 
