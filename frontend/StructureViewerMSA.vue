@@ -85,15 +85,8 @@ export default {
         moveView(alnPos) {
             this.focusColumn = Number(alnPos);
             this.focusToken++;
-            this.updateToken++;
         },
-        updateMask() {
-            this.updateToken++;
-        },
-        updateAllHighlights() {
-            this.updateToken++;
-        },
-        updateAllPreview() {
+        refreshScene() {
             this.updateToken++;
         },
         async handleMakeCIF(cif) {
@@ -133,20 +126,6 @@ export default {
             this.previewIndex = -1;
             this.hoverInfo = null;
             this.$emit('changePreview', -1, true);
-        },
-    },
-    watch: {
-        selection() {
-            this.updateToken++;
-        },
-        mask() {
-            this.updateToken++;
-        },
-        selectedColumns() {
-            this.updateToken++;
-        },
-        previewColumn() {
-            this.updateToken++;
         },
     },
 };

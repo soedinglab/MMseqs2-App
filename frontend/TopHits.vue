@@ -168,13 +168,12 @@ export default {
                 this.viewerSpinning = false;
                 this.$nextTick(() => {
                     if (this.$refs.thumbnailViewer) {
-                        this.$refs.thumbnailViewer.deactivateViewer();
+                        this.$refs.thumbnailViewer.clearActiveViewer();
                     }
                 });
                 return;
             }
 
-            const wasActive = this.activeCardId !== null;
             this.activeCardId = cardId;
 
             this.$nextTick(() => {
@@ -183,11 +182,7 @@ export default {
                 const targetEl = targetEntry.$refs.viewerSlot;
 
                 if (this.$refs.thumbnailViewer) {
-                    if (wasActive) {
-                        this.$refs.thumbnailViewer.switchViewer(cardId, hit.topHit, targetEl);
-                    } else {
-                        this.$refs.thumbnailViewer.activateViewer(cardId, hit.topHit, targetEl);
-                    }
+                    this.$refs.thumbnailViewer.setActiveViewer(cardId, hit.topHit, targetEl);
                 }
             });
         },

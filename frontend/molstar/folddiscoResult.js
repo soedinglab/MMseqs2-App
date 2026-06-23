@@ -1,7 +1,7 @@
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
-import { Color } from 'molstar/lib/mol-util/color';
 import {
+    addUniformRepresentation,
     ballAndStickParams,
     cartoonParams,
     chainExpression,
@@ -13,6 +13,7 @@ import {
     normalizedPdbSourceFromText,
     residueExpression,
     residueInfoFromLoci,
+    representationRef,
     structuresMatch,
     transformStructureConformation,
 } from './molstarStructure.js';
@@ -24,23 +25,19 @@ const TargetLightColor = 0xffe699;
 const MotifRadius = 0.28;
 
 async function addRepresentation(plugin, structure, label, expression, color, alpha = 1, type = 'cartoon', qualityPreset = 'viewer') {
-    if (!expression) return null;
-    const component = await plugin.builders.structure.tryCreateComponentFromExpression(
+    return addUniformRepresentation(
+        plugin,
         structure,
-        expression,
-        label,
-        { label },
+        {
+            label,
+            expression,
+            color,
+            type,
+            typeParams: type === 'ball-and-stick'
+                ? ballAndStickParams({ alpha, sizeFactor: MotifRadius })
+                : cartoonParams({ alpha, sizeFactor: 0.2, qualityPreset }),
+        },
     );
-    if (!component) return null;
-    const representation = await plugin.builders.structure.representation.addRepresentation(component, {
-        type,
-        color: 'uniform',
-        colorParams: { value: Color(color) },
-        typeParams: type === 'ball-and-stick'
-            ? ballAndStickParams({ alpha, sizeFactor: MotifRadius })
-            : cartoonParams({ alpha, sizeFactor: 0.2, qualityPreset }),
-    });
-    return representation;
 }
 
 function parseMotif(value = '') {
@@ -115,7 +112,7 @@ async function addRepr(plugin, state, input, structure, label, expression, color
         type,
         input?.representationQuality || 'viewer',
     );
-    const ref = repr?.ref || repr?.cell?.transform?.ref;
+    const ref = representationRef(repr);
     if (ref) state.reprRefs.push(ref);
 }
 

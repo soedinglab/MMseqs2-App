@@ -4,11 +4,11 @@ import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder'
 import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
 import {
     addUniformRepresentation,
+    addRepresentationToSet,
     chainExpression,
-    componentStructure,
     lociFromExpression as lociFromStructureExpression,
     mergeExpressions,
-    representationObject,
+    representationRef,
     residueRanges,
     residueInfosFromLoci,
     structureResidueKeys,
@@ -96,13 +96,15 @@ export async function buildInterfaceRepresentations(plugin, state, structure, si
     await applyInterfaceBackgroundMode(plugin, stateEntry, mode);
     for (const entry of entries) {
         const label = `${side}-${entry.chain}-interface`;
-        const representation = await addInterfaceRepresentation(
+        const representation = await addUniformRepresentation(
             plugin,
             structure,
-            label,
-            entry.interfaceExpression,
-            type,
-            entry.color,
+            {
+                label,
+                expression: entry.interfaceExpression,
+                type,
+                color: entry.color,
+            },
         );
         if (!representation) continue;
         await emphasizeInterface(plugin, representation, entry.interfaceLoci, input);
@@ -138,13 +140,15 @@ async function createInterfaceBackground(plugin, state, stateEntry, side) {
             ? MS.struct.modifier.exceptBy({ 0: entry.chainExpression, by: entry.interfaceExpression })
             : entry.chainExpression;
         const label = `${side}-${entry.chain}-context`;
-        const representation = await addInterfaceRepresentation(
+        const representation = await addUniformRepresentation(
             plugin,
             stateEntry.structure,
-            label,
-            expression,
-            stateEntry.type,
-            entry.color,
+            {
+                label,
+                expression,
+                type: stateEntry.type,
+                color: entry.color,
+            },
         );
         if (!representation) continue;
         markNonSequenceMappable(state, representation);
@@ -186,16 +190,6 @@ async function applyInterfaceBackgroundMode(plugin, stateEntry, mode) {
     await update.commit({ doNotUpdateCurrent: true });
 }
 
-async function addInterfaceRepresentation(plugin, structure, label, expression, type, color, typeParams = {}) {
-    return addUniformRepresentation(plugin, structure, {
-        label,
-        expression,
-        type,
-        color,
-        typeParams,
-    });
-}
-
 async function emphasizeInterface(plugin, representation, loci, input) {
     const ref = representationRef(representation);
     if (!loci || !ref) return;
@@ -215,10 +209,6 @@ async function emphasizeInterface(plugin, representation, loci, input) {
         wiggleStrength: 1,
     }, { tags: 'foldseek-interface-emissive-strength' });
     await update.commit({ doNotUpdateCurrent: true });
-}
-
-function representationRef(item) {
-    return item?.representation?.ref || item?.representation?.cell?.transform?.ref;
 }
 
 function mapInterfaceRegions(alignmentMaps, selectionsByChain) {
@@ -291,9 +281,5 @@ function chainsFromMaps(alignmentMaps = []) {
 }
 
 function markNonSequenceMappable(state, item) {
-    if (!item) return;
-    const repr = representationObject(item);
-    if (repr) state.nonSequenceMappable?.add(repr);
-    const component = componentStructure(item);
-    if (component) state.nonSequenceMappable?.add(component);
+    addRepresentationToSet(state.nonSequenceMappable, item, { includeComponent: true });
 }

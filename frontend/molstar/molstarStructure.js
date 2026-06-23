@@ -4,6 +4,7 @@ import { StructureElement, StructureProperties } from 'molstar/lib/mol-model/str
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
 import { Color } from 'molstar/lib/mol-util/color';
+import { MarkerAction } from 'molstar/lib/mol-util/marker-action';
 
 export const OneToThree = {
     A: 'ALA',
@@ -471,6 +472,15 @@ function structureRef(structure) {
     return structure?.ref || structure;
 }
 
+export function representationRef(item) {
+    return item?.representation?.ref
+        || item?.representation?.cell?.transform?.ref
+        || item?.representation?.cell?.ref
+        || item?.ref
+        || item?.cell?.transform?.ref
+        || null;
+}
+
 export function representationObject(item) {
     return item?.representation?.cell?.obj?.data?.repr
         || item?.representation?.obj?.data?.repr
@@ -484,6 +494,34 @@ export function componentStructure(item) {
         || item?.component?.obj?.data
         || item?.component?.data
         || null;
+}
+
+export function componentRef(item) {
+    return item?.component?.ref
+        || item?.component?.cell?.transform?.ref
+        || item?.component?.cell?.ref
+        || null;
+}
+
+export async function deleteComponent(plugin, item) {
+    const ref = componentRef(item);
+    if (ref) await plugin.state.data.build().delete(ref).commit();
+}
+
+export function addRepresentationToSet(set, item, options = {}) {
+    const repr = representationObject(item);
+    if (repr) set?.add(repr);
+    if (options.includeComponent) {
+        const component = componentStructure(item);
+        if (component) set?.add(component);
+    }
+}
+
+export function setRepresentationNonPickable(item) {
+    representationObject(item)?.setState?.({
+        pickable: false,
+        markerActions: MarkerAction.None,
+    });
 }
 
 export async function transformStructureConformation(plugin, structure, matrix, options = {}) {
