@@ -6,7 +6,8 @@ export function getChainName(name) {
     if (!name || /_v[0-9]+$/.test(name)) return 'A';
     if (/^[A-Za-z0-9]$/.test(name)) return name;
     const pos = name.lastIndexOf('_');
-    return pos !== -1 ? name.substring(pos + 1, pos + 2) : 'A';
+    const chain = pos !== -1 ? name.substring(pos + 1, pos + 2) : '';
+    return chain || 'A';
 }
 
 function getAccession(name) {
