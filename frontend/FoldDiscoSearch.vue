@@ -184,24 +184,128 @@ import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
-import {autoLoad} from 'ngl';
 import MotifSelection from "./MotifSelection.vue";
 import LigandMotifSelection from "./LigandMotifSelection.vue";
 
 const db = BlobDatabase();
 const storage = new StorageWrapper("folddisco");
 
-async function getStructure(data) {
-    var ext = 'pdb';
-    if (data[0] == "#" || data.startsWith("data_")) {
-        ext = 'cif';
-        data = data.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
-        data = data.replaceAll("_struct_conf.", "_struct_conf_SKIP_HACK.");
-        data = data.replaceAll("_struct_conn.", "_struct_conn_SKIP_HACK.");
+function makeStructureFromAtoms(atoms) {
+    const residues = new Map();
+    for (const atom of atoms) {
+        const key = `${atom.chainname}:${atom.resno}:${atom.resname}:${atom.record}`;
+        if (!residues.has(key)) {
+            residues.set(key, {
+                chainname: atom.chainname,
+                resno: atom.resno,
+                resname: atom.resname,
+                record: atom.record,
+                atoms: [],
+                isPolymer: () => atom.record === 'ATOM',
+                isWater: () => ['HOH', 'WAT', 'H2O'].includes(atom.resname),
+            });
+        }
+        residues.get(key).atoms.push(atom);
     }
-    var blob = new Blob([data], { type: 'text/plain' });
-    var promise = autoLoad(blob, {ext : ext, name: 'query', firstModelOnly: true});
-    return promise.then(structure => structure.getStructure());
+    return {
+        residues: Array.from(residues.values()),
+        atoms,
+        eachResidue(callback) {
+            this.residues.forEach(callback);
+        },
+    };
+}
+
+function parsePdbStructure(data) {
+    const atoms = [];
+    for (const line of String(data || '').split('\n')) {
+        const record = line.slice(0, 6).trim();
+        if (record !== 'ATOM' && record !== 'HETATM') continue;
+        const atom = {
+            index: atoms.length,
+            record,
+            atomname: line.slice(12, 16).trim(),
+            resname: line.slice(17, 20).trim(),
+            chainname: line.slice(21, 22).trim() || '_',
+            resno: Number.parseInt(line.slice(22, 26).trim(), 10),
+            x: Number.parseFloat(line.slice(30, 38).trim()),
+            y: Number.parseFloat(line.slice(38, 46).trim()),
+            z: Number.parseFloat(line.slice(46, 54).trim()),
+        };
+        if (!Number.isFinite(atom.resno)) continue;
+        atoms.push(atom);
+    }
+    return makeStructureFromAtoms(atoms);
+}
+
+function tokenizeCif(text) {
+    const tokens = [];
+    const re = /'(?:[^']|'')*'|"(?:[^"]|"")*"|\S+/g;
+    for (const line of String(text || '').split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        let match;
+        while ((match = re.exec(line))) {
+            let token = match[0];
+            if ((token[0] === "'" && token[token.length - 1] === "'")
+                || (token[0] === '"' && token[token.length - 1] === '"')) {
+                token = token.slice(1, -1);
+            }
+            tokens.push(token);
+        }
+    }
+    return tokens;
+}
+
+function parseCifStructure(data) {
+    const tokens = tokenizeCif(data);
+    const atoms = [];
+    for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i] !== 'loop_') continue;
+        const headers = [];
+        i++;
+        while (i < tokens.length && tokens[i].startsWith('_')) {
+            headers.push(tokens[i]);
+            i++;
+        }
+        if (!headers.some(header => header.startsWith('_atom_site.'))) {
+            while (i < tokens.length && tokens[i] !== 'loop_') i++;
+            i--;
+            continue;
+        }
+        const h = Object.fromEntries(headers.map((header, index) => [header, index]));
+        const width = headers.length;
+        while (i + width <= tokens.length && tokens[i] !== 'loop_') {
+            if (tokens[i]?.startsWith('_')) break;
+            const row = tokens.slice(i, i + width);
+            const record = row[h['_atom_site.group_PDB']] || 'ATOM';
+            const resno = Number.parseInt(row[h['_atom_site.auth_seq_id']] || row[h['_atom_site.label_seq_id']], 10);
+            const atom = {
+                index: atoms.length,
+                record,
+                atomname: row[h['_atom_site.auth_atom_id']] || row[h['_atom_site.label_atom_id']] || '',
+                resname: row[h['_atom_site.auth_comp_id']] || row[h['_atom_site.label_comp_id']] || '',
+                chainname: row[h['_atom_site.auth_asym_id']] || row[h['_atom_site.label_asym_id']] || '_',
+                resno,
+                x: Number.parseFloat(row[h['_atom_site.Cartn_x']]),
+                y: Number.parseFloat(row[h['_atom_site.Cartn_y']]),
+                z: Number.parseFloat(row[h['_atom_site.Cartn_z']]),
+            };
+            if (Number.isFinite(atom.resno) && Number.isFinite(atom.x) && Number.isFinite(atom.y) && Number.isFinite(atom.z)) {
+                atoms.push(atom);
+            }
+            i += width;
+        }
+        i--;
+    }
+    return makeStructureFromAtoms(atoms);
+}
+
+function parseStructure(data) {
+    const text = String(data || '').trimStart();
+    return text[0] === '#' || text.startsWith('data_')
+        ? parseCifStructure(text)
+        : parsePdbStructure(text);
 }
 
 function setDefaultMotif(structure) {
@@ -211,7 +315,7 @@ function setDefaultMotif(structure) {
 
     var motifList = new Set(); 
     structure.eachResidue(r => {
-        motifList.add(`${r.chainname}${r.resno}`);
+        if (r.isPolymer()) motifList.add(`${r.chainname}${r.resno}`);
     });
     return Array.from(motifList).join(',');
 }
@@ -342,7 +446,7 @@ export default {
         async query(value) {
             let prev = await db.getItem('folddisco.query')
             db.setItem('folddisco.query', value);
-            this.queryStructure = await getStructure(this.query);
+            this.queryStructure = parseStructure(this.query);
             if (prev && prev == value) {
                 return;
             }

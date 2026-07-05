@@ -1,4 +1,3 @@
-import { Selection, Matrix4, PdbWriter } from "ngl";
 import { ungzip } from "pako";
 
 function tryLinkTargetToDB(target, db) {
@@ -508,61 +507,24 @@ export const threeToOne = {
   XAA: "X",
 };
 
-export function xyz(structure, resIndex) {
-  var rp = structure.getResidueProxy();
-  var ap = structure.getAtomProxy();
-  rp.index = resIndex;
-  ap.index = rp.getAtomIndexByName("CA");
-  return [ap.x, ap.y, ap.z];
-}
-
-function atomToPDBRow(ap) {
-  const { serial, atomname, resname, chainname, resno, inscode, x, y, z } = ap;
-  return `ATOM  ${serial.toString().padStart(5)}${atomname.padStart(
-    4,
-  )}  ${resname.padStart(3)} ${chainname.padStart(1)}${resno
-    .toString()
-    .padStart(4)} ${inscode.padStart(1)}  ${x.toFixed(3).padStart(8)}${y
-    .toFixed(3)
-    .padStart(8)}${z.toFixed(3).padStart(8)}`;
-}
-
-export function makeChainMap(structure, sele) {
-  let map = new Map();
-  let idx = 1;
-  structure.eachResidue((rp) => {
-    map.set(idx++, { index: rp.index, resno: rp.resno });
-  }, new Selection(sele));
-  return map;
-}
-
-export function makeSubPDB(structure, sele) {
-  let pdb = [];
-  let lastResno = null;
-  structure.eachAtom((ap) => {
-    if (ap.atomname === "CA" && ap.resno !== lastResno) {
-      lastResno = ap.resno;
-      pdb.push(atomToPDBRow(ap));
-    }
-  }, new Selection(sele));
-  return pdb.join("\n");
-}
-
-export function makeCgPDB(structure) {
-  let pdb = [];
-  let lastResno = null;
+export function makeCgPDBFromText(text) {
+  const pdb = [];
+  let lastResidue = null;
   let lastChain = null;
-  structure.eachAtom((ap) => {
-    if (ap.atomname === "CA" && ap.element == 'C' && ap.resno !== lastResno) {
-      lastResno = ap.resno;
-      if (lastChain && lastChain != ap.chainname) {
-        pdb.push('TER')
-      }
-      pdb.push(atomToPDBRow(ap));
-      lastChain = ap.chainname
-    }
-  }, new Selection('all'));
-  pdb.push("TER")
+  for (const line of String(text || "").split("\n")) {
+    if (!line.startsWith("ATOM")) continue;
+    const atomname = line.slice(12, 16).trim();
+    const element = (line.slice(76, 78).trim() || atomname[0]).toUpperCase();
+    const chain = line.slice(21, 22).trim() || "A";
+    const resno = line.slice(22, 26).trim();
+    const key = `${chain}:${resno}`;
+    if (atomname !== "CA" || element !== "C" || key === lastResidue) continue;
+    if (lastChain && lastChain !== chain) pdb.push("TER");
+    pdb.push(line.padEnd(80));
+    lastResidue = key;
+    lastChain = chain;
+  }
+  if (pdb.length) pdb.push("TER");
   return pdb.join("\n");
 }
 
@@ -811,57 +773,6 @@ export function debounce(func, delay) {
   };
 }
 
-// Generate THREE.Matrix4 from 3x3 rotation and 1x3 translation matrices
-// Can give this directly to StructureComponent.setTransform() to superpose
-export function makeMatrix4(translation, rotation) {
-  const u = rotation.slice();
-  for (let i = 0; i < 3; i++) {
-    u[i].push(translation[i]);
-  }
-  const nglMatrix = new Matrix4();
-  const flatMatrix = [].concat(...u, [0, 0, 0, 1]);
-  nglMatrix.set(...flatMatrix);
-  return nglMatrix;
-}
-
-// Decompose Matrix4 into Quaternion, Position and Scale
-// Slerp between Quaternions, linear interpolate position for some t (0.0-1.0)
-// Compose new Matrix4 for transformation.
-export function interpolateMatrices(a, b, t) {
-  const quaternionA = new Quaternion();
-  const positionA = new Vector3();
-  const scaleA = new Vector3();
-  const quaternionB = new Quaternion();
-  const positionB = new Vector3();
-  const scaleB = new Vector3();
-  a.decompose(positionA, quaternionA, scaleA);
-  b.decompose(positionB, quaternionB, scaleB);
-  const quaternion = new Quaternion();
-  quaternion.slerp(quaternionB, t);
-  const position = new Vector3();
-  position.lerpVectors(positionA, positionB, t);
-  const matrix = new Matrix4();
-  matrix.compose(position, quaternion, scaleA);
-  return matrix;
-}
-
-export function animateMatrix(structure, newMatrix, duration) {
-  let startTime = null;
-  const oldMatrix = structure.matrix;
-  const animate = (currentTime) => {
-    if (!startTime) {
-      startTime = currentTime;
-    }
-    let progress = Math.min(1, (currentTime - startTime) / duration);
-    let interpolated = interpolateMatrices(oldMatrix, newMatrix, progress);
-    structure.setTransform(interpolated);
-    if (progress < 1) {
-      window.requestAnimationFrame(animate);
-    }
-  };
-  window.requestAnimationFrame(animate);
-}
-
 export function checkMultimer(pdbString) {
   const lines = pdbString.split("\n");
   const models = {};
@@ -939,15 +850,6 @@ export function checkMultimer(pdbString) {
     models["single model"] = chainSet;
   }
   return Object.values(models).some((model) => model.size > 1);
-}
-
-export function getPdbText(comp) {
-  let pw = new PdbWriter(comp.structure, { renumberSerial: false });
-  return pw
-    .getData()
-    .split("\n")
-    .filter((line) => line.startsWith("ATOM"))
-    .join("\n");
 }
 
 export const humanReadibleFormat = (bytes) => {
@@ -1155,22 +1057,4 @@ export function getResnoWithChain(
     }
   }
   return result;
-}
-
-export function wrapLog() {
-  const originalLog = console.log;
-  console.log = function (...args) {
-    if (typeof args[0] === "string" && args[0].includes("STAGE LOG")) {
-      return;
-    }
-    originalLog.apply(console, args);
-  };
-}
-
-export function recoverLog() {
-  const tmpIframe = document.createElement("iframe");
-  tmpIframe.style.display = "none";
-  document.body.appendChild(tmpIframe);
-  console.log = tmpIframe.contentWindow.console.log;
-  document.body.removeChild(tmpIframe);
 }

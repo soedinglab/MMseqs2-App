@@ -5,22 +5,37 @@
                 <span class="protsolata-auto">Q&nbsp;{{padNumber(getQueryRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;</span><!--
                 --><ResidueSpan
                     sequenceType="query"
+                    :text="alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)"
+                    :selectionStart="getSelectionStart(i, 'query')"
+                    :selectionEnd="getSelectionEnd(i, 'query')"
+                    :hoverOffset="getHoverOffset(i, 'query')"
+                    :interfaceRanges="getInterfaceRanges(i, 'query')"
+                    @selectstart="onSelectStart($event, alnIndex, i, 'query')"
+                    @pointerdown="onPointerDown($event, alnIndex, i, 'query')"
+                    @pointerup="onPointerUp($event, alnIndex, i, 'query')"
+                    @pointermove="onPointerMove($event, alnIndex, i, 'query')"
+                    @pointerleave="onPointerLeave($event, alnIndex, i, 'query')"
+                    @clickHighlight="onClickHighlight($event, alnIndex, i, 'query')"
                     :class="colorscheme ? colorscheme : null"
-                ><!--
-                    -->{{alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen)}}<!--
-                --></ResidueSpan><br><!--
+                /><br><!--
                 --><span class="protsolata-auto">{{'&nbsp;'.repeat(3+(Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length)}}</span><!--
                 --><span class="residues diff" :class="colorscheme ? colorscheme : null">{{formatAlnDiff(alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen), alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen))}}</span><br><!--
                 --><span class="protsolata-auto">T&nbsp;{{padNumber(getTargetRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;</span><!--
                 --><ResidueSpan
                     sequenceType="target"
-                    :selectionStart="getSelectionStart(i)"
-                    :selectionEnd="getSelectionEnd(i)"
-                    @selectstart="onSelectStart($event, alnIndex, i)"
-                    @pointerup="onPointerUp($event, alnIndex, i)"
+                    :text="alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)"
+                    :selectionStart="getSelectionStart(i, 'target')"
+                    :selectionEnd="getSelectionEnd(i, 'target')"
+                    :hoverOffset="getHoverOffset(i, 'target')"
+                    :interfaceRanges="getInterfaceRanges(i, 'target')"
+                    @selectstart="onSelectStart($event, alnIndex, i, 'target')"
+                    @pointerdown="onPointerDown($event, alnIndex, i, 'target')"
+                    @pointerup="onPointerUp($event, alnIndex, i, 'target')"
+                    @pointermove="onPointerMove($event, alnIndex, i, 'target')"
+                    @pointerleave="onPointerLeave($event, alnIndex, i, 'target')"
+                    @clickHighlight="onClickHighlight($event, alnIndex, i, 'target')"
                     :class="colorscheme ? colorscheme : null"
-                >{{alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}<!--
-                --></ResidueSpan>
+                />
             </span><br>
         </span>
     </div>
@@ -55,15 +70,28 @@ export default {
         'targetMap',
         'alnIndex',
         'highlights',
+        'queryHighlights',
+        'interfaceHighlights',
+        'queryInterfaceHighlights',
+        'hover',
         'colorscheme'
     ],
     components: { ResidueSpan },
     methods: {
-        getSelectionStart(i) {
-            return (i > 0 && i <= this.highlights.length) ? this.highlights[i-1][0] : 0;
+        getSelectionStart(i, side) {
+            const highlights = side === 'query' ? this.queryHighlights : this.highlights;
+            return (i > 0 && i <= highlights.length) ? highlights[i-1][0] : 0;
         },
-        getSelectionEnd(i) {
-            return (i > 0 && i <= this.highlights.length) ? this.highlights[i-1][1] : 0;
+        getSelectionEnd(i, side) {
+            const highlights = side === 'query' ? this.queryHighlights : this.highlights;
+            return (i > 0 && i <= highlights.length) ? highlights[i-1][1] : 0;
+        },
+        getHoverOffset(i, side) {
+            return this.hover?.side === side && this.hover?.lineNo === i ? this.hover.offset : null;
+        },
+        getInterfaceRanges(i, side) {
+            const highlights = side === 'query' ? this.queryInterfaceHighlights : this.interfaceHighlights;
+            return (i > 0 && highlights && i <= highlights.length) ? highlights[i - 1] : [];
         },
 
         // Get the index of a given residue in the alignment
@@ -89,11 +117,23 @@ export default {
         padNumber(nr, n, str){
             return Array(n - String(nr).length + 1).join(str || '0') + nr
         },
-        onSelectStart(event, alnIndex, lineNo) {
-            this.$emit('residueSelectStart', event, alnIndex, lineNo);
+        onSelectStart(event, alnIndex, lineNo, side) {
+            this.$emit('residueSelectStart', event, alnIndex, lineNo, side);
         },
-        onPointerUp(event, alnIndex, lineNo) {
-            this.$emit('residuePointerUp', event, alnIndex, lineNo);
+        onPointerUp(event, alnIndex, lineNo, side) {
+            this.$emit('residuePointerUp', event, alnIndex, lineNo, side);
+        },
+        onPointerDown(event, alnIndex, lineNo, side) {
+            this.$emit('residuePointerDown', event, alnIndex, lineNo, side);
+        },
+        onPointerMove(event, alnIndex, lineNo, side) {
+            this.$emit('residuePointerMove', event, alnIndex, lineNo, side);
+        },
+        onPointerLeave(event, alnIndex, lineNo, side) {
+            this.$emit('residuePointerLeave', event, alnIndex, lineNo, side);
+        },
+        onClickHighlight(event, alnIndex, lineNo, side) {
+            this.$emit('residueClickHighlight', event, alnIndex, lineNo, side);
         }
     }, 
 }
@@ -111,7 +151,8 @@ export default {
 .inselection, .inselection * {
     user-select: none;
 }
-.inselection span.target, span.target * {
+.inselection span.query, .inselection span.query *,
+.inselection span.target, .inselection span.target * {
     user-select: text !important; 
 }
 .alignment-wrapper-inner .line {

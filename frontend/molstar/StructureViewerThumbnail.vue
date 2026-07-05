@@ -1,0 +1,426 @@
+<template>
+<div>
+    <div ref="offscreenContainer" class="offscreen-container">
+        <div ref="viewport" class="thumbnail-viewport" :style="viewportStyle">
+            <canvas ref="canvas" class="thumbnail-canvas" aria-hidden="true"></canvas>
+        </div>
+    </div>
+</div>
+</template>
+
+<script>
+import { Color } from 'molstar/lib/mol-util/color';
+import { foldseekResult } from './foldseekResult.js';
+import { folddiscoResult } from './folddiscoResult.js';
+import { prepareFoldseekStructureInput } from './foldseekData.js';
+import { captureViewportPng, createStructurePlugin, drawStableFrame, setCanvasSpin } from './molstarViewer.js';
+
+export default {
+    name: "StructureViewerThumbnail",
+    data() {
+        return {
+            plugin: null,
+            sceneState: {},
+            isRendering: false,
+            currentQueueIndex: 0,
+            activeId: null,
+            destroyed: false,
+            isSpinning: false,
+            queuePaused: false,
+            queueScheduled: false,
+            operationQueue: Promise.resolve(),
+        };
+    },
+    props: {
+        thumbnailQueue: { type: Array, default: () => [] },
+        hits: { type: Object },
+        thumbWidth: { type: Number, default: 286 },
+        thumbHeight: { type: Number, default: 240 },
+        mode: { type: Number, default: 0 },
+        searchType: { type: String, default: "" },
+        queryPdb: { type: String, default: "" },
+    },
+    computed: {
+        viewportStyle() {
+            return {
+                width: `${this.thumbWidth}px`,
+                height: `${this.thumbHeight}px`,
+            };
+        },
+        structureMode() {
+            if (this.searchType === 'interfacesearch') return 'interface';
+            if (this.mode === 1) return 'multimer';
+            return 'alignment';
+        },
+    },
+    methods: {
+        async initPlugin() {
+            await this.$nextTick();
+
+            this.plugin = await createStructurePlugin(this.$refs.canvas, this.$refs.viewport, {
+                renderer: {
+                    backgroundColor: Color(this.$vuetify.theme.dark ? 0x1e1e1e : 0xffffff),
+                },
+            });
+            this.resizeTo(this.thumbWidth, this.thumbHeight);
+        },
+
+        resizeTo(width, height) {
+            const viewport = this.$refs.viewport;
+            const canvas = this.$refs.canvas;
+            if (!viewport || !canvas) return;
+            viewport.style.width = typeof width === 'number' ? `${width}px` : width;
+            viewport.style.height = typeof height === 'number' ? `${height}px` : height;
+            if (typeof width === 'number') canvas.width = Math.max(1, Math.floor(width));
+            if (typeof height === 'number') canvas.height = Math.max(1, Math.floor(height));
+            this.plugin?.canvas3d?.handleResize();
+        },
+
+        async prepareInput(item) {
+            const alignments = this.alignmentsForItem(item);
+            if (this.mode === 2) {
+                const alignment = alignments[0];
+                if (!alignment || !this.queryPdb) return null;
+
+                const targetPdb = await this.fetchFolddiscoTargetPdb(alignment, item.db);
+                if (!targetPdb) return null;
+
+                return {
+                    alignment,
+                    queryPdb: this.queryPdb,
+                    targetPdb,
+                    showQuery: 0,
+                    showTarget: 0,
+                };
+            }
+
+            return prepareFoldseekStructureInput({
+                alignments,
+                hits: this.hits,
+                axios: this.$axios,
+                route: this.$route,
+                root: this.$root,
+                isLocal: this.$LOCAL,
+                structureMode: this.structureMode,
+                interfaceCutoff: 10,
+            });
+        },
+
+        alignmentsForItem(item) {
+            return (item.alignments || []).map(alignment => ({
+                ...alignment,
+                db: alignment.db || item.db,
+            }));
+        },
+
+        async fetchFolddiscoTargetPdb(alignment, db) {
+            const target = db?.startsWith('pdb') ? alignment.target : alignment.dbkey;
+            if (!target) return null;
+
+            const url = `api/result/folddisco/${this.$route.params.ticket}?database=${db}&id=${target}`;
+            const response = await this.$axios.get(url, {
+                transformResponse: [(data) => data],
+            });
+            return response.data;
+        },
+
+        thumbnailSceneInput(input) {
+            return {
+                ...input,
+                showQuery: this.mode === 2 ? input.showQuery : 1,
+                showTarget: this.mode === 2 ? input.showTarget : 1,
+                showArrows: false,
+                queryAlpha: 0.9,
+                targetAlpha: 0.7,
+                representationQuality: 'thumbnail',
+                highlightSelections: [],
+                hoverSelection: null,
+                focusSelection: null,
+            };
+        },
+
+        async renderSceneForItem(item) {
+            if (!item?.alignments?.length || !this.plugin) return false;
+            await this.plugin.clear();
+            this.sceneState = {};
+
+            const input = await this.prepareInput(item);
+            if (!input || (!input.query && !input.target && (!input.queryPdb || !input.targetPdb))) return false;
+
+            const scene = this.mode === 2 ? folddiscoResult : foldseekResult;
+            const sceneInput = this.thumbnailSceneInput(input);
+            await scene.update(this.plugin, this.sceneState, sceneInput);
+            this.fitScene(scene, sceneInput);
+            await drawStableFrame(this.plugin);
+            return true;
+        },
+
+        fitScene(scene, sceneInput) {
+            if (scene.resetView) {
+                scene.resetView(this.plugin, this.sceneState, sceneInput, { durationMs: 0 });
+            } else {
+                this.resetCamera();
+            }
+        },
+
+        async captureThumbnail() {
+            return captureViewportPng(this.plugin, (screenshot, previousValues) => {
+                screenshot.behaviors.values.next({
+                    ...previousValues,
+                    transparent: true,
+                    format: { name: 'png', params: {} },
+                    resolution: {
+                        name: 'custom',
+                        params: {
+                            width: this.thumbWidth * 2,
+                            height: this.thumbHeight * 2,
+                        },
+                    },
+                    axes: { name: 'off', params: {} },
+                });
+                screenshot.behaviors.cropParams.next({
+                    auto: false,
+                    relativePadding: 0,
+                });
+                screenshot.resetCrop();
+            }, 'Generate Thumbnail');
+        },
+
+        resetCamera() {
+            this.plugin?.canvas3d?.requestCameraReset({ durationMs: 0 });
+            this.plugin?.canvas3d?.commit(true);
+        },
+
+        async clearPlugin() {
+            if (!this.plugin) return;
+            await this.plugin.clear();
+            this.sceneState = {};
+        },
+
+        moveViewportTo(targetEl, width, height) {
+            if (!targetEl || !this.$refs.viewport) return;
+            targetEl.appendChild(this.$refs.viewport);
+            this.resizeTo(width, height);
+        },
+
+        restoreThumbnailViewport() {
+            this.moveViewportTo(this.$refs.offscreenContainer, this.thumbWidth, this.thumbHeight);
+        },
+
+        stopActiveViewerInteraction() {
+            this.setSpin(false);
+            this.isSpinning = false;
+            this.$refs.canvas?.removeEventListener('pointerdown', this.handlePointerInteraction);
+        },
+
+        canProcessQueue() {
+            return !this.destroyed
+                && !this.queuePaused
+                && !document.hidden
+                && (this.mode !== 2 || Boolean(this.queryPdb));
+        },
+
+        scheduleProcessQueue() {
+            if (this.queueScheduled || this.destroyed) return;
+            this.queueScheduled = true;
+
+            const schedule = window.requestIdleCallback || ((callback) => setTimeout(callback, 250));
+            schedule(() => {
+                this.queueScheduled = false;
+                this.processQueue();
+            }, { timeout: 2000 });
+        },
+
+        handlePageActivityChange() {
+            if (this.canProcessQueue()) {
+                this.scheduleProcessQueue();
+            }
+        },
+
+        async setActiveViewer(id, alignments, targetEl) {
+            if (!this.plugin) return;
+            this.enqueueOperation(async () => {
+                if (this.activeId === id) return;
+                this.stopActiveViewerInteraction();
+                await this.mountActiveViewer(id, alignments, targetEl);
+            });
+            await this.operationQueue;
+        },
+
+        async mountActiveViewer(id, alignments, targetEl) {
+            if (!this.plugin || this.destroyed) return;
+            this.queuePaused = true;
+            this.activeId = id;
+            this.moveViewportTo(targetEl, '100%', '100%');
+
+            try {
+                const rendered = await this.renderSceneForItem({ id, db: id, alignments });
+                if (!rendered || this.destroyed || !this.plugin) {
+                    await this.restoreOffscreenViewer(id);
+                    return;
+                }
+                this.setActiveSpin(true);
+                this.$refs.canvas.addEventListener('pointerdown', this.handlePointerInteraction, { passive: true });
+                this.$emit('viewer-ready');
+            } catch (e) {
+                console.warn('Interactive Mol* viewer failed for', id, e);
+                await this.restoreOffscreenViewer(id);
+            }
+        },
+
+        async restoreOffscreenViewer(id) {
+            if (this.activeId !== id) return;
+            this.stopActiveViewerInteraction();
+            await this.clearPlugin();
+            this.restoreThumbnailViewport();
+            this.activeId = null;
+            this.queuePaused = false;
+            this.$emit('spin-change', false);
+            this.scheduleProcessQueue();
+        },
+
+        clearActiveViewer() {
+            if (this.activeId === null || !this.plugin) return;
+            const id = this.activeId;
+            this.enqueueOperation(() => this.restoreOffscreenViewer(id));
+        },
+
+        handlePointerInteraction() {
+            if (this.isSpinning) {
+                this.setActiveSpin(false);
+            }
+        },
+
+        setActiveSpin(enabled) {
+            this.isSpinning = enabled;
+            this.setSpin(enabled);
+            this.$emit('spin-change', enabled);
+        },
+
+        setSpin(enabled) {
+            setCanvasSpin(this.plugin, enabled);
+        },
+
+        handleToggleSpin() {
+            if (!this.plugin) return;
+            this.setActiveSpin(!this.isSpinning);
+        },
+
+        handleResetView() {
+            this.plugin?.managers?.camera?.reset();
+        },
+
+        nextQueueItem() {
+            if (!this.canProcessQueue() || this.isRendering) return null;
+            return this.thumbnailQueue[this.currentQueueIndex] || null;
+        },
+
+        enqueueOperation(operation) {
+            this.operationQueue = this.operationQueue
+                .catch(() => {})
+                .then(operation);
+            return this.operationQueue;
+        },
+
+        async processQueue() {
+            if (!this.nextQueueItem()) return;
+            this.enqueueOperation(() => this.processQueueItem());
+            await this.operationQueue;
+        },
+
+        async processQueueItem() {
+            const item = this.nextQueueItem();
+            if (!item) return;
+
+            this.isRendering = true;
+            let advanceQueue = true;
+
+            try {
+                const rendered = await this.renderSceneForItem(item);
+                if (!this.canProcessQueue()) {
+                    advanceQueue = false;
+                    return;
+                }
+                if (rendered) {
+                    const blob = await this.captureThumbnail();
+                    this.$emit('thumbnail-ready', { id: item.id, blob });
+                }
+            } catch (e) {
+                console.warn('Mol* thumbnail generation failed for', item.id, e);
+            } finally {
+                await this.clearPlugin();
+                this.isRendering = false;
+
+                if (advanceQueue) {
+                    this.currentQueueIndex++;
+                    if (!this.destroyed) {
+                        this.$nextTick(() => this.scheduleProcessQueue());
+                    }
+                }
+            }
+        },
+    },
+    watch: {
+        thumbnailQueue: {
+            handler(newQueue, oldQueue) {
+                if (newQueue !== oldQueue) {
+                    this.currentQueueIndex = 0;
+                }
+                if (!oldQueue || newQueue !== oldQueue || newQueue.length > oldQueue.length) {
+                    this.scheduleProcessQueue();
+                }
+            },
+        },
+        queryPdb() {
+            if (this.mode === 2) {
+                this.scheduleProcessQueue();
+            }
+        },
+    },
+    async mounted() {
+        await this.initPlugin();
+        document.addEventListener('visibilitychange', this.handlePageActivityChange);
+        window.addEventListener('focus', this.handlePageActivityChange);
+        window.addEventListener('blur', this.handlePageActivityChange);
+        this.scheduleProcessQueue();
+    },
+    async beforeDestroy() {
+        this.destroyed = true;
+        document.removeEventListener('visibilitychange', this.handlePageActivityChange);
+        window.removeEventListener('focus', this.handlePageActivityChange);
+        window.removeEventListener('blur', this.handlePageActivityChange);
+        this.$refs.canvas?.removeEventListener('pointerdown', this.handlePointerInteraction);
+        try {
+            await this.operationQueue;
+            await this.clearPlugin();
+        } catch (e) {
+            // Teardown should continue if an in-flight thumbnail render failed.
+        }
+        const plugin = this.plugin;
+        this.plugin = null;
+        plugin?.dispose?.({ doNotForceWebGLContextLoss: true });
+    },
+};
+</script>
+
+<style scoped>
+.offscreen-container {
+    position: absolute;
+    left: -9999px;
+    top: -9999px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.thumbnail-viewport {
+    position: relative;
+    overflow: hidden;
+    line-height: 0;
+}
+
+.thumbnail-canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+}
+</style>

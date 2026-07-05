@@ -22,6 +22,7 @@
                     <TopHitEntries
                             :entry="hit"
                             :key="hit.db"
+                            :ref="hitRef(hit.db)"
                             :mode="mode"
                             :columnName="columnName"
                             :thumbnailUrl="thumbnailCache[hit.db]"
@@ -40,16 +41,20 @@
             v-if="thumbnailQueue.length > 0"
             ref="thumbnailViewer"
             :thumbnailQueue="thumbnailQueue"
-            :hits="hits" :mode="mode"
+            :hits="hits"
+            :mode="mode"
+            :searchType="searchType"
+            :queryPdb="queryPdb"
             @thumbnail-ready="handleThumbnailReady"
             @viewer-ready="handleViewerReady"
+            @spin-change="viewerSpinning = $event"
         />
     </div>
 </template>
 
 <script>
 import TopHitEntries from './TopHitEntries.vue';
-import StructureViewerThumbnail from './StructureViewerThumbnail.vue';
+import StructureViewerThumbnail from './molstar/StructureViewerThumbnail.vue';
 
 export default {
     name: "TopHits",
@@ -80,12 +85,58 @@ export default {
         searchType: {
             type: String,
             default: "",
-        }
+        },
+        queryPdb: {
+            type: String,
+            default: "",
+        },
     },
     methods: {
-        handleThumbnailReady({ id, result }) {
-            // const url = URL.createObjectURL(blob);
-            this.$set(this.thumbnailCache, id, result);
+        clearThumbnailCache() {
+            Object.values(this.thumbnailCache).forEach(url => {
+                URL.revokeObjectURL(url);
+            });
+            this.thumbnailCache = {};
+        },
+        rebuildTopHits() {
+            this.activeCardId = null;
+            this.viewerSpinning = false;
+            this.topHits = this.hits.results.map(
+                ({alignments, db, color, hasTaxonomy, hasDescription}) => {
+                    const minKey = alignments && Object.keys(alignments).length > 0
+                        ? Object.keys(alignments).map(i => Number(i))[0] : -1
+                    const firstEntry = minKey < 0 ? null : alignments[minKey]
+                    const qTM = this.mode == 1 && minKey >= 0 ? firstEntry[0].complexqtm.toFixed(2) : undefined
+                    const tTM = this.mode == 1 && minKey >= 0 ? firstEntry[0].complexttm.toFixed(2) : undefined
+                    if (firstEntry && this.mode == 1) {
+                        for (let entry of firstEntry) {
+                            const prefix =
+                                entry.query.lastIndexOf('_') != -1
+                                    ? entry.query.substring(entry.query.lastIndexOf('_')+1)
+                                    : ''
+                            entry.title = prefix + ' ➔ ' + entry.target
+                        }
+                    }
+                    return {
+                        db, color, hasDescription, hasTaxonomy, qTM, tTM,
+                        topHit: firstEntry
+                    }
+            })
+
+            this.thumbnailQueue = this.topHits
+                .filter(hit => hit.topHit && hit.topHit.length > 0)
+                .map(hit => ({
+                    id: hit.db,
+                    alignments: hit.topHit,
+                    db: hit.db,
+                }));
+        },
+        handleThumbnailReady({ id, blob }) {
+            if (!blob) return;
+            if (this.thumbnailCache[id]) {
+                URL.revokeObjectURL(this.thumbnailCache[id]);
+            }
+            this.$set(this.thumbnailCache, id, URL.createObjectURL(blob));
         },
         handleViewerReady() {
             this.viewerSpinning = true;
@@ -98,8 +149,14 @@ export default {
         handleToolbarToggleSpin() {
             if (this.$refs.thumbnailViewer) {
                 this.$refs.thumbnailViewer.handleToggleSpin();
-                this.viewerSpinning = this.$refs.thumbnailViewer.isSpinning;
             }
+        },
+        hitRef(id) {
+            return `topHit:${id}`;
+        },
+        hitComponent(id) {
+            const ref = this.$refs[this.hitRef(id)];
+            return Array.isArray(ref) ? ref[0] : ref;
         },
         handleCardActivate(hit) {
             if (!hit.topHit) return;
@@ -111,63 +168,27 @@ export default {
                 this.viewerSpinning = false;
                 this.$nextTick(() => {
                     if (this.$refs.thumbnailViewer) {
-                        this.$refs.thumbnailViewer.deactivateViewer();
+                        this.$refs.thumbnailViewer.clearActiveViewer();
                     }
                 });
                 return;
             }
 
-            const wasActive = this.activeCardId !== null;
             this.activeCardId = cardId;
 
             this.$nextTick(() => {
-                // Find the TopHitEntries component for this card
-                const entries = this.$children.filter(c => c.$options.name === 'TopHitEntries');
-                const targetEntry = entries.find(c => c.entry.db === cardId);
+                const targetEntry = this.hitComponent(cardId);
                 if (!targetEntry || !targetEntry.$refs.viewerSlot) return;
                 const targetEl = targetEntry.$refs.viewerSlot;
 
                 if (this.$refs.thumbnailViewer) {
-                    if (wasActive) {
-                        this.$refs.thumbnailViewer.switchViewer(cardId, hit.topHit, targetEl);
-                    } else {
-                        this.$refs.thumbnailViewer.activateViewer(cardId, hit.topHit, targetEl);
-                    }
+                    this.$refs.thumbnailViewer.setActiveViewer(cardId, hit.topHit, targetEl);
                 }
             });
         },
     },
     beforeMount() {
-        this.topHits = this.hits.results.map(
-            ({alignments, db, color, hasTaxonomy, hasDescription}) => {
-                const minKey = alignments && Object.keys(alignments).length > 0
-                    ? Object.keys(alignments).map(i => Number(i))[0] : -1
-                const firstEntry = minKey < 0 ? null : alignments[minKey]
-                const qTM = this.mode == 1 && minKey >= 0 ? firstEntry[0].complexqtm.toFixed(2) : undefined
-                const tTM = this.mode == 1 && minKey >= 0 ? firstEntry[0].complexttm.toFixed(2) : undefined
-                if (firstEntry && this.mode == 1) {
-                    for (let entry of firstEntry) {
-                        const prefix =
-                            entry.query.lastIndexOf('_') != -1
-                                ? entry.query.substring(entry.query.lastIndexOf('_')+1)
-                                : ''
-                        entry.title = prefix + ' ➔ ' + entry.target
-                    }
-                }
-                return {
-                    db, color, hasDescription, hasTaxonomy, qTM, tTM,
-                    topHit: firstEntry
-                }
-        })
-
-        // Build thumbnail queue from topHits
-        this.thumbnailQueue = this.topHits
-            .filter(hit => hit.topHit && hit.topHit.length > 0)
-            .map(hit => ({
-                id: hit.db,
-                alignments: hit.topHit,
-                db: hit.db,
-            }));
+        this.rebuildTopHits();
 
         if (this.alignMode != "") {
             if (__APP__ == 'foldseek') {
@@ -186,11 +207,18 @@ export default {
             }
         }
     },
+    watch: {
+        hits() {
+            this.clearThumbnailCache();
+            this.rebuildTopHits();
+        },
+        '$route.params.entry'() {
+            this.clearThumbnailCache();
+            this.rebuildTopHits();
+        },
+    },
     beforeDestroy() {
-        // Revoke all blob URLs
-        Object.values(this.thumbnailCache).forEach(url => {
-            URL.revokeObjectURL(url);
-        });
+        this.clearThumbnailCache();
     },
 }
 </script>
