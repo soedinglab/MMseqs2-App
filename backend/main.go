@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -17,6 +18,7 @@ const (
 	WORKER
 	SERVER
 	UTIL_VERSION
+	UTIL_PRINT_CONFIG
 )
 
 func ParseType(args []string) (RunType, []string) {
@@ -35,6 +37,9 @@ func ParseType(args []string) (RunType, []string) {
 			continue
 		case "-version":
 			t = UTIL_VERSION
+			continue
+		case "-print-config":
+			t = UTIL_PRINT_CONFIG
 			continue
 		}
 
@@ -109,6 +114,15 @@ func main() {
 	err = config.ReadParameters(args)
 	if err != nil {
 		panic(err)
+	}
+
+	if t == UTIL_PRINT_CONFIG {
+		out, err := json.MarshalIndent(config, "", "    ")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(string(out))
+		return
 	}
 
 	if err := config.CheckPaths(); err != nil {
