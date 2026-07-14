@@ -1,7 +1,7 @@
 <template>
     <div class="alignment-panel" slot="content">
         <div class="alignment-wrapper-outer" style="width: 100%;">
-            <!-- <div style="line-height: 1.2em; display: flex; flex-direction: column; width: 100%; justify-content: space-between; margin-bottom: 1em;">
+            <div style="line-height: 1.2em; display: flex; flex-direction: column; width: 100%; justify-content: space-between; margin-bottom: 1em;">
                 <div style="display: flex; flex-direction: row; align-items: center; gap: 24px">
                     <v-select
                         persistent-hint
@@ -33,9 +33,9 @@
                     Interface search results &mdash; query chain ➔ target chain pairs from the matched dimer.<br style="height: 0.2em">
                     Select target residues to highlight their structure.
                 </small>
-            </div> -->
+            </div>
 
-            <!-- <template v-for="(alignment, index) in alignments">
+            <template v-for="(alignment, index) in alignments">
                 <div :key="`hdr-${alignment.id}`" style="margin-top: 0.5em; font-weight: 500;">
                     {{ chainOf(alignment.query) }} ➔ {{ alignment.target }}
                 </div>
@@ -52,7 +52,7 @@
                     @residueSelectStart="onResidueSelectStart"
                     @residuePointerUp="onResiduePointerUp"
                 />
-            </template> -->
+            </template>
         </div>
         <div class="alignment-structure-wrapper">
             <StructureViewerInterface
@@ -270,18 +270,41 @@ export default {
 
 <style scoped>
 .alignment-panel {
-    display: flex;
+    display: inline-flex;
+    flex-wrap: nowrap;
     justify-content: center;
     width: 100%;
 }
 
 .alignment-wrapper-outer {
-    display: none;
+    display: inline-flex;
+    flex-direction: column;
+}
+
+.alignment-wrapper-inner {
+    padding-bottom: 1em;
+}
+
+.alignment-structure-wrapper {
+    min-width: 450px;
+    margin: 0;
+    margin-bottom: auto;
 }
 
 @media screen and (max-width: 960px) {
+    .alignment-wrapper-outer, .alignment-panel  {
+        display: flex;
+    }
+    .alignment-panel {
+        flex-direction: column-reverse;
+    }
     .alignment-structure-wrapper {
         width: 100%;
+        padding-bottom: 1em;
+    }
+
+    .alignment-wrapper-outer, .alignment-structure-wrapper {
+        align-self: center;
     }
 }
 

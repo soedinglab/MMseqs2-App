@@ -68,7 +68,7 @@
                                         </v-icon>
                                     </v-list-item-icon>
                                 </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('prob')">
+                                <v-list-item v-if="searchType !== 'interfacesearch'" @click.stop="changeSortMode('prob')">
                                     <v-list-item-title>Probability</v-list-item-title>
                                     <v-list-item-icon>
                                         <v-icon :style="{'opacity' : sortKey == 'prob' ? '1' : 0}">
@@ -84,7 +84,7 @@
                                         </v-icon>
                                     </v-list-item-icon>
                                 </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('eval')">
+                                <v-list-item v-if="searchType !== 'interfacesearch'" @click.stop="changeSortMode('eval')">
                                     <v-list-item-title>{{ this.mode == 'tmalign' ? 'TM-score' : this.mode == 'lolalign' ? 'LOL-score' : 'E-Value' }}</v-list-item-title>
                                     <v-list-item-icon>
                                         <v-icon :style="{'opacity' : sortKey == 'eval' ? '1' : 0}">
@@ -119,9 +119,9 @@
                 <col style="min-width: 10%;" />
                 <col v-if="hasDescription" style="min-width: 25%;" />
                 <col v-if="hasTaxonomy" style="min-width: 15%;" />
+                <col v-if="searchType !== 'interfacesearch'" style="width: 6%;" />
                 <col style="width: 6%;" />
-                <col style="width: 6%;" />
-                <col style="width: 6%;" />
+                <col v-if="searchType !== 'interfacesearch'" style="width: 6%;" />
                 <template v-if="tableMode == 0">
                     <col style="min-width: 20%;" />
                 </template>
@@ -138,7 +138,7 @@
                 <tr v-if="isComplex">
                     <th colspan="1"></th>
                     <th colspan="2" style="text-align:center; width:10%; border-right: 1px solid #333; border-bottom: 1px solid #333;">{{ searchType === 'interfacesearch' ? 'Interface' : 'Complex' }}</th>
-                    <th :colspan="6 + hasDescription + hasTaxonomy + ((tableMode == 1) ? 2 : 0)" style="text-align:center; border-bottom: 1px solid #333;">Chain</th>
+                    <th :colspan="6 + hasDescription + hasTaxonomy + ((tableMode == 1) ? 2 : 0) - (searchType === 'interfacesearch' ? 2 : 0)" style="text-align:center; border-bottom: 1px solid #333;">Chain</th>
                 </tr>
                 <tr>
                     <th class="thin select-all-th" style="position: relative">
@@ -180,18 +180,18 @@
                         </v-tooltip>
                     </th>
                     <th v-if="hasTaxonomy">Scientific Name</th>
-                    <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'prob', 'sort-down': this.sortOrder < 0}" 
+                    <th v-if="searchType !== 'interfacesearch'" class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'prob', 'sort-down': this.sortOrder < 0}" 
                         @click="changeSortMode('prob')" title="Click to sort by probability">Prob.</th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'seqId', 'sort-down': this.sortOrder < 0}"
                         @click="changeSortMode('seqId')" title="Click to sort by sequence identity">Seq. Id.</th>
-                    <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'eval', 'sort-down': this.sortOrder < 0, 'default-down': mode == 'lolalign' || mode == 'tmalign'}"
+                    <th v-if="searchType !== 'interfacesearch'" class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'eval', 'sort-down': this.sortOrder < 0, 'default-down': mode == 'lolalign' || mode == 'tmalign'}"
                         @click="changeSortMode('eval')" :title="'Click to sort by '+ scoreColumnName">{{ scoreColumnName }}</th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'score', 'sort-down': this.sortOrder < 0}"
                         v-show="tableMode == 1" @click="changeSortMode('score')" title="Click to sort by score">Score</th>
                     <th v-show="tableMode == 1">Query Pos.</th>
                     <th v-show="tableMode == 1">Target Pos.</th>
                     <th v-show="tableMode == 0">
-                        Position in query
+                        {{ searchType === 'interfacesearch' ? 'Position in query interface' : 'Position in query' }}
                         <v-tooltip open-delay="300" top>
                             <template v-slot:activator="{ on }">
                                 <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
@@ -269,13 +269,13 @@
                         </a>
                         <span v-else>-</span>
                     </td>
-                    <td class="thin" data-label="Probability">{{ item.prob }}</td>
+                    <td v-if="searchType !== 'interfacesearch'" class="thin" data-label="Probability">{{ item.prob }}</td>
                     <td class="thin" data-label="Sequence Identity">{{ item.seqId }}</td>
-                    <td class="thin" :data-label="scoreColumnName">{{ item.eval }}</td>
+                    <td v-if="searchType !== 'interfacesearch'" class="thin" :data-label="scoreColumnName">{{ item.eval }}</td>
                     <td class="thin" v-show="tableMode == 1" data-label="Score">{{ item.score }}</td>
                     <td v-show="tableMode == 1" data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
                     <td v-show="tableMode == 1" data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
-                    <td class="graphical" data-label="Position" v-show="tableMode == 0">
+                    <td class="graphical" :data-label="searchType === 'interfacesearch' ? 'Position in query interface' : 'Position'" v-show="tableMode == 0">
                         <Ruler :length="item.qLen" :start="item.qStartPos" :end="item.qEndPos" :color="item.color" :label="index == 0"></Ruler>
                     </td>
                     <td class="alignment-action" :rowspan="isComplex ? hits.results[dbIdx].alignments[groupidx].length : 1" v-if="index == 0">
