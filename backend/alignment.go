@@ -162,6 +162,7 @@ type InterfaceAlignmentEntry struct {
 	DbAln           string        `json:"dbAln"`
 	TargetCa        string        `json:"tCa"`
 	TargetSeq       string        `json:"tSeq"`
+	QueryCa         string        `json:"qCa"`
 	ComplexAssignId int           `json:"complexid"`
 	ComplexQtmScore float32       `json:"complexqtm"`
 	ComplexTtmScore float32       `json:"complexttm"`

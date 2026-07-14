@@ -826,7 +826,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 				} else {
 					columns += "target"
 				}
-				columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,prob,evalue,bits,qlen,tlen,qaln,taln,tca,tseq"
+				columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,prob,evalue,bits,qlen,tlen,qaln,taln,tca,tseq,qca"
 				columns += ",complexassignid,complexqtmscore,complexttmscore,complexu,complext,tkey"
 				if params.Taxonomy {
 					columns += ",taxid,taxname"
@@ -969,7 +969,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					"\t",
 					"-v",
 					"out=" + filepath.Join(resultBase, "keys_"+database),
-					"{print $25 > out}",
+					"{print $26 > out}",
 					filepath.Join(resultBase, "alis_"+database+".m8"),
 				},
 				[]string{},
