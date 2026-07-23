@@ -41,6 +41,8 @@ var defaultFileContent = []byte(`{
             "reason" : "The foldseek server is a shared resource. Please be mindful about submitting many jobs.",
 			// CIDRs to allow without rate-limiting
 			"allowlist": [],
+			// set to true to instead consume a token on every submission
+			"chargeonsubmit": false,
         },
         */
         // should CORS headers be set to allow requests from anywhere
@@ -257,6 +259,7 @@ type ConfigRateLimit struct {
 	IpLookupHeader string   `json:"ipheader"`
 	Reason         string   `json:"reason"`
 	AllowList      []string `json:"allowlist"`
+	ChargeOnSubmit bool     `json:"chargeonsubmit"`
 }
 
 type ConfigWorker struct {

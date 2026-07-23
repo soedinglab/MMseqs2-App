@@ -273,6 +273,58 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}).Methods("DELETE")
 
 	}
+
+	// rate limits
+	allowlistedCIDRs := parseCIDRs(nil)
+	var lmt *limiter.Limiter
+	chargeOnSubmit := false
+	if config.Server.RateLimit != nil {
+		type RateLimitResponse struct {
+			Status string `json:"status"`
+			Reason string `json:"reason"`
+		}
+		b, err := json.Marshal(RateLimitResponse{
+			Status: "RATELIMIT",
+			Reason: config.Server.RateLimit.Reason,
+		})
+		if err != nil {
+			panic(err)
+		}
+
+		lmt = tollbooth.NewLimiter(config.Server.RateLimit.Rate, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Duration(config.Server.RateLimit.TTL) * time.Hour}).
+			SetBurst(config.Server.RateLimit.Burst).
+			SetMessageContentType("application/json; charset=utf-8").
+			SetMessage(string(b))
+		if config.Server.RateLimit.IpLookupHeader != "" {
+			lmt.SetIPLookups([]string{config.Server.RateLimit.IpLookupHeader})
+		}
+		allowlistedCIDRs = parseCIDRs(config.Server.RateLimit.AllowList)
+		chargeOnSubmit = config.Server.RateLimit.ChargeOnSubmit
+	}
+
+	shouldCharge := func(request JobRequest) bool {
+		if chargeOnSubmit {
+			return true
+		}
+		status, _ := jobsystem.Status(request.Id)
+		return status != StatusComplete && status != StatusPending && status != StatusRunning
+	}
+
+	submitJob := func(w http.ResponseWriter, req *http.Request, request JobRequest) {
+		if shouldCharge(request) && !rateLimitAllows(w, req, allowlistedCIDRs, lmt) {
+			return
+		}
+		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := json.NewEncoder(w).Encode(result); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	ticketHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
 		var query string
 		var dbs []string
@@ -347,17 +399,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		err = json.NewEncoder(w).Encode(result)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+		submitJob(w, req, request)
 	}
 
 	ticketMsaHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
@@ -411,17 +453,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		err = json.NewEncoder(w).Encode(result)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+		submitJob(w, req, request)
 	}
 
 	ticketNuclMsaHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
@@ -466,17 +498,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		err = json.NewEncoder(w).Encode(result)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+		submitJob(w, req, request)
 	}
 
 	ticketPairHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
@@ -521,17 +543,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		err = json.NewEncoder(w).Encode(result)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+		submitJob(w, req, request)
 	}
 
 	ticketFoldMasonMSAHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
@@ -616,16 +628,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		err = json.NewEncoder(w).Encode(result)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+		submitJob(w, req, request)
 	}
 
 	ticketFolddiscoHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
@@ -684,70 +687,22 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		result, err := jobsystem.NewJob(request, config.Paths.Results, false)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		err = json.NewEncoder(w).Encode(result)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+		submitJob(w, req, request)
 	}
 
-	if config.Server.RateLimit != nil {
-		type RateLimitResponse struct {
-			Status string `json:"status"`
-			Reason string `json:"reason"`
-		}
-		b, err := json.Marshal(RateLimitResponse{
-			Status: "RATELIMIT",
-			Reason: config.Server.RateLimit.Reason,
-		})
-		if err != nil {
-			panic(err)
-		}
-
-		lmt := tollbooth.NewLimiter(config.Server.RateLimit.Rate, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Duration(config.Server.RateLimit.TTL) * time.Hour}).
-			SetBurst(config.Server.RateLimit.Burst).
-			SetMessageContentType("application/json; charset=utf-8").
-			SetMessage(string(b))
-		if config.Server.RateLimit.IpLookupHeader != "" {
-			lmt.SetIPLookups([]string{config.Server.RateLimit.IpLookupHeader})
-		}
-
-		allowlistedCIDRs := parseCIDRs(config.Server.RateLimit.AllowList)
-		if config.App == AppMMseqs2 || config.App == AppFoldseek {
-			r.Handle("/ticket", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketHandlerFunc)).Methods("POST")
-		}
-		if config.App == AppColabFold || config.App == AppPredictProtein {
-			r.Handle("/ticket/msa", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketMsaHandlerFunc)).Methods("POST")
-		}
-		if config.App == AppColabFold {
-			r.Handle("/ticket/pair", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketPairHandlerFunc)).Methods("POST")
-			r.Handle("/ticket/nuclmsa", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketNuclMsaHandlerFunc)).Methods("POST")
-		}
-		if config.App == AppFoldseek {
-			r.Handle("/ticket/foldmason", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketFoldMasonMSAHandlerFunc)).Methods("POST")
-			r.Handle("/ticket/folddisco", ratelimitWithAllowlistHandler(allowlistedCIDRs, lmt, ticketFolddiscoHandlerFunc)).Methods("POST")
-		}
-	} else {
-		if config.App == AppMMseqs2 || config.App == AppFoldseek {
-			r.HandleFunc("/ticket", ticketHandlerFunc).Methods("POST")
-		}
-		if config.App == AppColabFold || config.App == AppPredictProtein {
-			r.HandleFunc("/ticket/msa", ticketMsaHandlerFunc).Methods("POST")
-		}
-		if config.App == AppColabFold {
-			r.HandleFunc("/ticket/pair", ticketPairHandlerFunc).Methods("POST")
-			r.HandleFunc("/ticket/nuclmsa", ticketNuclMsaHandlerFunc).Methods("POST")
-		}
-		if config.App == AppFoldseek {
-			r.HandleFunc("/ticket/foldmason", ticketFoldMasonMSAHandlerFunc).Methods("POST")
-			r.HandleFunc("/ticket/folddisco", ticketFolddiscoHandlerFunc).Methods("POST")
-		}
+	if config.App == AppMMseqs2 || config.App == AppFoldseek {
+		r.HandleFunc("/ticket", ticketHandlerFunc).Methods("POST")
+	}
+	if config.App == AppColabFold || config.App == AppPredictProtein {
+		r.HandleFunc("/ticket/msa", ticketMsaHandlerFunc).Methods("POST")
+	}
+	if config.App == AppColabFold {
+		r.HandleFunc("/ticket/pair", ticketPairHandlerFunc).Methods("POST")
+		r.HandleFunc("/ticket/nuclmsa", ticketNuclMsaHandlerFunc).Methods("POST")
+	}
+	if config.App == AppFoldseek {
+		r.HandleFunc("/ticket/foldmason", ticketFoldMasonMSAHandlerFunc).Methods("POST")
+		r.HandleFunc("/ticket/folddisco", ticketFolddiscoHandlerFunc).Methods("POST")
 	}
 
 	r.HandleFunc("/ticket/type/{ticket}", func(w http.ResponseWriter, req *http.Request) {
