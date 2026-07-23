@@ -15,58 +15,58 @@ import (
 var defaultFileContent = []byte(`{
 	// One of: mmseqs,foldseek,colabfold,predictprotein
 	"app": "mmseqs",
-    // should mmseqs und webserver output be printed
-    "verbose": true,
-    "server" : {
-        "address"    : "127.0.0.1:8081",
-        // prefix for all API endpoints
-        "pathprefix" : "/api/",
-        // enables additional API endpoints for adding databases
-        // WARNING: No additional authentication provided. Enable only within trusted network/for trusted admins.
-        "dbmanagment": false,
-        /* enable HTTP Basic Auth (optional)
-        "auth": {
-            "username" : "",
-            "password" : "",
-        },
-        // enable rate-limiting (optional)
-        "ratelimit"  : {
-            // this uses the token-bucket algorithm
-            // i.e. we start with a full bucket (with burst tokens) and refill it at a given rate
-            // each request consumes one token, if the bucket is empty the request is rejected
-            // the example below starts with 20 tokens and refills 0.0333 token per second (2 tokens per minute)
-            "rate"   : 0.03333333333333,
-            "burst"  : 20,
-            "ttl"    : 1,
-            "reason" : "The foldseek server is a shared resource. Please be mindful about submitting many jobs.",
+	// should mmseqs und webserver output be printed
+	"verbose": true,
+	"server" : {
+		"address"    : "127.0.0.1:8081",
+		// prefix for all API endpoints
+		"pathprefix" : "/api/",
+		// enables additional API endpoints for adding databases
+		// WARNING: No additional authentication provided. Enable only within trusted network/for trusted admins.
+		"dbmanagment": false,
+		/* enable HTTP Basic Auth (optional)
+		"auth": {
+			"username" : "",
+			"password" : "",
+		},
+		// enable rate-limiting (optional)
+		"ratelimit"  : {
+			// this uses the token-bucket algorithm
+			// i.e. we start with a full bucket (with burst tokens) and refill it at a given rate
+			// each request consumes one token, if the bucket is empty the request is rejected
+			// the example below starts with 20 tokens and refills 0.0333 token per second (2 tokens per minute)
+			"rate"   : 0.03333333333333,
+			"burst"  : 20,
+			"ttl"    : 1,
+			"reason" : "The foldseek server is a shared resource. Please be mindful about submitting many jobs.",
 			// CIDRs to allow without rate-limiting
 			"allowlist": [],
 			// set to true to instead consume a token on every submission
 			"chargeonsubmit": false,
-        },
-        */
-        // should CORS headers be set to allow requests from anywhere
-        "cors"       : true,
+		},
+		*/
+		// should CORS headers be set to allow requests from anywhere
+		"cors"       : true,
 		// should old jobs be checked on startup
 		"checkold"   : true,
-    },
-    "worker": {
-        // should workers exit immediately after SIGINT/SIGTERM signal or gracefully wait for job completion
-        "gracefulexit": false,
-        // How many databases can be searched in parallel (used additional CPUs)
-        "paralleldatabases": 1,
-    },
-    // paths to workfolders and mmseqs, special character ~ is resolved relative to the binary location
-    "paths" : {
-        // path to mmseqs databases, has to be shared between server/workers
-        "databases"    : "~databases",
-        // path to job results and scratch directory, has to be shared between server/workers
-        "results"      : "~jobs",
-        // temporary files for index building
-        "temporary"    : "~tmp",
-        /*
-        // paths to colabfold templates
-        "colabfold"    : {
+	},
+	"worker": {
+		// should workers exit immediately after SIGINT/SIGTERM signal or gracefully wait for job completion
+		"gracefulexit": false,
+		// How many databases can be searched in parallel (used additional CPUs)
+		"paralleldatabases": 1,
+	},
+	// paths to workfolders and mmseqs, special character ~ is resolved relative to the binary location
+	"paths" : {
+		// path to mmseqs databases, has to be shared between server/workers
+		"databases"    : "~databases",
+		// path to job results and scratch directory, has to be shared between server/workers
+		"results"      : "~jobs",
+		// temporary files for index building
+		"temporary"    : "~tmp",
+		/*
+		// paths to colabfold templates
+		"colabfold"    : {
 			// configure GPU support for colabfold
 			// GPU support for mmseqs and foldseek is configured in database .params files
 			/*
@@ -83,103 +83,101 @@ var defaultFileContent = []byte(`{
 				// "environmental_devices": "2",
 			},
 			*/
-            // should stages be run in parallel
-            "parallelstages": false,
-            // paths for search databases
-            "uniref"        : "~databases/uniref30_2103",
-            "pdb"           : "~databases/pdb70",
-            "environmental" : "~databases/colabfold_envdb_202108",
-            "environmentalpair" : "~databases/spire_ctg10_2401_db",
-            // riboseek nucleotide db
-            "nucl"          : "~databases/nucl",
-            // paths for templates
-            "pdb70"         : "~databases/pdb70",
-            "pdbdivided"    : "~databases/pdbdivided",
-            "pdbobsolete"   : "~databases/pdbobsolete",
-        },
-        */
-        // path to foldseek binary
-        "foldseek"     : "~foldseek",
-        "foldseekinterface" : "~foldseek-interface",
-        "foldmason"    : "~foldmason",
-        "folddisco"    : "~folddisco",
-        "foldcomp"     : "~foldcomp",
-        "pdb100"       : "~pdb100",
-        // path to mmseqs binary
-        "mmseqs"       : "~mmseqs",
-        // path to riboseek binary
-        "riboseek"     : "~riboseek",
-    },
-    // connection details for redis database, not used in -local mode
-    "redis" : {
-        "network"  : "tcp",
-        "address"  : "localhost:6379",
-        "password" : "",
-        "index"    : 0,
-    },
-    // options for local/single-binary server
-    "local" : {
-        "workers"  : 1,
+			// should stages be run in parallel
+			"parallelstages": false,
+			// paths for search databases
+			"uniref"        : "~databases/uniref30_2103",
+			"pdb"           : "~databases/pdb70",
+			"environmental" : "~databases/colabfold_envdb_202108",
+			"environmentalpair" : "~databases/spire_ctg10_2401_db",
+			// riboseek nucleotide db
+			"nucl"          : "~databases/nucl",
+			// paths for templates
+			"pdb70"         : "~databases/pdb70",
+			"pdbdivided"    : "~databases/pdbdivided",
+			"pdbobsolete"   : "~databases/pdbobsolete",
+		},
+		*/
+		// path to foldseek binary
+		"foldseek"     : "~foldseek",
+		"foldseekinterface" : "~foldseek-interface",
+		"foldmason"    : "~foldmason",
+		"folddisco"    : "~folddisco",
+		"foldcomp"     : "~foldcomp",
+		"pdb100"       : "~pdb100",
+		// path to mmseqs binary
+		"mmseqs"       : "~mmseqs",
+		// path to riboseek binary
+		"riboseek"     : "~riboseek",
+	},
+	// connection details for redis database, not used in -local mode
+	"redis" : {
+		"network"  : "tcp",
+		"address"  : "localhost:6379",
+		"password" : "",
+		"index"    : 0,
+	},
+	// options for local/single-binary server
+	"local" : {
+		"workers"  : 1,
 		// should old jobs be checked on startup
 		"checkold" : true,
-    },
-    "mail" : {
-        "mailer" : {
-            // three types available:
-            // null: uses NullTransport class, which ignores all sent emails
-            "type" : "null"
-            /* smtp: Uses SMTP to send emails example for gmail
-            "type" : "smtp",
-            "transport" : {
-                // full host URL with port
-                "host" : "smtp.gmail.com:587",
-                // RFC 4616  PLAIN authentication
-                "auth" : {
-                    {
-                        // empty for gmail
-                        "identity" : "",
-                        // gmail user
-                        "username" : "user@gmail.com",
-                        "password" : "password",
-                        "host" : "smtp.gmail.com",
-                    },
-                },
-            },
-            */
-            /* mailgun: Uses the mailgun API to send emails
-            "type"      : "mailgun",
-            "transport" : {
-                // mailgun domain
-                "domain" : "mail.mmseqs.com",
-                // mailgun API private key
-                "secretkey" : "key-XXXX",
-                // mailgun API public key
-                "publickey" : "pubkey-XXXX",
-            },
-            */
-        },
-        // Email FROM field
-        "sender"    : "mail@example.org",
-        /* Bracket notation is also possible:
-        "sender"    : "Webserver <mail@example.org>",
-        */
-        // Email templates. First "%s" is resolved to the ticket identifier
-        "templates" : {
-            "success" : {
-                "subject" : "Done -- %s",
-                "body"    : "%s",
-            },
-            "timeout" : {
-                "subject" : "Timeout -- %s",
-                "body"    : "%s",
-            },
-            "error"   : {
-                "subject" : "Error -- %s",
-                "body"    : "%s",
-            }
-        }
-    }
-}
+	},
+	"mail" : {
+		"mailer" : {
+			// three types available:
+			// null: uses NullTransport class, which ignores all sent emails
+			"type" : "null"
+			/* smtp: Uses SMTP to send emails example for gmail
+			"type" : "smtp",
+			"transport" : {
+				// full host URL with port
+				"host" : "smtp.gmail.com:587",
+				// RFC 4616  PLAIN authentication
+				"auth" : {
+					// empty for gmail
+					"identity" : "",
+					// gmail user
+					"username" : "user@gmail.com",
+					"password" : "password",
+					"host" : "smtp.gmail.com",
+				},
+			},
+			*/
+			/* mailgun: Uses the mailgun API to send emails
+			"type"      : "mailgun",
+			"transport" : {
+				// mailgun domain
+				"domain" : "mail.mmseqs.com",
+				// mailgun API private key
+				"secretkey" : "key-XXXX",
+				// mailgun API public key
+				"publickey" : "pubkey-XXXX",
+			},
+			*/
+		},
+		// Email FROM field
+		"sender"    : "mail@example.org",
+		/* Bracket notation is also possible:
+		"sender"    : "Webserver <mail@example.org>",
+		*/
+		// Email templates. First "%s" is resolved to the ticket identifier
+		"templates" : {
+			"success" : {
+				"subject" : "Done -- %s",
+				"body"    : "%s",
+			},
+			"timeout" : {
+				"subject" : "Timeout -- %s",
+				"body"    : "%s",
+			},
+			"error"   : {
+				"subject" : "Error -- %s",
+				"body"    : "%s",
+			}
+		}
+	}
+	}
 `)
 
 type ColabFoldGpuConfig struct {
