@@ -1,5 +1,5 @@
 <template>
-    <v-icon large :style="{'color': color}">{{ content }}</v-icon>
+    <v-icon :size="32" :style="{'color': color}">{{ content }}</v-icon>
 </template>
 
 <script>

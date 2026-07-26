@@ -52,7 +52,7 @@
 </template>
 
 <script>
-import { storage, HistoryMixin } from './lib/HistoryMixin'
+import { getJobName, setJobName, HistoryMixin } from './lib/HistoryMixin'
 import emitter from './lib/emitter';
 
 export default {
@@ -79,38 +79,24 @@ export default {
         }
     },
     created() {
-        let name = JSON.parse(storage.name_map || "[]").find(e => e.id == this.ticket)?.name
+        const name = getJobName(this.ticket)
         if (name) {
             this.name = name
         }
     },
     methods: {
         saveName() {
-            const name_map = JSON.parse(storage.name_map || "[]")
             if (this.inputValue && this.inputValue != this.ticket) {
                 this.name = this.inputValue
-                const index = name_map.findIndex(e => e.id == this.ticket)
-
-                if (index < 0) {
-                    const obj = {id: this.ticket, name: this.inputValue}
-                    name_map.push(obj)
-                } else {
-                    name_map[index].name = this.inputValue
-                }
             } else {
                 this.name = ""
-                const index = name_map.findIndex(e => e.id == this.ticket)
-
-                if (index != -1) {
-                    name_map.splice(index, 1)
-                }
             }
-            storage.name_map = JSON.stringify(name_map)
+            setJobName(this.ticket, this.name)
             emitter.emit('refresh-job-name', {id: this.ticket, name: this.name})
             this.inEdit = false
         },
         enableEdit() {
-            let name = JSON.parse(storage.name_map || "[]").find(e => e.id == this.ticket)?.name
+            const name = getJobName(this.ticket)
             if (name && name != this.name) {
                 this.name = name
             }
