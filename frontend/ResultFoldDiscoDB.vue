@@ -303,13 +303,13 @@
                     </tr>
                 </template>
             </tbody>
-            <tbody v-if="renderLimit < totalSortedCount" ref="sentinel">
+            <tbody v-if="shownCount < filteredTotal" ref="sentinel">
                 <tr aria-hidden="true" style="height: 1px"></tr>
             </tbody>
-            <tbody v-if="renderLimit < totalSortedCount">
+            <tbody v-if="shownCount < filteredTotal">
                 <tr>
                     <td :colspan="fullColSpan" style="text-align: center; padding: 8px; color: #888;">
-                        Showing {{ totalVisibleCount }} of {{ totalSortedCount }} hits
+                        Showing {{ shownCount }} of {{ filteredTotal }} hits
                     </td>
                 </tr>
             </tbody>
@@ -321,6 +321,7 @@
 import MotifFilter from './MotifFilter.vue';
 import FolddiscoHitCluster from './FolddiscoHitCluster.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
+import { buildSortCache, makeComparator, defaultSortOrder } from './lib/resultSort.js';
 
 export default {
     name: 'ResultFoldDiscoDB',
@@ -331,7 +332,8 @@ export default {
             toggleTargetValue: true,
             toggleSourceKey: "",
             toggleSourceIdx: -1,
-            visibilityTable: [],
+            // Keyed by group id, assigned wholesale so it stays reactive.
+            visibilityTable: {},
             selectedDb: "",
             sortKey: 'idf',
             isCollapsed: false,
@@ -395,7 +397,10 @@ export default {
                 this.toggleSourceKey = ""
                 this.toggleSourceIdx = -1
                 this.toggleSourceValue = true
-                this.renderLimit = this.BATCH_SIZE
+                // Recompute visibility first: nextRenderLimit() reads the visibility table,
+                // so sizing the window before the table is rebuilt would use stale data.
+                this.updateVisibility()
+                this.renderLimit = this.nextRenderLimit(0)
                 this.$nextTick(() => {
                     this.setupObserver()
                     setTimeout(() => {
@@ -414,15 +419,16 @@ export default {
             }
         },
         entry(n, o) {
-            if (n && this.visibilityTable.length == 0) {
-                this.visibilityTable = Array(this.entryLength).fill(true)
+            if (n && Object.keys(this.visibilityTable).length == 0) {
+                this.updateVisibility()
             }
             if (n) {
                 this.$nextTick(() => { this.setupObserver() })
             }
         },
         gapFilter(n, o) {
-            this.renderLimit = this.BATCH_SIZE
+            this.updateVisibility()
+            this.renderLimit = this.nextRenderLimit(0)
             this.$nextTick(() => {
                 this.setupObserver()
                 setTimeout(() => {
@@ -431,7 +437,8 @@ export default {
             })
         },
         clusters(n, o) {
-            this.renderLimit = this.BATCH_SIZE
+            this.updateVisibility()
+            this.renderLimit = this.nextRenderLimit(0)
             this.$nextTick(() => {
                 this.setupObserver()
                 setTimeout(() => {
@@ -448,8 +455,8 @@ export default {
         },
     },
     mounted() {
-        if (this.entry && this.visibilityTable.length == 0) {
-            this.visibilityTable = Array(this.entryLength).fill(true)
+        if (this.entry && Object.keys(this.visibilityTable).length == 0) {
+            this.updateVisibility()
             this.selectedDb = this.db
             this.$nextTick(() => {
                 setTimeout(() => {
@@ -529,6 +536,22 @@ export default {
             }
             return count
         },
+        // Rows actually on screen, out of rows surviving the filter — the previous footer
+        // reported rendered-vs-unfiltered, which misleads whenever a filter is active.
+        shownCount() {
+            let n = 0
+            for (const key in this.visibleSortedIndices) {
+                for (const g of this.visibleSortedIndices[key]) if (this.isRowVisible(g)) n++
+            }
+            return n
+        },
+        filteredTotal() {
+            let n = 0
+            for (const key in this.sortedIndices) {
+                for (const g of this.sortedIndices[key]) if (this.isRowVisible(g)) n++
+            }
+            return n
+        },
         clusterKeys() {
             if (!this.sortedIndices) return []
             return Object.keys(this.sortedIndices)
@@ -537,50 +560,13 @@ export default {
             if (!this.visibleSortedIndices) return []
             return Object.keys(this.visibleSortedIndices)
         },
+        sortKeyCache() {
+            return buildSortCache(this.entry.alignments, { tool: 'folddisco' })
+        },
+        // Shared with the getTable() API via lib/resultSort.js. Verified identical to the
+        // previous inline implementation across all sort keys on a real 3-database result.
         comparator() {
-            let comp = () => {}
-            switch (this.sortKey) {
-                case 'idf':
-                    comp = (a, b) => {
-                        return this.sortOrder * (this.entry.alignments[a][0].idfscore - this.entry.alignments[b][0].idfscore)
-                    }
-                    break;
-
-                case 'target':
-                    comp = (a, b) => {
-                        return this.sortOrder * (this.entry.alignments[a][0].target.localeCompare(this.entry.alignments[b][0].target))
-                    }
-                    break;
-
-                case 'desc':
-                    comp = (a, b) => {
-                        return this.sortOrder * (this.entry.alignments[a][0].description.localeCompare(this.entry.alignments[b][0].description))
-                    }
-                    break;
-
-                case 'tax':
-                    comp = (a, b) => {
-                        return this.sortOrder * (this.entry.alignments[a][0].taxName.localeCompare(this.entry.alignments[b][0].taxName))
-                    }
-                    break;
-
-
-                case 'rmsd':
-                    comp = (a, b) => {
-                        return this.sortOrder * (this.entry.alignments[a][0].rmsd - this.entry.alignments[b][0].rmsd)
-                    }
-                    break;
-
-                case 'node':
-                    comp = (a, b) => {
-                        return this.sortOrder * (this.entry.alignments[a][0].nodecount - this.entry.alignments[b][0].nodecount)
-                    }
-                    break;
-            
-                default:
-                    break;
-            }
-            return comp
+            return makeComparator(this.entry.alignments, this.sortKey, this.sortOrder, this.sortKeyCache)
         },
         headTop() {
             return this.onlyOne ? '92px' : '140px'
@@ -662,10 +648,26 @@ export default {
                 }
             })
         },
+        // Advance until a full batch of *visible* rows is on screen — see the matching
+        // comment in ResultFoldseekDB. Stepping by rendered rows starves the view under a
+        // motif or taxonomy filter and keeps the sentinel permanently in view.
+        nextRenderLimit(from = this.renderLimit) {
+            let shown = 0, i = 0, limit = from
+            for (const key in this.sortedIndices) {
+                for (const groupidx of this.sortedIndices[key]) {
+                    i++
+                    if (i <= from) continue
+                    if (this.isRowVisible(groupidx)) shown++
+                    limit = i
+                    if (shown >= this.BATCH_SIZE) return limit
+                }
+            }
+            return Math.max(limit, this.totalSortedCount)
+        },
         loadMore() {
             if (this.renderLimit >= this.totalSortedCount) return
             const oldLimit = this.renderLimit
-            this.renderLimit += this.BATCH_SIZE
+            this.renderLimit = this.nextRenderLimit()
             this.$nextTick(() => {
                 this.reflectSelectionState()
                 this.applyVisibilityToNewRows(oldLimit)
@@ -685,7 +687,7 @@ export default {
                     const id = this.entryidx + "#" + String(groupidx)
                     const el = document.getElementById(id)
                     if (el) {
-                        el.classList.toggle('invisible', !this.visibilityTable[groupidx])
+                        el.classList.toggle('invisible', !this.isRowVisible(groupidx))
                     }
                 }
             }
@@ -706,18 +708,34 @@ export default {
             console.log(a)
             return a
         },
+        // FoldDisco group ids are always dense (parseResultsFoldDisco keys by loop index), so
+        // the positional visibilityTable is safe here — unlike Foldseek complex, where ids are
+        // backend complexids. Routed through a helper anyway so an unseen key defaults to
+        // visible rather than silently hiding a row.
+        isRowVisible(groupId) {
+            return this.visibilityTable[groupId] !== false
+        },
+        // Both `.selected` and `.invisible` are imperative, so every path that changes the
+        // rendered window must re-apply both. See claude-plan/ai-friendly-results.
+        syncRenderedState() {
+            this.reflectSelectionState()
+            this.updateVisibility()
+        },
         updateVisibility() {
             if (!this.entry) return
 
-            // Set visibility data for ALL entries
-            if (!this.isTaxAvailable && !this.isGapFilterAvailable) {
-                this.visibilityTable = Array(this.entryLength).fill(true)
-            } else {
-                for (let i = 0; i < this.entryLength; i++) {
-                    this.visibilityTable[i] = this.isGroupVisible(this.entry.alignments[i])
-                        && this.isItemVisible(this.entry.alignments[i][0])
-                }
+            // Keyed by group id and assigned wholesale, so it is reactive: the shownCount /
+            // filteredTotal computeds depend on it. Index-assignment into an array is
+            // unobservable in Vue 2 and left the footer counts stale.
+            const filtering = this.isTaxAvailable || this.isGapFilterAvailable
+            const table = {}
+            for (const groupId of Object.keys(this.entry.alignments || {})) {
+                const group = this.entry.alignments[groupId]
+                table[groupId] = filtering
+                    ? (this.isGroupVisible(group) && this.isItemVisible(group[0]))
+                    : true
             }
+            this.visibilityTable = table
 
             // Toggle DOM only for rendered entries
             for (const key in this.visibleSortedIndices) {
@@ -725,7 +743,7 @@ export default {
                     let id = this.entryidx + "#" + String(groupidx)
                     let el = document.getElementById(id)
                     if (el) {
-                        el.classList.toggle('invisible', !this.visibilityTable[groupidx])
+                        el.classList.toggle('invisible', !this.isRowVisible(groupidx))
                     }
                 }
             }
@@ -739,7 +757,7 @@ export default {
                 if (this.clusters[key].length == this.entryLength) continue
 
                 for (const idx of this.clusters[key]) {
-                    if (this.visibilityTable[idx]) {
+                    if (this.isRowVisible(idx)) {
                         visibility[key] = true
                         break
                     }
@@ -778,7 +796,7 @@ export default {
                         if (delta >= deltaUpperbound) {
                             break
                         }
-                        if (this.visibilityTable[i] && this.selectedStates[i] != value) {
+                        if (this.isRowVisible(i) && this.selectedStates[i] != value) {
                             arr.push(i)
                             delta++
                         }
@@ -794,7 +812,7 @@ export default {
                 const arr = []
                 for (let key in this.sortedIndices) {
                     for (let i of this.sortedIndices[key]) {
-                        if (this.visibilityTable[i] && this.selectedStates[i] != true) {
+                        if (this.isRowVisible(i) && this.selectedStates[i] != true) {
                             arr.push(i)
                             break;
                         }
@@ -875,7 +893,7 @@ export default {
                     break
                 }
                 let targetIdx = this.sortedIndices[key][i]
-                if (this.visibilityTable[targetIdx] && this.selectedStates[targetIdx] != value) {
+                if (this.isRowVisible(targetIdx) && this.selectedStates[targetIdx] != value) {
                     delta += deltaUnit
                     arr.push(targetIdx)
                 }
@@ -910,25 +928,12 @@ export default {
                 this.sortOrder *= -1
             } else {
                 this.sortKey = key
-                switch (key) {
-                    case 'target':
-                    case 'desc':
-                    case 'tax':
-                    case 'rmsd':
-                        this.sortOrder = 1
-                        break
-                    case 'idf':
-                    case 'node':
-                        this.sortOrder = -1
-                        break
-                    default:
-                        break;
-                }
+                this.sortOrder = defaultSortOrder(key)
             }
             this.toggleSourceKey = ""
             this.toggleSourceIdx = -1
             this.toggleTargetValue = true
-            this.renderLimit = this.BATCH_SIZE
+            this.renderLimit = this.nextRenderLimit(0)
             this.$nextTick(() => {
                 window.scrollTo({
                     top: 0,
@@ -938,6 +943,10 @@ export default {
                 this.setupObserver()
                 setTimeout(() => {
                     this.reflectSelectionState()
+                    // Re-sorting pulls rows into the render window that were never mounted
+                    // before; Vue builds those fresh, so the imperative `.invisible` class
+                    // has to be re-applied or filtered-out hits reappear.
+                    this.updateVisibility()
                 }, 0)
             })
         },

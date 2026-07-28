@@ -72,30 +72,10 @@ import {
     removeJobType,
 } from './lib/HistoryMixin';
 import emitter from './lib/emitter'
+import { RAW_TYPE, normalizeJobType, pathForTicket } from './lib/ticketRoute.js';
 
-// Sentinel for a COMPLETE job whose backend type is not one we render a
-// dedicated avatar for. It is stored so the type is treated as "resolved"
-// (never re-fetched); such jobs fall back to the generic identicon.
-const RAW_TYPE = 'raw';
-
-// Map a backend job type onto the UI type used for the avatar and routing.
-function normalizeJobType(type) {
-    switch (type) {
-        case "search":
-        case "structuresearch":
-            return 'structure';
-        case "interfacesearch":
-            return 'interface';
-        case "complexsearch":
-            return 'complex';
-        case "foldmasoneasymsa":
-            return 'msa';
-        case "folddisco":
-            return 'motif';
-        default:
-            return RAW_TYPE;
-    }
-}
+// Job-type normalisation and ticket routing are shared with Queue.vue and the ticket
+// navigation API — see lib/ticketRoute.js.
 
 // Status values that never change again, so we don't re-poll them.
 const TERMINAL_STATUS = { COMPLETE: true, ERROR: true };
@@ -259,21 +239,10 @@ export default {
             }
         },
         formattedRoute(element) {
-            const type = this.types[element.id];
-            if (this.statuses[element.id] == 'COMPLETE' && type) {
-                switch (type) {
-                    case 'structure':
-                    case 'complex':
-                    case 'interface':
-                        return '/result/' + element.id + '/0';
-                    case 'msa':
-                        return '/result/foldmason/' + element.id;
-                    case 'motif':
-                        return '/result/folddisco/' + element.id;
-                }
-            }
-            // Type not yet resolved / not complete: let Queue.vue redirect.
-            return '/queue/' + element.id;
+            // Unresolved or incomplete jobs fall through to /queue, which redirects once the
+            // type is known — see lib/ticketRoute.js.
+            const known = this.statuses[element.id] == 'COMPLETE' ? this.types[element.id] : null;
+            return pathForTicket(element.id, known);
         },
         formattedDate(timestamp) {
             const date = new Date(timestamp);

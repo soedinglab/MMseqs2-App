@@ -335,7 +335,6 @@ export default {
                     }
                     await localDb.setItem("msa.query.forwarded_query", queryBlob)
                     await localDb.setItem("msa.query.forwarded_query_name", queryName)
-                    debugger
                 }
                 this.loading = false
                 this.cancelCtl = null

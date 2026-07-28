@@ -172,10 +172,13 @@
 <script>
 import StructureViewerMSA from './StructureViewerMSA.vue';
 import Tree from './Tree.vue';
-import { debounce, tryFixName, mockPDB, oneToThree } from './Utilities.js'
+import { debounce, tryFixName, mockPDB, oneToThree, getResidueIndices } from './Utilities.js'
 import interact from 'interactjs';
 import { MSAViewer } from 'msa-webgpu';
 import MSAConfig from './MSAConfig.vue';
+import { registerResultApi } from './lib/resultsApi.js';
+import { getColumnTable, getColumnMetrics, getConsensus, getTrackCatalog,
+    getTrackValues, getColumnVisibility, resolveAlphabet } from './lib/msaTracks.js';
 
 const position = {x: 0, y: 0}
 const PAGE_HEADER_HEIGHT = 48;
@@ -375,10 +378,34 @@ export default {
                 this.initInteract()
             }, 0)
         })
+        this._disposeApi = registerResultApi('foldmason', {
+            getColumnTable: this.getColumnTable,
+            getColumnMetrics: this.getColumnMetrics,
+            getConsensus: this.getConsensus,
+            getTrackValues: this.getTrackValues,
+            getTracks: this.getTracks,
+            getColumnVisibility: this.getColumnVisibility,
+            getEntries: this.getEntries,
+            getCoordinates: this.getCoordinates,
+            getFasta: this.getFasta,
+            getSelectionFasta: this.getSelectionFasta,
+            getScores: this.getScores,
+            setReference: this.setReference,
+            setRepresentation: this.setRepresentation,
+            getSelectedColumns: this.getSelectedColumns,
+            setSelectedColumns: this.setSelectedColumns,
+            clearSelection: this.clearSelection,
+            getMotif: this.getMotif,
+            setGapThreshold: this.setGapThreshold,
+            getGapThreshold: this.getGapThreshold,
+            describePage: this.describePage,
+            _vm: this,   // unstable escape hatch; see describe()
+        });
         this.initMSAViewer();
     },
     beforeDestroy() {
         window.removeEventListener("scroll", this.handleScroll);
+        this._disposeApi?.();
         this.msaViewer?.destroy?.();
         this.msaViewer = null;
     },
@@ -415,6 +442,279 @@ export default {
         },
     },
     methods: {
+        // ---------------------------------------------------------------------------------
+        // Public API (also exposed as window.resultsApi — see lib/resultsApi.js)
+        // Track values come from the viewer's compute shader via lib/msaTracks.js, which
+        // falls back to CPU computation if the library internals move.
+        // ---------------------------------------------------------------------------------
+        // The CPU fallback must be fed the sequences and alphabet of the representation actually
+        // being asked about — feeding aa strings while reporting alphabetId "3di" produces
+        // confidently wrong numbers, which is worse than no numbers.
+        _fallbackInput(representationId = null) {
+            const repId = representationId
+                ?? this.msaViewer?.getActiveRepresentation?.()?.id
+                ?? null;
+            const { alphabetId, symbols } = resolveAlphabet(this.msaViewer, repId);
+            const field = alphabetId === '3di' ? 'ss' : 'aa';
+            return { sequences: this.entries.map(e => e[field] || ''), symbols: symbols || undefined };
+        },
+        async getColumnTable(opts = {}) {
+            if (!this.msaViewerReady || !this.msaViewer) {
+                return { pending: true, reason: 'MSA viewer is still initialising' };
+            }
+            const { representationId = null, columns = null, offset = 0, limit = 200 } = opts;
+            return await getColumnTable(this.msaViewer, {
+                representationId, columns, offset, limit,
+                ...this._fallbackInput(representationId),
+                // The app's own per-column LDDT, registered as a `values` track. Not a viewer
+                // metric — it comes from the FoldMason backend.
+                extraValues: { lddt: this.scores },
+                selectedColumns: this.selectedColumns,
+            });
+        },
+        async getColumnMetrics(representationId = null) {
+            if (!this.msaViewerReady) return { pending: true };
+            return await getColumnMetrics(this.msaViewer, {
+                representationId, ...this._fallbackInput(representationId) });
+        },
+        async getConsensus(representationId = null) {
+            if (!this.msaViewerReady) return { pending: true };
+            return await getConsensus(this.msaViewer, {
+                representationId, ...this._fallbackInput(representationId) });
+        },
+        async getTrackValues(trackId, representationId = null) {
+            if (!this.msaViewerReady) return { pending: true };
+            return await getTrackValues(this.msaViewer, trackId, {
+                representationId, ...this._fallbackInput(representationId) });
+        },
+        getTracks() {
+            return {
+                catalog: getTrackCatalog(this.msaViewer),
+                enabledDefaults: this.msaViewerState.trackDisplayMode,
+                activeScheme: this.msaViewerState.activeScheme,
+                representations: this.msaViewerState.representations,
+                activeRepresentationId: this.msaViewerState.activeRepresentationId,
+            };
+        },
+        getColumnVisibility(representationId = null) {
+            return getColumnVisibility(this.msaViewer, { representationId });
+        },
+        // ---- raw result access ----------------------------------------------------------
+        // Deliberately three orthogonal getters rather than one projected getAlignment():
+        // sequences via getFasta, coordinates via getCoordinates, per-column scores via
+        // getScores. An earlier getAlignment() duplicated getFasta for aa/ss, and hand-rolled a
+        // column window that the viewer already does better through exportSelectionAsFasta().
+        // `ca` is per-entry rather than per-column, so a caller almost never wants all of them:
+        // one entry is ~2.4 KB against ~30 KB for all 15 here. Defaults to the structure-viewer
+        // reference, matching getMotif().
+        getCoordinates(indexOrIndices = null) {
+            const totalEntries = this.entries.length;
+            let idx;
+            if (indexOrIndices === null || indexOrIndices === undefined) {
+                idx = this.structureViewerReference >= 0 ? [this.structureViewerReference] : [0];
+            } else {
+                idx = (Array.isArray(indexOrIndices) ? indexOrIndices : [indexOrIndices]).map(Number);
+            }
+            const bad = idx.filter(i => !Number.isInteger(i) || i < 0 || i >= totalEntries);
+            if (bad.length) {
+                return { error: `entry index out of range: ${bad.join(', ')}`,
+                    validRange: [0, totalEntries - 1] };
+            }
+            return {
+                totalEntries,
+                format: 'comma-separated x,y,z triplets, one per ungapped residue — indices are '
+                    + 'residue positions, not alignment columns',
+                entries: idx.map(i => {
+                    const e = this.entries[i];
+                    const parts = (e.ca ?? '').split(',');
+                    return {
+                        index: i,
+                        name: e.name,
+                        residueCount: Math.floor(parts.length / 3),
+                        alignedLength: (e.aa ?? '').length,
+                        bytes: (e.ca ?? '').length,
+                        ca: e.ca,
+                    };
+                }),
+            };
+        },
+        // Bounded on purpose: this is now the only path to the sequences, and unbounded it
+        // would return a single ~14 MB string at FoldMason's 4999-structure ceiling.
+        getFasta(alphabet = 'aa', { entries = null, offset = 0, limit = 500 } = {}) {
+            if (!['aa', 'ss'].includes(alphabet)) {
+                return { error: `unknown alphabet: ${alphabet}`, valid: ['aa', 'ss'] };
+            }
+            const total = this.entries.length;
+            let idx = entries ?? Array.from({ length: total }, (_, i) => i);
+            idx = idx.filter(i => Number.isInteger(i) && i >= 0 && i < total);
+            const bad = (entries ?? []).filter(i => !Number.isInteger(i) || i < 0 || i >= total);
+            idx = idx.slice(offset, offset + limit);
+
+            const text = idx.map(i => {
+                const e = this.entries[i];
+                const name = String(e.name || `sequence_${i + 1}`).replace(/[\r\n]/g, ' ');
+                return `>${name}\n${e[alphabet] || ''}`;
+            }).join('\n') + '\n';
+
+            return { alphabet, totalEntries: total, returned: idx.length,
+                truncated: idx.length < total,
+                ...(bad.length ? { rejected: bad } : {}),
+                bytes: text.length, fasta: text };
+        },
+        // The selected columns only, through the viewer's own exporter — it respects the current
+        // selection and column masking, which a hand-rolled slice of `aa` would not.
+        async getSelectionFasta({ representationId = null } = {}) {
+            if (!this.msaViewerReady || !this.msaViewer) {
+                return { pending: true, reason: 'MSA viewer is still initialising' };
+            }
+            if (this.selectedColumns.length === 0) {
+                return { ok: false, reason: 'no columns selected; call setSelectedColumns() first' };
+            }
+            try {
+                const fasta = await this.msaViewer.exportSelectionAsFasta({ representationId });
+                return { ok: true, columns: [...this.selectedColumns],
+                    bytes: fasta?.length ?? 0, fasta };
+            } catch (e) {
+                return { ok: false, reason: `export failed: ${e?.message ?? e}` };
+            }
+        },
+        // Per-column LDDT from the FoldMason backend.
+        //
+        // The track definition in this file labels it "Column Score / Hmean(LDDT, Occupancy)",
+        // which appears to be a mislabel introduced with the msa-webgpu integration (f537af3):
+        // that commit added the sublabel without changing the backend or transforming the values
+        // (the track passes `values: this.scores` through raw), and the pre-integration UI called
+        // the same array "per-column LDDT" throughout. So LDDT is the accurate name.
+        //
+        // Note the values are normalised over the full sequence count, not the occupied count, so
+        // sparsely-occupied columns score low structurally — do not read a low score on a
+        // 2-of-15 column as poor superposition. -1 marks a column with too few residues to score.
+        getScores({ columns = null } = {}) {
+            const all = this.scores ?? [];
+            const totalColumns = all.length;
+            const [start, end] = Array.isArray(columns)
+                ? [Math.max(0, columns[0] ?? 0), Math.min(totalColumns, columns[1] ?? totalColumns)]
+                : [0, totalColumns];
+            const slice = all.slice(start, end);
+            const real = slice.filter(v => v !== -1 && Number.isFinite(v));
+            return {
+                totalColumns,
+                columnRange: [start, end],
+                returned: slice.length,
+                label: 'LDDT',
+                definition: 'per-column LDDT, normalised over the full sequence count, so '
+                    + 'sparsely-occupied columns are capped low by construction; -1 = too few '
+                    + 'residues to score',
+                range: [0, 1],
+                missingValue: -1,
+                summary: real.length ? {
+                    min: Math.min(...real), max: Math.max(...real),
+                    mean: real.reduce((a, b) => a + b, 0) / real.length,
+                    missing: slice.length - real.length,
+                } : null,
+                msaLDDT: this.statistics?.msaLDDT ?? null,
+                scores: slice,
+            };
+        },
+        getEntries() {
+            return this.entries.map((e, index) => ({
+                index,
+                name: e.name,
+                length: (e.aa || '').replace(/-/g, '').length,
+                alignedLength: (e.aa || '').length,
+                chains: e.chains ? [...new Set(e.chains)] : ['A'],
+                isReference: index === this.structureViewerReference,
+                inStructureView: this.structureViewerSelection.includes(index),
+            }));
+        },
+        setReference(rowIndex) {
+            const i = Number(rowIndex);
+            if (!Number.isInteger(i) || i < 0 || i >= this.entries.length) {
+                return { ok: false, reason: `row ${rowIndex} out of range (0..${this.entries.length - 1})` };
+            }
+            if (i !== this.structureViewerReference) this.handleNewStructureViewerReference(i);
+            return { ok: true, reference: this.structureViewerReference,
+                name: this.entries[this.structureViewerReference]?.name ?? null };
+        },
+        // Switching representation is the only way to get GPU-computed metrics for the 3Di
+        // track — the library only populates the active one, and neither setTrackEnabled nor
+        // setConfig will force a non-active representation (verified against a live result).
+        async setRepresentation(id) {
+            const valid = this.msaViewerState.representations.map(r => r.id);
+            if (!valid.includes(id)) {
+                return { ok: false, reason: `unknown representation: ${id}`, valid };
+            }
+            await this.setMSAViewerRepresentation(id);
+            return { ok: true, activeRepresentationId: this.msaViewerState.activeRepresentationId };
+        },
+        getSelectedColumns() {
+            return [...this.selectedColumns];
+        },
+        setSelectedColumns(cols) {
+            const maxCol = this.entries[0]?.aa?.length ?? 0;
+            const clean = [...new Set((Array.isArray(cols) ? cols : [cols]).map(Number))]
+                .filter(c => Number.isInteger(c) && c >= 0 && c < maxCol)
+                .sort((a, b) => a - b);
+            this.selectedColumns.splice(0, this.selectedColumns.length, ...clean);
+            this.$emit('changedSelection', this.selectedColumns);
+            this.syncMSAViewerSelectionFromSelectedColumns();
+            this.$refs.structViewer?.updateAllHighlights?.();
+            return this.selectedColumns.length;
+        },
+        // Mirrors what "send to FoldDisco" would transmit — same chain+resno mapping as
+        // SelectToSendPanelFoldMason.motifStr, so an agent can read it before sending.
+        getMotif() {
+            const idx = this.structureViewerReference;
+            const entry = this.entries[idx];
+            if (!entry || idx < 0) {
+                return { reference: null, residues: [], motifString: '' };
+            }
+            if (this.selectedColumns.length === 0) {
+                return { reference: entry.name, referenceIndex: idx, residues: [], motifString: '' };
+            }
+            const resnos = getResidueIndices(entry.aa, this.selectedColumns).map(i => i + 1);
+            const residues = resnos.map(i => {
+                const chain = entry.chains?.[i] ?? 'A';
+                const resno = i - (entry.offsets?.[chain] ?? 0);
+                return chain + String(resno);
+            });
+            return { reference: entry.name, referenceIndex: idx,
+                columns: [...this.selectedColumns], residues, motifString: residues.join(', ') };
+        },
+        // The genuine gap filter: masks alignment columns whose gap fraction exceeds `value`.
+        // (FoldDisco's similarly-named `gapFilter` is a matched-residue pattern, not this.)
+        setGapThreshold(value) {
+            const v = Number(value);
+            if (!Number.isFinite(v)) return { ok: false, reason: 'gapThreshold must be a number 0..1' };
+            this.gapThreshold = v;      // computed setter clamps to [0,1]
+            return { ok: true, gapThreshold: this.gapThreshold,
+                note: 're-read getColumnVisibility() after a moment; masking is debounced' };
+        },
+        getGapThreshold() {
+            return this.gapThreshold;
+        },
+        describePage() {
+            return {
+                tool: 'foldmason',
+                ready: this.msaViewerReady,
+                entries: this.entries.length,
+                columns: this.entries[0]?.aa?.length ?? 0,
+                representations: this.msaViewerState.representations.map(r => r.id),
+                activeRepresentationId: this.msaViewerState.activeRepresentationId,
+                tracks: getTrackCatalog(this.msaViewer).map(t => t.id),
+                statistics: this.statistics,
+                alignment: { entries: this.entries.length,
+                    columns: this.entries[0]?.aa?.length ?? 0 },
+                notes: [
+                    'ca is indexed by ungapped residue; aa, scores and columns by alignment column.',
+                    '`source` is "viewer" or "cpu-fallback"; the fallback yields null quality '
+                        + 'and conservation.',
+                    'Metrics exist only for the active representation — setRepresentation() first, '
+                        + 'or accept the CPU fallback.',
+                    'getSelectionFasta() respects column masking; getFasta() does not.',
+                ],
+            };
+        },
         async updateMSAViewerGapThreshold() {
             if (!this.msaViewer) return;
             try {

@@ -56,107 +56,8 @@
 </template>
 
 <script>
-import { create } from 'axios';
-
-// map label_asym_id to auth_asym_id
-function parseCifResidueChainMap(cifText) {
-    const map = new Map();
-    const lines = cifText.split('\n');
-
-    let i = 0;
-    while (i < lines.length) {
-        if (lines[i].trim() !== 'loop_') {
-            i++;
-            continue;
-        }
-        i++;
-
-        const headers = [];
-        while (i < lines.length && lines[i].trim().startsWith('_')) {
-            headers.push(lines[i].trim().split(/\s+/)[0]);
-            i++;
-        }
-        if (headers.length === 0 || !headers[0].startsWith('_atom_site.')) {
-            continue;
-        }
-
-        const labelIdx = headers.indexOf('_atom_site.label_asym_id');
-        const authIdx  = headers.indexOf('_atom_site.auth_asym_id');
-        const seqIdx   = headers.indexOf('_atom_site.auth_seq_id');
-        if (labelIdx < 0 || authIdx < 0 || seqIdx < 0) {
-            return map;
-        }
-        const maxIdx = Math.max(labelIdx, authIdx, seqIdx);
-
-        for (; i < lines.length; i++) {
-            const t = lines[i].trim();
-            if (t === '' || t === 'loop_' || t.startsWith('_') || t.startsWith('#') || t.startsWith('data_')) {
-                // end of atom_site
-                break;
-            }
-            const cols = t.split(/\s+/);
-            if (cols.length <= maxIdx) {
-                continue;
-            }
-            const auth = cols[authIdx];
-            const seq  = cols[seqIdx];
-            const keyLabel = `${cols[labelIdx]}|${seq}`;
-            const keyAuth  = `${auth}|${seq}`;
-            if (!map.has(keyLabel)) {
-                map.set(keyLabel, auth);
-            }
-            if (!map.has(keyAuth)) {
-                map.set(keyAuth, auth);
-            }
-        }
-        break;
-    }
-    return map;
-}
-
-// Convert Q-BioLiP format to internal motif format.
-// With a residueMap each residue's chain is
-// resolved to the structure's auth chain and residues absent
-//  Without a map the reported chain letters are kept as-is
-function qbiolipBsToMotif(bs, residueMap) {
-    if (!bs) {
-        return '';
-    }
-    const parts = bs.trim().split(/\s+/);
-    let currentChain = '';
-    const residues = [];
-    for (const part of parts) {
-        let resToken;
-        if (part.includes(':')) {
-            const colonIdx = part.indexOf(':');
-            currentChain = part.slice(0, colonIdx);
-            resToken = part.slice(colonIdx + 1);
-        } else {
-            resToken = part;
-        }
-        if (!resToken) {
-            continue;
-        }
-        // strip leading one-letter amino acid code, keep residue number
-        const resno = resToken.replace(/^[A-Za-z]/, '');
-        if (!resno) {
-            continue;
-        }
-
-        if (!residueMap) {
-            residues.push(`${currentChain}${resno}`);
-            continue;
-        }
-        const seqMatch = resno.match(/-?\d+/);
-        const authChain = seqMatch ? residueMap.get(`${currentChain}|${seqMatch[0]}`) : undefined;
-        if (authChain === undefined) {
-            // drop residue not present in the loaded structure
-            continue;
-        }
-        residues.push(`${authChain}${resno}`);
-    }
-    return residues.join(',');
-}
+import { BASE_SOURCES, EXTRA_SOURCES, fetchAccession, qbiolipBsToMotif,
+    searchBindingSites, fetchBindingSite } from './lib/accession.js';
 
 export default {
     name: 'load-accession-button',
@@ -174,15 +75,9 @@ export default {
             source: 'PDB',
             accession: '',
             results: null,
-            sources: [
-                { text: 'PDB (rcsb.org)', value: 'PDB' },
-                { text: 'AlphaFoldDB (ebi.ac.uk)', value: 'AlphaFoldDB' },
-                { text: 'BFVD (bfvd.foldseek.com)', value: 'BFVD' },
-            ],
-            extraSources: {
-                'AlphaFill' : { text: 'AlphaFill (alphafill.eu)', value: 'AlphaFill' },
-                'QBioLip' : { text: 'Q-BioLiP (yanglab.qd.sdu.edu.cn)', value: 'QBioLip' },
-            }
+            // Shared with the search-page API via lib/accession.js.
+            sources: [...BASE_SOURCES],
+            extraSources: EXTRA_SOURCES
         };
     },
     mounted() {
@@ -257,41 +152,7 @@ export default {
             }
         },
         fetchData(accession, source) {
-            return new Promise((resolve, reject) => {
-                const axios = create();
-                const upper = accession.toUpperCase();
-
-                const fail = () => reject(accession);
-                if (source == "PDB") {
-                    axios.get("https://files.rcsb.org/download/" + upper + ".cif")
-                        .then(r => resolve({ name: upper + ".cif", text: r.data }))
-                        .catch(fail);
-                } else if (source == "BFVD") {
-                    axios.get("https://bfvd.steineggerlab.workers.dev/pdb/" + upper + ".pdb")
-                        .then(r => resolve({ name: upper + ".pdb", text: r.data }))
-                        .catch(fail);
-                } else if (source == "AlphaFill") {
-                    axios.get("https://alphafill.eu/v1/aff/" + upper)
-                        .then(r => resolve({ name: upper + ".cif", text: r.data }))
-                        .catch(fail);
-                } else if (source == "AlphaFoldDB") {
-                    axios.get("https://alphafold.ebi.ac.uk/api/search?q=(text:*" + accession + " OR text:" + accession + "*)&type=main&start=0&rows=1")
-                        .then(resp => {
-                            const docs = resp.data.docs;
-                            if (docs.length == 0) { 
-                                fail(); 
-                                return;
-                            }
-                            const cif = docs[0].entryId + "-model_v" + docs[0].latestVersion + ".pdb";
-                            axios.get("https://alphafold.ebi.ac.uk/files/" + cif)
-                                .then(r => resolve({ name: cif, text: r.data }))
-                                .catch(fail);
-                        })
-                        .catch(fail);
-                } else {
-                    fail();
-                }
-            });
+            return fetchAccession(accession, source);
         },
         loadMany(list) {
             this.loading = true;
@@ -348,15 +209,8 @@ export default {
             this.error   = "";
             this.results = null;
 
-            const axios = create();
-            axios.post(
-                "https://yanglab.qd.sdu.edu.cn/cgi-bin/Q-BioLiP/qbio1.cgi",
-                new URLSearchParams({ PDB_ID: id }),
-                { headers: { 'Accept': 'application/json' } }
-            )
-                .then(response => {
-                    this.results = Array.isArray(response.data) ? response.data : [];
-                })
+            searchBindingSites(id)
+                .then(results => { this.results = results; })
                 .catch(() => {
                     this.error = "Search failed. Please check the PDB ID and try again.";
                 })
@@ -371,14 +225,9 @@ export default {
             this.loading = true;
             this.error   = "";
 
-            const axios = create();
-            axios.get(`https://yanglab.qd.sdu.edu.cn/Q-BioLiP/DATA/rec_cif/${assembly}.cif`)
-                .then(response => {
-                    const cifText = response.data;
-                    // Q-BioLiP uses label_asym_id for chains; we use auth_asym_id
-                    const residueMap = parseCifResidueChainMap(cifText);
-                    const motif = qbiolipBsToMotif(item.Complex.bs, residueMap);
-                    this.$emit('select', cifText);
+            fetchBindingSite(item)
+                .then(({ text, motif }) => {
+                    this.$emit('select', text);
                     this.$emit('motif', motif);
                     this.show = false;
                 })

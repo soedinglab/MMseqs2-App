@@ -30,6 +30,8 @@
 </template>
 
 <script>
+import { registerPageApi } from './lib/resultsApi.js';
+import { routeForTicket } from './lib/ticketRoute.js';
 import Panel from './Panel.vue';
 
 export default {
@@ -43,10 +45,75 @@ export default {
     created() {
         this.fetchData();
     },
+    mounted() {
+        this._disposeApi = registerPageApi('queue', 'queue', {
+            getStatus: this.getStatus,
+            getResultRoute: this.getResultRoute,
+            waitForResult: this.waitForResult,
+            describePage: this.describePage,
+            _vm: this,
+        });
+    },
+    beforeDestroy() {
+        this._disposeApi?.();
+    },
     watch: {
         '$route': 'fetchData'
     },
     methods: {
+        // ---- API (window.queueApi) ----
+        getStatus() {
+            return {
+                ticket: this.$route?.params?.ticket ?? null,
+                status: this.status,
+                error: this.error || null,
+                terminal: ['COMPLETE', 'FAILED', 'ERROR'].includes(this.status),
+            };
+        },
+        async getResultRoute() {
+            const ticket = this.$route?.params?.ticket;
+            if (!ticket) return { ok: false, reason: 'no ticket in route' };
+            try {
+                const r = await this.$axios.get('api/ticket/type/' + ticket);
+                const type = r.data?.type;
+                const route = routeForTicket(ticket, type);
+                return route.viaQueue
+                    ? { ok: false, reason: `unmapped job type: ${type}`, type }
+                    : { ok: true, type, route: route.name, params: route.params, ticket };
+            } catch {
+                return { ok: false, reason: 'could not query job type' };
+            }
+        },
+        // Queue.vue polls every second and $router.replace()s to the result route on COMPLETE,
+        // so the *arrival of a result page* is the completion signal. Race that against this
+        // page's own terminal failure states rather than assuming success.
+        async waitForResult({ timeoutMs = 600000, pollMs = 500 } = {}) {
+            const ticket = this.$route?.params?.ticket ?? null;
+            const t0 = Date.now();
+            while (Date.now() - t0 < timeoutMs) {
+                if (typeof window !== 'undefined' && window.resultsApi) {
+                    return { ok: true, ticket, status: 'COMPLETE',
+                        waitedMs: Date.now() - t0 };
+                }
+                if (['FAILED', 'ERROR'].includes(this.status)) {
+                    return { ok: false, ticket, status: this.status,
+                        reason: this.error || 'job failed' };
+                }
+                await new Promise(r => setTimeout(r, pollMs));
+            }
+            return { ok: false, ticket, status: this.status, reason: `timed out after ${timeoutMs}ms` };
+        },
+        describePage() {
+            return {
+                kind: 'queue',
+                ticket: this.$route?.params?.ticket ?? null,
+                status: this.status,
+                notes: [
+                    'waitForResult() resolves when a result page registers and fails on '
+                        + 'FAILED/ERROR — no polling needed on your side.',
+                ],
+            };
+        },
         fetchData() {
             const ticket = this.$route.params.ticket;
             if (typeof (ticket) === "undefined") {
@@ -71,33 +138,21 @@ export default {
                         case "COMPLETE":
                             this.$axios.get("api/ticket/type/" + ticket).then(
                             (response) => {
-                                const data = response.data;
-                                switch (data.type) {
-                                    case "search":
-                                        this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
-                                        break;
-                                    case "structuresearch":
-                                        this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
-                                        break;
-                                    case "complexsearch":
-                                        this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
-                                        break;
-                                    case "interfacesearch":
-                                        this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
-                                        break;
-                                    case "foldmasoneasymsa":
-                                        this.$router.replace({ name: 'foldmasonresult', params: { ticket: ticket } });
-                                        break;
-                                    case "folddisco":
-                                        this.$router.replace({ name: 'folddiscoresult', params: { ticket: ticket } });
-                                        break;
-                                    case "index":
-                                        this.$router.replace({ name: 'preferences' });
-                                        break;
-                                    default:
-                                        this.status = "FAILED";
-                                        this.error = "Job failed. Please try again later.";
+                                const type = response.data.type;
+                                if (type === "index") {
+                                    this.$router.replace({ name: 'preferences' });
+                                    return;
                                 }
+                                // Route table lives in lib/ticketRoute.js, shared with
+                                // History.vue and goToTicket(). viaQueue means unmapped —
+                                // redirecting back here would loop, so fail instead.
+                                const route = routeForTicket(ticket, type);
+                                if (route.viaQueue) {
+                                    this.status = "FAILED";
+                                    this.error = "Job failed. Please try again later.";
+                                    return;
+                                }
+                                this.$router.replace({ name: route.name, params: route.params });
                             })
                             break;
                         default:

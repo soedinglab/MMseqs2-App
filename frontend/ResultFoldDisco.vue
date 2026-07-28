@@ -130,6 +130,7 @@
                 </template>
                 </panel>
                 <SelectToSendPanel
+                    ref="sendPanel"
                     :hits="hits" :ticket="ticket" :selectedCounts="selectedCounts"
                     :isComplex="false" :selectUpperbound="selectUpperbound"
                     :dbToIdx="dbToIdx" :banList="[]"
@@ -186,6 +187,11 @@ import StructureViewerMotif from './StructureViewerMotif.vue';
 // import makeZip from './lib/zip.js'
 // import SankeyDiagram from './SankeyDiagram.vue';
 import { debounce } from './lib/debounce.js';
+import { registerResultApi, awaitPageApi, normalizeId, splitId } from './lib/resultsApi.js';
+import { defaultSortOrder, isValidSortKey, FOLDDISCO_SORT_KEYS,
+    createSortMemo } from './lib/resultSort.js';
+import { expandDescendants, findTaxonRow, findTaxonByName,
+    summarizeTaxonomy } from './lib/taxonomyFilter.js';
 // import { thresholdScott } from 'd3';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
 import NavigationButton from './NavigationButton.vue';
@@ -247,6 +253,7 @@ export default {
         }
     },
     created() {
+        this._sortMemo = createSortMemo();
         window.addEventListener("resize", this.handleAlignmentBoxResize, { passive: true });
         this.getSingleSelectionInfo = this.getSingleSelectionInfo.bind(this)
         this.getMultipleSelectionInfo = this.getMultipleSelectionInfo.bind(this)
@@ -256,6 +263,7 @@ export default {
     },
     beforeDestroy() {
         window.removeEventListener("resize", this.handleAlignmentBoxResize);
+        this._disposeApi?.();
     },
     computed: {
         // mode() {
@@ -344,6 +352,22 @@ export default {
             })
         }
 
+        this._disposeApi = registerResultApi('folddisco', {
+            getTable: this.getTable,
+            setSelection: this.setSelection,
+            getSelection: this.getSelection,
+            clearSelection: this.clearSelection,
+            selectDatabase: this.selectDatabase,
+            getTaxonomy: this.getTaxonomy,
+            setTaxonomyFilter: this.setTaxonomyFilter,
+            getMotifPatterns: this.getMotifPatterns,
+            setMotifFilter: this.setMotifFilter,
+            getFilters: this.getFilters,
+            clearFilters: this.clearFilters,
+            sendTo: this.sendTo,
+            describePage: this.describePage,
+            _vm: this,   // unstable escape hatch; see describe()
+        });
         this.$root.$on('downloadJSON', () => {
             let data;
             if (this.ticket.startsWith('user-')) {
@@ -399,6 +423,394 @@ export default {
         },
     },
     methods: {
+        // ---------------------------------------------------------------------------------
+        // Public API (also exposed as window.resultsApi — see lib/resultsApi.js)
+        // ---------------------------------------------------------------------------------
+        _resolveDb(db) {
+            if (db === undefined || db === null) return null;
+            if (typeof db === 'number') return this.hits?.results?.[db] ? db : null;
+            if (/^\d+$/.test(String(db))) {
+                const i = Number(db);
+                return this.hits?.results?.[i] ? i : null;
+            }
+            if (this.dbToIdx?.[db] !== undefined) return this.dbToIdx[db];
+            // Tabs display the db name with the _folddisco suffix stripped; accept either form.
+            const i = this.hits?.results?.findIndex(
+                r => r.db.replace(/_folddisco$/, '') === String(db));
+            return i === undefined || i < 0 ? null : i;
+        },
+        _activeChild() {
+            if (!this.selectedDatabases) return null;
+            const refs = this.$refs['dbComponent' + (this.selectedDatabases - 1)];
+            return Array.isArray(refs) ? refs[0] : refs || null;
+        },
+        getTable(opts = {}) {
+            if (!this.hits?.results) return { page: 'folddisco', error: 'no results loaded' };
+            const { db = null, sortKey = null, sortOrder = null,
+                offset = 0, limit = 100, fields = null } = opts;
+
+            let targets;
+            if (db === '*' || db === 'all') {
+                targets = this.hits.results.map((_, i) => i);
+            } else if (db === null || db === undefined) {
+                const active = this.selectedDatabases ? this.selectedDatabases - 1 : null;
+                if (active === null) {
+                    return { page: 'folddisco',
+                        error: 'no database tab is open; pass db, or db:"*" for all',
+                        available: this.hits.results.map(r => r.db) };
+                }
+                targets = [active];
+            } else {
+                const i = this._resolveDb(db);
+                if (i === null) {
+                    return { page: 'folddisco', error: `unknown database: ${db}`,
+                        available: this.hits.results.map(r => r.db) };
+                }
+                targets = [i];
+            }
+
+            const child = this._activeChild();
+            const activeIdx = this.selectedDatabases ? this.selectedDatabases - 1 : null;
+
+            const databases = targets.map(dbIdx => {
+                const entry = this.hits.results[dbIdx];
+                const alignments = entry.alignments || {};
+                const isActive = dbIdx === activeIdx && !!child;
+                const key = sortKey || (isActive ? child.sortKey : 'idf');
+                if (!isValidSortKey(key, 'folddisco')) {
+                    return { db: entry.db, dbIndex: dbIdx, error: `invalid sortKey: ${key}`,
+                        validSortKeys: FOLDDISCO_SORT_KEYS };
+                }
+                const order = sortOrder != null ? Number(sortOrder)
+                    : (isActive && !sortKey ? child.sortOrder : defaultSortOrder(key));
+
+                // Clustering lives in the mounted child (FolddiscoHitCluster). For a closed tab
+                // there is no cluster assignment at all, so say so rather than inventing one.
+                let ordered, clustered = false, clusterOf = null;
+                if (isActive && child.sortedIndices && Object.keys(child.sortedIndices).length) {
+                    clustered = true;
+                    clusterOf = {};
+                    ordered = [];
+                    for (const [cluKey, ids] of Object.entries(child.sortedIndices)) {
+                        for (const id of ids) { clusterOf[id] = cluKey; ordered.push(id); }
+                    }
+                } else {
+                    ordered = this._sortMemo.get(`${dbIdx}`, alignments, key, order,
+                        { tool: 'folddisco' });
+                }
+
+                const page = ordered.slice(offset, offset + limit);
+                return {
+                    db: entry.db, dbIndex: dbIdx, sortKey: key, sortOrder: order,
+                    total: ordered.length, offset, returned: page.length,
+                    hasDescription: !!entry.hasDescription,
+                    hasTaxonomy: !!entry.hasTaxonomy,
+                    clustered,
+                    filtersApplied: isActive,
+                    rows: page.map((gid, i) => this._rowFor(
+                        dbIdx, gid, entry, offset + i, isActive ? child : null,
+                        clusterOf, fields)),
+                };
+            });
+
+            return {
+                page: 'folddisco',
+                motif: this.hits.motif ?? null,
+                query: this.hits.query?.header ?? null,
+                activeDatabase: activeIdx === null ? null : this.hits.results[activeIdx]?.db,
+                databases,
+            };
+        },
+        _rowFor(dbIdx, groupId, entry, rank, child, clusterOf, fields) {
+            const head = entry.alignments[groupId][0];
+            const row = {
+                id: `${dbIdx}#${groupId}`,
+                entryIndex: Number(groupId),
+                rank,
+                cluster: clusterOf ? (clusterOf[groupId] ?? null) : null,
+                selected: !!this.selectedStates?.[dbIdx]?.[groupId],
+                visible: child ? child.isRowVisible(groupId) : true,
+                target: head.target,
+                targetName: head.targetname,
+                dbkey: head.dbkey,
+                idfscore: head.idfscore,
+                rmsd: head.rmsd,
+                nodecount: head.nodecount,
+                targetresidues: head.targetresidues,
+                // Per-query-residue bitmask: "1" matched, "0" missing. This is what the
+                // "Query residues" filter selects on — see setMotifFilter().
+                motifPattern: head.gaps,
+            };
+            if (entry.hasDescription) row.description = head.description;
+            if (entry.hasTaxonomy) { row.taxId = head.taxId; row.taxName = head.taxName; }
+            if (!fields) return row;
+            const picked = {};
+            for (const f of ['id', 'entryIndex', 'rank', ...fields]) {
+                if (f in row) picked[f] = row[f];
+            }
+            return picked;
+        },
+        _applySelection(ids, value) {
+            const changed = [], rejected = [];
+            if (!this.selectedStates) return { changed, rejected: ids, selectedCount: 0 };
+
+            const child = this._activeChild();
+            // FoldDisco is single-selection unless ?d2m=1 enabled it on the child.
+            const multi = child ? child.multipleSelectionEnabled : true;
+            if (value && !multi && ids.length > 1) {
+                rejected.push(...ids.slice(1).map(id => ({ id,
+                    reason: 'FoldDisco is single-selection; add ?d2m=1 to enable multi-select' })));
+                ids = ids.slice(0, 1);
+            }
+            if (value && !multi) this.clearAllEntries();
+
+            const deltaPerDb = {};
+            let delta = 0;
+            const room = this.selectUpperbound - this.selectedCounts;
+
+            for (const raw of ids) {
+                const id = normalizeId(raw, this.dbToIdx);
+                if (!id) { rejected.push({ id: raw, reason: 'unresolvable id' }); continue; }
+                const { dbIdx, entryIdx } = splitId(id);
+                if (!this.hits?.results?.[dbIdx]?.alignments?.[entryIdx]) {
+                    rejected.push({ id: raw, reason: 'no such entry' }); continue;
+                }
+                if (value && delta >= room) {
+                    rejected.push({ id: raw, reason: 'selection cap reached' }); continue;
+                }
+                if (!!this.selectedStates[dbIdx][entryIdx] === !!value) continue;
+
+                this.$set(this.selectedStates[dbIdx], entryIdx, value);
+                document.getElementById(id)?.classList.toggle('selected', value);
+                document.getElementById('top.' + id)?.classList.toggle('selected', value);
+                value ? this.selectedSets.add(id) : this.selectedSets.delete(id);
+                deltaPerDb[dbIdx] = (deltaPerDb[dbIdx] || 0) + (value ? 1 : -1);
+                delta += value ? 1 : -1;
+                changed.push(id);
+            }
+
+            for (const [dbIdx, d] of Object.entries(deltaPerDb)) {
+                const next = (this.selectedCountPerDb[dbIdx] || 0) + d;
+                this.selectedCountPerDb[dbIdx] = next;
+                const el = document.getElementById(dbIdx + '#select-all');
+                if (el) {
+                    const total = Object.keys(this.hits?.results?.[dbIdx]?.alignments ?? {}).length;
+                    el.classList.toggle('any-selected', next > 0);
+                    el.classList.toggle('all-selected', total > 0 && next === total);
+                }
+            }
+            this.selectedCounts += delta;
+            this.$refs.top100?.reflectSelectionState?.();
+            return { changed, rejected, selectedCount: this.selectedCounts };
+        },
+        setSelection(ids, value = true) {
+            const list = Array.isArray(ids) ? ids : [ids];
+            return this._applySelection(list, !!value).selectedCount;
+        },
+        getSelection() {
+            const ids = [...this.selectedSets];
+            const byDb = {};
+            for (const id of ids) {
+                const { dbIdx } = splitId(id);
+                const name = this.hits?.results?.[dbIdx]?.db ?? String(dbIdx);
+                (byDb[name] ||= []).push(id);
+            }
+            return { count: this.selectedCounts, upperbound: this.selectUpperbound, ids, byDb };
+        },
+        clearSelection() {
+            this.clearAllEntries();
+            return this.selectedCounts;
+        },
+        selectDatabase(db) {
+            const i = this._resolveDb(db);
+            if (i === null) {
+                return { ok: false, reason: `unknown database: ${db}`,
+                    available: this.hits?.results?.map(r => r.db) ?? [] };
+            }
+            this.selectedDatabases = i + 1;
+            return { ok: true, activeDatabase: this.hits.results[i].db, dbIndex: i };
+        },
+        _requireActiveChild(db) {
+            const child = this._activeChild();
+            if (!child) return { error: 'no database tab is open; call selectDatabase(db) first' };
+            if (db != null) {
+                const i = this._resolveDb(db);
+                if (i === null) return { error: `unknown database: ${db}` };
+                if (i !== this.selectedDatabases - 1) {
+                    return { error: `"${this.hits.results[i].db}" is not the open tab; `
+                        + `call selectDatabase("${this.hits.results[i].db}") first` };
+                }
+            }
+            return { child };
+        },
+        _afterFilterChange(child, entry) {
+            // Recompute synchronously before counting: FoldDisco's visibilityTable is only
+            // rebuilt inside updateVisibility(), so reading isRowVisible() before it runs
+            // reports the pre-filter counts. The $nextTick pass repairs the DOM after re-render.
+            child.updateVisibility();
+            child.$nextTick(() => child.syncRenderedState?.());
+            const total = Object.keys(entry.alignments || {}).length;
+            const visible = Object.keys(entry.alignments || {})
+                .filter(g => child.isRowVisible(Number(g))).length;
+            return { applied: true, db: entry.db, visibleCount: visible, totalCount: total };
+        },
+        getTaxonomy(db = null, opts = {}) {
+            const i = db == null ? (this.selectedDatabases - 1) : this._resolveDb(db);
+            const entry = this.hits?.results?.[i];
+            if (!entry) return { error: `unknown database: ${db}` };
+            const report = entry.taxonomyreports?.[0];
+            if (!report?.length) {
+                return { db: entry.db, available: false,
+                    reason: 'no taxonomy data for this database' };
+            }
+            return { db: entry.db, available: true, totalNodes: report.length,
+                taxa: summarizeTaxonomy(report, opts) };
+        },
+        setTaxonomyFilter(taxon, { includeDescendants = true, db = null } = {}) {
+            const got = this._requireActiveChild(db);
+            if (got.error) return { applied: false, reason: got.error };
+            const child = got.child;
+            const entry = this.hits.results[this.selectedDatabases - 1];
+            const report = entry.taxonomyreports?.[0];
+
+            let taxIds;
+            if (taxon == null || (Array.isArray(taxon) && !taxon.length)) {
+                taxIds = [];
+            } else if (Array.isArray(taxon)) {
+                taxIds = taxon.map(Number);
+            } else {
+                if (!report?.length) {
+                    return { applied: false, db: entry.db,
+                        reason: 'no taxonomy data for this database' };
+                }
+                let id = taxon;
+                if (typeof taxon === 'string' && !/^\d+$/.test(taxon)) {
+                    id = findTaxonByName(report, taxon);
+                    if (id === null) {
+                        return { applied: false, db: entry.db,
+                            reason: `no taxon named "${taxon}" in this database` };
+                    }
+                }
+                if (!findTaxonRow(report, id)) {
+                    return { applied: false, db: entry.db, reason: `taxon ${id} not in report` };
+                }
+                taxIds = (includeDescendants ? expandDescendants(report, id) : [id]).map(Number);
+            }
+            child.localSelectedTaxId = taxIds.length ? Number(Array.isArray(taxon) ? taxIds[0] : taxon) : null;
+            child.filteredHitsTaxIds = taxIds;
+            child.selectedDb = entry.db;
+            return this._afterFilterChange(child, entry);
+        },
+        getMotifPatterns(db = null) {
+            const i = db == null ? (this.selectedDatabases - 1) : this._resolveDb(db);
+            const entry = this.hits?.results?.[i];
+            if (!entry) return { error: `unknown database: ${db}` };
+            const counts = {};
+            for (const g of Object.values(entry.alignments || {})) {
+                const p = g[0].gaps;
+                counts[p] = (counts[p] || 0) + 1;
+            }
+            return {
+                db: entry.db,
+                queryResidues: entry.queryresidues ?? null,
+                note: 'one character per query residue: "1" matched, "0" missing',
+                patterns: Object.entries(counts)
+                    .map(([pattern, hits]) => ({ pattern, hits }))
+                    .sort((a, b) => b.hits - a.hits),
+            };
+        },
+        // NOT setGapFilter: this selects a matched-query-residue pattern, not sequence gaps.
+        // The child's variable is called gapFilter only because the derived field is `gaps`.
+        setMotifFilter(pattern, { db = null } = {}) {
+            const got = this._requireActiveChild(db);
+            if (got.error) return { applied: false, reason: got.error };
+            const child = got.child;
+            const entry = this.hits.results[this.selectedDatabases - 1];
+            const value = pattern == null ? '' : String(pattern);
+            if (value !== '') {
+                const known = new Set(Object.values(entry.alignments || {}).map(g => g[0].gaps));
+                if (!known.has(value)) {
+                    return { applied: false, db: entry.db,
+                        reason: `no hits with pattern "${value}"`,
+                        available: [...known] };
+                }
+            }
+            child.gapFilter = value;
+            return { ...this._afterFilterChange(child, entry), motifPattern: value || null };
+        },
+        getFilters() {
+            const child = this._activeChild();
+            if (!child) return { activeDatabase: null, taxonomy: null, motif: null };
+            const entry = this.hits.results[this.selectedDatabases - 1];
+            const total = Object.keys(entry.alignments || {}).length;
+            const visible = Object.keys(entry.alignments || {})
+                .filter(g => child.isRowVisible(Number(g))).length;
+            return {
+                activeDatabase: entry.db,
+                taxonomy: {
+                    selected: child.localSelectedTaxId ?? null,
+                    taxIds: child.filteredHitsTaxIds ?? [],
+                    active: (child.filteredHitsTaxIds?.length ?? 0) > 0,
+                },
+                motif: { pattern: child.gapFilter || null, active: !!child.gapFilter },
+                visibleCount: visible,
+                totalCount: total,
+            };
+        },
+        clearFilters() {
+            const child = this._activeChild();
+            if (!child) return { cleared: false, reason: 'no database tab is open' };
+            const entry = this.hits.results[this.selectedDatabases - 1];
+            child.localSelectedTaxId = null;
+            child.filteredHitsTaxIds = [];
+            child.gapFilter = '';
+            return { cleared: true, ...this._afterFilterChange(child, entry) };
+        },
+        async sendTo(target) {
+            const panel = this.$refs.sendPanel;
+            if (!panel) return { ok: false, reason: 'send panel not mounted' };
+            const n = this.selectedCounts;
+            if (n === 0) return { ok: false, reason: 'nothing selected' };
+            const plans = {
+                foldseek:  { fn: 'sendToFoldseek',  ok: n === 1, want: 'exactly one entry' },
+                folddisco: { fn: 'sendToFoldDisco', ok: n === 1, want: 'exactly one entry' },
+                foldmason: { fn: 'sendToFoldMason', ok: n >= 1,  want: 'at least one entry' },
+            };
+            const plan = plans[String(target).toLowerCase()];
+            if (!plan) return { ok: false, reason: `unknown target: ${target}`,
+                valid: Object.keys(plans) };
+            if (!plan.ok) return { ok: false, reason: `${target} needs ${plan.want}; ${n} selected` };
+            await panel[plan.fn]();
+            // See ResultView.sendTo — the destination has to be drivable before we resolve.
+            let ready = true;
+            try { await awaitPageApi('search'); } catch { ready = false; }
+            return { ok: true, target, sent: n, destination: target,
+                route: this.$route?.name ?? null, searchApiReady: ready };
+        },
+        describePage() {
+            return {
+                tool: 'folddisco',
+                validSortKeys: FOLDDISCO_SORT_KEYS,
+                selectionUpperbound: this.selectUpperbound,
+                multiSelectEnabled: this._activeChild()?.multipleSelectionEnabled ?? false,
+                databases: this.hits?.results?.map((r, i) => ({
+                    db: r.db, dbIndex: i,
+                    hits: r.alignments ? Object.keys(r.alignments).length : 0,
+                    hasTaxonomy: !!r.hasTaxonomy,
+                })) ?? [],
+                idFormat: 'dbIdx#entryIdx — also accepts {db, idx} or [dbIdx, entryIdx]',
+                filters: ['taxonomy (subtree)', 'motif (matched-query-residue pattern)'],
+                sendTargets: { foldseek: '1 entry', folddisco: '1 entry', foldmason: '1+ entries' },
+                notes: [
+                    'getTable() is read-only and defaults to the open tab; db:"*" for all.',
+                    '`cluster` is populated only for the open tab.',
+                    'Single-selection unless the URL carries ?d2m=1.',
+                    'setMotifFilter() matches a query-residue bitmask, not sequence gaps.',
+                    'sendTo() is side-effectful: writes IndexedDB and navigates away.',
+                    '_vm is the live component — unstable.',
+                ],
+            };
+        },
         log(args) {
             console.log(args);
             return args;
@@ -467,140 +879,18 @@ export default {
                 this.menuActivator.click(event);
             }
         },
-        handleChangeDatabase() {
-            this.closeAlignment();
-        },
-        handleToggleSelection(db, idx, value, fromTop100=false) {
-            if (!this.selectedStates || !this.selectedStates[db]
-                || this.selectedCounts > this.selectUpperbound && value) {
-                return
-            }
-            
-            const id = db + '#' + idx.toString()
-            const deltaUnit = value ? 1 : -1
-            const toCall = value ? this.selectedSets.add.bind(this.selectedSets) : 
-                this.selectedSets.delete.bind(this.selectedSets)
-            if (this.selectedStates[db][idx] != value) {
-                // Does it really reflect changes?
-                this.selectedStates[db][idx] = value
-
-                if (fromTop100) {
-                    document.getElementById('top.' + id)?.classList.toggle('selected', value)                    
-                } else {
-                    document.getElementById(id)?.classList.toggle('selected', value)
-                }
-                
-                
-                const newVal = this.selectedCountPerDb[db] + deltaUnit
-                this.selectedCountPerDb[db] = newVal
-                this.selectedCounts += deltaUnit
-                toCall(id)
-                
-                // update select-all button state
-                if (!fromTop100) {
-                    const targetDbLength = this.selectedStates[db].length
-                    let el = document.getElementById(db + '#select-all')
-                    if (el) {
-                        el.classList.toggle('any-selected', newVal > 0)
-                        el.classList.toggle('all-selected', newVal == targetDbLength)
-                    }
-                } else {
-                    const length = this.$refs.top100.entryLength
-                    const newValTop = this.$refs.top100.selectedTopEntries + deltaUnit
-                    const selectAllButton = document.getElementById('top#select-all')
-                    if (selectAllButton) {
-                        selectAllButton.classList.toggle('any-selected', newValTop > 0)
-                        selectAllButton.classList.toggle('all-selected', newValTop == length)
-                    }
-                    this.$refs.top100.selectedTopEntries = newValTop
-                }
-            }
+        // Thin adapters over _applySelection — the same mutator the public API uses.
+        // Signatures unchanged so no call site in ResultFoldDiscoDB or Top100Folddisco moves.
+        // Previously three near-identical copies carrying the per-db-delta and
+        // `selectedStates[db].length` bugs; see claude-plan/ai-friendly-results.
+        handleToggleSelection(db, idx, value, fromTop100 = false) {
+            this._applySelection([`${db}#${idx}`], value)
         },
         handleBulkToggle(db, indices, value) {
-            if (!this.selectedStates || !this.selectedStates[db]
-                || this.selectedCounts > this.selectUpperbound && value) {
-                return
-            }
-
-            let delta = 0
-            const deltaUnit = value ? 1 : -1
-            const deltaUpperbound = this.selectUpperbound - this.selectedCounts
-            const toCall = value ? this.selectedSets.add.bind(this.selectedSets) : 
-                this.selectedSets.delete.bind(this.selectedSets)
-            
-            for (const i of indices) {
-                if (value && delta >= deltaUpperbound) {
-                    break;
-                }
-                if (this.selectedStates[db][i] != value) {
-                    let id = db + '#' + i.toString()
-                    document.getElementById(id)?.classList.toggle('selected', value)
-
-                    this.selectedStates[db][i] = value
-                    toCall(id)
-                    delta += deltaUnit
-                }
-            }
-            
-            this.selectedCounts += delta
-            const newVal = this.selectedCountPerDb[db] + delta
-            this.selectedCountPerDb[db] = newVal
-            
-            // update select-all button state
-            const selectAllButton = document.getElementById(db+'#select-all')
-            if (selectAllButton) {
-                const dbLength = Number(selectAllButton.getAttribute('length'))
-                selectAllButton.classList.toggle('any-selected', newVal > 0)
-                selectAllButton.classList.toggle('all-selected', newVal == dbLength)
-            }
+            this._applySelection(indices.map(i => `${db}#${i}`), value)
         },
         handleBulkToggleFromTop100(indices, value) {
-            // This method is called by Top100 component only
-
-            if (!this.selectedStates 
-                || this.selectedCounts > this.selectUpperbound && value) {
-                return
-            }
-
-            let delta = 0
-            let deltaPerDb = Object.fromEntries(Object.keys(this.selectedStates).map(k => [k, 0]))
-            const deltaUnit = value ? 1 : -1
-            const deltaUpperbound = this.selectUpperbound - this.selectedCounts
-            const toCall = value ? this.selectedSets.add.bind(this.selectedSets) : 
-                this.selectedSets.delete.bind(this.selectedSets)
-            let dbSet = new Set()
-            
-            for (const idx of indices) {
-                if (value && delta >= deltaUpperbound) {
-                    break;
-                }
-                let [db, i] = idx.split("#")
-                dbSet.add(db)
-
-                if (this.selectedStates[db][i] != value) {
-                    document.getElementById('top.' + idx)?.classList.toggle('selected', value)
-                    this.selectedStates[db][i] = value
-                    toCall(idx)
-                    delta += deltaUnit
-                    deltaPerDb[db] += deltaUnit
-                }
-            }
-            
-            this.selectedCounts += delta
-            for (let db of dbSet) {
-                this.selectedCountPerDb[db] += delta
-            }
-            
-            const length = this.$refs.top100.entryLength
-            const newVal = this.$refs.top100.selectedTopEntries + delta
-            this.$refs.top100.selectedTopEntries = newVal
-
-            // update select-all button state
-            const selectAllButton = document.getElementById('top#select-all')
-            if (selectAllButton) {
-                selectAllButton.classList.toggle('any-selected', newVal > 0)
-                selectAllButton.classList.toggle('all-selected', newVal == length)
-            }
+            this._applySelection(indices, value)
         },
         updateToggleSourceDb(db) {
             this.toggleSourceDb = db
