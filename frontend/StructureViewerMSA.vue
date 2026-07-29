@@ -252,8 +252,10 @@ export default {
     methods: {
         resetView() {
             if (!this.stage) return;
-            if (this.selection.length > 0) {
-                this.getComponentByIndex(this.reference).autoView(this.transitionDuration);
+            const refComp = this.selection.length > 0
+                ? this.getComponentByIndex(this.reference) : null;
+            if (refComp) {
+                refComp.autoView(this.transitionDuration);
             } else {
                 this.stage.autoView(this.transitionDuration);
             }
@@ -319,20 +321,29 @@ ENDMDL
                 download(blob, "foldmason.png")
             })
         },
+        // Returns null when there is no such component — including when the stage is gone.
+        // It used to answer -1 for "not found", which is truthy, so every `if (!comp)` guard at the
+        // call sites let it through and the next line dereferenced (-1).reprList as undefined.
         getComponentByIndex(index) {
-            if (!this.stage) return;
+            if (!this.stage) return null;
             const compList = this.stage.getComponentsByName(`key-${index}`);
-            if (compList.list.length === 0) return -1;
+            if (compList.list.length === 0) return null;
             return compList.list[0];
         },
+        /** Superposition matrix for `index` onto the reference, or null when it cannot be computed. */
         async tmAlignToReference(index) {
             if (index === this.reference) {
-                return;
+                return null;
             }
             const refData = this.entries[this.reference];
             const newData = this.entries[index];
             const refComp = this.getComponentByIndex(this.reference);
             const newComp = this.getComponentByIndex(index);
+            // Either component is absent once the viewer is torn down, and both are dereferenced
+            // for .structure below.
+            if (!refData || !newData || !refComp || !newComp) {
+                return null;
+            }
             const aln = mockAlignment(refData.aa, newData.aa);
             const fasta = `>target\n${aln.dbAln}\n\n>query\n${aln.qAln}`;
             const [queryPDB, targetPDB] = await Promise.all([
@@ -386,9 +397,21 @@ ENDMDL
                 // console.log(reverted)
                 blob = new Blob([reverted], { type: 'text/plain' })
             }
-            return this.stage.loadFile(blob, { ext: 'pdb', firstModelOnly: true, name: `key-${index}` });
+            // pulchra is WASM and runs long enough for the viewer to be torn down while it works.
+            if (!this.stage) return null;
+            try {
+                return await this.stage.loadFile(blob, { ext: 'pdb', firstModelOnly: true, name: `key-${index}` });
+            } catch (e) {
+                // The stage can also go away *during* the load: NGL attaches a default
+                // representation as the file resolves, and throws out of its own signal dispatch
+                // when the counter it notifies has already been disposed. Only swallow that case —
+                // a parse failure with a live stage is a real error and still propagates.
+                if (!this.stage) return null;
+                throw e;
+            }
         },
         async shiftStructure({ structure }, index, shiftValue) {
+            if (!this.stage || !structure) return;
             const { x, y, z } = structure.position;
             const offset = index * shiftValue;
             structure.setPosition({x: x + offset, y: y + offset, z: z + offset })
@@ -485,13 +508,17 @@ ENDMDL
                 let ref;
                 if (isNewReference) {
                     ref = await this.addStructureToStage(this.reference, data.aa, data.ca, data.suffix);
+                    // addStructureToStage awaits a parse, so the viewer may be gone by now.
+                    if (!this.stage || !ref) return;
                     ref.addRepresentation(this.representationStyle, {...this.referenceStyleParameters, color: this.schemeId });
                 } else {
                     ref = this.getComponentByIndex(this.reference);
-                    ref.reprList[0].setVisibility(false);
-                    ref.reprList[0].setParameters({...this.referenceStyleParameters, color: this.schemeId })
+                    if (!ref || !ref.reprList || ref.reprList.length === 0) return;
+                    const [ refRepr ] = ref.reprList;
+                    refRepr.setVisibility(false);
+                    refRepr.setParameters({...this.referenceStyleParameters, color: this.schemeId })
                     ref.setTransform(new Matrix4());
-                    ref.reprList[0].setVisibility(true);
+                    refRepr.setVisibility(true);
                 }
                 ref.autoView();
             }
@@ -500,44 +527,63 @@ ENDMDL
                 add.map(async (idx) => {
                     const data = this.entries[idx];
                     const structure = await this.addStructureToStage(idx, data.aa, data.ca, data.suffix);
-                    const { matrix } = await this.tmAlignToReference(idx);
-                    structure.setTransform(matrix);
+                    const aligned = await this.tmAlignToReference(idx);
+                    // See the update branch below: these awaits can outlive the viewer. tmAlign
+                    // also answers null for the reference itself, so its result cannot be
+                    // destructured before it is checked.
+                    if (!this.stage || !structure || !aligned) return;
+                    structure.setTransform(aligned.matrix);
                     structure.addRepresentation(this.representationStyle, {...this.regularStyleParameters, color: this.schemeId });
                 })
             );
 
             await Promise.all(
-                remove.map(async (idx) => { 
+                remove.map(async (idx) => {
+                    if (!this.stage) return;
                     const structure = this.getComponentByIndex(idx);
+                    if (!structure) return;
                     this.stage.removeComponent(structure);
                 })
             );
-            
+
             if (!referenceChanged) {
                 return;
             }
 
             await Promise.all(
                 update.map(async (idx) => {
-                    const structure = this.getComponentByIndex(idx); 
-                    if (!structure || structure.reprList.length === 0) return;
+                    const structure = this.getComponentByIndex(idx);
+                    // reprList itself goes away with a disposed component, so it cannot be
+                    // dereferenced for .length without checking it first.
+                    if (!structure || !structure.reprList || structure.reprList.length === 0) return;
                     const [ representation ] = structure.reprList;
                     representation.setVisibility(false);
-                    const { matrix } = await this.tmAlignToReference(idx);
+                    const aligned = await this.tmAlignToReference(idx);
+                    // tmAlignToReference is WASM and slow enough for the user to navigate away
+                    // mid-flight; the viewer is then torn down while this continuation is still
+                    // queued. Re-check rather than touching a component of a disposed stage.
+                    if (!this.stage || !aligned) {
+                        // Undo the hide, or an aborted round leaves the structure invisible.
+                        if (this.stage) representation.setVisibility(true);
+                        return;
+                    }
                     representation.setParameters(this.regularStyleParameters)
-                    structure.setTransform(matrix);
+                    structure.setTransform(aligned.matrix);
                     representation.setVisibility(true);
                 })
             );
+            if (!this.stage) return;
             this.rebuildReprs();
             this.clearTimer()
         },
         rebuildReprs() {
+            if (!this.stage) return;
             this.stage.eachRepresentation((repr) => {
                 repr.build();
             });
         },
         async updateMask() {
+            if (!this.stage) return;
             this.stage.eachRepresentation((repr) => {
                 repr.update({color: true})
             });
@@ -608,6 +654,9 @@ ENDMDL
             }
             let comp = this.getComponentByIndex(this.reference)
             let refEntry = this.entries[this.reference]
+            if (!comp || !refEntry) {
+                return
+            }
             let resno = getResidueIndex(refEntry.aa, alnPos) + 1
             if (resno < 1) {
                 return

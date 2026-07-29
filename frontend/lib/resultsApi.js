@@ -18,6 +18,32 @@ const GLOBAL_FOR = {
     queue: 'queueApi',
 };
 
+/**
+ * Search routes goToPage() will navigate to, mapped to the registry key each one publishes.
+ *
+ * The key matters because "has a search page mounted?" is the wrong question when the caller is
+ * already on one — window.searchApi would still be the outgoing page's handle and the arrival check
+ * would pass instantly. Waiting for the specific key the destination registers is correct from a
+ * result page and from another search page alike.
+ *
+ * /interface is deliberately absent: InterfaceSearch.vue predates the page API and registers
+ * nothing, so arriving there leaves every global undefined — including the goToPage that got you
+ * there, making it unrecoverable without a reload. The route still exists for the sidebar link.
+ */
+const SEARCH_PAGES = {
+    search:    'foldseek',
+    multimer:  'multimer',
+    foldmason: 'foldmason',
+    folddisco: 'folddisco',
+};
+
+/** Spellings agents are likely to try, matching SearchApiMixin.goTo()'s vocabulary. */
+const PAGE_ALIASES = {
+    foldseek: 'search',
+    monomer:  'search',
+    complex:  'multimer',
+};
+
 /** kind -> Map<key, api> */
 const registry = new Map();
 /** kind -> [resolve, ...] for awaitPageApi */
@@ -51,7 +77,10 @@ function describe() {
             : 'Call methods directly on the global for a kind, or via <global>.pages[<name>].',
         navigation: 'goToTicket(ticket, {type, entry}) is on every global; omit type and it routes '
             + 'via the queue, which resolves and redirects. `entry` picks the query in a '
-            + 'multi-query ticket.',
+            + 'multi-query ticket. goToPage(name) is also on every global and switches to a search '
+            + `page (${Object.keys(SEARCH_PAGES).join(', ')}) without carrying a query — unlike `
+            + 'sendTo() on a result page or goTo() on a search page, both of which forward the '
+            + 'structure and need one to forward.',
     };
 }
 
@@ -80,6 +109,7 @@ function publish(kind) {
     handle.describe = describe;
     handle.awaitPageApi = awaitPageApi;
     handle.goToTicket = goToTicket;
+    handle.goToPage = goToPage;
     window[name] = handle;
 }
 
@@ -124,6 +154,21 @@ export function awaitPageApi(kind, { timeoutMs = 15000 } = {}) {
     });
 }
 
+/** Any mounted page's component instance, for its $router. Null when nothing is registered. */
+function findVm() {
+    for (const entries of registry.values()) {
+        for (const api of entries.values()) {
+            if (api?._vm?.$router) return api._vm;
+        }
+    }
+    return null;
+}
+
+/** Vue Router rejects a push to the current location; that is not a failure. */
+function isRedundantNavigation(e) {
+    return /redundant|avoided/i.test(String(e?.message ?? e));
+}
+
 /**
  * Navigate to a ticket's results.
  *
@@ -137,13 +182,7 @@ export function awaitPageApi(kind, { timeoutMs = 15000 } = {}) {
 export async function goToTicket(ticket, { type = null, entry = 0, wait = true, timeoutMs = 15000 } = {}) {
     if (!ticket) return { ok: false, reason: 'ticket is required' };
 
-    let vm = null;
-    for (const entries of registry.values()) {
-        for (const api of entries.values()) {
-            if (api?._vm?.$router) { vm = api._vm; break; }
-        }
-        if (vm) break;
-    }
+    const vm = findVm();
     if (!vm) return { ok: false, reason: 'no page is mounted, so there is no router to navigate' };
 
     // `entry` selects the query within a multi-query ticket; it only applies to the plain
@@ -153,8 +192,7 @@ export async function goToTicket(ticket, { type = null, entry = 0, wait = true, 
     try {
         await vm.$router.push({ name: route.name, params: route.params });
     } catch (e) {
-        // Vue Router rejects a push to the current location; that is not a failure.
-        if (!/redundant|avoided/i.test(String(e?.message ?? e))) {
+        if (!isRedundantNavigation(e)) {
             return { ok: false, reason: `navigation failed: ${e?.message ?? e}` };
         }
     }
@@ -168,6 +206,72 @@ export async function goToTicket(ticket, { type = null, entry = 0, wait = true, 
         const kind = route.viaQueue ? 'queue' : 'result';
         try { await awaitPageApi(kind, { timeoutMs }); out.arrived = kind; }
         catch { out.arrived = false; }
+    }
+    return out;
+}
+
+/** Resolve true once `key` is registered under kind 'search', or false on timeout. */
+async function awaitSearchPageKey(key, timeoutMs) {
+    const entries = kindRegistry('search');
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+        if (entries.has(key)) return true;
+        if (Date.now() >= deadline) return false;
+        await new Promise(r => setTimeout(r, 25));
+    }
+}
+
+/**
+ * Switch to a search page, carrying nothing.
+ *
+ * The rest of the cross-page navigation in this app is a transfer: sendTo() on a result page and
+ * goTo() on a search page both stash a structure in IndexedDB before pushing, so both need a
+ * structure to stash — sendTo('folddisco') fails outright without exactly one selected row. An
+ * agent that just wants to leave a result page and start a fresh FoldDisco search had no way to
+ * say so, and reaching for `_vm.$router` instead builds on an escape hatch this module documents
+ * as unstable. Hence a plain, named navigation.
+ *
+ * "Carrying nothing" is about the transfer, not about what the destination ends up holding: each
+ * search page restores its own persisted query in mounted() (FoldDiscoSearch reads
+ * `folddisco.query` from IndexedDB), so arriving on one may well show the query it had last time.
+ * That is the same thing clicking the sidebar link does. Note it resolves asynchronously — a
+ * getQuery() fired the instant this returns can still read length 0 and then fill in.
+ *
+ * Ticket routes are deliberately not reachable here: they need the type resolution and queue
+ * fallback that goToTicket() already implements.
+ */
+export async function goToPage(name, { wait = true, timeoutMs = 15000 } = {}) {
+    const valid = Object.keys(SEARCH_PAGES);
+    if (!name) return { ok: false, reason: 'name is required', valid };
+
+    const requested = String(name).trim().toLowerCase();
+    const target = PAGE_ALIASES[requested] ?? requested;
+    if (!Object.prototype.hasOwnProperty.call(SEARCH_PAGES, target)) {
+        return { ok: false, reason: `unknown page: ${name}`, valid,
+            hint: 'ticket results are goToTicket(ticket) — this only reaches search pages' };
+    }
+
+    const vm = findVm();
+    if (!vm) return { ok: false, reason: 'no page is mounted, so there is no router to navigate' };
+
+    const from = vm.$route?.fullPath ?? null;
+    try {
+        await vm.$router.push({ name: target });
+    } catch (e) {
+        if (!isRedundantNavigation(e)) {
+            return { ok: false, reason: `navigation failed: ${e?.message ?? e}` };
+        }
+    }
+
+    const out = { ok: true, page: target, navigated: (vm.$route?.fullPath ?? null) !== from,
+        ...(target !== requested ? { requested } : {}) };
+    if (wait) {
+        // Waiting on the destination's own registry key, not on window.searchApi: coming from
+        // another search page that global is already populated by the outgoing page.
+        out.arrived = await awaitSearchPageKey(SEARCH_PAGES[target], timeoutMs);
+        if (!out.arrived) {
+            out.note = `timed out after ${timeoutMs}ms waiting for ${target} to register`;
+        }
     }
     return out;
 }

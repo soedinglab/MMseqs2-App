@@ -192,7 +192,7 @@ import { mockPDB, mergePdbs, concatenatePdbs,
     encodeMultimer} from './Utilities';
 
 import { debounce } from './lib/debounce';
-import { registerResultApi, awaitPageApi, normalizeId, splitId } from './lib/resultsApi.js';
+import { registerResultApi, normalizeId, splitId } from './lib/resultsApi.js';
 
 // How many hits per database enter a merged cross-database ranking, before the 100-row cap.
 const MERGE_POOL_PER_DB = 100;
@@ -202,13 +202,14 @@ import { expandDescendants, findTaxonRow, findTaxonByName,
     summarizeTaxonomy } from './lib/taxonomyFilter.js';
 import ResultFoldseekDB from './ResultFoldseekDB.vue';
 import SelectToSendPanel from './SelectToSendPanel.vue';
+import SendToMixin from './SendToMixin.vue';
 import NameField from './NameField.vue';
 import TopHits from './TopHits.vue';
 import Top100Foldseek from './Top100Foldseek.vue';
 
 export default {
     name: 'ResultView',
-    mixins: [ ResultSankeyMixin, AllAtomPredictMixin ],
+    mixins: [ ResultSankeyMixin, AllAtomPredictMixin, SendToMixin ],
     components: { Panel, AlignmentPanel, InterfaceAlignmentPanel, Ruler, 
         NavigationButton, ResultFoldseekDB, SelectToSendPanel, 
         NameField, TopHits, Top100Foldseek },
@@ -1030,84 +1031,6 @@ export default {
             const { applied, ...rest } = this._afterFilterChange(child, entry);
             return { ok: true, cleared: true, active: false, ...rest };
         },
-        // --- forwarding the current selection to another tool ------------------------------
-        // Unlike everything else here this is genuinely side-effectful: it fetches structures,
-        // writes them to IndexedDB and navigates away. Returns a promise that settles once the
-        // panel has finished its work.
-        // waitForQuery defaults ON: the handoff goes through IndexedDB and lands after the page
-        // mounts, so without it every caller has to poll getQuery().length itself — and one that
-        // forgets sees an empty form and a validate() failure it cannot explain.
-        async sendTo(target, { waitForQuery = true, timeoutMs = 10000 } = {}) {
-            const panel = this.$refs.sendPanel;
-            if (!panel) return { ok: false, reason: 'send panel not mounted' };
-            const n = this.selectedCounts;
-            if (n === 0) return { ok: false, reason: 'nothing selected' };
-
-            const plans = {
-                foldseek:  { fn: 'sendToFoldseek',  needs: n === 1, want: 'exactly one entry' },
-                folddisco: { fn: 'sendToFoldDisco', needs: n === 1, want: 'exactly one entry' },
-                foldmason: { fn: 'sendToFoldMason', needs: n >= 1,  want: 'at least one entry' },
-            };
-            const plan = plans[String(target).toLowerCase()];
-            if (!plan) {
-                return { ok: false, reason: `unknown target: ${target}`,
-                    valid: Object.keys(plans) };
-            }
-            if (!plan.needs) {
-                return { ok: false, reason: `${target} needs ${plan.want}; ${n} selected` };
-            }
-            if (target === 'folddisco' && this.banList.includes(this.getSingleSelectionInfo()?.db)) {
-                return { ok: false, reason: 'this database is not supported by FoldDisco' };
-            }
-            // A complex selection routes to the Multimer page, a monomer one to Search
-            // (SelectToSendPanel.vue:219-225), so the requested target is not always the
-            // destination. Do NOT predict it: the panel decides from `result.isMultimer` on the
-            // *fetched* structure, while the only flag visible from here — isSelectionComplex —
-            // derives from the stored alignment group and is a prop that lags a tick behind a
-            // same-tick setSelection(). Predicting from it reported 'foldseek' for a 2-chain hit
-            // that landed on /multimer. Read where we actually arrived instead.
-            const router = this.$router;
-            await panel[plan.fn]();
-            // $router.push resolves before the destination mounts, so without this the caller's
-            // next line would see window.searchApi undefined. awaitPageApi lives in the module,
-            // not in this component, so it survives our own unmount.
-            let ready = true;
-            try { await awaitPageApi('search'); } catch { ready = false; }
-            const arrived = router?.currentRoute?.name ?? null;
-            const out = {
-                ok: true, target, sent: n,
-                destination: arrived === 'multimer' ? 'multimer' : target,
-                route: arrived,
-                searchApiReady: ready,
-            };
-            // searchApiReady only means the page mounted. The structure travels via IndexedDB and
-            // lands afterwards, so every caller otherwise has to poll getQuery().length itself.
-            if (ready && waitForQuery) {
-                const api = typeof window !== 'undefined' ? window.searchApi : null;
-                out.queryReady = await this._awaitQueryLanded(api, timeoutMs);
-                out.queryLength = api?.getQuery?.().length ?? 0;
-            }
-            return out;
-        },
-
-        /**
-         * Poll the destination page until its query is populated.
-         *
-         * FoldMason's surface is a list, so it has getQueries() and no getQuery() — pick the reader
-         * once rather than assuming a shape that only three of the four search pages have.
-         */
-        async _awaitQueryLanded(api, timeoutMs = 10000) {
-            const read = api?.getQuery ? () => api.getQuery()?.length ?? 0
-                : api?.getQueries ? () => api.getQueries()?.length ?? 0
-                    : null;
-            if (!read) return false;
-            const deadline = Date.now() + timeoutMs;
-            for (;;) {
-                if (read() > 0) return true;
-                if (Date.now() >= deadline) return false;
-                await new Promise(r => setTimeout(r, 100));
-            }
-        },
         describePage() {
             return {
                 tool: 'foldseek',
@@ -1119,7 +1042,8 @@ export default {
                     hasTaxonomy: !!r.hasTaxonomy,
                 })) ?? [],
                 idFormat: 'dbIdx#entryIdx — also accepts {db, idx} or [dbIdx, entryIdx]',
-                sendTargets: { foldseek: '1 entry', folddisco: '1 entry', foldmason: '1+ entries' },
+                sendTargets: { foldseek: '1 entry', folddisco: '1 entry',
+                    foldmason: '1+ entries; opt includeQuery:bool prepends the query structure' },
                 notes: [
                     'getTable() is read-only and defaults to the open tab; db:"*" for all.',
                     'Filters apply to the open tab only; rows elsewhere report '

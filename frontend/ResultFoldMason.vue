@@ -97,11 +97,13 @@ import Panel from './Panel.vue';
 import NavigationButton from './NavigationButton.vue';
 import SelectToSendPanelFoldMason from './SelectToSendPanelFoldMason.vue';
 import NameField from './NameField.vue';
+import SendToMixin from './SendToMixin.vue';
 
 export default {
     name: 'ResultFoldMason',
     tool: 'foldmason',
     components: { MSA, MSAView, Panel, NavigationButton, SelectToSendPanelFoldMason, NameField},
+    mixins: [ SendToMixin ],
     data() {
         return {
             ticket: "",
@@ -199,9 +201,15 @@ export default {
          * methods swallow their own failures and return, so success is inferred from the route
          * actually changing rather than from the call resolving.
          */
-        async sendTo(target, { waitForQuery = true, timeoutMs = 10000 } = {}) {
+        async sendTo(target, { waitForQuery = true, timeoutMs = 10000, includeQuery } = {}) {
             const panel = this.$refs.sendPanel;
             if (!panel) return { ok: false, reason: 'send panel not mounted' };
+            // Named rather than ignored: the hit tables take includeQuery for their foldmason
+            // target, and neither target here is one.
+            if (includeQuery !== undefined) {
+                return { ok: false,
+                    reason: 'includeQuery applies to a foldmason target; this page has none' };
+            }
             const plans = { foldseek: 'sendToFoldseek', folddisco: 'sendToFoldDisco' };
             const fn = plans[String(target).toLowerCase()];
             if (!fn) {
@@ -211,6 +219,15 @@ export default {
             if (!(ref >= 0) || !this.msaData?.entries?.[ref]) {
                 return { ok: false,
                     reason: 'no reference row is set; call setReference(row) first' };
+            }
+            // The panel forwards the row in its `targetIndex` prop, while the fields below are read
+            // from `selectedReference` here. setReference() reaches the panel the long way round —
+            // MSA method, `changedReference` event, parent assignment, prop, render — so a same-tick
+            // setReference(2); sendTo() forwards the OLD row and reports the new one. Verified: it
+            // sent 6IUF while returning referenceName 'MGYP003305394636'. Let the prop catch up.
+            if (!await this._awaitPanelReference(panel, ref)) {
+                return { ok: false, reference: ref,
+                    reason: `send panel still targets row ${panel.targetIndex}, not ${ref}` };
             }
             const router = this.$router;
             const before = router?.currentRoute?.name ?? null;
@@ -231,20 +248,22 @@ export default {
                 searchApiReady: ready,
             };
             if (ready && waitForQuery) {
+                // Helpers from SendToMixin; this page's own sendTo() overrides the mixin's, since
+                // it forwards a reference row rather than a selection.
                 const api = typeof window !== 'undefined' ? window.searchApi : null;
-                const read = api?.getQuery ? () => api.getQuery()?.length ?? 0 : null;
-                if (read) {
-                    const deadline = Date.now() + timeoutMs;
-                    let landed = false;
-                    while (Date.now() < deadline) {
-                        if (read() > 0) { landed = true; break; }
-                        await new Promise(r => setTimeout(r, 100));
-                    }
-                    out.queryReady = landed;
-                    out.queryLength = read();
-                }
+                out.queryReady = await this._awaitQueryLanded(api, timeoutMs);
+                Object.assign(out, this._describeLandedQuery(api));
             }
             return out;
+        },
+        /** Resolve once the send panel's targetIndex prop matches `ref`, or false if it never does. */
+        async _awaitPanelReference(panel, ref, timeoutMs = 2000) {
+            const deadline = Date.now() + timeoutMs;
+            for (;;) {
+                if (panel.targetIndex === ref) return true;
+                if (Date.now() >= deadline) return false;
+                await new Promise(r => setTimeout(r, 20));
+            }
         },
         resetProperties() {
             this.ticket = this.$route.params.ticket;

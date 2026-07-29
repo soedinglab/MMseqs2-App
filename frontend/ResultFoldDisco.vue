@@ -187,7 +187,7 @@ import StructureViewerMotif from './StructureViewerMotif.vue';
 // import makeZip from './lib/zip.js'
 // import SankeyDiagram from './SankeyDiagram.vue';
 import { debounce } from './lib/debounce.js';
-import { registerResultApi, awaitPageApi, normalizeId, splitId } from './lib/resultsApi.js';
+import { registerResultApi, normalizeId, splitId } from './lib/resultsApi.js';
 
 // See ResultView: hits per database entering a merged ranking, before the 100-row cap.
 const MERGE_POOL_PER_DB = 100;
@@ -200,6 +200,7 @@ import ResultSankeyMixin from './ResultSankeyMixin.vue';
 import NavigationButton from './NavigationButton.vue';
 import ResultFoldDiscoDB from './ResultFoldDiscoDB.vue';
 import SelectToSendPanel from './SelectToSendPanel.vue';
+import SendToMixin from './SendToMixin.vue';
 import NameField from './NameField.vue';
 import TopHits from './TopHits.vue';
 import Top100Folddisco from './Top100Folddisco.vue';
@@ -227,7 +228,7 @@ export default {
         Top100Folddisco,
     },
     // components: { ResultView },
-    mixins: [ ResultMixin, ResultSankeyMixin ],
+    mixins: [ ResultMixin, ResultSankeyMixin, SendToMixin ],
     data() {
         return {
             ticket: "",
@@ -977,52 +978,6 @@ export default {
             const { applied, ...rest } = this._afterFilterChange(child, entry);
             return { ok: true, cleared: true, active: false, ...rest };
         },
-        // Options mirror ResultView.sendTo — see the reasoning there.
-        async sendTo(target, { waitForQuery = true, timeoutMs = 10000 } = {}) {
-            const panel = this.$refs.sendPanel;
-            if (!panel) return { ok: false, reason: 'send panel not mounted' };
-            const n = this.selectedCounts;
-            if (n === 0) return { ok: false, reason: 'nothing selected' };
-            const plans = {
-                foldseek:  { fn: 'sendToFoldseek',  ok: n === 1, want: 'exactly one entry' },
-                folddisco: { fn: 'sendToFoldDisco', ok: n === 1, want: 'exactly one entry' },
-                foldmason: { fn: 'sendToFoldMason', ok: n >= 1,  want: 'at least one entry' },
-            };
-            const plan = plans[String(target).toLowerCase()];
-            if (!plan) return { ok: false, reason: `unknown target: ${target}`,
-                valid: Object.keys(plans) };
-            if (!plan.ok) return { ok: false, reason: `${target} needs ${plan.want}; ${n} selected` };
-            const router = this.$router;
-            await panel[plan.fn]();
-            // See ResultView.sendTo — the destination has to be drivable before we resolve, and the
-            // destination is read from the arrived route rather than predicted.
-            let ready = true;
-            try { await awaitPageApi('search'); } catch { ready = false; }
-            const arrived = router?.currentRoute?.name ?? null;
-            const out = { ok: true, target, sent: n,
-                destination: arrived === 'multimer' ? 'multimer' : target,
-                route: arrived, searchApiReady: ready };
-            if (ready && waitForQuery) {
-                const api = typeof window !== 'undefined' ? window.searchApi : null;
-                out.queryReady = await this._awaitQueryLanded(api, timeoutMs);
-                out.queryLength = api?.getQuery?.().length ?? api?.getQueries?.().length ?? 0;
-            }
-            return out;
-        },
-
-        /** See ResultView._awaitQueryLanded. */
-        async _awaitQueryLanded(api, timeoutMs = 10000) {
-            const read = api?.getQuery ? () => api.getQuery()?.length ?? 0
-                : api?.getQueries ? () => api.getQueries()?.length ?? 0
-                    : null;
-            if (!read) return false;
-            const deadline = Date.now() + timeoutMs;
-            for (;;) {
-                if (read() > 0) return true;
-                if (Date.now() >= deadline) return false;
-                await new Promise(r => setTimeout(r, 100));
-            }
-        },
         describePage() {
             return {
                 tool: 'folddisco',
@@ -1036,7 +991,8 @@ export default {
                 })) ?? [],
                 idFormat: 'dbIdx#entryIdx — also accepts {db, idx} or [dbIdx, entryIdx]',
                 filters: ['taxonomy (subtree)', 'motif (matched-query-residue pattern)'],
-                sendTargets: { foldseek: '1 entry', folddisco: '1 entry', foldmason: '1+ entries' },
+                sendTargets: { foldseek: '1 entry', folddisco: '1 entry',
+                    foldmason: '1+ entries; opt includeQuery:bool prepends the query structure' },
                 notes: [
                     'getTable() is read-only and defaults to the open tab; db:"*" for all.',
                     '`cluster` is populated only for the open tab.',

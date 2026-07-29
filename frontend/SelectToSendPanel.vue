@@ -224,9 +224,16 @@ export default {
                 this.$router.push({name: "search"})
             }
         },
-        async sendToFoldMason() {
+        // `opts.includeQuery` overrides the toggle for this call only, leaving the button's own
+        // state alone. Note the template binds this as `@click="sendToFoldMason"`, so a real click
+        // arrives with a MouseEvent as `opts` — hence the `in` test rather than destructuring with
+        // a default, which an event object would satisfy with `undefined` and read as false.
+        async sendToFoldMason(opts) {
             if (this.loading) return
-            
+            const includeQuery = (opts && typeof opts === 'object' && 'includeQuery' in opts)
+                ? !!opts.includeQuery
+                : this.includeQuery;
+
             const inBatches = async (items, k, fn, signal) => {
                 const out = [];
                 for (let p = 0; p < items.length; p += k) {
@@ -276,7 +283,7 @@ export default {
                 })
                 // const failed = settled.filter(r => r.status == "fulfilled" && !r.value?.pdb).map(r=> r.value?.name)
                 await saveAsChunk(values, this.chunkSize, signal)
-                if (this.includeQuery) {
+                if (includeQuery) {
                     let queryPdb = "";
                     if (this.$LOCAL) {
                         if (this.hits.queries[0].hasOwnProperty('pdb')) {
