@@ -218,6 +218,9 @@ function setDefaultMotif(structure) {
     return Array.from(motifList).join(',');
 }
 
+// FoldDisco's backend caps a motif at 32 residues; single source for the check and the report.
+const MOTIF_RESIDUE_LIMIT = 32;
+
 export default {
     name: "FolddiscoSearch",
     tool: "folddisco",
@@ -385,8 +388,12 @@ export default {
             if (this.motifLen > 32) out.push(`motif has ${this.motifLen} residues; the limit is 32`);
             return out;
         },
+        // Metadata only, mirroring how `query` reports length-not-text: an auto-populated motif is
+        // the whole chain (801 residues for 4HHB = 914 tokens) and is by definition unsubmittable
+        // past 32, so shipping the string in an orientation call is pure cost. getMotif() has it.
         searchApiExtraState() {
-            return { motif: this.getMotif() };
+            const { motif, ...meta } = this.getMotif();
+            return { motif: { ...meta, residues: 'call getMotif() for the residue list' } };
         },
         searchApiExtraNotes() {
             return [
@@ -404,11 +411,21 @@ export default {
                 loadBindingSite: this.apiLoadBindingSite,
             };
         },
+        // `valid` is gone rather than redefined. It meant "the residues resolve against the loaded
+        // structure", which is not what the word implies: an auto-populated 801-residue motif was
+        // `valid: true` while `error` said "Motif too long" and validate() refused to submit. A stale
+        // reader of a redefined field gets no warning, so the name is retired.
         getMotif() {
+            const length = this.motifLen;
+            const withinLimit = length > 0 && length <= MOTIF_RESIDUE_LIMIT;
             return {
                 motif: this.motif ?? '',
-                length: this.motifLen,
-                valid: this.isMotifValid,
+                length,
+                limit: MOTIF_RESIDUE_LIMIT,
+                residuesResolved: !!this.isMotifValid,
+                withinLimit,
+                // The field a caller actually wants, and validate()-consistent by construction.
+                submittable: !!this.isMotifValid && withinLimit,
                 error: this.motifError || null,
             };
         },

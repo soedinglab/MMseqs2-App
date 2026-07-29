@@ -239,7 +239,13 @@ export default {
                 source: q.file ? 'file' : 'text',
             }));
         },
+        // Accepts (name, text) or ({name, text}). addQueries takes objects, so passing one here
+        // failed with "name and text are both required" when both *were* supplied — a message that
+        // read as a lie.
         addQuery(name, text) {
+            if (name && typeof name === 'object' && text === undefined) {
+                ({ name, text } = name);
+            }
             if (!name || !text) return { ok: false, reason: 'name and text are both required' };
             this.queries.push({ name: String(name), text: String(text) });
             return { ok: true, count: this.queries.length };

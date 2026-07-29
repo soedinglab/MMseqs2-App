@@ -22,6 +22,19 @@ const FOLDDISCO_NUMERIC = { idf: 'idfscore', rmsd: 'rmsd', node: 'nodecount' };
 const STRING_FIELD = { target: 'target', desc: 'description', tax: 'taxName' };
 
 /**
+ * The row field a sort key reads, which is NOT always the key itself: `idf` lives in `idfscore`,
+ * `qtm` in `complexqtm`, `desc` in `description`. Exported because getTableSummary() needs to report
+ * a value for the active sort key, and hardcoding the key name there produced silent nulls.
+ */
+export function rowFieldForSortKey(sortKey, tool = 'foldseek') {
+    if (STRING_FIELD[sortKey]) return STRING_FIELD[sortKey];
+    if (tool === 'folddisco') return FOLDDISCO_NUMERIC[sortKey] ?? sortKey;
+    if (sortKey === 'qtm') return 'complexqtm';
+    if (sortKey === 'ttm') return 'complexttm';
+    return FOLDSEEK_NUMERIC.includes(sortKey) ? sortKey : sortKey;
+}
+
+/**
  * Per-group numeric reductions, mirroring ResultFoldseekDB.sortKeyCache.
  * `eval` reduces with max under tmalign/lolalign (higher is better) and min otherwise.
  */

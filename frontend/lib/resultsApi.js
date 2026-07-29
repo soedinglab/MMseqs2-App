@@ -49,8 +49,9 @@ function describe() {
         usage: pages.length === 0
             ? 'No page is mounted. Navigate to a search or result route first.'
             : 'Call methods directly on the global for a kind, or via <global>.pages[<name>].',
-        navigation: 'goToTicket(ticket, {type}) is on every global; omit type and it routes via '
-            + 'the queue, which resolves and redirects.',
+        navigation: 'goToTicket(ticket, {type, entry}) is on every global; omit type and it routes '
+            + 'via the queue, which resolves and redirects. `entry` picks the query in a '
+            + 'multi-query ticket.',
     };
 }
 
@@ -133,7 +134,7 @@ export function awaitPageApi(kind, { timeoutMs = 15000 } = {}) {
  * on its own — the same fallback History.vue uses. Pass a cached type (History keeps a
  * `type_map` in localStorage) to skip the queue hop.
  */
-export async function goToTicket(ticket, { type = null, wait = true, timeoutMs = 15000 } = {}) {
+export async function goToTicket(ticket, { type = null, entry = 0, wait = true, timeoutMs = 15000 } = {}) {
     if (!ticket) return { ok: false, reason: 'ticket is required' };
 
     let vm = null;
@@ -145,7 +146,9 @@ export async function goToTicket(ticket, { type = null, wait = true, timeoutMs =
     }
     if (!vm) return { ok: false, reason: 'no page is mounted, so there is no router to navigate' };
 
-    const route = routeForTicket(ticket, type);
+    // `entry` selects the query within a multi-query ticket; it only applies to the plain
+    // result route, and routeForTicket ignores it elsewhere.
+    const route = routeForTicket(ticket, type, { entry });
     const current = vm.$route?.fullPath ?? null;
     try {
         await vm.$router.push({ name: route.name, params: route.params });
@@ -157,7 +160,8 @@ export async function goToTicket(ticket, { type = null, wait = true, timeoutMs =
     }
 
     const out = { ok: true, ticket, route: route.name, viaQueue: route.viaQueue,
-        type: route.type, navigated: (vm.$route?.fullPath ?? null) !== current };
+        type: route.type, navigated: (vm.$route?.fullPath ?? null) !== current,
+        ...(route.params.entry !== undefined ? { entry: route.params.entry } : {}) };
     if (wait) {
         // Direct routes land on a result page. Via the queue we only await the queue itself —
         // the job may be PENDING for minutes, so use queueApi.waitForResult() for the rest.

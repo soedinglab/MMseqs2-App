@@ -378,7 +378,13 @@ export default {
                 this.initInteract()
             }, 0)
         })
-        this._disposeApi = registerResultApi('foldmason', {
+        // Registered here so MSALocal.vue — which renders MSA with no host around it — still gets a
+        // working API. A host that owns more of the page (ResultFoldMason, which holds the send panel)
+        // listens for `api-surface` and re-registers an augmented version; the registry's disposer
+        // only releases a slot it still owns, so both teardowns are safe in either order.
+        const apiSurface = {
+            ensureReady: this.ensureReady,
+            getColumnSummary: this.getColumnSummary,
             getColumnTable: this.getColumnTable,
             getColumnMetrics: this.getColumnMetrics,
             getConsensus: this.getConsensus,
@@ -400,8 +406,12 @@ export default {
             getGapThreshold: this.getGapThreshold,
             describePage: this.describePage,
             _vm: this,   // unstable escape hatch; see describe()
-        });
-        this.initMSAViewer();
+        };
+        this._apiSurface = apiSurface;
+        this._disposeApi = registerResultApi('foldmason', apiSurface);
+        this.$emit('api-surface', apiSurface);
+        // Keep the promise so ensureReady() can await it instead of every caller polling.
+        this._viewerInit = this.initMSAViewer();
     },
     beforeDestroy() {
         window.removeEventListener("scroll", this.handleScroll);
@@ -458,12 +468,96 @@ export default {
             const field = alphabetId === '3di' ? 'ss' : 'aa';
             return { sequences: this.entries.map(e => e[field] || ''), symbols: symbols || undefined };
         },
+        /**
+         * Await the WebGPU viewer's initialisation.
+         *
+         * Every caller of the column/track surface otherwise hand-rolls a poll on
+         * describePage().ready, and one that forgets gets `{pending: true}` — a shape that reads like
+         * a result. Not a visibility problem: the viewer is driven by a ResizeObserver on a root whose
+         * height is CSS-derived, so it initialises off-screen too.
+         */
+        async ensureReady({ timeoutMs = 30000 } = {}) {
+            if (this.msaViewerReady) return { ok: true, waitedMs: 0 };
+            const t0 = Date.now();
+            await Promise.race([
+                this._viewerInit ?? Promise.resolve(),
+                new Promise(r => setTimeout(r, timeoutMs)),
+            ]);
+            const waitedMs = Date.now() - t0;
+            // Check the flag, not promise resolution: initMSAViewer catches its own errors, so a
+            // failed init resolves just like a successful one.
+            return this.msaViewerReady
+                ? { ok: true, waitedMs }
+                : { ok: false, waitedMs,
+                    reason: `MSA viewer did not initialise within ${timeoutMs}ms` };
+        },
+        /** Cheap survey of every column — the orientation call for this surface. */
+        async getColumnSummary({ representationId = null, topN = 10 } = {}) {
+            if (!this.msaViewerReady) return { pending: true, reason: 'MSA viewer is still initialising' };
+            const m = await getColumnMetrics(this.msaViewer, {
+                representationId, ...this._fallbackInput(representationId) });
+            const vis = getColumnVisibility(this.msaViewer, { representationId });
+            const stat = (arr) => {
+                const real = (arr ?? []).filter(v => Number.isFinite(v) && v !== -1);
+                if (!real.length) return null;
+                const sum = real.reduce((a, b) => a + b, 0);
+                return { min: +Math.min(...real).toFixed(4), max: +Math.max(...real).toFixed(4),
+                    mean: +(sum / real.length).toFixed(4), missing: (arr ?? []).length - real.length };
+            };
+            const scores = this.scores ?? [];
+            const rank = (arr, n) => (arr ?? [])
+                .map((v, i) => ({ column: i, value: Number.isFinite(v) ? +v.toFixed(4) : null }))
+                .filter(x => x.value !== null && x.value !== -1)
+                .sort((a, b) => b.value - a.value).slice(0, Math.max(0, n));
+            return {
+                ok: true,
+                source: m?.source ?? null,
+                representationId: m?.representationId ?? null,
+                alphabetId: m?.alphabetId ?? null,
+                totalColumns: scores.length || (m?.entropy?.length ?? 0),
+                visibleColumns: vis?.visibleCount ?? null,
+                selectedColumns: this.selectedColumns.length,
+                lddt: stat(scores),
+                quality: stat(m?.quality),
+                occupancy: stat(m?.occupancy),
+                entropy: stat(m?.entropy),
+                conservation: stat(m?.conservationScore),
+                topColumns: { byLddt: rank(scores, topN),
+                    byConservation: rank(m?.conservationScore, topN) },
+            };
+        },
+        /**
+         * Normalise (representationId, opts) when the caller passed options first.
+         *
+         * A representation id is a string, so an object in that slot can only be options.
+         */
+        _repIdOrOpts(representationId, opts) {
+            if (representationId !== null && typeof representationId === 'object') {
+                return { representationId: null, opts: representationId };
+            }
+            return { representationId, opts: opts ?? {} };
+        },
+        // T3/T6: these are float32 GPU values printed as float64 (occupancy 0.9333333969116211),
+        // and getConsensus ships a hex colour per letter per column. Rounding to 4 decimals took
+        // getColumnMetrics from 3,400 to 1,546 tokens; dropping colours and rounding took
+        // getConsensus from 16,017 to 10,447. Neither loses anything a caller can use.
+        _lean(value, { precision = 4, dropColor = true } = {}) {
+            return JSON.parse(JSON.stringify(value, (k, v) => {
+                if (dropColor && k === 'color') return undefined;
+                if (typeof v === 'number' && !Number.isInteger(v)) return +v.toFixed(precision);
+                return v;
+            }));
+        },
         async getColumnTable(opts = {}) {
             if (!this.msaViewerReady || !this.msaViewer) {
                 return { pending: true, reason: 'MSA viewer is still initialising' };
             }
-            const { representationId = null, columns = null, offset = 0, limit = 200 } = opts;
-            return await getColumnTable(this.msaViewer, {
+            // 200 returned every column of a typical alignment: 21,412 tokens. Scoped to specific
+            // columns it is 211 and exactly the right shape, so the default is what changes, not the
+            // method. getColumnSummary() is the survey.
+            const { representationId = null, columns = null, offset = 0, limit = 20,
+                precision = 4, fields = null, includeLetters = false } = opts;
+            const out = await getColumnTable(this.msaViewer, {
                 representationId, columns, offset, limit,
                 ...this._fallbackInput(representationId),
                 // The app's own per-column LDDT, registered as a `values` track. Not a viewer
@@ -471,16 +565,61 @@ export default {
                 extraValues: { lddt: this.scores },
                 selectedColumns: this.selectedColumns,
             });
+            let lean = this._lean(out, { precision });
+            // Keep the winning character, drop the rest of the logo. `letters` is a per-column
+            // distribution — rendering data for a sequence logo — and it dominates the response.
+            // getConsensus() is the method for the full distribution, which also gives that method a
+            // clear reason to exist rather than overlapping this one.
+            if (!includeLetters && Array.isArray(lean.columns)) {
+                for (const c of lean.columns) {
+                    if (c.consensus && Array.isArray(c.consensus.letters)) {
+                        const n = c.consensus.letters.length;
+                        delete c.consensus.letters;
+                        // Always set, even at 1: a field that vanishes is a field the caller has to
+                        // guess the meaning of.
+                        c.consensus.distinctLetters = n;
+                    }
+                }
+            }
+            // Field projection, mirroring getTable({fields}). `column` is always kept — a projected
+            // row you cannot locate is useless.
+            if (Array.isArray(fields) && Array.isArray(lean.columns)) {
+                const keep = new Set(['column', ...fields]);
+                lean = { ...lean, fields,
+                    columns: lean.columns.map(c => Object.fromEntries(
+                        Object.entries(c).filter(([k]) => keep.has(k)))) };
+            }
+            if (!columns && lean.returned < lean.totalColumns) {
+                lean.truncated = true;
+                lean.hint = 'getColumnSummary() surveys every column; pass columns or limit for more';
+            }
+            return lean;
         },
-        async getColumnMetrics(representationId = null) {
+        // Stays unbounded: as parallel arrays this is the most token-efficient representation on the
+        // page (1,546 rounded, for the most data). Bounding it would push callers to the row-shaped
+        // getColumnTable, which costs an order of magnitude more per column.
+        async getColumnMetrics(representationId = null, opts = {}) {
+            // Accept ({precision}) as well as (repId, {precision}). Without this an options object in
+            // the first slot binds to representationId and the options silently keep their defaults.
+            ({ representationId, opts } = this._repIdOrOpts(representationId, opts));
+            const { precision = 4 } = opts;
             if (!this.msaViewerReady) return { pending: true };
-            return await getColumnMetrics(this.msaViewer, {
-                representationId, ...this._fallbackInput(representationId) });
+            return this._lean(await getColumnMetrics(this.msaViewer, {
+                representationId, ...this._fallbackInput(representationId) }), { precision });
         },
-        async getConsensus(representationId = null) {
+        async getConsensus(representationId = null, opts = {}) {
+            ({ representationId, opts } = this._repIdOrOpts(representationId, opts));
+            const { limit = 20, offset = 0, precision = 4 } = opts;
             if (!this.msaViewerReady) return { pending: true };
-            return await getConsensus(this.msaViewer, {
+            const full = await getConsensus(this.msaViewer, {
                 representationId, ...this._fallbackInput(representationId) });
+            const cols = full?.columns ?? [];
+            const page = cols.slice(offset, offset + limit);
+            return this._lean({
+                ...full, totalColumns: cols.length, offset, returned: page.length,
+                ...(page.length < cols.length ? { truncated: true } : {}),
+                columns: page,
+            }, { precision });
         },
         async getTrackValues(trackId, representationId = null) {
             if (!this.msaViewerReady) return { pending: true };
@@ -589,17 +728,26 @@ export default {
         // Note the values are normalised over the full sequence count, not the occupied count, so
         // sparsely-occupied columns score low structurally — do not read a low score on a
         // 2-of-15 column as poor superposition. -1 marks a column with too few residues to score.
-        getScores({ columns = null } = {}) {
+        // `columns` is a LIST of column indices, `range` is [start, end). It used to be the only
+        // place where an array meant a range, so getScores({columns:[0,40,41]}) silently returned 40
+        // columns instead of 3 — no error, just forty times the answer.
+        getScores({ columns = null, range = null } = {}) {
             const all = this.scores ?? [];
             const totalColumns = all.length;
-            const [start, end] = Array.isArray(columns)
-                ? [Math.max(0, columns[0] ?? 0), Math.min(totalColumns, columns[1] ?? totalColumns)]
-                : [0, totalColumns];
-            const slice = all.slice(start, end);
+            let slice, start, end;
+            if (Array.isArray(columns)) {
+                slice = columns.map(i => all[i]).filter(v => v !== undefined);
+                start = null; end = null;
+            } else {
+                [start, end] = Array.isArray(range)
+                    ? [Math.max(0, range[0] ?? 0), Math.min(totalColumns, range[1] ?? totalColumns)]
+                    : [0, totalColumns];
+                slice = all.slice(start, end);
+            }
             const real = slice.filter(v => v !== -1 && Number.isFinite(v));
             return {
                 totalColumns,
-                columnRange: [start, end],
+                ...(start === null ? { columns } : { columnRange: [start, end] }),
                 returned: slice.length,
                 label: 'LDDT',
                 definition: 'per-column LDDT, normalised over the full sequence count, so '
@@ -697,6 +845,13 @@ export default {
             return {
                 tool: 'foldmason',
                 ready: this.msaViewerReady,
+                // The reference row is what the send panel forwards (its targetIndex is bound to
+                // ResultFoldMason.selectedReference, which setReference() drives), so it belongs in
+                // the orientation call rather than only as an isReference flag inside getEntries().
+                // -1 means the UI toggled the reference off; a send would then have no structure.
+                reference: this.structureViewerReference,
+                referenceName: this.structureViewerReference >= 0
+                    ? (this.entries[this.structureViewerReference]?.name ?? null) : null,
                 entries: this.entries.length,
                 columns: this.entries[0]?.aa?.length ?? 0,
                 representations: this.msaViewerState.representations.map(r => r.id),
@@ -1283,13 +1438,17 @@ export default {
 
             }
         },
+        // Returns a result object like the hit-table pages. It used to return undefined, so the same
+        // method name had two different contracts depending on which result page you were on.
         clearSelection() {
+            const cleared = this.selectedColumns.length;
             this.selectedColumns.splice(0)
             this.$emit('changedSelection', this.selectedColumns)
             if (!this.updatingFromMSAViewer) {
                 this.msaViewer?.clearSelection?.()
             }
             this.$refs.structViewer?.updateAllHighlights?.()
+            return { ok: true, count: this.selectedColumns.length, cleared };
         },
         async exportMSAViewerSelectionAsFasta() {
             if (!this.msaViewer || this.selectedColumns.length === 0) return;

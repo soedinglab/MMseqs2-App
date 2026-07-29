@@ -52,7 +52,7 @@ export function routeNameForType(uiType) {
  * caches the former and `api/ticket/type/{id}` returns the latter. Unknown or absent type falls
  * back to the queue, which resolves and redirects on its own.
  */
-export function routeForTicket(ticket, type = null) {
+export function routeForTicket(ticket, type = null, { entry = 0 } = {}) {
     const ui = type ? (routeNameForType(type) ? type : normalizeJobType(type)) : null;
     const name = ui ? routeNameForType(ui) : null;
     if (!name) {
@@ -60,18 +60,19 @@ export function routeForTicket(ticket, type = null) {
     }
     return {
         name,
-        // The plain search result route is paginated by query entry; the others are not.
-        params: name === 'result' ? { ticket, entry: 0 } : { ticket },
+        // The plain search result route is paginated by query entry; the others are not, so `entry`
+        // is silently irrelevant for msa/motif rather than an error.
+        params: name === 'result' ? { ticket, entry: Number(entry) || 0 } : { ticket },
         viaQueue: false,
         type: ui,
     };
 }
 
 /** Path string form, for `:to` bindings that expect a path. */
-export function pathForTicket(ticket, type = null) {
-    const r = routeForTicket(ticket, type);
+export function pathForTicket(ticket, type = null, { entry = 0 } = {}) {
+    const r = routeForTicket(ticket, type, { entry });
     if (r.viaQueue) return `/queue/${ticket}`;
-    if (r.name === 'result') return `/result/${ticket}/0`;
+    if (r.name === 'result') return `/result/${ticket}/${r.params.entry}`;
     if (r.name === 'foldmasonresult') return `/result/foldmason/${ticket}`;
     return `/result/folddisco/${ticket}`;
 }

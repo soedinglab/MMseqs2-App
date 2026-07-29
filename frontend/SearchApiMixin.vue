@@ -117,7 +117,12 @@ export default {
         },
 
         // ---------- query ----------
-        getQuery() {
+        // Does NOT return `text` by default. A loaded mmCIF is ~776 KB, which serializes to ~194k
+        // tokens at the agent's transport boundary — one innocent-looking getter that can consume a
+        // whole context window. `length` and `looksLike` answer every question a caller actually has
+        // ("did the query land?", "what kind is it?"); pass includeText for the rare case that needs
+        // the bytes.
+        getQuery({ includeText = false } = {}) {
             const text = this.query ?? '';
             let looksLike = 'unknown';
             const t = text.trimStart();
@@ -125,7 +130,7 @@ export default {
             else if (t.startsWith('data_') || t.startsWith('#')) looksLike = 'cif';
             else if (/^(ATOM|HETATM|HEADER|REMARK|MODEL)/m.test(t)) looksLike = 'pdb';
             else if (/^[A-Za-z\s]+$/.test(t) && t.length) looksLike = 'sequence';
-            return { text, length: text.length, looksLike };
+            return { length: text.length, looksLike, ...(includeText ? { text } : {}) };
         },
         // Async on purpose. FoldDisco's query watcher awaits getStructure() and isMotifValid
         // stays false until it resolves, so a synchronous validate() straight after setQuery()
@@ -134,6 +139,8 @@ export default {
             this.query = String(text ?? '');
             await this.$nextTick();
             const ready = await this._waitForQueryReady();
+            // Never echo `text` back: the caller just passed it in, so returning it doubles the
+            // cost of the call for no information.
             const q = this.getQuery();
             return {
                 ok: q.length > 0, ...q,
@@ -260,11 +267,12 @@ export default {
             for (const extra of (this.searchApiExtraValidation?.() ?? [])) reasons.push(extra);
             return { ok: reasons.length === 0, reasons };
         },
-        getState() {
+        // includeText is forwarded to getQuery() and is off by default — see getQuery().
+        getState({ includeText = false } = {}) {
             const cfg = this.searchApiConfig();
             const state = {
                 tool: cfg.tool,
-                query: this.getQuery(),
+                query: this.getQuery({ includeText }),
                 databases: this.getDatabases(),
                 inSearch: !!this.inSearch,
                 // Presence only. The address is the user's notification PII and never leaves
@@ -295,7 +303,10 @@ export default {
             const isObjMsg = this.errorMessage !== null && typeof this.errorMessage === 'object';
             if (isObjMsg) this.errorMessage = { type: null, message: '' };
             else this.errorMessage = '';
-            const before = this.$route?.fullPath ?? null;
+            // Capture the router itself: search() navigates, which destroys this component, so
+            // `this.$route` is not something to rely on afterwards.
+            const router = this.$router;
+            const before = router?.currentRoute?.fullPath ?? null;
 
             try {
                 await this.search();
@@ -310,12 +321,33 @@ export default {
                     : /maintenance/i.test(msg) ? 'MAINTENANCE' : 'ERROR';
                 return { ok: false, status, reason: msg };
             }
+            // search() resolves before the router settles, so reading $route here used to report
+            // `ticket: null, route: 'search', navigated: false` while the tab was already on the
+            // result page. Wait for the navigation the request just triggered.
+            const settled = await this._awaitRouteChange(router, before);
             return {
                 ok: true,
-                ticket: this.$route?.params?.ticket ?? null,
-                route: this.$route?.name ?? null,
-                navigated: (this.$route?.fullPath ?? null) !== before,
+                ticket: settled?.params?.ticket ?? null,
+                route: settled?.name ?? null,
+                navigated: !!settled,
             };
+        },
+
+        /**
+         * Resolve with the new Route once it differs from `beforeFullPath`, or null on timeout.
+         *
+         * search() calls $router.push straight after the response, so a real navigation lands within
+         * a tick or two — the timeout only pays out when the submit legitimately did not navigate,
+         * which is why it is seconds rather than the 15s used elsewhere.
+         */
+        async _awaitRouteChange(router, beforeFullPath, timeoutMs = 5000) {
+            const deadline = Date.now() + timeoutMs;
+            for (;;) {
+                const cur = router?.currentRoute ?? null;
+                if (cur && (cur.fullPath ?? null) !== beforeFullPath) return cur;
+                if (Date.now() >= deadline) return null;
+                await new Promise(r => setTimeout(r, 50));
+            }
         },
 
         goTo(tool) {

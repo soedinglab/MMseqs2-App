@@ -188,7 +188,10 @@ import StructureViewerMotif from './StructureViewerMotif.vue';
 // import SankeyDiagram from './SankeyDiagram.vue';
 import { debounce } from './lib/debounce.js';
 import { registerResultApi, awaitPageApi, normalizeId, splitId } from './lib/resultsApi.js';
-import { defaultSortOrder, isValidSortKey, FOLDDISCO_SORT_KEYS,
+
+// See ResultView: hits per database entering a merged ranking, before the 100-row cap.
+const MERGE_POOL_PER_DB = 100;
+import { defaultSortOrder, isValidSortKey, FOLDDISCO_SORT_KEYS, rowFieldForSortKey,
     createSortMemo } from './lib/resultSort.js';
 import { expandDescendants, findTaxonRow, findTaxonByName,
     summarizeTaxonomy } from './lib/taxonomyFilter.js';
@@ -354,7 +357,13 @@ export default {
 
         this._disposeApi = registerResultApi('folddisco', {
             getTable: this.getTable,
+            getTableSummary: this.getTableSummary,
+            getState: this.getState,
+            selectAll: this.selectAll,
+            selectVisible: this.selectVisible,
             setSelection: this.setSelection,
+            select: this.select,
+            deselect: this.deselect,
             getSelection: this.getSelection,
             clearSelection: this.clearSelection,
             selectDatabase: this.selectDatabase,
@@ -447,7 +456,7 @@ export default {
         getTable(opts = {}) {
             if (!this.hits?.results) return { page: 'folddisco', error: 'no results loaded' };
             const { db = null, sortKey = null, sortOrder = null,
-                offset = 0, limit = 100, fields = null } = opts;
+                offset = 0, limit = 20, fields = null } = opts;
 
             let targets;
             if (db === '*' || db === 'all') {
@@ -550,6 +559,139 @@ export default {
             }
             return picked;
         },
+        /** See ResultView.selectAll. Note FoldDisco is single-selection unless ?d2m=1. */
+        selectAll(db = null) {
+            const i = db == null
+                ? (this.selectedDatabases ? this.selectedDatabases - 1 : null)
+                : this._resolveDb(db);
+            const entry = i === null ? null : this.hits?.results?.[i];
+            if (!entry) {
+                return { ok: false, reason: db == null ? 'no database tab is open' : `unknown database: ${db}` };
+            }
+            const ids = Object.keys(entry.alignments || {}).map(g => `${i}#${g}`);
+            return this._bulkSelectionResult(this._applySelection(ids, true));
+        },
+        selectVisible(db = null) {
+            const got = this._requireActiveChild(db);
+            if (got.error) return { ok: false, reason: got.error };
+            const i = this.selectedDatabases - 1;
+            const entry = this.hits.results[i];
+            const ids = Object.keys(entry.alignments || {})
+                .filter(g => got.child.isRowVisible(Number(g)))
+                .map(g => `${i}#${g}`);
+            return this._bulkSelectionResult(this._applySelection(ids, true));
+        },
+        // Counts, not id lists — see ResultView._bulkSelectionResult.
+        _bulkSelectionResult(r) {
+            const reasons = [...new Set(r.rejected.map(x => x.reason))];
+            return {
+                ok: r.rejected.length === 0,
+                count: r.selectedCount ?? this.selectedCounts,
+                added: r.changed.length,
+                rejected: r.rejected.length,
+                ...(reasons.length ? { reasons } : {}),
+            };
+        },
+        /** See ResultView.getTableSummary. */
+        getTableSummary(opts = {}) {
+            if (!this.hits?.results) return { ok: false, page: 'folddisco', error: 'no results loaded' };
+            const { db = '*', topN = 3, merged = false } = opts;
+            const activeIdx = this.selectedDatabases ? this.selectedDatabases - 1 : null;
+            const child = this._activeChild();
+
+            let targets;
+            if (db === '*' || db === 'all') targets = this.hits.results.map((_, i) => i);
+            else {
+                const i = this._resolveDb(db);
+                if (i === null) {
+                    return { ok: false, page: 'folddisco', error: `unknown database: ${db}`,
+                        available: this.hits.results.map(r => r.db) };
+                }
+                targets = [i];
+            }
+            const num = v => {
+                const n = typeof v === 'string' ? Number(v) : v;
+                return Number.isFinite(n) ? n : null;
+            };
+            const all = [];
+            const databases = targets.map(dbIdx => {
+                const entry = this.hits.results[dbIdx];
+                const alignments = entry.alignments || {};
+                const isActive = dbIdx === activeIdx && !!child;
+                const key = isActive ? child.sortKey : 'idf';
+                const order = isActive ? child.sortOrder : defaultSortOrder(key);
+                const sorted = this._sortMemo.get(`${dbIdx}`, alignments, key, order,
+                    { tool: 'folddisco' });
+                // _rowFor here is (dbIdx, groupId, entry, rank, child, clusterOf, fields).
+                const row = (gid, f) => this._rowFor(dbIdx, gid, entry, 0, null, null, f);
+                const field = rowFieldForSortKey(key, 'folddisco');
+                const valAt = gid => num(row(gid, [field])?.[field]);
+                const summary = {
+                    db: entry.db, dbIndex: dbIdx,
+                    total: sorted.length,
+                    visibleCount: isActive
+                        ? Object.keys(alignments).filter(g => child.isRowVisible(Number(g))).length
+                        : sorted.length,
+                    selectedCount: this.selectedCountPerDb?.[dbIdx] ?? 0,
+                    sortKey: key, sortOrder: order,
+                    sortKeySource: isActive ? 'active' : 'default',
+                    hasTaxonomy: !!entry.hasTaxonomy,
+                    metrics: { [key]: sorted.length
+                        ? { best: valAt(sorted[0]),
+                            median: valAt(sorted[Math.floor(sorted.length / 2)]),
+                            worst: valAt(sorted[sorted.length - 1]) }
+                        : null },
+                    ...(topN > 0
+                        ? { top: sorted.slice(0, topN).map(gid => row(gid, ['target', field])) }
+                        : {}),
+                };
+                // Independent of topN — see ResultView.getTableSummary.
+                if (merged) {
+                    for (const gid of sorted.slice(0, MERGE_POOL_PER_DB)) {
+                        const r = row(gid, ['target', field]);
+                        all.push({ ...r, db: entry.db, _v: num(r[field]) });
+                    }
+                }
+                return summary;
+            });
+            const out = { ok: true, page: 'folddisco',
+                activeDatabase: activeIdx === null ? null : this.hits.results[activeIdx]?.db,
+                databases };
+            if (merged) {
+                // One ranking across every database, mirroring what Top100Folddisco.vue builds
+                // internally (db_idx + '#' + k over all hits.results) and never returns.
+                const key = databases[0]?.sortKey;
+                const order = databases[0]?.sortOrder ?? 1;
+                const ranked = all.filter(r => r._v !== null)
+                    .sort((a, b) => (a._v - b._v) * (order < 0 ? -1 : 1))
+                    .slice(0, 100)
+                    .map(({ _v, ...r }) => r);
+                out.merged = { sortKey: key, sortOrder: order, count: ranked.length, topN: ranked };
+            }
+            return out;
+        },
+        /** See ResultView.getState. No `query`/`entry`: this route has no :entry param. */
+        getState() {
+            const child = this._activeChild();
+            const activeIdx = this.selectedDatabases ? this.selectedDatabases - 1 : null;
+            const sel = this.getSelection();
+            return {
+                ok: true,
+                page: 'folddisco',
+                ticket: this.ticket || this.$route?.params?.ticket || null,
+                ready: !!this.hits?.results,
+                multiSelectEnabled: child?.multipleSelectionEnabled ?? false,
+                activeDatabase: activeIdx === null ? null : this.hits?.results?.[activeIdx]?.db,
+                databases: (this.hits?.results ?? []).map((r, i) => ({
+                    db: r.db, dbIndex: i,
+                    hits: r.alignments ? Object.keys(r.alignments).length : 0,
+                    hasTaxonomy: !!r.hasTaxonomy,
+                    selectedCount: this.selectedCountPerDb?.[i] ?? 0,
+                })),
+                selection: { count: sel.count, upperbound: sel.upperbound },
+                filters: child ? this.getFilters() : null,
+            };
+        },
         _applySelection(ids, value) {
             const changed = [], rejected = [];
             if (!this.selectedStates) return { changed, rejected: ids, selectedCount: 0 };
@@ -603,9 +745,63 @@ export default {
             this.$refs.top100?.reflectSelectionState?.();
             return { changed, rejected, selectedCount: this.selectedCounts };
         },
-        setSelection(ids, value = true) {
+        // Replaces the selection: after this, exactly `ids` are selected. The old name promised
+        // this and the old behaviour was additive, so a caller paging through results accumulated
+        // instead of replacing while every count it read back looked right.
+        setSelection(ids, ...rest) {
+            if (rest.length > 0) {
+                // Ignoring a stale `value` would turn setSelection(ids, false) — a deselect — into a
+                // replace. Refuse loudly rather than do the opposite of what was meant.
+                return { ok: false, count: this.selectedCounts, applied: [], rejected: [],
+                    reason: 'setSelection takes only ids and replaces the selection; '
+                        + 'use select(ids) to add or deselect(ids) to remove' };
+            }
             const list = Array.isArray(ids) ? ids : [ids];
-            return this._applySelection(list, !!value).selectedCount;
+            // Diff rather than clear-and-reselect: _applySelection mirrors `.selected` onto DOM
+            // nodes, so replacing a 1000-row selection with a near-identical one would otherwise do
+            // ~2000 pointless class toggles.
+            const target = new Set();
+            const rejected = [];
+            for (const raw of list) {
+                const id = normalizeId(raw, this.dbToIdx);
+                if (!id) rejected.push({ id: raw, reason: 'unresolvable id' });
+                else target.add(id);
+            }
+            const remove = [...this.selectedSets].filter(id => !target.has(id));
+            const add = [...target].filter(id => !this.selectedSets.has(id));
+            const off = remove.length ? this._applySelection(remove, false)
+                : { changed: [], rejected: [] };
+            const on = add.length ? this._applySelection(add, true)
+                : { changed: [], rejected: [] };
+            // Report the two directions separately. A flat `applied` here would mix ids that were
+            // just selected with ids that were just deselected — indistinguishable to the caller.
+            return {
+                ok: rejected.length + off.rejected.length + on.rejected.length === 0,
+                count: this.selectedCounts,
+                applied: on.changed,
+                removed: off.changed,
+                rejected: [...rejected, ...off.rejected, ...on.rejected],
+            };
+        },
+        /** Additive — leaves entries outside `ids` alone. */
+        select(ids) {
+            return this._selectionResult(
+                this._applySelection(Array.isArray(ids) ? ids : [ids], true));
+        },
+        deselect(ids) {
+            return this._selectionResult(
+                this._applySelection(Array.isArray(ids) ? ids : [ids], false));
+        },
+        // _applySelection already builds `rejected` with per-id reasons; the old count-only return
+        // threw it away. `applied` is not "input minus rejected" — entries already in the requested
+        // state are skipped as no-ops.
+        _selectionResult(r) {
+            return {
+                ok: r.rejected.length === 0,
+                count: r.selectedCount ?? this.selectedCounts,
+                applied: r.changed,
+                rejected: r.rejected,
+            };
         },
         getSelection() {
             const ids = [...this.selectedSets];
@@ -618,8 +814,9 @@ export default {
             return { count: this.selectedCounts, upperbound: this.selectUpperbound, ids, byDb };
         },
         clearSelection() {
+            const cleared = this.selectedCounts;
             this.clearAllEntries();
-            return this.selectedCounts;
+            return { ok: true, count: this.selectedCounts, cleared };
         },
         selectDatabase(db) {
             const i = this._resolveDb(db);
@@ -652,7 +849,9 @@ export default {
             const total = Object.keys(entry.alignments || {}).length;
             const visible = Object.keys(entry.alignments || {})
                 .filter(g => child.isRowVisible(Number(g))).length;
-            return { applied: true, db: entry.db, visibleCount: visible, totalCount: total };
+            return { applied: true, db: entry.db,
+                taxIdCount: (child.filteredHitsTaxIds ?? []).length,
+                visibleCount: visible, totalCount: total };
         },
         getTaxonomy(db = null, opts = {}) {
             const i = db == null ? (this.selectedDatabases - 1) : this._resolveDb(db);
@@ -686,17 +885,20 @@ export default {
                 let id = taxon;
                 if (typeof taxon === 'string' && !/^\d+$/.test(taxon)) {
                     id = findTaxonByName(report, taxon);
+                    resolvedId = id;
                     if (id === null) {
                         return { applied: false, db: entry.db,
                             reason: `no taxon named "${taxon}" in this database` };
                     }
                 }
+                if (resolvedId === null) resolvedId = Number(id);
                 if (!findTaxonRow(report, id)) {
                     return { applied: false, db: entry.db, reason: `taxon ${id} not in report` };
                 }
                 taxIds = (includeDescendants ? expandDescendants(report, id) : [id]).map(Number);
             }
-            child.localSelectedTaxId = taxIds.length ? Number(Array.isArray(taxon) ? taxIds[0] : taxon) : null;
+            child.localSelectedTaxId = taxIds.length ? Number(resolvedId ?? taxIds[0]) : null;
+            child.apiSelectedTaxon = taxIds.length ? taxon : null;
             child.filteredHitsTaxIds = taxIds;
             child.selectedDb = entry.db;
             return this._afterFilterChange(child, entry);
@@ -745,12 +947,18 @@ export default {
             const total = Object.keys(entry.alignments || {}).length;
             const visible = Object.keys(entry.alignments || {})
                 .filter(g => child.isRowVisible(Number(g))).length;
+            const taxIds = child.filteredHitsTaxIds ?? [];
             return {
                 activeDatabase: entry.db,
                 taxonomy: {
-                    selected: child.localSelectedTaxId ?? null,
-                    taxIds: child.filteredHitsTaxIds ?? [],
-                    active: (child.filteredHitsTaxIds?.length ?? 0) > 0,
+                    // `selected` records what was asked for — including a name — and
+                    // `selectedTaxId` the id it resolved to. Previously a name filter left
+                    // `selected: null` while 193 rows were hidden, so anything testing `selected`
+                    // for truthiness got the wrong answer; `active` is still the authority.
+                    selected: child.apiSelectedTaxon ?? child.localSelectedTaxId ?? null,
+                    selectedTaxId: child.localSelectedTaxId ?? null,
+                    taxIdCount: taxIds.length,
+                    active: taxIds.length > 0,
                 },
                 motif: { pattern: child.gapFilter || null, active: !!child.gapFilter },
                 visibleCount: visible,
@@ -763,10 +971,14 @@ export default {
             const entry = this.hits.results[this.selectedDatabases - 1];
             child.localSelectedTaxId = null;
             child.filteredHitsTaxIds = [];
+            child.apiSelectedTaxon = null;
             child.gapFilter = '';
-            return { cleared: true, ...this._afterFilterChange(child, entry) };
+            // `applied` dropped — see ResultView.clearFilters.
+            const { applied, ...rest } = this._afterFilterChange(child, entry);
+            return { ok: true, cleared: true, active: false, ...rest };
         },
-        async sendTo(target) {
+        // Options mirror ResultView.sendTo — see the reasoning there.
+        async sendTo(target, { waitForQuery = true, timeoutMs = 10000 } = {}) {
             const panel = this.$refs.sendPanel;
             if (!panel) return { ok: false, reason: 'send panel not mounted' };
             const n = this.selectedCounts;
@@ -780,12 +992,36 @@ export default {
             if (!plan) return { ok: false, reason: `unknown target: ${target}`,
                 valid: Object.keys(plans) };
             if (!plan.ok) return { ok: false, reason: `${target} needs ${plan.want}; ${n} selected` };
+            const router = this.$router;
             await panel[plan.fn]();
-            // See ResultView.sendTo — the destination has to be drivable before we resolve.
+            // See ResultView.sendTo — the destination has to be drivable before we resolve, and the
+            // destination is read from the arrived route rather than predicted.
             let ready = true;
             try { await awaitPageApi('search'); } catch { ready = false; }
-            return { ok: true, target, sent: n, destination: target,
-                route: this.$route?.name ?? null, searchApiReady: ready };
+            const arrived = router?.currentRoute?.name ?? null;
+            const out = { ok: true, target, sent: n,
+                destination: arrived === 'multimer' ? 'multimer' : target,
+                route: arrived, searchApiReady: ready };
+            if (ready && waitForQuery) {
+                const api = typeof window !== 'undefined' ? window.searchApi : null;
+                out.queryReady = await this._awaitQueryLanded(api, timeoutMs);
+                out.queryLength = api?.getQuery?.().length ?? api?.getQueries?.().length ?? 0;
+            }
+            return out;
+        },
+
+        /** See ResultView._awaitQueryLanded. */
+        async _awaitQueryLanded(api, timeoutMs = 10000) {
+            const read = api?.getQuery ? () => api.getQuery()?.length ?? 0
+                : api?.getQueries ? () => api.getQueries()?.length ?? 0
+                    : null;
+            if (!read) return false;
+            const deadline = Date.now() + timeoutMs;
+            for (;;) {
+                if (read() > 0) return true;
+                if (Date.now() >= deadline) return false;
+                await new Promise(r => setTimeout(r, 100));
+            }
         },
         describePage() {
             return {
