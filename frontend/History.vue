@@ -15,8 +15,10 @@
         <div v-for="child in items.slice(page * limit, (page + 1) * limit)" :key="child.id" class="history-row">
             <v-list-item :class="{ 'list__item--highlighted': child.id == current }" :to="formattedRoute(child)" style="padding-left: 16px;">
                 <v-list-item-icon>
-                    <history-avatar v-if="statuses[child.id] == 'COMPLETE' && types[child.id] && types[child.id] !== 'raw'"
-                        :hash="child.id" :type="types[child.id]" />
+                    <!-- The store never hands back an unmappable type, so a truthy one is
+                         always one HistoryAvatar can draw. -->
+                    <history-avatar v-if="statuses[child.id] == 'COMPLETE' && jobType(child.id)"
+                        :hash="child.id" :type="jobType(child.id)" />
                     <identicon v-else-if="statuses[child.id] == 'COMPLETE'" :hash="child.id" :size="32"></identicon>
                     <v-icon :size="32" v-else-if="statuses[child.id] == 'RUNNING'">{{ $MDI.ClockOutline }}</v-icon>
                     <v-icon :size="32" v-else-if="statuses[child.id] == 'PENDING'">{{ $MDI.ClockOutline }}</v-icon>
@@ -26,7 +28,7 @@
                     <v-list-item-title>
                         {{ formattedDate(child.time) }}
                     </v-list-item-title>
-                    <v-list-item-subtitle><span class="mono">{{ child.name ? child.name : child.id }}</span></v-list-item-subtitle>
+                    <v-list-item-subtitle><span class="mono">{{ jobName(child.id) || child.id }}</span></v-list-item-subtitle>
                 </v-list-item-content>
             </v-list-item>
             <!-- Floats over the row, outside the list-item's grid entirely. -->
@@ -41,7 +43,7 @@
                 <v-card v-if="pendingDelete">
                     <v-card-title>Remove this job from history?</v-card-title>
                     <v-card-text>
-                        <span class="mono primary--text">{{ pendingDelete.name ? pendingDelete.name : pendingDelete.id }}</span>
+                        <span class="mono primary--text">{{ jobName(pendingDelete.id) || pendingDelete.id }}</span>
                         will be removed from your history.<br>
                         <strong>This cannot be undone.</strong>
                     </v-card-text>
@@ -65,14 +67,13 @@ import {
     readHistory,
     upsertHistoryItem,
     removeHistoryItem,
-    readNameMap,
+    getJobName,
     removeJobName,
-    readTypeMap,
+    getJobType,
     setJobType,
     removeJobType,
 } from './lib/HistoryMixin';
-import emitter from './lib/emitter'
-import { RAW_TYPE, normalizeJobType, pathForTicket } from './lib/ticketRoute.js';
+import { pathForTicket } from './lib/ticketRoute.js';
 
 // Job-type normalisation and ticket routing are shared with Queue.vue and the ticket
 // navigation API — see lib/ticketRoute.js.
@@ -89,26 +90,19 @@ export default {
         items: [],
         page: 0,
         limit: 7,
-        types: {},
         statuses: {},
         deleteDialog: false,
         pendingDelete: null,
     }),
-    mounted() {
-        this.refreshJobName = this.refreshJobName.bind(this)
-        emitter.on('refresh-job-name', this.refreshJobName)
-    },
     beforeDestroy() {
-        emitter.off('refresh-job-name', this.refreshJobName)
         if (this._pollTimer) {
             clearTimeout(this._pollTimer);
         }
     },
     created() {
         migrateHistoryStorage();
-        // Resolved job types are cached permanently, so hydrate from localStorage
-        // and never re-fetch a type we already know.
-        this.types = readTypeMap();
+        // Types come from the shared store, which hydrates itself on first read and is written
+        // by whoever resolves a type first — here or Queue.vue.
         this.loadList();
         this.fetchWindow();
     },
@@ -148,25 +142,21 @@ export default {
         loadList() {
             this.current = this.$route.params.ticket;
 
-            // Parse name_map once and index it by id, rather than re-parsing per item.
-            const names = {};
-            for (const e of readNameMap()) {
-                names[e.id] = e.name;
-            }
-
+            // Structure only. Names are read straight from the name store when rendered, so a
+            // rename anywhere shows up here without copying it into these items first.
             const items = [];
             for (const it of readHistory()) {
                 if (!it || !it.id || it.id.startsWith("user")) {
                     continue;
                 }
-                items.push({ id: it.id, time: it.time, name: names[it.id] || "" });
+                items.push({ id: it.id, time: it.time });
             }
 
             // The job currently being viewed should always be listed (and remembered).
             if (this.current && !this.current.startsWith('user-')
                 && !items.some(i => i.id == this.current)) {
                 upsertHistoryItem(this.current, { time: +(new Date()) });
-                items.unshift({ id: this.current, time: +(new Date()), name: names[this.current] || "" });
+                items.unshift({ id: this.current, time: +(new Date()) });
             }
 
             items.sort((a, b) => (b.time || 0) - (a.time || 0));
@@ -228,20 +218,19 @@ export default {
         // whose type is not already known (from type_map or a prior fetch).
         fetchWindowTypes(ids) {
             for (const id of ids) {
-                if (this.statuses[id] == "COMPLETE" && !this.types[id]) {
+                if (this.statuses[id] == "COMPLETE" && !getJobType(id)) {
                     this.$axios.get("api/ticket/type/" + id).then(
-                        (response) => {
-                            const type = normalizeJobType(response.data.type);
-                            this.$set(this.types, id, type);
-                            setJobType(id, type);
-                        }, () => {});
+                        // The store normalises and decides what is cacheable, so the raw
+                        // response goes straight in.
+                        (response) => setJobType(id, response.data.type),
+                        () => {});
                 }
             }
         },
         formattedRoute(element) {
             // Unresolved or incomplete jobs fall through to /queue, which redirects once the
             // type is known — see lib/ticketRoute.js.
-            const known = this.statuses[element.id] == 'COMPLETE' ? this.types[element.id] : null;
+            const known = this.statuses[element.id] == 'COMPLETE' ? getJobType(element.id) : null;
             return pathForTicket(element.id, known);
         },
         formattedDate(timestamp) {
@@ -261,14 +250,11 @@ export default {
 
             return str;
         },
-        refreshJobName(payload) {
-            if (!payload) return
-            const idx = this.items.findIndex(v => v.id == payload.id)
-            if (idx != -1) {
-                const obj = this.items[idx]
-                obj.name = payload.name
-                this.$set(this.items, idx, obj)
-            }
+        jobName(id) {
+            return getJobName(id);
+        },
+        jobType(id) {
+            return getJobType(id);
         },
         askDelete(child) {
             this.pendingDelete = child;
@@ -292,7 +278,6 @@ export default {
                 if (idx != -1) {
                     this.items.splice(idx, 1);
                 }
-                this.$delete(this.types, item.id);
                 this.$delete(this.statuses, item.id);
 
                 // If the current page is now past the end, step back onto a real page.

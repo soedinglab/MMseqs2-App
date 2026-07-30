@@ -11,6 +11,7 @@
 // instead of letting a dying page clobber a live one.
 
 import { routeForTicket } from './ticketRoute.js';
+import { getJobType } from './HistoryMixin';
 
 const GLOBAL_FOR = {
     result: 'resultsApi',
@@ -75,8 +76,9 @@ function describe() {
         usage: pages.length === 0
             ? 'No page is mounted. Navigate to a search or result route first.'
             : 'Call methods directly on the global for a kind, or via <global>.pages[<name>].',
-        navigation: 'goToTicket(ticket, {type, entry}) is on every global; omit type and it routes '
-            + 'via the queue, which resolves and redirects. `entry` picks the query in a '
+        navigation: 'goToTicket(ticket, {type, entry}) is on every global; omit type and any '
+            + 'already-resolved type is taken from the shared type store, falling back to the '
+            + 'queue, which resolves and redirects. `entry` picks the query in a '
             + 'multi-query ticket. goToPage(name) is also on every global and switches to a search '
             + `page (${Object.keys(SEARCH_PAGES).join(', ')}) without carrying a query — unlike `
             + 'sendTo() on a result page or goTo() on a search page, both of which forward the '
@@ -175,19 +177,20 @@ function isRedundantNavigation(e) {
  * Navigation is not page-specific, so it lives here rather than being duplicated on every page
  * API. The router comes from whichever page is currently registered (each exposes `_vm`).
  *
- * The type is optional: without it this routes to /queue, which resolves the type and redirects
- * on its own — the same fallback History.vue uses. Pass a cached type (History keeps a
- * `type_map` in localStorage) to skip the queue hop.
+ * The type is optional. When it is not given, the shared type store is consulted — any ticket
+ * whose type History or Queue has already resolved routes straight to its result page. Only a
+ * genuinely unknown type falls back to /queue, which resolves it and redirects on its own.
  */
 export async function goToTicket(ticket, { type = null, entry = 0, wait = true, timeoutMs = 15000 } = {}) {
     if (!ticket) return { ok: false, reason: 'ticket is required' };
+    const known = type ?? getJobType(ticket);
 
     const vm = findVm();
     if (!vm) return { ok: false, reason: 'no page is mounted, so there is no router to navigate' };
 
     // `entry` selects the query within a multi-query ticket; it only applies to the plain
     // result route, and routeForTicket ignores it elsewhere.
-    const route = routeForTicket(ticket, type, { entry });
+    const route = routeForTicket(ticket, known, { entry });
     const current = vm.$route?.fullPath ?? null;
     try {
         await vm.$router.push({ name: route.name, params: route.params });
