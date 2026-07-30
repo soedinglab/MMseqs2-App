@@ -15,11 +15,11 @@
         <div v-for="child in items.slice(page * limit, (page + 1) * limit)" :key="child.id" class="history-row">
             <v-list-item :class="{ 'list__item--highlighted': child.id == current }" :to="formattedRoute(child)" style="padding-left: 16px;">
                 <v-list-item-icon>
-                    <history-avatar v-if="statuses[child.id] == 'COMPLETE' && drawableType(child.id)"
+                    <history-avatar v-if="jobStatus(child.id) == 'COMPLETE' && drawableType(child.id)"
                         :hash="child.id" :type="drawableType(child.id)" />
-                    <identicon v-else-if="statuses[child.id] == 'COMPLETE'" :hash="child.id" :size="32"></identicon>
-                    <v-icon :size="32" v-else-if="statuses[child.id] == 'RUNNING'">{{ $MDI.ClockOutline }}</v-icon>
-                    <v-icon :size="32" v-else-if="statuses[child.id] == 'PENDING'">{{ $MDI.ClockOutline }}</v-icon>
+                    <identicon v-else-if="jobStatus(child.id) == 'COMPLETE'" :hash="child.id" :size="32"></identicon>
+                    <v-icon :size="32" v-else-if="jobStatus(child.id) == 'RUNNING'">{{ $MDI.ClockOutline }}</v-icon>
+                    <v-icon :size="32" v-else-if="jobStatus(child.id) == 'PENDING'">{{ $MDI.ClockOutline }}</v-icon>
                     <v-icon :size="32" v-else>{{ $MDI.HelpCircleOutline }}</v-icon>
                 </v-list-item-icon>
                 <v-list-item-content>
@@ -70,14 +70,13 @@ import {
     getJobType,
     setJobType,
     removeJobType,
+    isTerminalStatus,
+    getJobStatus,
+    setJobStatus,
+    removeJobStatus,
 } from './lib/HistoryMixin';
 import { RAW_TYPE, pathForTicket } from './lib/ticketRoute.js';
 
-// Job-type normalisation and ticket routing are shared with Queue.vue and the ticket
-// navigation API — see lib/ticketRoute.js.
-
-// Status values that never change again, so we don't re-poll them.
-const TERMINAL_STATUS = { COMPLETE: true, ERROR: true };
 
 export default {
     components: { Identicon, HistoryAvatar },
@@ -88,7 +87,6 @@ export default {
         items: [],
         page: 0,
         limit: 7,
-        statuses: {},
         deleteDialog: false,
         pendingDelete: null,
     }),
@@ -99,10 +97,8 @@ export default {
     },
     created() {
         migrateHistoryStorage();
-        // Types come from the shared store, which hydrates itself on first read and is written
-        // by whoever resolves a type first — here or Queue.vue. Ids with a type request in flight,
-        // so overlapping triggers do not ask twice; deliberately not reactive.
         this._typeFetches = new Set();
+        this._statusFetch = false;
         this.loadList();
         this.fetchWindow();
     },
@@ -136,14 +132,10 @@ export default {
             }
             this.page += 1;
         },
-        // Build the full list straight from localStorage (no network). This is
-        // the source of truth and drives pagination; per-item status/type are
-        // enriched lazily for the visible window only.
         loadList() {
             this.current = this.$route.params.ticket;
+            this._verifiedCurrent = null;
 
-            // Structure only. Names are read straight from the name store when rendered, so a
-            // rename anywhere shows up here without copying it into these items first.
             const items = [];
             for (const it of readHistory()) {
                 if (!it || !it.id || it.id.startsWith("user")) {
@@ -176,33 +168,38 @@ export default {
             if (ids.length == 0) {
                 return;
             }
-            // Only (re)query ids that are not already in a terminal state.
-            const toFetch = ids.filter(id => !TERMINAL_STATUS[this.statuses[id]]);
-            if (toFetch.length == 0) {
-                this.fetchWindowTypes(ids);
+            this.fetchWindowTypes(ids);
+
+            const toFetch = ids.filter(id => !isTerminalStatus(getJobStatus(id)));
+
+            if (this.current && !this.current.startsWith('user-')
+                && this._verifiedCurrent != this.current && !toFetch.includes(this.current)) {
+                toFetch.push(this.current);
+            }
+
+            if (toFetch.length == 0 || this._statusFetch) {
                 return;
             }
+            this._statusFetch = true;
             this.error = false;
             this.$axios.post('api/tickets', convertToQueryUrl({ tickets: toFetch })).then(
                 (response) => {
                     const data = response.data;
                     let hasPending = false;
-                    // Match by Ticket.Id: MultiStatus skips invalid ids, so the
-                    // response array is NOT positionally aligned with the request.
                     const seen = {};
                     for (const t of data) {
-                        this.$set(this.statuses, t.id, t.status);
+                        setJobStatus(t.id, t.status);
                         seen[t.id] = true;
                         if (t.status == "PENDING" || t.status == "RUNNING") {
                             hasPending = true;
                         }
                     }
-                    // Ids the server did not return are unknown/expired jobs.
                     for (const id of toFetch) {
                         if (!seen[id]) {
-                            this.$set(this.statuses, id, "UNKNOWN");
+                            setJobStatus(id, "UNKNOWN");
                         }
                     }
+                    this._verifiedCurrent = this.current;
                     this.fetchWindowTypes(ids);
                     if (hasPending) {
                         if (this._pollTimer) {
@@ -212,16 +209,15 @@ export default {
                     }
                 }, () => {
                     this.error = true;
-                });
+                })
+                // Cleared on failure too, so a 503 is retried on the next trigger.
+                .then(() => { this._statusFetch = false; });
         },
         // Resolve + cache the job type for window items that are COMPLETE and
         // whose type is not already known (from type_map or a prior fetch).
         fetchWindowTypes(ids) {
             for (const id of ids) {
-                // Four things trigger this (created, the drawer watcher, the page watcher, the
-                // poll) and the store only learns the type when a response lands, so without an
-                // in-flight guard every trigger before the first response re-asks for the same id.
-                if (this.statuses[id] != "COMPLETE" || getJobType(id) || this._typeFetches.has(id)) {
+                if (getJobStatus(id) != "COMPLETE" || getJobType(id) || this._typeFetches.has(id)) {
                     continue;
                 }
                 this._typeFetches.add(id);
@@ -237,7 +233,7 @@ export default {
         formattedRoute(element) {
             // Unresolved or incomplete jobs fall through to /queue, which redirects once the
             // type is known — see lib/ticketRoute.js.
-            const known = this.statuses[element.id] == 'COMPLETE' ? getJobType(element.id) : null;
+            const known = getJobStatus(element.id) == 'COMPLETE' ? getJobType(element.id) : null;
             return pathForTicket(element.id, known);
         },
         formattedDate(timestamp) {
@@ -260,9 +256,9 @@ export default {
         jobName(id) {
             return getJobName(id);
         },
-        // The type to draw an avatar for, or "" when there is nothing to draw. Unresolved and
-        // "resolved but unmappable" (RAW_TYPE) both mean no dedicated glyph — HistoryAvatar would
-        // fall through to its unknown icon, so the identicon branch is the better fallback.
+        jobStatus(id) {
+            return getJobStatus(id);
+        },
         drawableType(id) {
             const type = getJobType(id);
             return type && type !== RAW_TYPE ? type : "";
@@ -275,9 +271,6 @@ export default {
             this.deleteDialog = false;
             this.pendingDelete = null;
         },
-        // Client-side "forget": drops the item from localStorage and the reactive
-        // view only. The job on the server is untouched (server-side deletion is a
-        // future task).
         performDelete() {
             const item = this.pendingDelete;
             if (item) {
@@ -289,7 +282,7 @@ export default {
                 if (idx != -1) {
                     this.items.splice(idx, 1);
                 }
-                this.$delete(this.statuses, item.id);
+                removeJobStatus(item.id);
 
                 // If the current page is now past the end, step back onto a real page.
                 const maxPage = Math.max(0, Math.ceil(this.items.length / this.limit) - 1);

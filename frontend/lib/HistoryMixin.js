@@ -61,6 +61,9 @@ const StorageWrapper = (prefix) => {
 //   history:  [{ time, id }]            structural list (source of truth)
 //   name_map: [{ id, name }]            user-assigned job names
 //   type_map: { [id]: type }            resolved job type cache (new key)
+//   status_map { id: {                  resolved job status cache
+//                      s: status, 
+//                      t: epoch } }
 
 const readHistory = () => JSON.parse(storage.getItem("history") || "[]");
 
@@ -92,18 +95,17 @@ const removeHistoryItem = (id) => {
 
 // --- name_map --------------------------------------------------------------
 // Stored as [{ id, name }]; held in memory as { [id]: name }, parsed once per page.
-// The map is observable so a consumer can express "the name of this ticket" as a
-// computed property. That matters more than the saved parses: NameField used to read
-// the name once in created(), which runs before the route component has assigned
-// `ticket`, so the name was looked up under "" and never looked up again.
 const nameState = Vue.observable({ names: null });
 
 const readNameMap = () => JSON.parse(storage.getItem("name_map") || "[]");
 
-// Filled on first read, never at module scope: migrateHistoryStorage() has to be able
-// to rewrite name_map before anything caches it.
+// Filled on first read, never at module scope: the migration has to be able to rewrite name_map
+// before anything caches it. Each hydrate calls the migration itself rather than trusting a caller
+// to have done it — it is version-guarded, so after the first run it costs an integer compare, and
+// the alternative is a silent dependency on which component happens to be created first.
 const hydrateNames = () => {
   if (nameState.names === null) {
+    migrateHistoryStorage();
     const names = {};
     for (const e of readNameMap()) {
       names[e.id] = e.name;
@@ -120,9 +122,6 @@ const setJobName = (id, name) => {
   if (!id) {
     return;
   }
-  // Still a read-modify-write of the stored map rather than a dump of the cached one:
-  // two tabs renaming different jobs have to merge through localStorage, and writing
-  // our own copy back would drop the other tab's rename. A rename costs one parse.
   const nameMap = readNameMap();
   const idx = nameMap.findIndex((e) => e.id === id);
   if (name) {
@@ -136,8 +135,6 @@ const setJobName = (id, name) => {
   }
   storage.setItem("name_map", JSON.stringify(nameMap));
 
-  // Replaced, not mutated: Vue 2 cannot observe a key added to an existing object, so
-  // mutating would leave the first name a job is ever given unrendered.
   const names = { ...hydrateNames() };
   if (name) {
     names[id] = name;
@@ -151,25 +148,13 @@ const removeJobName = (id) => setJobName(id, "");
 
 // --- type_map --------------------------------------------------------------
 // { [id]: normalisedUiType }, parsed once and observable, same shape as name_map above.
-// A job's type is immutable, so a resolved entry is kept across sessions.
-//
-// Being the only writer is what lets the store hold two invariants that callers used to have
-// to remember individually:
-//   - only NORMALISED types get in. HistoryAvatar switches on those, so a raw backend string
-//     stored by mistake routes correctly (routeForTicket accepts both) while rendering as the
-//     unknown-type glyph — a split that is very hard to read from the symptom.
-//   - RAW_TYPE never reaches localStorage, so "this frontend cannot map that type" is not a
-//     permanent verdict — but it IS remembered in memory, so nothing re-asks all session. See
-//     setJobType. Callers therefore get three distinct answers: a drawable type, RAW_TYPE
-//     ("asked, nothing to draw"), or undefined ("never asked").
 const typeState = Vue.observable({ types: null });
 
 const readTypeMap = () => JSON.parse(storage.getItem("type_map") || "{}");
 
-// Also repairs the stored map in place: entries written before the store existed may be raw or
-// unmappable. Dropping them costs one re-fetch and lets them come back normalised.
 const hydrateTypes = () => {
   if (typeState.types === null) {
+    migrateHistoryStorage();
     const stored = readTypeMap();
     const types = {};
     let changed = false;
@@ -198,14 +183,7 @@ const setJobType = (id, type) => {
     return;
   }
   const ui = asUiType(type);
-  // RAW_TYPE is remembered in memory but never persisted, and the split is deliberate.
-  // Remembering it for the page's lifetime is what stops fetchWindowTypes — which runs from
-  // created(), the drawer watcher, the page watcher and a 5s poll — from re-asking for the same
-  // job on every trigger. Not persisting it means a release that learns the type still picks it
-  // up on the next visit instead of being locked out by its own cache.
   if (ui !== RAW_TYPE) {
-    // Read-modify-write for the same reason setJobName does it: another tab may have resolved a
-    // different job since this one hydrated.
     const typeMap = readTypeMap();
     typeMap[id] = ui;
     storage.setItem("type_map", JSON.stringify(typeMap));
@@ -227,16 +205,78 @@ const removeJobType = (id) => {
   typeState.types = types;
 };
 
+// --- status_map ------------------------------------------------------------
+// { [id]: { s: status, t: epochMs } }, observable and hydrated once, same as the two maps above.
+const statusState = Vue.observable({ statuses: null });
+
+const TERMINAL_STATUS = { COMPLETE: true, ERROR: true };
+
+/** Terminal means "will never change again", which is exactly what makes a status cacheable. */
+const isTerminalStatus = (status) => TERMINAL_STATUS[status] === true;
+
+const STATUS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const readStatusMap = () => JSON.parse(storage.getItem("status_map") || "{}");
+
+const hydrateStatuses = () => {
+  if (statusState.statuses === null) {
+    migrateHistoryStorage();
+    const stored = readStatusMap();
+    const now = +new Date();
+    const statuses = {};
+    let changed = false;
+    for (const id of Object.keys(stored)) {
+      const entry = stored[id];
+      if (entry && isTerminalStatus(entry.s) && now - (entry.t || 0) < STATUS_TTL_MS) {
+        statuses[id] = entry;
+      } else {
+        changed = true;
+      }
+    }
+    if (changed) {
+      storage.setItem("status_map", JSON.stringify(statuses));
+    }
+    statusState.statuses = statuses;
+  }
+  return statusState.statuses;
+};
+
+const getJobStatus = (id) => hydrateStatuses()[id]?.s;
+
+const setJobStatus = (id, status) => {
+  if (!id) {
+    return;
+  }
+  const statusMap = readStatusMap();
+  if (isTerminalStatus(status)) {
+    statusMap[id] = { s: status, t: +new Date() };
+    storage.setItem("status_map", JSON.stringify(statusMap));
+  } else if (id in statusMap) {
+    // Reconciliation: a job that was cached as finished and now reports PENDING or UNKNOWN has been
+    // requeued or reaped, so the persisted verdict has to go rather than outlive the truth.
+    delete statusMap[id];
+    storage.setItem("status_map", JSON.stringify(statusMap));
+  }
+  statusState.statuses = { ...hydrateStatuses(), [id]: { s: status, t: +new Date() } };
+};
+
+const removeJobStatus = (id) => {
+  if (!id) {
+    return;
+  }
+  const statusMap = readStatusMap();
+  if (id in statusMap) {
+    delete statusMap[id];
+    storage.setItem("status_map", JSON.stringify(statusMap));
+  }
+  const statuses = { ...hydrateStatuses() };
+  delete statuses[id];
+  statusState.statuses = statuses;
+};
+
 // --- Migration -------------------------------------------------------------
 const HISTORY_SCHEMA_VERSION = 2;
 
-// One-time migration from older localStorage layouts. Idempotent and guarded by
-// a version flag so it only does real work once per browser.
-//   - Oldest layout: `history` was an array of bare id strings.
-//   - Old layout: the whole reactive `items` array was serialized back into
-//     `history`, so entries carried runtime fields (status/name). We strip them
-//     back down to { time, id } and lift any embedded name/type into
-//     name_map/type_map so nothing the user set is lost.
 const migrateHistoryStorage = () => {
   try {
     if (
@@ -246,10 +286,12 @@ const migrateHistoryStorage = () => {
     }
 
     const raw = JSON.parse(storage.getItem("history") || "[]");
-    const nameMap = JSON.parse(storage.getItem("name_map") || "[]");
+    const nameMap = readNameMap();
     const typeMap = readTypeMap();
+    const statusMap = readStatusMap();
     let nameMapChanged = false;
     let typeMapChanged = false;
+    let statusMapChanged = false;
 
     const cleaned = [];
     for (const entry of raw) {
@@ -263,8 +305,15 @@ const migrateHistoryStorage = () => {
         nameMapChanged = true;
       }
       if (item.type && !(item.id in typeMap)) {
-        typeMap[item.id] = item.type;
-        typeMapChanged = true;
+        const ui = asUiType(item.type);
+        if (ui !== RAW_TYPE) {
+          typeMap[item.id] = ui;
+          typeMapChanged = true;
+        }
+      }
+      if (item.status && isTerminalStatus(item.status) && !(item.id in statusMap)) {
+        statusMap[item.id] = { s: item.status, t: +new Date() };
+        statusMapChanged = true;
       }
       cleaned.push({ time: item.time || +new Date(), id: item.id });
     }
@@ -275,6 +324,9 @@ const migrateHistoryStorage = () => {
     }
     if (typeMapChanged) {
       storage.setItem("type_map", JSON.stringify(typeMap));
+    }
+    if (statusMapChanged) {
+      storage.setItem("status_map", JSON.stringify(statusMap));
     }
     storage.setItem("history_schema_version", String(HISTORY_SCHEMA_VERSION));
   } catch (e) {
@@ -309,4 +361,9 @@ export {
   getJobType,
   setJobType,
   removeJobType,
+  STATUS_TTL_MS,
+  isTerminalStatus,
+  getJobStatus,
+  setJobStatus,
+  removeJobStatus,
 };
