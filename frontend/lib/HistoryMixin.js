@@ -158,8 +158,10 @@ const removeJobName = (id) => setJobName(id, "");
 //   - only NORMALISED types get in. HistoryAvatar switches on those, so a raw backend string
 //     stored by mistake routes correctly (routeForTicket accepts both) while rendering as the
 //     unknown-type glyph — a split that is very hard to read from the symptom.
-//   - RAW_TYPE never gets in. Caching "this frontend cannot map that type" would mean never
-//     asking the server again, so a later release that learns the type could not take effect.
+//   - RAW_TYPE never reaches localStorage, so "this frontend cannot map that type" is not a
+//     permanent verdict — but it IS remembered in memory, so nothing re-asks all session. See
+//     setJobType. Callers therefore get three distinct answers: a drawable type, RAW_TYPE
+//     ("asked, nothing to draw"), or undefined ("never asked").
 const typeState = Vue.observable({ types: null });
 
 const readTypeMap = () => JSON.parse(storage.getItem("type_map") || "{}");
@@ -196,14 +198,18 @@ const setJobType = (id, type) => {
     return;
   }
   const ui = asUiType(type);
-  if (ui === RAW_TYPE) {
-    return;
+  // RAW_TYPE is remembered in memory but never persisted, and the split is deliberate.
+  // Remembering it for the page's lifetime is what stops fetchWindowTypes — which runs from
+  // created(), the drawer watcher, the page watcher and a 5s poll — from re-asking for the same
+  // job on every trigger. Not persisting it means a release that learns the type still picks it
+  // up on the next visit instead of being locked out by its own cache.
+  if (ui !== RAW_TYPE) {
+    // Read-modify-write for the same reason setJobName does it: another tab may have resolved a
+    // different job since this one hydrated.
+    const typeMap = readTypeMap();
+    typeMap[id] = ui;
+    storage.setItem("type_map", JSON.stringify(typeMap));
   }
-  // Read-modify-write for the same reason setJobName does it: another tab may have resolved a
-  // different job since this one hydrated.
-  const typeMap = readTypeMap();
-  typeMap[id] = ui;
-  storage.setItem("type_map", JSON.stringify(typeMap));
   typeState.types = { ...hydrateTypes(), [id]: ui };
 };
 

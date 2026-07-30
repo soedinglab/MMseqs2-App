@@ -15,10 +15,8 @@
         <div v-for="child in items.slice(page * limit, (page + 1) * limit)" :key="child.id" class="history-row">
             <v-list-item :class="{ 'list__item--highlighted': child.id == current }" :to="formattedRoute(child)" style="padding-left: 16px;">
                 <v-list-item-icon>
-                    <!-- The store never hands back an unmappable type, so a truthy one is
-                         always one HistoryAvatar can draw. -->
-                    <history-avatar v-if="statuses[child.id] == 'COMPLETE' && jobType(child.id)"
-                        :hash="child.id" :type="jobType(child.id)" />
+                    <history-avatar v-if="statuses[child.id] == 'COMPLETE' && drawableType(child.id)"
+                        :hash="child.id" :type="drawableType(child.id)" />
                     <identicon v-else-if="statuses[child.id] == 'COMPLETE'" :hash="child.id" :size="32"></identicon>
                     <v-icon :size="32" v-else-if="statuses[child.id] == 'RUNNING'">{{ $MDI.ClockOutline }}</v-icon>
                     <v-icon :size="32" v-else-if="statuses[child.id] == 'PENDING'">{{ $MDI.ClockOutline }}</v-icon>
@@ -73,7 +71,7 @@ import {
     setJobType,
     removeJobType,
 } from './lib/HistoryMixin';
-import { pathForTicket } from './lib/ticketRoute.js';
+import { RAW_TYPE, pathForTicket } from './lib/ticketRoute.js';
 
 // Job-type normalisation and ticket routing are shared with Queue.vue and the ticket
 // navigation API — see lib/ticketRoute.js.
@@ -102,7 +100,9 @@ export default {
     created() {
         migrateHistoryStorage();
         // Types come from the shared store, which hydrates itself on first read and is written
-        // by whoever resolves a type first — here or Queue.vue.
+        // by whoever resolves a type first — here or Queue.vue. Ids with a type request in flight,
+        // so overlapping triggers do not ask twice; deliberately not reactive.
+        this._typeFetches = new Set();
         this.loadList();
         this.fetchWindow();
     },
@@ -218,13 +218,20 @@ export default {
         // whose type is not already known (from type_map or a prior fetch).
         fetchWindowTypes(ids) {
             for (const id of ids) {
-                if (this.statuses[id] == "COMPLETE" && !getJobType(id)) {
-                    this.$axios.get("api/ticket/type/" + id).then(
-                        // The store normalises and decides what is cacheable, so the raw
-                        // response goes straight in.
-                        (response) => setJobType(id, response.data.type),
-                        () => {});
+                // Four things trigger this (created, the drawer watcher, the page watcher, the
+                // poll) and the store only learns the type when a response lands, so without an
+                // in-flight guard every trigger before the first response re-asks for the same id.
+                if (this.statuses[id] != "COMPLETE" || getJobType(id) || this._typeFetches.has(id)) {
+                    continue;
                 }
+                this._typeFetches.add(id);
+                this.$axios.get("api/ticket/type/" + id).then(
+                    // The store normalises and decides what is cacheable, so the raw response
+                    // goes straight in.
+                    (response) => setJobType(id, response.data.type),
+                    () => {})
+                    // Cleared on failure too: a 503 should be retryable on the next trigger.
+                    .then(() => this._typeFetches.delete(id));
             }
         },
         formattedRoute(element) {
@@ -253,8 +260,12 @@ export default {
         jobName(id) {
             return getJobName(id);
         },
-        jobType(id) {
-            return getJobType(id);
+        // The type to draw an avatar for, or "" when there is nothing to draw. Unresolved and
+        // "resolved but unmappable" (RAW_TYPE) both mean no dedicated glyph — HistoryAvatar would
+        // fall through to its unknown icon, so the identicon branch is the better fallback.
+        drawableType(id) {
+            const type = getJobType(id);
+            return type && type !== RAW_TYPE ? type : "";
         },
         askDelete(child) {
             this.pendingDelete = child;
