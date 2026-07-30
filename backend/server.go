@@ -201,22 +201,13 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				}
 			}
 			params := Params{
-				req.FormValue("name"),
-				req.FormValue("version"),
-				path,
-				req.FormValue("default") == "true",
-				0,
-				false,
-				false,
-				false,
-				false,
-				req.FormValue("index"),
-				req.FormValue("search"),
-				"",
-				false,
-				StatusPending,
-				"",
-				nil,
+				Name:    req.FormValue("name"),
+				Version: req.FormValue("version"),
+				Path:    path,
+				Default: req.FormValue("default") == "true",
+				Index:   req.FormValue("index"),
+				Search:  req.FormValue("search"),
+				Status:  StatusPending,
 			}
 
 			filename := filepath.Join(config.Paths.Databases, filepath.Base(path+".params"))
@@ -546,6 +537,59 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		submitJob(w, req, request)
 	}
 
+	ticketRiboseekHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
+		var query string
+		var dbs []string
+		var mode string
+		var email string
+		var iterativesearch bool
+		var taxfilter string
+
+		if strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
+			err := req.ParseMultipartForm(int64(128 * 1024 * 1024))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			f, _, err := req.FormFile("q")
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			defer f.Close()
+
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(f)
+			query = buf.String()
+		} else {
+			err := req.ParseForm()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			query = req.FormValue("q")
+		}
+		dbs = req.Form["database[]"]
+		mode = req.FormValue("mode")
+		email = req.FormValue("email")
+		iterativesearch = req.FormValue("iterativesearch") == "true"
+		taxfilter = req.FormValue("taxfilter")
+
+		databases, err := Databases(config.Paths.Databases, true)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		request, err := NewRnaSearchJobRequest(query, dbs, databases, mode, config.Paths.Results, email, iterativesearch, taxfilter)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		submitJob(w, req, request)
+	}
+
 	ticketFoldMasonMSAHandlerFunc := func(w http.ResponseWriter, req *http.Request) {
 		var queries [][]byte
 		var fileNames []string
@@ -703,6 +747,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	if config.App == AppFoldseek {
 		r.HandleFunc("/ticket/foldmason", ticketFoldMasonMSAHandlerFunc).Methods("POST")
 		r.HandleFunc("/ticket/folddisco", ticketFolddiscoHandlerFunc).Methods("POST")
+		r.HandleFunc("/ticket/riboseek", ticketRiboseekHandlerFunc).Methods("POST")
 	}
 
 	r.HandleFunc("/ticket/type/{ticket}", func(w http.ResponseWriter, req *http.Request) {
@@ -1085,10 +1130,16 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		jobBase := lookupJobDir(config.Paths.Results, ticket.Id)
+		isSequenceQuery := config.App != "foldseek"
+		if request, err := getJobRequestFromFile(filepath.Join(jobBase, "job.json")); err == nil {
+			isSequenceQuery = isSequenceQuery || request.Type == JobRnaSearch
+		}
+
 		var queryPath string
-		switch config.App {
-		case "foldseek":
-			jobBase := lookupJobDir(config.Paths.Results, ticket.Id)
+		if isSequenceQuery {
+			queryPath = filepath.Join(jobBase, "job.fasta")
+		} else {
 			pdbPath := filepath.Join(jobBase, "job.pdb")
 			cifPath := filepath.Join(jobBase, "job.cif")
 			if fileExists(pdbPath) {
@@ -1099,8 +1150,6 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				http.Error(w, "File not found", http.StatusBadRequest)
 				return
 			}
-		default:
-			queryPath = filepath.Join(lookupJobDir(config.Paths.Results, ticket.Id), "job.fasta")
 		}
 		query, err := os.ReadFile(queryPath)
 		if err != nil {
@@ -1151,6 +1200,27 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		isFoldseek := false
 		switch job := request.Job.(type) {
 		case SearchJob:
+			mode = job.Mode
+			ids := []int64{id}
+			databases := job.Database
+			if database != "" {
+				if isIn(database, job.Database) == -1 {
+					http.Error(w, "Database not found", http.StatusBadRequest)
+					return
+				}
+				databases = []string{database}
+			}
+			results, err = Alignments(ticket.Id, ids, databases, config.Paths.Results)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			fasta, err = ReadQueryByIds(ticket.Id, ids, config.Paths.Results)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		case RnaSearchJob:
 			mode = job.Mode
 			ids := []int64{id}
 			databases := job.Database

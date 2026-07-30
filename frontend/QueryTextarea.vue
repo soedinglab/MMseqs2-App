@@ -1,12 +1,12 @@
 <template>
     <v-textarea
-        :aria-label="$STRINGS.QUERIES_HELP"
+        :aria-label="placeholder || $STRINGS.QUERIES_HELP"
         class="marv-bg mono"
         :loading="loading"
         :value="value" @input="$emit('input', $event)"
         @dragover.prevent
         @drop="fileDrop"
-        :placeholder="$STRINGS.QUERIES_HELP"
+        :placeholder="placeholder || $STRINGS.QUERIES_HELP"
         spellcheck="false"
         data-gramm="false"
         data-gramm_editor="false"
@@ -22,7 +22,8 @@ export default {
     name: 'QueryTextarea',
     props: {
         value: String,
-        loading: Boolean
+        loading: Boolean,
+        placeholder: String
     },
     methods: {
         fileDrop(event) {

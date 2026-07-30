@@ -596,22 +596,23 @@ export default {
             }
 
             const ticket = this.$route.params.ticket;
-            let response
-
-            try {
-                response = await this.$axios.get("api/result/" 
-                    + ticket + '/' + this.$route.params.entry 
-                    + '?format=brief&index=' + idx 
-                    + '&database=' + db, {signal});
-            } catch (error) {
-                if (signal?.aborted) { 
-                    throw new  DOMException('Aborted', 'AbortError')
-                } else { 
-                    throw new DOMException('Failed to fetch', 'FetchError') 
+            let dataArr = this.hits?.results?.[this.dbToIdx?.[db]]?.alignments?.[idx]
+            if (!dataArr || dataArr.length == 0 || Number.isInteger(dataArr[0].tCa)) {
+                let response
+                try {
+                    response = await this.$axios.get("api/result/"
+                        + ticket + '/' + this.$route.params.entry
+                        + '?format=brief&index=' + idx
+                        + '&database=' + db, {signal});
+                } catch (error) {
+                    if (signal?.aborted) {
+                        throw new  DOMException('Aborted', 'AbortError')
+                    } else {
+                        throw new DOMException('Failed to fetch', 'FetchError')
+                    }
                 }
+                dataArr = response.data
             }
-
-            let dataArr = response.data
             const arr = []
             let name = getAccession(dataArr[0].target)
             let chainset = "_"

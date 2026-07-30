@@ -51,9 +51,17 @@
             <v-list-item-content>
                 <v-list-item-title>Folddisco search</v-list-item-title>
             </v-list-item-content>
-        </v-list-item> 
+        </v-list-item>
+        <v-list-item to="/riboseek" v-if="$APP == 'foldseek'">
+            <v-list-item-action>
+                <v-icon>{{ $MDI.Nucleotide }}</v-icon>
+            </v-list-item-action>
+            <v-list-item-content>
+                <v-list-item-title>Riboseek RNA search</v-list-item-title>
+            </v-list-item-content>
+        </v-list-item>
       
-        <v-list-group v-if="$route.name === 'result'" v-model="expanded">
+        <v-list-group v-if="$route.name === 'result' || $route.name === 'riboseekresult'" v-model="expanded">
             <template slot="activator">
                 <v-list-item-action>
                     <v-icon>{{ $MDI.FileDownloadOutline }}</v-icon>
@@ -282,6 +290,8 @@ export default {
                         return "FoldMason MSA";
                     case "folddisco":
                         return "Folddisco Search";
+                    case "riboseek":
+                        return "Riboseek RNA Search";
                 }
             }
             return this.$STRINGS.APP_NAME + " Search";

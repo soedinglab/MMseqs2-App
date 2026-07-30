@@ -125,9 +125,9 @@ export default {
                         this.$axios.get(`api/result/${this.ticket}/query`)
                     ]);
                     const data = parseResults(hitResponse.data);
-                    data.query = {};
-                    data.query.pdb = JSON.stringify(hitQuery.data);
-                    data.query.qCa = pdb2ca(hitQuery.data);
+                    data.queries[0].pdb = JSON.stringify(hitQuery.data);
+                    data.queries[0].qCa = pdb2ca(hitQuery.data);
+                    data.query = data.queries[0];
                     return data;
                 });
                 return Promise.all(promises);

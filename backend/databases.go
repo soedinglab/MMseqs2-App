@@ -29,6 +29,7 @@ type Params struct {
 	Taxonomy     bool   `json:"taxonomy"`
 	Complex      bool   `json:"complex"`
 	Motif        bool   `json:"motif"`
+	Rna          bool   `json:"rna"`
 	FullHeader   bool   `json:"full_header"`
 	Index        string `json:"index"`
 	Search       string `json:"search"`
@@ -56,6 +57,9 @@ func CheckDatabase(basepath string, params Params, config ConfigRoot) error {
 	app := config.Paths.Mmseqs
 	if config.App == "foldseek" {
 		app = config.Paths.Foldseek
+	}
+	if params.Rna {
+		app = config.Paths.Riboseek
 	}
 	verbose := config.Verbose
 	if fileExists(basepath + ".fasta") {

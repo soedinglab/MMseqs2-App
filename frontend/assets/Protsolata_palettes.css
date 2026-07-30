@@ -553,3 +553,71 @@
 
 .zappo              { font-family:'Protsolata'; font-palette: --zappo; }
 .zappo-override     { font-family:'Protsolata'; font-palette: --zappo-override; }
+
+@font-palette-values --nucleotide {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0  #64F73F,
+    1  #B5651D,
+    2  #FFB340,
+    3  #6A5FBF,
+    4  #9E9E9E,
+    5  #9E9E9E,
+    6  #EB413C,
+    7  #808080,
+    8  #B0B0B0,
+    9  #9E9E9E,
+    10 #9932CC,
+    11 #9E9E9E,
+    12 #9ACD32,
+    13 #7A9A9A,
+    14 #9E9E9E,
+    15 #9E9E9E,
+    16 #9E9E9E,
+    17 #CD5C5C,
+    18 #FF8C00,
+    19 #3C88EE,
+    20 #3C88EE,
+    21 #B8860B,
+    22 #4682B4,
+    23 #6E9494,
+    24 #008000,
+    25 #9E9E9E;
+}
+
+.nucleotide         { font-family:'Protsolata'; font-palette: --nucleotide; }
+
+@font-palette-values --purine-pyrimidine {
+  font-family: 'Protsolata';
+  base-palette: 0;
+  override-colors:
+    0  #FF83FA,
+    1  #9E9E9E,
+    2  #40E0D0,
+    3  #9E9E9E,
+    4  #9E9E9E,
+    5  #9E9E9E,
+    6  #FF83FA,
+    7  #9E9E9E,
+    8  #9E9E9E,
+    9  #9E9E9E,
+    10 #9E9E9E,
+    11 #9E9E9E,
+    12 #9E9E9E,
+    13 #9E9E9E,
+    14 #9E9E9E,
+    15 #9E9E9E,
+    16 #9E9E9E,
+    17 #FF83FA,
+    18 #9E9E9E,
+    19 #40E0D0,
+    20 #40E0D0,
+    21 #9E9E9E,
+    22 #9E9E9E,
+    23 #9E9E9E,
+    24 #40E0D0,
+    25 #9E9E9E;
+}
+
+.purine-pyrimidine  { font-family:'Protsolata'; font-palette: --purine-pyrimidine; }

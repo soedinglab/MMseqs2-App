@@ -85,9 +85,9 @@
   width:5px;
   clip-path: polygon(0 0, var(--chevron-width) 50%, 0 100%);
 }
+
 .query.reversed .chevron-end {
-  clip-path: polygon(0 0, var(--chevron-width) 0, 0 50%, var(--chevron-width) 100%, 0 100%);
-  clip-path: polygon()
+  clip-path: polygon(var(--chevron-width) 0, 0 0, 0 100%, var(--chevron-width) 100%, 0 50%);
 }
 
 .theme--dark {

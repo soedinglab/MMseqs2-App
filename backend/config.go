@@ -347,6 +347,7 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 	if config.App == AppFoldseek {
 		paths = append(
 			paths,
+			&config.Paths.Riboseek,
 			&config.Paths.Foldseek,
 			&config.Paths.FoldseekInterface,
 			&config.Paths.FoldMason,

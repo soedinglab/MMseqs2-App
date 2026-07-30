@@ -85,9 +85,11 @@ func NewSearchJobRequest(query string, dbs []string, validDbs []Params, mode str
 		email,
 	}
 
-	ids := make([]string, len(validDbs))
-	for i, item := range validDbs {
-		ids[i] = item.Path
+	ids := make([]string, 0, len(validDbs))
+	for _, item := range validDbs {
+		if !item.Rna {
+			ids = append(ids, item.Path)
+		}
 	}
 
 	for _, item := range job.Database {

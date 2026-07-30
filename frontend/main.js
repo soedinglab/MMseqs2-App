@@ -14,6 +14,7 @@ import MultimerSearch from "./MultimerSearch.vue";
 import InterfaceSearch from "./InterfaceSearch.vue";
 import FoldMasonSearch from "./FoldMasonSearch.vue";
 import FoldDiscoSearch from "./FoldDiscoSearch.vue";
+import RiboseekSearch from "./RiboseekSearch.vue";
 import Queue from "./Queue.vue";
 import Queries from "./Queries.vue";
 import ResultFoldMason from "./ResultFoldMason.vue";
@@ -42,6 +43,15 @@ const router = __LOCAL__
         { name: "interface", path: "/interface", component: InterfaceSearch },
         { name: "foldmason", path: "/foldmason", component: FoldMasonSearch },
         { name: "folddisco", path: "/folddisco", component: FoldDiscoSearch },
+        { name: "riboseek", path: "/riboseek", component: RiboseekSearch },
+        {
+          name: "riboseekresult",
+          path: "/result/riboseek/:ticket/:entry",
+          components: {
+            default: () => import("./ResultRiboseek.vue"),
+            sidebar: Queries,
+          },
+        },
         {
           name: "foldmasonresult",
           path: "/result/foldmason/:ticket",

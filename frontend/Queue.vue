@@ -85,6 +85,9 @@ export default {
                                     case "interfacesearch":
                                         this.$router.replace({ name: 'result', params: { ticket: ticket, entry: 0 } });
                                         break;
+                                    case "rnasearch":
+                                        this.$router.replace({ name: 'riboseekresult', params: { ticket: ticket, entry: 0 } });
+                                        break;
                                     case "foldmasoneasymsa":
                                         this.$router.replace({ name: 'foldmasonresult', params: { ticket: ticket } });
                                         break;

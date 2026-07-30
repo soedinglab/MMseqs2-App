@@ -17,7 +17,7 @@
                 v-for="(child, i) in items"
                 :key="child.name"
                 :class="{ 'list__item--active': (groupBySet ? child.set : child.id) == entry }"
-                :to="{ name: 'result', params: { ticket: ticket, entry: groupBySet ? child.set : child.id }}"
+                :to="{ name: resultRouteName, params: { ticket: ticket, entry: groupBySet ? child.set : child.id }}"
                 style="padding-left: 16px;"
             >
                 <v-list-item-icon>
@@ -50,6 +50,11 @@ export default {
     }),
     created() {
         this.fetchData();
+    },
+    computed: {
+        resultRouteName() {
+            return this.$route.name === 'riboseekresult' ? 'riboseekresult' : 'result';
+        },
     },
     watch: {
         '$route': function(to, from) {

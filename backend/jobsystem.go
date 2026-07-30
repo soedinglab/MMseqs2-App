@@ -25,6 +25,7 @@ const (
 	JobNuclMsa         JobType = "nuclmsa"
 	JobPair            JobType = "pair"
 	JobStructureSearch JobType = "structuresearch"
+	JobRnaSearch       JobType = "rnasearch"
 	JobComplexSearch   JobType = "complexsearch"
 	JobInterfaceSearch JobType = "interfacesearch"
 	JobFoldMasonMSA    JobType = "foldmasoneasymsa"
@@ -60,6 +61,13 @@ func (m *JobRequest) UnmarshalJSON(b []byte) error {
 		return nil
 	case JobStructureSearch:
 		var j StructureSearchJob
+		if err := json.Unmarshal(msg, &j); err != nil {
+			return err
+		}
+		(*m).Job = j
+		return nil
+	case JobRnaSearch:
+		var j RnaSearchJob
 		if err := json.Unmarshal(msg, &j); err != nil {
 			return err
 		}
@@ -136,6 +144,11 @@ func (m *JobRequest) WriteSupportFiles(base string) error {
 	case JobStructureSearch:
 		if j, ok := m.Job.(StructureSearchJob); ok {
 			return j.WritePDB(filepath.Join(base, "job.pdb"))
+		}
+		return errors.New("invalid job type")
+	case JobRnaSearch:
+		if j, ok := m.Job.(RnaSearchJob); ok {
+			return j.WriteFasta(filepath.Join(base, "job.fasta"))
 		}
 		return errors.New("invalid job type")
 	case JobComplexSearch:

@@ -64,6 +64,10 @@ export default {
         motifOnly: {
             type: Boolean,
             default: false
+        },
+        rnaOnly: {
+            type: Boolean,
+            default: false
         }
     },
     data() {
@@ -114,6 +118,12 @@ export default {
                     this.availableDatabases = this.availableDatabases.filter(db => db.motif);
                 } else {
                     this.availableDatabases = this.availableDatabases.filter(db => !db.motif);
+                }
+
+                if (this.rnaOnly) {
+                    this.availableDatabases = this.availableDatabases.filter(db => db.rna);
+                } else {
+                    this.availableDatabases = this.availableDatabases.filter(db => !db.rna);
                 }
 
                 const complete = this.availableDatabases.filter(db => db.status === "COMPLETE");

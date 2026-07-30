@@ -583,6 +583,176 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
 		}
 		return nil
+	case RnaSearchJob:
+		resultBase := lookupJobDir(config.Paths.Results, request.Id)
+		var wg sync.WaitGroup
+		errChan := make(chan error, len(job.Database))
+		maxParallel := config.Worker.ParallelDatabases
+		semaphore := make(chan struct{}, max(1, maxParallel))
+
+		for index, database := range job.Database {
+			wg.Add(1)
+			semaphore <- struct{}{}
+			go func(index int, database string) {
+				defer wg.Done()
+				defer func() { <-semaphore }()
+
+				params, err := ReadParams(filepath.Join(config.Paths.Databases, database+".params"))
+				if err != nil {
+					errChan <- &JobExecutionError{err}
+					return
+				}
+
+				if !params.Rna {
+					err := errors.New("database is not an RNA database")
+					errChan <- &JobExecutionError{err}
+					return
+				}
+
+				// allowedModes := []string{"", ""}
+				// _, _, err = ParseMode(job.Mode, allowedModes, []string{})
+				// if err != nil {
+				// 	errChan <- &JobExecutionError{errors.New("invalid mode selected: " + err.Error())}
+				// 	return
+				// }
+
+				columns := "query,"
+				if params.FullHeader {
+					columns += "theader"
+				} else {
+					columns += "target"
+				}
+				columns += ",pident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,evalue,bits,qlen,tlen,qaln,taln"
+				if params.Taxonomy {
+					columns += ",taxid,taxname"
+				}
+
+				dbpath := filepath.Join(config.Paths.Databases, database)
+				if params.OverridePath != "" {
+					dbpath = filepath.Clean(params.OverridePath)
+				}
+
+				parameters := []string{
+					config.Paths.Riboseek,
+					"easy-search",
+					filepath.Join(resultBase, "job.fasta"),
+					dbpath,
+					filepath.Join(resultBase, "alis_"+database),
+					filepath.Join(resultBase, "tmp"+strconv.Itoa(index)),
+					"--shuffle",
+					"0",
+					"--db-output",
+					"--db-load-mode",
+					"2",
+					"--write-lookup",
+					"1",
+					"--search-type",
+					"3",
+					"--format-output",
+					columns,
+				}
+				parameters = append(parameters, strings.Fields(params.Search)...)
+
+				if job.IterativeSearch {
+					parameters = append(parameters, "--num-iterations", "3")
+				}
+
+				if params.Taxonomy {
+					parameters = append(parameters, "--report-mode", "3")
+					if job.TaxFilter != "" {
+						parameters = append(parameters, "--taxon-list", job.TaxFilter)
+					}
+				}
+
+				gpupar, environ := gpuParameters(params.GpuConfig)
+				parameters = append(parameters, gpupar...)
+
+				cmd, done, err := execCommand(config.Verbose, parameters, environ)
+				if err != nil {
+					errChan <- &JobExecutionError{err}
+					return
+				}
+
+				select {
+				case <-time.After(1 * time.Hour):
+					if err := KillCommand(cmd); err != nil {
+						log.Printf("Failed to kill: %s\n", err)
+					}
+					errChan <- &JobTimeoutError{}
+				case err := <-done:
+					if err != nil {
+						errChan <- &JobExecutionError{err}
+					} else {
+						errChan <- nil
+					}
+				}
+			}(index, database)
+		}
+
+		wg.Wait()
+		close(errChan)
+
+		for err := range errChan {
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+		}
+
+		err = execCommandSync(
+			config.Verbose,
+			[]string{
+				config.Paths.Riboseek,
+				"mvdb",
+				filepath.Join(resultBase, "tmp0", "latest", "query_h"),
+				filepath.Join(resultBase, "query_h"),
+			},
+			[]string{},
+			1*time.Minute,
+		)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		err = execCommandSync(
+			config.Verbose,
+			[]string{
+				config.Paths.Riboseek,
+				"mvdb",
+				filepath.Join(resultBase, "tmp0", "latest", "query"),
+				filepath.Join(resultBase, "query"),
+			},
+			[]string{},
+			1*time.Minute,
+		)
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+
+		for index := range job.Database {
+			err := os.RemoveAll(filepath.Join(resultBase, "tmp"+strconv.Itoa(index)))
+			if err != nil {
+				return &JobExecutionError{err}
+			}
+		}
+
+		path := lookupJobDir(filepath.Clean(config.Paths.Results), request.Id)
+		file, err := os.Create(filepath.Join(path, "mmseqs_results_"+string(request.Id)+".tar.gz"))
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+		err = ResultArchive(file, request.Id, path)
+		if err != nil {
+			file.Close()
+			return &JobExecutionError{err}
+		}
+		err = file.Close()
+		if err != nil {
+			return &JobExecutionError{err}
+		}
+
+		if config.Verbose {
+			log.Printf("Process finished gracefully without error in %s\n", time.Since(start))
+		}
+		return nil
 	case ComplexSearchJob:
 		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 		var wg sync.WaitGroup
@@ -2112,7 +2282,9 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 						}
 
 						executable := config.Paths.Mmseqs
-						if config.App == AppFoldseek {
+						if p.Rna {
+							executable = config.Paths.Riboseek
+						} else if config.App == AppFoldseek {
 							executable = config.Paths.Foldseek
 							dbpath = dbpath + "_ss"
 						}
