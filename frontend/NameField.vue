@@ -52,18 +52,15 @@
 </template>
 
 <script>
-import { getJobName, setJobName, HistoryMixin } from './lib/HistoryMixin'
-import emitter from './lib/emitter';
+import { getJobName, setJobName } from './lib/HistoryMixin'
 
 export default {
     name: 'NameField',
     data() {
         return {
-        name: "",
         inEdit: false,
         inputValue: "",
     }},
-    mixins: [HistoryMixin],
     props: {
         ticket: {
             type: String,
@@ -71,6 +68,13 @@ export default {
         }
     },
     computed: {
+        // Derived from the store, never copied into data: `ticket` is still "" while this
+        // component is first rendered (the route component assigns it from mounted()), so a
+        // one-shot read is guaranteed to miss the name. As a computed it re-evaluates when
+        // the ticket lands, and again whenever the name itself changes.
+        name() {
+            return getJobName(this.ticket)
+        },
         toDisplay() {
             return this.name != "" ? this.name : this.ticket
         },
@@ -78,32 +82,18 @@ export default {
             return this.inputValue?.length > 40
         }
     },
-    created() {
-        const name = getJobName(this.ticket)
-        if (name) {
-            this.name = name
-        }
-    },
     methods: {
         saveName() {
-            if (this.inputValue && this.inputValue != this.ticket) {
-                this.name = this.inputValue
-            } else {
-                this.name = ""
-            }
-            setJobName(this.ticket, this.name)
-            emitter.emit('refresh-job-name', {id: this.ticket, name: this.name})
+            // Naming a job after its own ticket is the same as having no name.
+            const name = (this.inputValue && this.inputValue != this.ticket) ? this.inputValue : ""
+            setJobName(this.ticket, name)
             this.inEdit = false
         },
         enableEdit() {
-            const name = getJobName(this.ticket)
-            if (name && name != this.name) {
-                this.name = name
-            }
             this.inputValue = this.name
             this.inEdit = true
-            this.$nextTick(() => 
-                setTimeout(() => 
+            this.$nextTick(() =>
+                setTimeout(() =>
                 this.$refs.inputField.focus()
                 , 0))
         },
@@ -111,8 +101,6 @@ export default {
             this.inputValue = ""
         },
     },
-    watch: {
-    }
 }
 </script>
 

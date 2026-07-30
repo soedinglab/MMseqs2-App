@@ -1,3 +1,6 @@
+import Vue from "vue";
+import { RAW_TYPE, asUiType } from "./ticketRoute.js";
+
 const fakeLocalStorage = (() => {
   let store = {};
   return {
@@ -88,15 +91,38 @@ const removeHistoryItem = (id) => {
 };
 
 // --- name_map --------------------------------------------------------------
+// Stored as [{ id, name }]; held in memory as { [id]: name }, parsed once per page.
+// The map is observable so a consumer can express "the name of this ticket" as a
+// computed property. That matters more than the saved parses: NameField used to read
+// the name once in created(), which runs before the route component has assigned
+// `ticket`, so the name was looked up under "" and never looked up again.
+const nameState = Vue.observable({ names: null });
+
 const readNameMap = () => JSON.parse(storage.getItem("name_map") || "[]");
 
-const getJobName = (id) => readNameMap().find((e) => e.id === id)?.name || "";
+// Filled on first read, never at module scope: migrateHistoryStorage() has to be able
+// to rewrite name_map before anything caches it.
+const hydrateNames = () => {
+  if (nameState.names === null) {
+    const names = {};
+    for (const e of readNameMap()) {
+      names[e.id] = e.name;
+    }
+    nameState.names = names;
+  }
+  return nameState.names;
+};
+
+const getJobName = (id) => hydrateNames()[id] || "";
 
 // Set (or clear, when name is empty) the name for a single id.
 const setJobName = (id, name) => {
   if (!id) {
     return;
   }
+  // Still a read-modify-write of the stored map rather than a dump of the cached one:
+  // two tabs renaming different jobs have to merge through localStorage, and writing
+  // our own copy back would drop the other tab's rename. A rename costs one parse.
   const nameMap = readNameMap();
   const idx = nameMap.findIndex((e) => e.id === id);
   if (name) {
@@ -109,24 +135,76 @@ const setJobName = (id, name) => {
     nameMap.splice(idx, 1);
   }
   storage.setItem("name_map", JSON.stringify(nameMap));
+
+  // Replaced, not mutated: Vue 2 cannot observe a key added to an existing object, so
+  // mutating would leave the first name a job is ever given unrendered.
+  const names = { ...hydrateNames() };
+  if (name) {
+    names[id] = name;
+  } else {
+    delete names[id];
+  }
+  nameState.names = names;
 };
 
 const removeJobName = (id) => setJobName(id, "");
 
 // --- type_map --------------------------------------------------------------
+// { [id]: normalisedUiType }, parsed once and observable, same shape as name_map above.
+// A job's type is immutable, so a resolved entry is kept across sessions.
+//
+// Being the only writer is what lets the store hold two invariants that callers used to have
+// to remember individually:
+//   - only NORMALISED types get in. HistoryAvatar switches on those, so a raw backend string
+//     stored by mistake routes correctly (routeForTicket accepts both) while rendering as the
+//     unknown-type glyph — a split that is very hard to read from the symptom.
+//   - RAW_TYPE never gets in. Caching "this frontend cannot map that type" would mean never
+//     asking the server again, so a later release that learns the type could not take effect.
+const typeState = Vue.observable({ types: null });
+
 const readTypeMap = () => JSON.parse(storage.getItem("type_map") || "{}");
 
-const getJobType = (id) => readTypeMap()[id];
+// Also repairs the stored map in place: entries written before the store existed may be raw or
+// unmappable. Dropping them costs one re-fetch and lets them come back normalised.
+const hydrateTypes = () => {
+  if (typeState.types === null) {
+    const stored = readTypeMap();
+    const types = {};
+    let changed = false;
+    for (const id of Object.keys(stored)) {
+      const ui = asUiType(stored[id]);
+      if (ui === RAW_TYPE) {
+        changed = true;
+      } else {
+        types[id] = ui;
+        changed = changed || ui !== stored[id];
+      }
+    }
+    if (changed) {
+      storage.setItem("type_map", JSON.stringify(types));
+    }
+    typeState.types = types;
+  }
+  return typeState.types;
+};
 
-// Job type is an immutable property of the job, so once resolved it is cached
-// forever and never re-fetched.
+const getJobType = (id) => hydrateTypes()[id];
+
+// Accepts either spelling — callers can hand over an `api/ticket/type/{id}` response verbatim.
 const setJobType = (id, type) => {
   if (!id) {
     return;
   }
+  const ui = asUiType(type);
+  if (ui === RAW_TYPE) {
+    return;
+  }
+  // Read-modify-write for the same reason setJobName does it: another tab may have resolved a
+  // different job since this one hydrated.
   const typeMap = readTypeMap();
-  typeMap[id] = type;
+  typeMap[id] = ui;
   storage.setItem("type_map", JSON.stringify(typeMap));
+  typeState.types = { ...hydrateTypes(), [id]: ui };
 };
 
 const removeJobType = (id) => {
@@ -138,6 +216,9 @@ const removeJobType = (id) => {
     delete typeMap[id];
     storage.setItem("type_map", JSON.stringify(typeMap));
   }
+  const types = { ...hydrateTypes() };
+  delete types[id];
+  typeState.types = types;
 };
 
 // --- Migration -------------------------------------------------------------

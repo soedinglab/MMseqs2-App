@@ -46,6 +46,20 @@ export function routeNameForType(uiType) {
 }
 
 /**
+ * Accept either spelling of a type and return the normalised UI one.
+ *
+ * Both spellings are in circulation: the type store caches normalised types while
+ * `api/ticket/type/{id}` returns raw backend ones. Anything unmappable comes back as RAW_TYPE.
+ * Idempotent, so it is safe to apply to a value that has already been through it.
+ */
+export function asUiType(type) {
+    if (!type) {
+        return RAW_TYPE;
+    }
+    return routeNameForType(type) ? type : normalizeJobType(type);
+}
+
+/**
  * Route descriptor for a ticket.
  *
  * `type` may be a normalised UI type OR a raw backend type — both are accepted, since History
@@ -53,7 +67,7 @@ export function routeNameForType(uiType) {
  * back to the queue, which resolves and redirects on its own.
  */
 export function routeForTicket(ticket, type = null, { entry = 0 } = {}) {
-    const ui = type ? (routeNameForType(type) ? type : normalizeJobType(type)) : null;
+    const ui = type ? asUiType(type) : null;
     const name = ui ? routeNameForType(ui) : null;
     if (!name) {
         return { name: 'queue', params: { ticket }, viaQueue: true, type: ui };

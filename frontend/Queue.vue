@@ -32,6 +32,7 @@
 <script>
 import { registerPageApi } from './lib/resultsApi.js';
 import { routeForTicket } from './lib/ticketRoute.js';
+import { setJobType } from './lib/HistoryMixin';
 import Panel from './Panel.vue';
 
 export default {
@@ -76,6 +77,9 @@ export default {
             try {
                 const r = await this.$axios.get('api/ticket/type/' + ticket);
                 const type = r.data?.type;
+                // This page is the authority on a ticket's type; share it so History and
+                // goToTicket() do not have to ask again.
+                setJobType(ticket, type);
                 const route = routeForTicket(ticket, type);
                 return route.viaQueue
                     ? { ok: false, reason: `unmapped job type: ${type}`, type }
@@ -139,6 +143,7 @@ export default {
                             this.$axios.get("api/ticket/type/" + ticket).then(
                             (response) => {
                                 const type = response.data.type;
+                                setJobType(ticket, type);
                                 if (type === "index") {
                                     this.$router.replace({ name: 'preferences' });
                                     return;
