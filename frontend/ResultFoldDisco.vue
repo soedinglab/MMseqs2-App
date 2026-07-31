@@ -407,7 +407,7 @@ export default {
                 if (n && n.results) { 
                     const obj = Object.fromEntries(
                         n.results.map((e, i) => [i, Object.fromEntries(
-                            [...Array(e.alignments.length)].keys().map(j => [j, false])
+                            Array.from({ length: e.alignments?.length ?? 0 }, (_, j) => [j, false])
                         )])
                     )
                     const obj2 = Object.fromEntries(

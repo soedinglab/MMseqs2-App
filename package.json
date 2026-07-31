@@ -4,6 +4,7 @@
   "version": "1.8.0",
   "author": "Milot Mirdita <milot@mirdita.de>",
   "description": "MMseqs2 is a software suite to search and annotate huge sequence sets. We built a graphical interface to make it more useful for interactive data exploration.",
+  "browserslist": ["defaults", "safari >= 16"],
   "repository": "https://github.com/soedinglab/MMseqs2-App",
   "license": "GPL-3.0-or-later",
   "main": "dist/main.js",
@@ -148,6 +149,7 @@
     "webpack-subresource-integrity": "^5.1.0"
   },
   "dependencies": {
+    "core-js": "^3.49.0",
     "d3": "^7.9.0",
     "d3-sankey": "^0.12.3",
     "interactjs": "^1.10.27",
