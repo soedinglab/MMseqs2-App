@@ -1,7 +1,7 @@
 {
     "comments": false,
     "presets": [
-        [ "@babel/env", { "modules": false, "useBuiltIns": "usage", "corejs":  "3.49"} ]
+        [ "@babel/env", { "modules": false, "useBuiltIns": "usage", "corejs":  "3.49", "ignoreBrowserslistConfig": true } ]
     ],
     "plugins": [
         "@babel/syntax-dynamic-import",
