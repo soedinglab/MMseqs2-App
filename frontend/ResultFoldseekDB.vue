@@ -30,6 +30,10 @@
                     <div style="display: flex; justify-content: center; align-items: center;"
                     :style="{'width': $vuetify.breakpoint.smAndDown ? '100%' : '', 'flex-direction': $vuetify.breakpoint.smAndDown ? 'column' : 'row'}">
                         <!-- Button to toggle Sankey Diagram visibility -->
+                        <!-- NOTE: before lifting `!isComplex`, fix `tr.hit:has(.invisible)` below.
+                             A complex group renders one checkbox cell with a rowspan, so :has()
+                             only matches the group's first row and filtering would leave the
+                             remaining chain rows orphaned on screen. -->
                         <v-btn v-if="hasEntries && entry.hasTaxonomy && !isComplex" @click="toggleSankeyVisibility(entry.db)" :class="{ 'mr-2': $vuetify.breakpoint.mdAndUp , 'mb-2': $vuetify.breakpoint.smAndDown}" large>
                             <!-- TODO: later, isSankeyVisible should be modified as bool, not an object
                                 after ResultFoldDisco also is refactored as well. 
@@ -337,10 +341,10 @@
                 </tr>
                 <tr aria-hidden="true" v-if="isComplex" style="height: 15px" :key="`spacer-${groupidx}`" ></tr>
                 </template>
-                <tr v-if="renderLimit < sortedIndices.length" ref="sentinel" aria-hidden="true" style="height: 1px"></tr>
-                <tr v-if="renderLimit < sortedIndices.length">
+                <tr v-if="shownCount < filteredTotal" ref="sentinel" aria-hidden="true" style="height: 1px"></tr>
+                <tr v-if="shownCount < filteredTotal">
                     <td :colspan="fullColSpan" style="text-align: center; padding: 8px; color: #888;">
-                        Showing {{ visibleSortedIndices.length }} of {{ sortedIndices.length }} hits
+                        Showing {{ shownCount }} of {{ filteredTotal }} hits
                     </td>
                 </tr>
             </tbody>
@@ -351,6 +355,7 @@
 <script>
 import Ruler from './Ruler.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
+import { buildSortCache, makeComparator, defaultSortOrder } from './lib/resultSort.js';
 
 export default {
     name: 'ResultFoldseekDB',
@@ -360,7 +365,9 @@ export default {
         return {
             toggleTargetValue: true,
             toggleSourceIdx: -1,
-            visibilityTable: [],
+            // Keyed by group id (complexid), NOT by position. Complex searches return
+            // sparse complexids, so a positional array silently misses most rows.
+            visibilityTable: {},
             selectedDb: "",
             sortKey: 'score',
             sortOrder: -1,
@@ -435,26 +442,15 @@ export default {
             handler(n, o) {
                 // this.log(n)
                 this.toggleSourceIdx = -1
-                this.renderLimit = this.BATCH_SIZE
-                // Set visibility data for ALL entries
-                if (!n || n.length == 0) {
-                    this.visibilityTable = Array(this.entryLength).fill(true)
-                } else {
-                    for (let i = 0; i < this.entryLength; i++) {
-                        this.visibilityTable[i] = this.isGroupVisible(this.entry.alignments[i])
-                    }
-                }
-                // Toggle DOM only for rendered entries (by sorted position)
-                let upperbound = Math.min(this.sortedIndices.length, this.renderLimit)
-                for (let i = 0; i < upperbound; i++) {
-                    let entryIdx = this.sortedIndices[i]
-                    let id = this.entryidx + '#' + String(entryIdx)
-                    let el = document.getElementById(id)
-                    if (el) {
-                        el.classList.toggle('invisible', !this.visibilityTable[entryIdx])
-                    }
-                }
-                this.$nextTick(() => { this.setupObserver() })
+                // Size the first render from the new filter rather than a flat BATCH_SIZE.
+                // With an aggressive filter, 100 rendered rows can contain zero visible ones,
+                // which would show an empty table until the observer happened to fire.
+                this.recomputeVisibility()
+                this.renderLimit = this.nextRenderLimit(0)
+                this.$nextTick(() => {
+                    this.setupObserver()
+                    this.syncRenderedState()
+                })
             },
             immediate: false,
             deep: true,
@@ -465,8 +461,8 @@ export default {
             }
         },
         entry(n, o) {
-            if (n && this.visibilityTable.length == 0) {
-                this.visibilityTable = Array(this.entryLength).fill(true)
+            if (n && Object.keys(this.visibilityTable).length == 0) {
+                this.recomputeVisibility()
             }
             if (n) {
                 this.$nextTick(() => { this.setupObserver() })
@@ -474,12 +470,12 @@ export default {
         }
     },
     mounted() {
-        if (this.entry && this.visibilityTable.length == 0) {
-            this.visibilityTable = Array(this.entryLength).fill(true)
+        if (this.entry && Object.keys(this.visibilityTable).length == 0) {
+            this.recomputeVisibility()
             this.selectedDb = this.db
             this.$nextTick(() => {
                 setTimeout(() => {
-                    this.reflectSelectionState()
+                    this.syncRenderedState()
                 }, 0)
             })
         }
@@ -531,43 +527,22 @@ export default {
         visibleSortedIndices() {
             return this.sortedIndices.slice(0, this.renderLimit)
         },
+        // Counts the user can act on: rows actually on screen, out of rows that survive the
+        // filter. The old footer reported rendered-vs-unfiltered, so an aggressive taxonomy
+        // filter showed "Showing 100 of 1834" above three visible rows.
+        shownCount() {
+            return this.visibleSortedIndices.reduce(
+                (n, g) => n + (this.isRowVisible(g) ? 1 : 0), 0)
+        },
+        filteredTotal() {
+            return this.sortedIndices.reduce(
+                (n, g) => n + (this.isRowVisible(g) ? 1 : 0), 0)
+        },
+        // Shared with the getTable() API via lib/resultSort.js so the two cannot sort
+        // differently. Verified byte-identical to the previous inline implementation across
+        // every sort key on three real results.
         comparator() {
-            let comp = () => {}
-            let sortCache = this.sortKeyCache[this.sortKey]
-            switch (this.sortKey) {
-                case 'prob':
-                case 'seqId':
-                case 'score':
-                case 'eval':
-                case 'qtm':
-                case 'ttm':
-                    comp = (a, b) => {
-                        return this.sortOrder * (sortCache[a] - sortCache[b])
-                    }
-                    break;
-
-                case 'target':
-                    comp = (a, b) => {
-                        return this.sortOrder * (this.entry.alignments[a][0].target.localeCompare(this.entry.alignments[b][0].target))
-                    }
-                    break;
-
-                case 'desc':
-                    comp = (a, b) => {
-                        return this.sortOrder * (this.entry.alignments[a][0].description.localeCompare(this.entry.alignments[b][0].description))
-                    }
-                    break;
-
-                case 'tax':
-                    comp = (a, b) => {
-                        return this.sortOrder * (this.entry.alignments[a][0].taxName.localeCompare(this.entry.alignments[b][0].taxName))
-                    }
-                    break;
-            
-                default:
-                    break;
-            }
-            return comp
+            return makeComparator(this.entry.alignments, this.sortKey, this.sortOrder, this.sortKeyCache)
         },
         headTop() {
             return this.onlyOne ? '92px' : '140px'
@@ -633,22 +608,11 @@ export default {
             return defaultVal + complex + desc + taxonomy + tableMode - interfaceHidden
         },
         sortKeyCache() {
-            const obj = {}
-            const alns = this.entry.alignments
-            const idxs = Object.keys(alns)
-            if (this.entry) {
-                obj['prob'] = Object.fromEntries(idxs.map(k => [ k, Math.max(...alns[k].map(e => e.prob)) ]))
-                obj['seqId'] = Object.fromEntries(idxs.map(k => [ k, Math.max(...alns[k].map(e => e.seqId)) ]))
-                obj['score'] = Object.fromEntries(idxs.map(k => [ k, Math.max(...alns[k].map(e => e.score)) ]))
-                const comp = this.mode == 'tmalign' || this.mode == 'lolalign' ? Math.max : Math.min
-                obj['eval'] = Object.fromEntries(idxs.map(k => [ k, comp(...alns[k].map(e => e.eval)) ]))
-                
-                if (this.isComplex) {
-                    obj['qtm'] = Object.fromEntries(idxs.map(k => [ k, Math.max(...alns[k].map(e => e.complexqtm)) ]))
-                    obj['ttm'] = Object.fromEntries(idxs.map(k => [ k, Math.max(...alns[k].map(e => e.complexttm)) ]))
-                }
-            }
-            return obj
+            return buildSortCache(this.entry.alignments, {
+                mode: this.mode,
+                isComplex: this.isComplex,
+                tool: 'foldseek',
+            })
         }
     },
     methods: {
@@ -667,30 +631,65 @@ export default {
                 }
             })
         },
+        // Advance far enough to surface a full batch of *visible* rows.
+        // Stepping by a fixed number of rendered rows is the wrong unit under a filter: if only
+        // 5% of hits pass, each step reveals ~5 rows, the sentinel never leaves the viewport
+        // (hidden rows have no height), and loadMore re-fires until everything is rendered.
+        // Walking forward until BATCH_SIZE visible rows have accumulated is exact rather than
+        // an estimate, and degrades to the old +BATCH_SIZE when nothing is filtered.
+        nextRenderLimit(from = this.renderLimit) {
+            const sorted = this.sortedIndices
+            let shown = 0
+            let i = from
+            for (; i < sorted.length; i++) {
+                if (this.isRowVisible(sorted[i])) shown++
+                if (shown >= this.BATCH_SIZE) { i++; break }
+            }
+            return i
+        },
         loadMore() {
             if (this.renderLimit >= this.sortedIndices.length) return
             const oldLimit = this.renderLimit
-            this.renderLimit += this.BATCH_SIZE
+            this.renderLimit = this.nextRenderLimit()
             this.$nextTick(() => {
-                this.reflectSelectionState()
-                this.applyVisibilityToNewRows(oldLimit)
+                this.syncRenderedState(oldLimit)
                 if (this.$refs.sentinel && this._observer) {
                     this._observer.disconnect()
                     this._observer.observe(this.$refs.sentinel)
                 }
             })
         },
-        applyVisibilityToNewRows(oldLimit) {
-            if (!this.filteredHitsTaxIds || this.filteredHitsTaxIds.length === 0) return
-            const newLimit = Math.min(this.sortedIndices.length, this.renderLimit)
-            for (let i = oldLimit; i < newLimit; i++) {
-                const entryIdx = this.sortedIndices[i]
-                const id = this.entryidx + '#' + String(entryIdx)
-                const el = document.getElementById(id)
+        // Group ids are complexid values from the backend and are NOT guaranteed dense,
+        // so an unseen key must default to visible rather than silently hiding the row.
+        isRowVisible(groupId) {
+            return this.visibilityTable[groupId] !== false
+        },
+        recomputeVisibility() {
+            const filtering = this.filteredHitsTaxIds && this.filteredHitsTaxIds.length > 0
+            const table = {}
+            for (const groupId of this.origIndicesArr) {
+                table[groupId] = filtering
+                    ? this.isGroupVisible(this.entry.alignments[groupId])
+                    : true
+            }
+            this.visibilityTable = table
+        },
+        applyRowVisibility(from = 0) {
+            const rows = this.visibleSortedIndices
+            for (let i = from; i < rows.length; i++) {
+                const groupIdx = rows[i]
+                const el = document.getElementById(this.entryidx + '#' + String(groupIdx))
                 if (el) {
-                    el.classList.toggle('invisible', !this.visibilityTable[entryIdx])
+                    el.classList.toggle('invisible', !this.isRowVisible(groupIdx))
                 }
             }
+        },
+        // Both `.selected` and `.invisible` are written imperatively rather than bound, so
+        // any code path that changes the rendered window has to re-apply them by hand.
+        // Route every such path through here so the invariant is checkable in one place.
+        syncRenderedState(from = 0) {
+            this.reflectSelectionState(from)
+            this.applyRowVisibility(from)
         },
         log(a) {
             console.log(a)
@@ -722,12 +721,15 @@ export default {
             const arr = []
             let deltaUpperbound = this.selectUpperbound - this.totalSelectedCounts
             let delta = 0
-            for (let i in this.sortedIndices) {
+            // Iterate in sorted (screen) order and by group id — `for..in` here yielded the
+            // position and used it as a group id, which picks the wrong rows once the
+            // selection cap truncates the loop or group ids are sparse.
+            for (const targetIdx of this.sortedIndices) {
                 if (delta >= deltaUpperbound) {
                     break
                 }
-                if (this.visibilityTable[i] && this.selectedStates[i] != value) {
-                    arr.push(i)
+                if (this.isRowVisible(targetIdx) && this.selectedStates[targetIdx] != value) {
+                    arr.push(targetIdx)
                     delta++
                 }
             }
@@ -789,7 +791,7 @@ export default {
                     break
                 }
                 let targetIdx = this.sortedIndices[i]
-                if (this.visibilityTable[targetIdx] && this.selectedStates[targetIdx] != value) {
+                if (this.isRowVisible(targetIdx) && this.selectedStates[targetIdx] != value) {
                     delta += deltaUnit
                     arr.push(targetIdx)
                 }
@@ -799,13 +801,12 @@ export default {
                 this.$emit('bulkToggle', arr, value)
             }
         },
-        reflectSelectionState() {
-            let value = false
-            let id = ""
-            for (let i = 0; i < this.visibleSortedIndices.length; i++) {
-                let entryIdx = this.visibleSortedIndices[i]
-                value = this.selectedStates[entryIdx]
-                id = this.entryidx + "#" + String(entryIdx)
+        reflectSelectionState(from = 0) {
+            const rows = this.visibleSortedIndices
+            for (let i = from; i < rows.length; i++) {
+                const entryIdx = rows[i]
+                const value = this.selectedStates ? this.selectedStates[entryIdx] : false
+                const id = this.entryidx + "#" + String(entryIdx)
                 document.getElementById(id)?.classList.toggle('selected', value ? true : false)
             }
             let select_all_button = document.getElementById(this.entryidx + '#select-all')
@@ -819,33 +820,11 @@ export default {
                 this.sortOrder *= -1
             } else {
                 this.sortKey = key
-                switch (key) {
-                    case 'target':
-                    case 'desc':
-                    case 'tax':
-                        this.sortOrder = 1
-                        break
-                    case 'prob':
-                    case 'seqId':
-                    case 'score':
-                    case 'qtm':
-                    case 'ttm':
-                        this.sortOrder = -1
-                        break
-                    case 'eval':
-                        if (this.mode == 'lolalign' || this.mode == 'tmalign') {
-                            this.sortOrder = -1
-                        } else {
-                            this.sortOrder = 1
-                        }
-                        break
-                    default:
-                        break;
-                }
+                this.sortOrder = defaultSortOrder(key, { mode: this.mode })
             }
             this.toggleSourceIdx = -1
             this.toggleTargetValue = true
-            this.renderLimit = this.BATCH_SIZE
+            this.renderLimit = this.nextRenderLimit(0)
             this.$nextTick(() => {
                 window.scrollTo({
                     top: 0,
@@ -854,7 +833,9 @@ export default {
                 })
                 this.setupObserver()
                 setTimeout(() => {
-                    this.reflectSelectionState()
+                    // Re-sorting brings rows into the window that were never rendered before;
+                    // Vue creates those fresh, so `.invisible` has to be re-applied too.
+                    this.syncRenderedState()
                 }, 0)
             })
         },

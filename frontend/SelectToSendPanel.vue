@@ -89,7 +89,7 @@
 <script>
 
 import { StorageWrapper} from './lib/HistoryMixin.js';
-import { encodeMultimer, getAccession, makeCgPDB, makeSubPDB, sleep, storeChains } from './Utilities';
+import { encodeMultimer, getAccession, makeCgPDB, makeSubPDB, mockPDB, sleep, storeChains } from './Utilities';
 import { BlobDatabase } from './lib/BlobDatabase';
 import { autoLoad, PdbWriter, Selection } from "ngl"
 
@@ -224,9 +224,16 @@ export default {
                 this.$router.push({name: "search"})
             }
         },
-        async sendToFoldMason() {
+        // `opts.includeQuery` overrides the toggle for this call only, leaving the button's own
+        // state alone. Note the template binds this as `@click="sendToFoldMason"`, so a real click
+        // arrives with a MouseEvent as `opts` — hence the `in` test rather than destructuring with
+        // a default, which an event object would satisfy with `undefined` and read as false.
+        async sendToFoldMason(opts) {
             if (this.loading) return
-            
+            const includeQuery = (opts && typeof opts === 'object' && 'includeQuery' in opts)
+                ? !!opts.includeQuery
+                : this.includeQuery;
+
             const inBatches = async (items, k, fn, signal) => {
                 const out = [];
                 for (let p = 0; p < items.length; p += k) {
@@ -276,7 +283,7 @@ export default {
                 })
                 // const failed = settled.filter(r => r.status == "fulfilled" && !r.value?.pdb).map(r=> r.value?.name)
                 await saveAsChunk(values, this.chunkSize, signal)
-                if (this.includeQuery) {
+                if (includeQuery) {
                     let queryPdb = "";
                     if (this.$LOCAL) {
                         if (this.hits.queries[0].hasOwnProperty('pdb')) {
@@ -302,15 +309,16 @@ export default {
                     }
                     // FIXME: concatenate query if it has multiple chains
                     const isComplex = this.hits?.type == "complexsearch" || this.hits?.queries?.length > 1
+                    const isCif = typeof queryPdb === 'string'
+                        && (queryPdb.trimStart().startsWith("data_") || queryPdb.trimStart().startsWith("#"))
                     let queryName = "query"
                     let queryBlob = null
                     if (isComplex) {
-                        const isCif = queryPdb.trimStart().startsWith("data_") || queryPdb.trimStart().startsWith("#")
                         let ext = "pdb"
                         if (isCif) {
                             queryPdb = queryPdb.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.")
                             ext = 'cif'
-                        } 
+                        }
                         queryBlob = new Blob([queryPdb], {type: "text/plain"})
                         let processedQuery = await autoLoad(queryBlob, {ext: ext, firstModelOnly: true }).then(o => {
                             return makeCgPDB(o)
@@ -321,6 +329,7 @@ export default {
                         if (pdbs.length != chains.length) {
                             console.warn("chain info and pdb differ")
                             console.log(chains, pdbs)
+                            queryBlob = new Blob([processedQuery], {type: "text/plain"})
                         } else {
                             let arr = []
                             for (let i = 0; i < pdbs.length; i++) {
@@ -331,11 +340,14 @@ export default {
                             queryName += result.suffix
                         }
                     } else {
+                        // If no extension is appended to the query's file name, cif query file could be parsed as pdb file,
+                        // resulting in unexpected drop. So manually add extension suffix.
+                        // As multimer query is automatically converted to pdb file, this process is unnecessary for that case.
+                        queryName += isCif ? ".cif" : ".pdb"
                         queryBlob = new Blob([queryPdb], {type: "text/plain"})
                     }
                     await localDb.setItem("msa.query.forwarded_query", queryBlob)
                     await localDb.setItem("msa.query.forwarded_query_name", queryName)
-                    debugger
                 }
                 this.loading = false
                 this.cancelCtl = null

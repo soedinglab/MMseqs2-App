@@ -223,7 +223,6 @@ export default {
                     // },
                     transformResponse: [(d) => d],
                 });
-                debugger
                 let [ targetPdb, ext ] = processPdb(request.data)
                 return await this.stage.loadFile(new Blob([targetPdb], {type: 'text/plain'}), { ext: ext, firstModelOnly: true, name: 'targetStructure'})
             }

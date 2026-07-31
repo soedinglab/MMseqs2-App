@@ -52,18 +52,15 @@
 </template>
 
 <script>
-import { storage, HistoryMixin } from './lib/HistoryMixin'
-import emitter from './lib/emitter';
+import { getJobName, setJobName } from './lib/HistoryMixin'
 
 export default {
     name: 'NameField',
     data() {
         return {
-        name: "",
         inEdit: false,
         inputValue: "",
     }},
-    mixins: [HistoryMixin],
     props: {
         ticket: {
             type: String,
@@ -71,6 +68,13 @@ export default {
         }
     },
     computed: {
+        // Derived from the store, never copied into data: `ticket` is still "" while this
+        // component is first rendered (the route component assigns it from mounted()), so a
+        // one-shot read is guaranteed to miss the name. As a computed it re-evaluates when
+        // the ticket lands, and again whenever the name itself changes.
+        name() {
+            return getJobName(this.ticket)
+        },
         toDisplay() {
             return this.name != "" ? this.name : this.ticket
         },
@@ -78,46 +82,18 @@ export default {
             return this.inputValue?.length > 40
         }
     },
-    created() {
-        let name = JSON.parse(storage.name_map || "[]").find(e => e.id == this.ticket)?.name
-        if (name) {
-            this.name = name
-        }
-    },
     methods: {
         saveName() {
-            const name_map = JSON.parse(storage.name_map || "[]")
-            if (this.inputValue && this.inputValue != this.ticket) {
-                this.name = this.inputValue
-                const index = name_map.findIndex(e => e.id == this.ticket)
-
-                if (index < 0) {
-                    const obj = {id: this.ticket, name: this.inputValue}
-                    name_map.push(obj)
-                } else {
-                    name_map[index].name = this.inputValue
-                }
-            } else {
-                this.name = ""
-                const index = name_map.findIndex(e => e.id == this.ticket)
-
-                if (index != -1) {
-                    name_map.splice(index, 1)
-                }
-            }
-            storage.name_map = JSON.stringify(name_map)
-            emitter.emit('refresh-job-name', {id: this.ticket, name: this.name})
+            // Naming a job after its own ticket is the same as having no name.
+            const name = (this.inputValue && this.inputValue != this.ticket) ? this.inputValue : ""
+            setJobName(this.ticket, name)
             this.inEdit = false
         },
         enableEdit() {
-            let name = JSON.parse(storage.name_map || "[]").find(e => e.id == this.ticket)?.name
-            if (name && name != this.name) {
-                this.name = name
-            }
             this.inputValue = this.name
             this.inEdit = true
-            this.$nextTick(() => 
-                setTimeout(() => 
+            this.$nextTick(() =>
+                setTimeout(() =>
                 this.$refs.inputField.focus()
                 , 0))
         },
@@ -125,8 +101,6 @@ export default {
             this.inputValue = ""
         },
     },
-    watch: {
-    }
 }
 </script>
 

@@ -1,5 +1,5 @@
 <template>
-    <v-icon large :style="{'color': color}">{{ content }}</v-icon>
+    <v-icon :size="32" :style="{'color': color}">{{ content }}</v-icon>
 </template>
 
 <script>
@@ -33,6 +33,7 @@ export default {
                 case 'msa': return this.$MDI.Wall
                 case 'motif': return this.$MDI.Motif
                 case 'interface': return this.$MDI.Interface
+                case 'rna': return this.$MDI.Nucleotide
                 default: return this.$MDI.HelpCircleOutline
             }
         }

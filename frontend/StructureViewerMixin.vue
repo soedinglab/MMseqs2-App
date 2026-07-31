@@ -102,6 +102,14 @@ export default {
             window.removeEventListener('resize', this.handleResize)
             if (!this.stage) return;
             this.stage.dispose()
+            // Drop the reference too. Every viewer guards its stage calls with `if (!this.stage)`,
+            // and those guards are what makes an async method that resumes after teardown safe —
+            // but a disposed Stage is still a truthy object, so leaving it set makes all of them
+            // no-ops. NGL's dispose() deletes the signal bindings behind its counters, so the
+            // first repr.build() that lands afterwards throws
+            // "Cannot read properties of undefined (reading 'length')" out of Signal.dispatch.
+            // StructureViewerThumbnail.vue nulls it for the same reason.
+            this.stage = null
             recoverLog()
         },
         handleMakeImage() {
