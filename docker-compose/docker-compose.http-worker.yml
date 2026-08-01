@@ -1,0 +1,23 @@
+version: '3.7'
+
+services:
+  mmseqs-web-http-worker:
+    image: "ghcr.io/${REPO_OWNER}/${APP}-app-backend:${TAG}"
+    init: true
+    restart: unless-stopped
+    command: >
+      -worker
+      -config /etc/mmseqs-web/config.json
+      -app ${APP}
+      -remote ${WORKER_REMOTE}
+      -token ${WORKER_TOKEN}
+      -types ${WORKER_TYPES}
+      -name ${WORKER_NAME}
+    environment:
+      - MMSEQS_NUM_THREADS=${THREADS_PER_WORKER}
+    volumes:
+      - ./config.json:/etc/mmseqs-web/config.json:ro
+      - ${DB_PATH}:/opt/mmseqs-web/databases
+      - ${JOBS_PATH}:/opt/mmseqs-web/jobs
+    tmpfs:
+      - /tmp:exec

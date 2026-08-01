@@ -62,6 +62,62 @@ its `.params` file asks for it as well.
 }
 ```
 
+### Running some job types on another machine
+
+Some job types want hardware the API server does not have. Those can be handed to a worker on a different
+machine. The processed job directory is sent over HTTP and no filesystem needs to be shared between server and worker.
+
+#### On the server
+
+Set a token to enable the worker endpoints, and list the job types the local workers should
+stop processing, in `config.json`:
+
+```jsonc
+"server": {
+    // e.g., openssl rand -hex 32
+    "workertoken": "…",
+},
+"local": {
+    "delegate": ["rnasearch"]
+}
+```
+
+Delegated jobs stay `PENDING` until a remote worker that advertises the type connects.
+
+**`delegate` only works in `-local` mode.** Run `docker-compose` with
+`-f docker-compose.yml -f docker-compose.local.yml` to use delegation.
+
+The server needs a `.params` file for every delegated database. The worker needs to have the databases.
+The two copies need to stay in agreement.
+
+#### On the worker machine
+
+Only the worker runs there:
+
+```
+# edit to set-up
+cp .env.http-worker .env
+docker-compose -f docker-compose.http-worker.yml up -d
+```
+
+For a GPU worker, add the GPU overlay:
+
+```
+docker-compose -f docker-compose.http-worker.yml -f docker-compose.gpu-worker.yml up -d
+```
+
+The settings live in `.env`:
+
+| variable | |
+| --- | --- |
+| `WORKER_REMOTE` | the server including the proxied path, e.g. `https://host/api` |
+| `WORKER_TOKEN` | same value as `server.workertoken` |
+| `WORKER_TYPES` | Comma separated, must be delegated by the server |
+| `WORKER_NAME` | Choose a name |
+| `GPU_DEVICES` | Oly in GPU mode: `all`, or list like `0,1` |
+
+Only the job folder is transferred. The machine needs the databases for the types it advertises, and `JOBS_PATH` is used as scratch.
+
 ### Updating the MMseqs2 Search Server
 To make sure you are running the latest version of the MMseqs2 Web Server execute the following commands.
 

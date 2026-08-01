@@ -1,0 +1,8 @@
+version: '3.7'
+
+services:
+  mmseqs-web-http-worker:
+    image: "ghcr.io/${REPO_OWNER}/${APP}-app-backend-gpu:${TAG}"
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_DEVICES:-all}

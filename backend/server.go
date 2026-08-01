@@ -38,6 +38,19 @@ func CorsCache(h http.Handler, maxAge int) http.Handler {
 	})
 }
 
+func databaseJobType(db Params, app ConfigApp) JobType {
+	switch {
+	case db.Rna:
+		return JobRnaSearch
+	case db.Motif:
+		return JobFoldDisco
+	case app == AppFoldseek:
+		return JobStructureSearch
+	default:
+		return JobSearch
+	}
+}
+
 func server(jobsystem JobSystem, config ConfigRoot) {
 	go func() {
 		databases, err := Databases(config.Paths.Databases, false)
@@ -51,6 +64,11 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 			}
 
 			if db.Motif {
+				continue
+			}
+
+			if isInJobTypes(config.Local.Delegate, databaseJobType(db, config.App)) {
+				log.Println("Skipping index job for delegated database " + db.Path)
 				continue
 			}
 
