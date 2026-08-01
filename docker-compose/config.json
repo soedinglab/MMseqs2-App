@@ -15,6 +15,7 @@
         "temporary"    : "/tmp",
         "mmseqs"       : "/usr/local/bin/mmseqs",
         "foldseek"     : "/usr/local/bin/foldseek",
+        "riboseek"     : "/usr/local/bin/riboseek",
         "foldseekinterface" : "/usr/local/bin/foldseek-interface",
         "foldmason"    : "/usr/local/bin/foldmason",
         "folddisco"    : "/usr/local/bin/folddisco",
