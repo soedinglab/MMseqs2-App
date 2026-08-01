@@ -55,7 +55,7 @@ msgstr ""
 msgid "CITATION_RIBOSEEK"
 msgstr ""
 "Park S, Didi K, Favor A, Bushuiev A, Kim S, Mirdita M, and Steinegger M."
-" <a href=\"#\" target=\"_blank\" rel=\"noopener\">"
+" <a href=\"https://www.biorxiv.org/content/10.64898/2026.07.31.741718v1\" target=\"_blank\" rel=\"noopener\">"
 "Fast remote nucleotide sequence alignment with Riboseek</a>. bioRxiv, 2026."
 
 msgid "NAV_URL_COUNT"
