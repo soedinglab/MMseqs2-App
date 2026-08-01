@@ -11,7 +11,7 @@
             <v-icon>{{ $MDI.TextBoxOutline }}</v-icon>
         </v-btn>
         <v-btn v-if="structure" small icon title="Save image (SVG)" @click="saveImage">
-            <v-icon>{{ $MDI.SavePNG }}</v-icon>
+            <v-icon>{{ $MDI.SaveSVG }}</v-icon>
         </v-btn>
     </div>
 
@@ -24,48 +24,24 @@
             <v-icon>{{ $MDI.AlertCircleOutline }}</v-icon>
             <span>{{ error }}</span>
         </div>
-        <svg v-else-if="structure"
-            ref="svg"
-            xmlns="http://www.w3.org/2000/svg"
-            :viewBox="viewBox"
-            preserveAspectRatio="xMidYMid meet"
-            @wheel.prevent="onWheel"
-            @mousedown.prevent="onPanStart"
-            >
-            <g>
-                <line v-for="(pair, i) in pairLines" :key="'p' + i"
-                    :x1="pair.x1" :y1="pair.y1" :x2="pair.x2" :y2="pair.y2"
-                    :class="['rna-pair', { 'rna-highlight': pair.highlight }]"
-                    stroke-width="0.09" />
-                <polyline :points="backbone" class="rna-backbone" fill="none" stroke-width="0.07" />
-                <polyline v-if="highlightBackbone" :points="highlightBackbone"
-                    class="rna-backbone rna-highlight" fill="none" stroke-width="0.13" />
-                <g v-for="base in bases" :key="'b' + base.i">
-                    <circle :cx="base.x" :cy="base.y" r="0.34"
-                        :class="['rna-base', 'rna-base-' + base.c, { 'rna-highlight': base.highlight }]" />
-                    <text v-if="showLabels" :x="base.x" :y="base.y" class="rna-label"
-                        text-anchor="middle" dominant-baseline="central" font-size="0.42">{{ base.c }}</text>
-                </g>
-                <template v-for="tick in ticks">
-                    <text :key="'t' + tick.i" :x="tick.x" :y="tick.y" class="rna-tick"
-                        text-anchor="middle" dominant-baseline="central" font-size="0.4">{{ tick.i }}</text>
-                </template>
-            </g>
-        </svg>
-        <div v-else class="rna-overlay">
+        <div v-else-if="!structure" class="rna-overlay">
             <span>No sequence</span>
         </div>
+        <div v-show="structure && !loading && !error" ref="forna" class="rna-forna"></div>
     </div>
 </div>
 </template>
 
 <script>
-import { layoutStructure } from './lib/rnaLayout.js';
+import { FornaContainer } from 'fornac';
 import { fold, cleanSequence } from './lib/tornadofold.js';
 import { downloadBlob } from './Utilities.js';
 
-const PADDING = 1.5;
-const MIN_VIEW = 8;
+const RNA_NAME = 'rna';
+const HIGHLIGHT_COLOR = '#1976d2';
+const MAX_ZOOM = 8;
+const OVERPAN = 0.25;
+const BASE_COLORS = { A: '#64f73f', C: '#ffb340', G: '#eb413c', T: '#3c88ee', U: '#3c88ee' };
 
 export default {
     name: 'RnaStructureViewer',
@@ -83,25 +59,11 @@ export default {
             mfe: 0,
             loading: false,
             error: '',
-            layout: null,
-            view: null,
-            fit: null,
-            panning: null,
         };
     },
     computed: {
         cleaned() {
             return cleanSequence(this.sequence);
-        },
-        viewBox() {
-            if (!this.view) {
-                return '0 0 1 1';
-            }
-            const { x, y, w, h } = this.view;
-            return `${x} ${y} ${w} ${h}`;
-        },
-        showLabels() {
-            return this.view != null && this.view.w < 90;
         },
         highlighted() {
             if (this.highlightStart < 0 || this.highlightLength <= 0) {
@@ -111,84 +73,27 @@ export default {
             const end = Math.min(this.cleaned.length, start + this.highlightLength);
             return end > start ? [start, end] : null;
         },
-        bases() {
-            if (!this.layout) {
-                return [];
-            }
-            return this.layout.points.map((p, i) => ({
-                i: i,
-                x: p.x,
-                y: p.y,
-                c: this.cleaned[i] || 'N',
-                highlight: this.isHighlighted(i),
-            }));
-        },
-        backbone() {
-            if (!this.layout) {
-                return '';
-            }
-            return this.layout.points.map(p => `${p.x},${p.y}`).join(' ');
-        },
-        highlightBackbone() {
-            if (!this.layout || !this.highlighted) {
-                return '';
-            }
-            const [start, end] = this.highlighted;
-            return this.layout.points.slice(start, end).map(p => `${p.x},${p.y}`).join(' ');
-        },
-        pairLines() {
-            if (!this.layout) {
-                return [];
-            }
-            return this.layout.pairs.map(([i, j]) => ({
-                x1: this.layout.points[i].x,
-                y1: this.layout.points[i].y,
-                x2: this.layout.points[j].x,
-                y2: this.layout.points[j].y,
-                highlight: this.isHighlighted(i) && this.isHighlighted(j),
-            }));
-        },
-        // every 10th base, offset from the backbone so the number stays readable
-        ticks() {
-            if (!this.layout || !this.showLabels) {
-                return [];
-            }
-            const points = this.layout.points;
-            const out = [];
-            for (let i = 9; i < points.length; i += 10) {
-                const prev = points[Math.max(0, i - 1)];
-                const next = points[Math.min(points.length - 1, i + 1)];
-                let dx = points[i].y - (prev.y + next.y) / 2;
-                let dy = (prev.x + next.x) / 2 - points[i].x;
-                const len = Math.hypot(dx, dy);
-                if (len < 1e-6) {
-                    dx = 0;
-                    dy = -1;
-                } else {
-                    dx /= len;
-                    dy /= len;
-                }
-                out.push({ i: i + 1, x: points[i].x + dx * 0.85, y: points[i].y + dy * 0.85 });
-            }
-            return out;
-        },
     },
     watch: {
         sequence: {
             handler() { this.predict(); },
             immediate: true,
         },
+        highlighted() { this.applyColors(); },
+    },
+    mounted() {
+        this.render();
     },
     beforeDestroy() {
-        this.stopPan();
+        this.teardown();
     },
     methods: {
         async predict() {
             const seq = this.cleaned;
             this.error = '';
             this.structure = '';
-            this.layout = null;
             if (seq.length === 0) {
+                this.teardown();
                 return;
             }
             this.loading = true;
@@ -200,96 +105,123 @@ export default {
                 }
                 this.structure = result.structure;
                 this.mfe = result.mfe;
-                this.layout = layoutStructure(this.structure, { bondLength: 1 });
-                this.resetView();
             } catch (error) {
                 this.error = 'Secondary structure prediction failed';
                 console.error(error);
             } finally {
                 this.loading = false;
             }
+            this.$nextTick(() => this.render());
         },
-        isHighlighted(i) {
-            return this.highlighted != null && i >= this.highlighted[0] && i < this.highlighted[1];
+        render() {
+            const host = this.$refs.forna;
+            if (!host || !this.structure) {
+                return;
+            }
+            this.teardown();
+            this.container = new FornaContainer(host, {
+                applyForce: true,
+                allowPanningAndZooming: true,
+                initialSize: [host.clientWidth || host.offsetWidth, host.clientHeight || this.height],
+            });
+            this.container.addRNA(this.structure, { sequence: this.cleaned, name: RNA_NAME });
+            this.applyColors();
+            this.bindViewBounds();
+        },
+        bindViewBounds() {
+            const container = this.container;
+            const svg = this.$refs.forna ? this.$refs.forna.querySelector('svg') : null;
+            const svgGraph = svg ? svg.querySelector('g') : null;
+            const vis = svgGraph ? Array.prototype.find.call(svgGraph.children,
+                (el) => el.tagName.toLowerCase() === 'g' && !el.classList.contains('brush')) : null;
+            if (!container || !container.zoomer || !vis) {
+                return;
+            }
+
+            const bounds = () => {
+                const nodes = container.graph.nodes;
+                if (nodes.length === 0) {
+                    return null;
+                }
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                for (const node of nodes) {
+                    minX = Math.min(minX, node.x);
+                    maxX = Math.max(maxX, node.x);
+                    minY = Math.min(minY, node.y);
+                    maxY = Math.max(maxY, node.y);
+                }
+                return { minX, maxX, minY, maxY };
+            };
+
+            const clamp = (offset, scale, low, high, size) => {
+                const slack = size * OVERPAN;
+                const a = -low * scale;
+                const b = size - high * scale;
+                return Math.min(
+                    Math.max(offset, Math.min(a, b) - slack),
+                    Math.max(a, b) + slack);
+            };
+
+            const limitScale = () => {
+                const view = svg.getBoundingClientRect();
+                if (view.width > 0 && view.height > 0) {
+                    container.options.svgW = view.width;
+                    container.options.svgH = view.height;
+                }
+                const fit = container.getBoundingBoxTransform().scale;
+                container.zoomer.scaleExtent([fit, fit * MAX_ZOOM]);
+            };
+
+            const applyLimits = () => {
+                const box = bounds();
+                if (!box) {
+                    return;
+                }
+                limitScale();
+
+                const scale = container.zoomer.scale();
+                const [tx, ty] = container.zoomer.translate();
+                const x = clamp(tx, scale, box.minX, box.maxX, container.options.svgW);
+                const y = clamp(ty, scale, box.minY, box.maxY, container.options.svgH);
+                if (x !== tx || y !== ty) {
+                    container.zoomer.translate([x, y]);
+                }
+                vis.setAttribute('transform', `translate(${x},${y}) scale(${scale})`);
+            };
+
+            limitScale();
+            container.zoomer.on('zoom', applyLimits);
+        },
+        applyColors() {
+            if (!this.container) {
+                return;
+            }
+            if (!this.highlighted) {
+                this.container.changeColorScheme('sequence');
+                return;
+            }
+            const colors = {};
+            for (let i = 0; i < this.cleaned.length; i++) {
+                const inRange = i >= this.highlighted[0] && i < this.highlighted[1];
+                colors[i + 1] = inRange ? HIGHLIGHT_COLOR : (BASE_COLORS[this.cleaned[i]] || '#bdbdbd');
+            }
+            this.container.addCustomColors({ colorValues: { [RNA_NAME]: colors } });
+            this.container.changeColorScheme('custom');
+        },
+        teardown() {
+            if (!this.container) {
+                return;
+            }
+            const host = this.$refs.forna;
+            if (host) {
+                host.innerHTML = '';
+            }
+            this.container = null;
         },
         resetView() {
-            if (!this.layout) {
-                return;
+            if (this.container) {
+                this.container.centerView();
             }
-            const b = this.layout.bounds;
-            this.fit = {
-                x: b.minX - PADDING,
-                y: b.minY - PADDING,
-                w: Math.max(1, b.width + 2 * PADDING),
-                h: Math.max(1, b.height + 2 * PADDING),
-            };
-            this.view = { ...this.fit };
-        },
-        clampPan(view) {
-            const maxX = this.fit.x + this.fit.w - view.w;
-            const maxY = this.fit.y + this.fit.h - view.h;
-            return {
-                x: Math.min(maxX, Math.max(this.fit.x, view.x)),
-                y: Math.min(maxY, Math.max(this.fit.y, view.y)),
-                w: view.w,
-                h: view.h,
-            };
-        },
-        onWheel(event) {
-            if (!this.view || !this.fit) {
-                return;
-            }
-            const rect = event.currentTarget.getBoundingClientRect();
-            const intensity = Math.min(Math.abs(event.deltaY), 40) / 40;
-            const zoom = 1 - 0.1 * intensity;
-            const factor = event.deltaY < 0 ? zoom : 1 / zoom;
-            const minW = Math.min(this.fit.w, MIN_VIEW);
-            const w = Math.min(this.fit.w, Math.max(minW, this.view.w * factor));
-            const scale = w / this.view.w;
-            if (scale === 1) {
-                return;
-            }
-            const h = this.view.h * scale;
-            const fx = (event.clientX - rect.left) / rect.width;
-            const fy = (event.clientY - rect.top) / rect.height;
-            this.view = this.clampPan({
-                x: this.view.x + (this.view.w - w) * fx,
-                y: this.view.y + (this.view.h - h) * fy,
-                w: w,
-                h: h,
-            });
-        },
-        onPanStart(event) {
-            if (!this.view) {
-                return;
-            }
-            const rect = event.currentTarget.getBoundingClientRect();
-            this.panning = {
-                x: event.clientX,
-                y: event.clientY,
-                scaleX: this.view.w / rect.width,
-                scaleY: this.view.h / rect.height,
-            };
-            window.addEventListener('mousemove', this.onPanMove);
-            window.addEventListener('mouseup', this.stopPan);
-        },
-        onPanMove(event) {
-            if (!this.panning || !this.view) {
-                return;
-            }
-            this.view = this.clampPan({
-                x: this.view.x - (event.clientX - this.panning.x) * this.panning.scaleX,
-                y: this.view.y - (event.clientY - this.panning.y) * this.panning.scaleY,
-                w: this.view.w,
-                h: this.view.h,
-            });
-            this.panning.x = event.clientX;
-            this.panning.y = event.clientY;
-        },
-        stopPan() {
-            this.panning = null;
-            window.removeEventListener('mousemove', this.onPanMove);
-            window.removeEventListener('mouseup', this.stopPan);
         },
         baseName() {
             return (this.name || 'structure').replace(/[^A-Za-z0-9_.-]+/g, '_');
@@ -300,7 +232,8 @@ export default {
             downloadBlob(new Blob([text], { type: 'text/plain' }), `${this.baseName()}.dbn`);
         },
         saveImage() {
-            const svg = this.$refs.svg;
+            const host = this.$refs.forna;
+            const svg = host ? host.querySelector('svg') : null;
             if (!svg) {
                 return;
             }
@@ -308,18 +241,15 @@ export default {
             clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
             const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
             style.textContent = `
-                .rna-backbone { stroke: #9e9e9e; fill: none; }
-                .rna-pair { stroke: #9e9e9e; }
-                .rna-base { stroke: none; fill: #bdbdbd; }
-                .rna-base-A { fill: #64f73f; }
-                .rna-base-C { fill: #ffb340; }
-                .rna-base-G { fill: #eb413c; }
-                .rna-base-T { fill: #3c88ee; }
-                .rna-base-U { fill: #3c88ee; }
-                .rna-label { fill: #212121; font-family: monospace; }
-                .rna-tick { fill: #757575; font-family: monospace; }
-                .rna-highlight { stroke: #1976d2; }
-                circle.rna-highlight { stroke: #1976d2; stroke-width: 0.12; }
+                circle.node { stroke: #ccc; stroke-width: 1px; fill: white; }
+                circle.node.label { stroke: transparent; stroke-width: 0; fill: white; }
+                circle.outline_node { visibility: hidden; }
+                line.link { stroke: #999; stroke-opacity: 0.8; stroke-width: 2; }
+                line.basepair, line.pseudoknot { stroke: red; }
+                line.intermolecule { stroke: blue; }
+                line.chain_chain { stroke-dasharray: 3,3; }
+                .transparent { fill: transparent; stroke-width: 0; opacity: 0; visibility: hidden; }
+                text.node-label { font-weight: bold; font-family: Tahoma, Geneva, sans-serif; }
             `;
             clone.insertBefore(style, clone.firstChild);
             const text = new XMLSerializer().serializeToString(clone);
@@ -365,16 +295,20 @@ export default {
     overflow: hidden;
 }
 
-.rna-canvas svg {
+.rna-forna {
     width: 100%;
     height: 100%;
-    display: block;
-    cursor: grab;
-    touch-action: none;
 }
 
-.rna-canvas svg:active {
-    cursor: grabbing;
+/* re-assert what the reset below takes away, inside our container only */
+.rna-forna ::v-deep svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.rna-forna ::v-deep text {
+    pointer-events: none;
 }
 
 .rna-overlay {
@@ -395,51 +329,15 @@ export default {
 </style>
 
 <style>
-.rna-canvas .rna-backbone {
-    stroke: #9e9e9e;
+/* reset fornac global rules */
+html svg {
+    display: revert;
+    min-width: revert;
+    width: revert;
+    min-height: revert;
 }
 
-.rna-canvas .rna-pair {
-    stroke: #9e9e9e;
-}
-
-.rna-canvas .rna-base {
-    fill: #bdbdbd;
-}
-
-.rna-canvas .rna-base-A { fill: #64f73f; }
-.rna-canvas .rna-base-C { fill: #ffb340; }
-.rna-canvas .rna-base-G { fill: #eb413c; }
-.rna-canvas .rna-base-T { fill: #3c88ee; }
-.rna-canvas .rna-base-U { fill: #3c88ee; }
-
-.rna-canvas .rna-label {
-    fill: #212121;
-    font-family: monospace;
-    pointer-events: none;
-}
-
-.rna-canvas .rna-tick {
-    fill: #757575;
-    font-family: monospace;
-    pointer-events: none;
-}
-
-.theme--dark .rna-canvas .rna-label {
-    fill: #121212;
-}
-
-.theme--dark .rna-canvas .rna-tick {
-    fill: #bdbdbd;
-}
-
-.rna-canvas line.rna-highlight,
-.rna-canvas polyline.rna-highlight {
-    stroke: #1976d2;
-}
-
-.rna-canvas circle.rna-highlight {
-    stroke: #1976d2;
-    stroke-width: 0.12;
+html text {
+    pointer-events: revert;
 }
 </style>
