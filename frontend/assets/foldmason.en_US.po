@@ -16,6 +16,9 @@ msgstr ""
 msgid "APP_NAME"
 msgstr "FoldMason"
 
+msgid "TOOL_NAME"
+msgstr "FoldMason MSA"
+
 msgid "APP_DESCRIPTION"
 msgstr ""
 "FoldMason offers fast and sensitive multiple protein structure alignments"

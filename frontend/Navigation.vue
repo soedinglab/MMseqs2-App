@@ -200,14 +200,9 @@
         <router-link v-if="!$LOCAL" :to="activeTool ? '/' + activeTool : '/'" style="color: inherit; text-decoration: none">{{ appName }}</router-link>
         <span v-if="$LOCAL">{{ appName }}</span>
     </v-app-bar-title>
-    <object style="margin-left:8px; display: inline-block; width: 38px;height: 38px;vertical-align: middle"
-            v-if="$APP == 'mmseqs'"
-            type="image/svg+xml"
-            data="./assets/marv1.svg"
-            aria-hidden="true">
-        <img src="./assets/marv1.png" style="max-width:100%" />
-    </object>
-    <img v-if="$APP == 'foldseek'" src="./assets/marv-foldseek-small.png" style="margin-left:8px; display: inline-block; width: 48px;height: 48px;vertical-align: middle" aria-hidden="true" />
+    <img v-if="logo" :src="logo.src" :srcset="logo.srcset" :key="logo.src"
+         style="margin-left:8px; display: inline-block; height: 48px; width: auto; vertical-align: middle"
+         aria-hidden="true" />
 
     <v-spacer></v-spacer>
     <v-toolbar-items v-if="!$ELECTRON" class="hidden-sm-and-down">
@@ -224,11 +219,23 @@ import buildFullPath from 'axios/lib/core/buildFullPath.js'
 import { parseResultsList, download, djb2 } from './Utilities';
 import History from './History.vue';
 
-function getLinks(strings, prefix) {
-    if (prefix) {
-        prefix = prefix.replaceAll('-', '_');
-        prefix = prefix.toUpperCase() + "_";
+function toolPrefix(tool) {
+    if (!tool) {
+        return '';
     }
+    return tool.replaceAll('-', '_').toUpperCase() + "_";
+}
+
+function toolString(strings, tool, key) {
+    const prefixed = toolPrefix(tool) + key;
+    if (prefixed in strings) {
+        return strings[prefixed];
+    }
+    return (key in strings) ? strings[key] : null;
+}
+
+function getLinks(strings, prefix) {
+    prefix = toolPrefix(prefix);
 
     if (!((prefix + 'NAV_URL_COUNT') in strings)) {
         return [];
@@ -242,6 +249,20 @@ function getLinks(strings, prefix) {
         arr.push({ title, url });
     }
     return arr;
+}
+
+const LOGOS_1X = require.context('./assets', false, /^\.\/logo-.*_1x\.png$/);
+const LOGOS_2X = require.context('./assets', false, /^\.\/logo-.*_2x\.png$/);
+
+function getLogo(tool) {
+    const key = `./logo-${tool}_1x.png`;
+    if (!tool || !LOGOS_1X.keys().includes(key)) {
+        return null;
+    }
+    return {
+        src: LOGOS_1X(key),
+        srcset: LOGOS_1X(key) + ' 1x, ' + LOGOS_2X(`./logo-${tool}_2x.png`) + ' 2x',
+    };
 }
 
 export default {
@@ -278,23 +299,10 @@ export default {
     },
     computed: {
         appName() {
-            if (__APP__ == "foldseek") {
-                switch (this.activeTool) {
-                    case "foldseek":
-                        return "Foldseek Search";
-                    case "foldseek-multimer":
-                        return "Foldseek-Multimer Search";
-                    case "foldseek-interface":
-                        return "Foldseek-Interface Search";
-                    case "foldmason":
-                        return "FoldMason MSA";
-                    case "folddisco":
-                        return "Folddisco Search";
-                    case "riboseek":
-                        return "Riboseek RNA Search";
-                }
-            }
-            return this.$STRINGS.APP_NAME + " Search";
+            return toolString(this.$STRINGS, this.activeTool, 'TOOL_NAME');
+        },
+        logo() {
+            return getLogo(this.activeTool) || getLogo(__APP__);
         },
         toolbarLinks() {
             let toolLinks = getLinks(this.$STRINGS, this.activeTool);

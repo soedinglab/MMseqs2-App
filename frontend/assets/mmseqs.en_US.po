@@ -16,6 +16,9 @@ msgstr ""
 msgid "APP_NAME"
 msgstr "MMseqs2"
 
+msgid "TOOL_NAME"
+msgstr "MMseqs2 Search"
+
 msgid "APP_DESCRIPTION"
 msgstr ""
 "MMseqs2 server offers fast and sensitive sequence alignments against large "

@@ -16,6 +16,24 @@ msgstr ""
 msgid "APP_NAME"
 msgstr "Foldseek"
 
+msgid "TOOL_NAME"
+msgstr "Foldseek Search"
+
+msgid "FOLDSEEK_MULTIMER_TOOL_NAME"
+msgstr "Foldseek-Multimer Search"
+
+msgid "FOLDSEEK_INTERFACE_TOOL_NAME"
+msgstr "Foldseek-Interface Search"
+
+msgid "FOLDMASON_TOOL_NAME"
+msgstr "FoldMason MSA"
+
+msgid "FOLDDISCO_TOOL_NAME"
+msgstr "Folddisco Search"
+
+msgid "RIBOSEEK_TOOL_NAME"
+msgstr "Riboseek RNA Search"
+
 msgid "APP_DESCRIPTION"
 msgstr ""
 "Foldseek Server offers fast and sensitive protein structure alignments "
