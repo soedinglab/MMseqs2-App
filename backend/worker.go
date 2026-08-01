@@ -2231,10 +2231,56 @@ printf("%c%c%c%c",5,0,0,0) > db".dbtype"; printf("%c%c%c%c",0,0,0,0) > db"_seq.d
 	}
 }
 
-func worker(jobsystem JobSystem, config ConfigRoot) {
-	log.Println("MMseqs2 worker")
+// Keeps the server's lease alive while a long job runs
+func heartbeat(staging StagingJobSystem, id Id) func() {
+	interval := staging.Lease() / 3
+	if interval < 5*time.Second {
+		interval = 5 * time.Second
+	}
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		for {
+			select {
+			case <-done:
+				return
+			case <-time.After(interval):
+				if err := staging.SetStatus(id, StatusRunning); err != nil {
+					log.Print(err)
+				}
+			}
+		}
+	}()
+	return func() {
+		close(done)
+		<-stopped
+	}
+}
+
+func mailReasonFor(err error) string {
+	switch err.(type) {
+	case *JobTimeoutError:
+		return MailReasonTimeout
+	case nil:
+		return MailReasonSuccess
+	default:
+		return MailReasonError
+	}
+}
+
+// types limits which job types this worker pops; nil means everything.
+func worker(jobsystem JobSystem, config ConfigRoot, types []JobType) {
+	staging, remote := jobsystem.(StagingJobSystem)
+
+	if remote {
+		log.Println("MMseqs2 remote worker for " + strings.Join(jobTypeNames(types), ", "))
+	} else {
+		log.Println("MMseqs2 worker")
+	}
+
 	mailer := MailTransport(NullTransport{})
-	if config.Mail.Mailer != nil {
+	if config.Mail.Mailer != nil && !remote {
 		log.Println("Using " + config.Mail.Mailer.Type + " mail transport")
 		mailer = config.Mail.Mailer.GetTransport()
 	}
@@ -2374,18 +2420,34 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 		if config.Worker.GracefulExit && atomic.LoadInt32(&shouldExit) == 1 {
 			return
 		}
-		ticket, err := jobsystem.Dequeue()
+		ticket, err := jobsystem.Dequeue(types)
 		if err != nil {
-			if ticket != nil {
+			if errors.Is(err, ErrProtocolMismatch) {
+				log.Fatal(err)
+			}
+			if ticket != nil || remote {
 				log.Print(err)
 			}
-			time.Sleep(100 * time.Millisecond)
+			// do not hammer a server that is down or restarting
+			if remote {
+				time.Sleep(5 * time.Second)
+			} else {
+				time.Sleep(100 * time.Millisecond)
+			}
 			continue
 		}
 
 		if ticket == nil && err == nil {
 			time.Sleep(100 * time.Millisecond)
 			continue
+		}
+
+		if remote {
+			if err := staging.StageInput(ticket.Id); err != nil {
+				log.Print(err)
+				staging.FinishJob(ticket.Id, StatusError, MailReasonError)
+				continue
+			}
 		}
 
 		jobFile := filepath.Join(lookupJobDir(config.Paths.Results, ticket.Id), "job.json")
@@ -2408,7 +2470,43 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		jobsystem.SetStatus(ticket.Id, StatusRunning)
+
+		var stopHeartbeat func()
+		if remote {
+			stopHeartbeat = heartbeat(staging, ticket.Id)
+		}
 		err = RunJob(job, config)
+		if stopHeartbeat != nil {
+			stopHeartbeat()
+		}
+
+		if remote {
+			reason := mailReasonFor(err)
+			if err != nil {
+				log.Print(err)
+			}
+			if uploadErr := staging.UploadResult(ticket.Id); uploadErr != nil {
+				log.Print(uploadErr)
+				if reason == MailReasonSuccess {
+					reason = MailReasonError
+				}
+				err = uploadErr
+			}
+			status := StatusComplete
+			if err != nil {
+				status = StatusError
+			}
+			if statusErr := staging.FinishJob(ticket.Id, status, reason); statusErr != nil {
+				log.Print(statusErr)
+			}
+			if !config.Worker.KeepJobs {
+				if discardErr := staging.Discard(ticket.Id); discardErr != nil {
+					log.Print(discardErr)
+				}
+			}
+			continue
+		}
+
 		mailTemplate := config.Mail.Templates.Success
 		switch err.(type) {
 		case *JobExecutionError, *JobInvalidError:
@@ -2434,4 +2532,15 @@ func worker(jobsystem JobSystem, config ConfigRoot) {
 			}
 		}
 	}
+}
+
+func jobTypeNames(types []JobType) []string {
+	if types == nil {
+		return []string{"all job types"}
+	}
+	names := make([]string, 0, len(types))
+	for _, t := range types {
+		names = append(names, string(t))
+	}
+	return names
 }

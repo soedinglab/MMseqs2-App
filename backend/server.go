@@ -1489,6 +1489,16 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}).Methods("GET")
 	}
 
+	if config.Server.WorkerToken != "" {
+		mailer := MailTransport(NullTransport{})
+		if config.Mail.Mailer != nil {
+			log.Println("Using " + config.Mail.Mailer.Type + " mail transport for remote jobs")
+			mailer = config.Mail.Mailer.GetTransport()
+		}
+		RegisterWorkerApi(r, jobsystem, config, mailer)
+		log.Println("Remote worker API enabled at " + WorkerPathPrefix(config.Server.PathPrefix))
+	}
+
 	r.HandleFunc("/queue", func(w http.ResponseWriter, req *http.Request) {
 		type QueueResponse struct {
 			Length int `json:"queued"`
@@ -1508,9 +1518,21 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 	}).Methods("GET")
 
 	h := http.Handler(r)
+	var basic http.Handler
 	if config.Server.Auth != nil {
-		h = httpauth.SimpleBasicAuth(config.Server.Auth.Username, config.Server.Auth.Password)(h)
+		basic = httpauth.SimpleBasicAuth(config.Server.Auth.Username, config.Server.Auth.Password)(h)
 	}
+	plain := h
+	token := config.Server.WorkerToken
+	h = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if token != "" && workerAuthorized(token, req) {
+			plain.ServeHTTP(w, req)
+		} else if basic != nil {
+			basic.ServeHTTP(w, req)
+		} else {
+			plain.ServeHTTP(w, req)
+		}
+	})
 	if config.Verbose {
 		h = handlers.LoggingHandler(os.Stdout, h)
 	}

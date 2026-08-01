@@ -1,0 +1,15 @@
+version: '3.7'
+
+x-gpu: &gpu
+  runtime: nvidia
+  environment:
+    - NVIDIA_VISIBLE_DEVICES=${GPU_DEVICES:-all}
+
+services:
+  mmseqs-web-api:
+    image: "ghcr.io/${REPO_OWNER}/${APP}-app-backend-gpu:${TAG}"
+    <<: *gpu
+
+  mmseqs-web-worker:
+    image: "ghcr.io/${REPO_OWNER}/${APP}-app-backend-gpu:${TAG}"
+    <<: *gpu

@@ -32,6 +32,36 @@ docker-compose up
 
 You can now navigate with a web browser to your server's IP address and use the MMseqs2 Search Server.
 
+### Running searches on the GPU
+
+GPU support is opt-in through an additional compose file:
+
+```
+docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up
+```
+
+This switches the backend to the CUDA build and hands the GPUs to the containers. It needs
+[nvidia-container-toolkit](https://github.com/NVIDIA/nvidia-container-toolkit) on the host.
+Check it works first with:
+
+```
+docker run --rm --gpus all ubuntu nvidia-smi
+```
+
+Which GPUs the containers get is `GPU_DEVICES` in `.env` (defaults to `all`). Set it to a
+list to pin specific ones, e.g. `GPU_DEVICES=0,1`.
+
+Using the compose file is not enough on its own: a database is only searched on the GPU if
+its `.params` file asks for it as well.
+
+```
+"gpu": {
+  "gpu"    : true,   // use the GPU for this database
+  "server" : false,  // keep a gpuserver process resident, saves at least 300ms per search iteration.
+  "devices": "0"     // optional, restrict this database to certain devices
+}
+```
+
 ### Updating the MMseqs2 Search Server
 To make sure you are running the latest version of the MMseqs2 Web Server execute the following commands.
 

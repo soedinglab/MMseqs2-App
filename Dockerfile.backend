@@ -1,11 +1,11 @@
 ARG FRONTEND_APP
-ARG downloader=${FRONTEND_APP}_${TARGETARCH}_downloader
+ARG GPU=
+ARG downloader=${FRONTEND_APP}${GPU}_${TARGETARCH}_downloader
 
 FROM scratch AS mmseqs_amd64_downloader
 WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-avx2.tar.gz  .
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-sse41.tar.gz .
-ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-sse2.tar.gz  .
 ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-avx2.tar.gz  .
 ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-sse41.tar.gz .
 
@@ -14,19 +14,30 @@ WORKDIR /opt/build
 ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-arm64.tar.gz  .
 ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-arm64.tar.gz  .
 
+FROM scratch AS mmseqs_gpu_amd64_downloader
+WORKDIR /opt/build
+ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-gpu.tar.gz .
+ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-gpu.tar.gz .
+
+FROM scratch AS mmseqs_gpu_arm64_downloader
+WORKDIR /opt/build
+ONBUILD ADD https://mmseqs.com/latest/mmseqs-linux-gpu-arm64.tar.gz .
+ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-gpu-arm64.tar.gz .
+
 FROM scratch AS foldseek_amd64_downloader
 WORKDIR /opt/build
 ARG FOLDSEEK_HASH=foldseek
 ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-avx2.tar.gz  .
 ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-sse41.tar.gz .
-# ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-sse2.tar.gz  .
 ARG FOLDMASON_HASH=foldmason
 ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-avx2.tar.gz .
-ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-sse2.tar.gz .
+ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-sse41.tar.gz .
 ARG FOLDDISCO_HASH=folddisco
 # ARG FOLDDISCO_HASH=archive/7514114fb6c444c0483e20838a0a06688304918e
 ONBUILD ADD https://mmseqs.com/${FOLDDISCO_HASH}/folddisco-linux-x86_64.tar.gz .
 ONBUILD ADD https://mmseqs.com/foldcomp/foldcomp-linux-x86_64.tar.gz .
+ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-avx2.tar.gz  .
+ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-sse41.tar.gz .
 
 FROM scratch AS foldseek_arm64_downloader
 WORKDIR /opt/build
@@ -38,6 +49,30 @@ ARG FOLDDISCO_HASH=folddisco
 # ARG FOLDDISCO_HASH=archive/de0174aee028b8fb774d865cab882c8829afb69a
 ONBUILD ADD https://mmseqs.com/${FOLDDISCO_HASH}/folddisco-linux-arm64.tar.gz .
 ONBUILD ADD https://mmseqs.com/foldcomp/foldcomp-linux-arm64.tar.gz .
+ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-arm64.tar.gz .
+
+FROM scratch AS foldseek_gpu_amd64_downloader
+WORKDIR /opt/build
+ARG FOLDSEEK_HASH=foldseek
+ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-gpu.tar.gz .
+ARG FOLDMASON_HASH=foldmason
+ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-avx2.tar.gz .
+ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-sse41.tar.gz .
+ARG FOLDDISCO_HASH=folddisco
+ONBUILD ADD https://mmseqs.com/${FOLDDISCO_HASH}/folddisco-linux-x86_64.tar.gz .
+ONBUILD ADD https://mmseqs.com/foldcomp/foldcomp-linux-x86_64.tar.gz .
+ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-gpu.tar.gz .
+
+FROM scratch AS foldseek_gpu_arm64_downloader
+WORKDIR /opt/build
+ARG FOLDSEEK_HASH=foldseek
+ONBUILD ADD https://mmseqs.com/${FOLDSEEK_HASH}/foldseek-linux-gpu-arm64.tar.gz .
+ARG FOLDMASON_HASH=foldmason
+ONBUILD ADD https://mmseqs.com/${FOLDMASON_HASH}/foldmason-linux-arm64.tar.gz .
+ARG FOLDDISCO_HASH=folddisco
+ONBUILD ADD https://mmseqs.com/${FOLDDISCO_HASH}/folddisco-linux-arm64.tar.gz .
+ONBUILD ADD https://mmseqs.com/foldcomp/foldcomp-linux-arm64.tar.gz .
+ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-gpu-arm64.tar.gz .
 
 FROM $downloader AS downloader
 
@@ -49,26 +84,28 @@ WORKDIR /opt/build
 ADD backend .
 RUN GOOS=linux GOARCH=$TARGETARCH go build -o mmseqs-web
 
-ADD https://raw.githubusercontent.com/soedinglab/MMseqs2/678c82ac44f1178bf9a3d49bfab9d7eed3f17fbc/util/mmseqs_wrapper.sh binaries/mmseqs
-ADD https://raw.githubusercontent.com/steineggerlab/foldseek/2a7d682841e78deb511ada92fa5caa1f8f183f14/util/foldseek_wrapper.sh binaries/foldseek
+ADD https://raw.githubusercontent.com/soedinglab/MMseqs2/678c82ac44f1178bf9a3d49bfab9d7eed3f17fbc/util/mmseqs_wrapper.sh wrappers/mmseqs
+ADD https://raw.githubusercontent.com/steineggerlab/foldseek/2a7d682841e78deb511ada92fa5caa1f8f183f14/util/foldseek_wrapper.sh wrappers/foldseek
 
 COPY --from=downloader /opt/build/* .
-RUN mkdir binaries; \
+RUN mkdir -p binaries; \
     if [ "$TARGETARCH" = "arm64" ]; then \
       for i in mmseqs riboseek foldseek foldmason folddisco foldcomp; do \
-        if [ -e "${i}-linux-arm64.tar.gz" ]; then \
-          cat ${i}-linux-arm64.tar.gz | tar -xzvf- ${i}/bin/${i}; \
-          if [ "$i" = "foldcomp" ] ; then \
-            cat ${i}-linux-arm64.tar.gz | tar -xzvf- ${i}; \
-            mv -f -- ${i} binaries/${i}; \
-          else \
-            mv -f -- ${i}/bin/${i} binaries/${i}; \
+        for j in arm64 gpu-arm64; do \
+          if [ -e "${i}-linux-${j}.tar.gz" ]; then \
+            cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}/bin/${i}; \
+            if [ "$i" = "foldcomp" ] ; then \
+              cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}; \
+              mv -f -- ${i} binaries/${i}; \
+            else \
+              mv -f -- ${i}/bin/${i} binaries/${i}; \
+            fi; \
           fi; \
-        fi; \
+        done; \
       done; \
     else \
       for i in mmseqs riboseek foldseek foldmason folddisco foldcomp; do \
-        for j in sse2 sse41 avx2 x86_64; do \
+        for j in sse41 avx2 x86_64 gpu; do \
           if [ -e "${i}-linux-${j}.tar.gz" ]; then \
             cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}/bin/${i}; \
             if [ "$i" = "folddisco" ] ; then \
@@ -76,16 +113,28 @@ RUN mkdir binaries; \
             elif [ "$i" = "foldcomp" ]; then \
               cat ${i}-linux-${j}.tar.gz | tar -xzvf- ${i}; \
               mv -f -- ${i} binaries/${i}; \
+            elif [ "$j" = "gpu" ]; then \
+              mv -f -- ${i}/bin/${i} binaries/${i}; \
             else \
               mv -f -- ${i}/bin/${i} binaries/${i}_${j}; \
             fi; \
           fi; \
         done; \
       done; \
-      sed 's|foldseek|foldmason|g' binaries/foldseek > binaries/foldmason; \
-      sed 's|mmseqs|riboseek|g' binaries/mmseqs > binaries/riboseek; \
+      for i in mmseqs foldseek; do \
+        if [ -e "binaries/${i}_avx2" ]; then \
+          sed "s|${i}_sse2|${i}_sse41|" wrappers/${i} > binaries/${i}; \
+        fi; \
+      done; \
+      if [ -e binaries/foldmason_avx2 ]; then \
+        sed 's|foldseek|foldmason|g' wrappers/foldseek > binaries/foldmason; \
+      fi; \
+      if [ -e binaries/riboseek_avx2 ]; then \
+        sed -e 's|mmseqs|riboseek|g' -e 's|riboseek_sse2|riboseek_sse41|' wrappers/mmseqs > binaries/riboseek; \
+      fi; \
     fi; \
-    chmod -R +x binaries;
+    chmod -R +x binaries; \
+    ls -l binaries;
 
 FROM debian:stable-slim
 LABEL maintainer="Milot Mirdita <milot@mirdita.de>"

@@ -49,12 +49,27 @@ var defaultFileContent = []byte(`{
 		"cors"       : true,
 		// should old jobs be checked on startup
 		"checkold"   : true,
+		/* enable the remote worker API below /api/worker/
+		"workertoken" : "change-me",
+		// how long a claimed job may go without a status update in seconds
+		"workerlease" : 3600,
+		*/
 	},
 	"worker": {
 		// should workers exit immediately after SIGINT/SIGTERM signal or gracefully wait for job completion
 		"gracefulexit": false,
 		// How many databases can be searched in parallel (used additional CPUs)
 		"paralleldatabases": 1,
+		/* http worker against remote server 
+		"remote" : "https://search.foldseek.com/",
+		"token"  : "change-me",
+		// job types this worker advertises
+		"types"  : ["rnasearch"],
+		// name reported to the server
+		"name"   : "riboserver",
+		// keep job folders after a successful upload
+		"keepjobs" : false,
+		*/
 	},
 	// paths to workfolders and mmseqs, special character ~ is resolved relative to the binary location
 	"paths" : {
@@ -122,6 +137,9 @@ var defaultFileContent = []byte(`{
 		"workers"  : 1,
 		// should old jobs be checked on startup
 		"checkold" : true,
+		/* hand these job types to remote workers only
+		"delegate" : ["rnasearch"],
+		*/
 	},
 	"mail" : {
 		"mailer" : {
@@ -224,8 +242,9 @@ type ConfigRedis struct {
 }
 
 type ConfigLocal struct {
-	Workers  int  `json:"workers"`
-	CheckOld bool `json:"checkold"`
+	Workers  int       `json:"workers"`
+	CheckOld bool      `json:"checkold"`
+	Delegate []JobType `json:"delegate"`
 }
 
 type ConfigMailTemplate struct {
@@ -261,8 +280,13 @@ type ConfigRateLimit struct {
 }
 
 type ConfigWorker struct {
-	GracefulExit      bool `json:"gracefulexit"`
-	ParallelDatabases int  `json:"paralleldatabases"`
+	GracefulExit      bool      `json:"gracefulexit"`
+	ParallelDatabases int       `json:"paralleldatabases"`
+	Remote            string    `json:"remote"`
+	Token             string    `json:"token"`
+	Types             []JobType `json:"types"`
+	Name              string    `json:"name"`
+	KeepJobs          bool      `json:"keepjobs"`
 }
 
 type ConfigServer struct {
@@ -271,6 +295,8 @@ type ConfigServer struct {
 	DbManagment bool             `json:"dbmanagment"`
 	CORS        bool             `json:"cors"`
 	CheckOld    bool             `json:"checkold"`
+	WorkerToken string           `json:"workertoken"`
+	WorkerLease int              `json:"workerlease"`
 	Auth        *ConfigAuth      `json:"auth"`
 	RateLimit   *ConfigRateLimit `json:"ratelimit"`
 }
@@ -381,7 +407,27 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 	return config, nil
 }
 
-func (c *ConfigRoot) CheckPaths() error {
+type binaryRequirement struct {
+	Path  string
+	Name  string
+	Types []JobType
+}
+
+func (c *ConfigRoot) binaryRequirements() []binaryRequirement {
+	if c.App == AppFoldseek {
+		return []binaryRequirement{
+			{c.Paths.Foldseek, "Foldseek", []JobType{JobStructureSearch, JobComplexSearch, JobInterfaceSearch, JobFoldDisco, JobIndex}},
+			{c.Paths.FoldMason, "FoldMason", []JobType{JobFoldMasonMSA}},
+			{c.Paths.FoldDisco, "FoldDisco", []JobType{JobFoldDisco}},
+			{c.Paths.FoldseekInterface, "FoldseekInterface", []JobType{JobInterfaceSearch}},
+		}
+	}
+	return []binaryRequirement{
+		{c.Paths.Mmseqs, "MMseqs2", []JobType{JobSearch, JobIndex, JobMsa, JobPair}},
+	}
+}
+
+func (c *ConfigRoot) CheckPaths(types []JobType) error {
 	paths := []string{c.Paths.Databases, c.Paths.Results}
 	for _, path := range paths {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -389,21 +435,20 @@ func (c *ConfigRoot) CheckPaths() error {
 		}
 	}
 
-	if c.App == AppFoldseek {
-		if _, err := os.Stat(c.Paths.Foldseek); err != nil {
-			return errors.New("Foldseek binary was not found at " + c.Paths.Foldseek)
+	for _, req := range c.binaryRequirements() {
+		needed := types == nil
+		for _, t := range req.Types {
+			if jobTypeAllowed(types, t) {
+				needed = true
+				break
+			}
 		}
-		if _, err := os.Stat(c.Paths.FoldMason); err != nil {
-			return errors.New("FoldMason binary was not found at " + c.Paths.FoldMason)
+		if !needed {
+			continue
 		}
-		if _, err := os.Stat(c.Paths.FoldDisco); err != nil {
-			return errors.New("FoldDisco binary was not found at " + c.Paths.FoldDisco)
+		if _, err := os.Stat(req.Path); err != nil {
+			return errors.New(req.Name + " binary was not found at " + req.Path)
 		}
-		if _, err := os.Stat(c.Paths.FoldseekInterface); err != nil {
-			return errors.New("FoldseekInterface binary was not found at " + c.Paths.FoldseekInterface)
-		}
-	} else if _, err := os.Stat(c.Paths.Mmseqs); err != nil {
-		return errors.New("MMseqs2 binary was not found at " + c.Paths.Mmseqs)
 	}
 
 	if c.App == AppColabFold {

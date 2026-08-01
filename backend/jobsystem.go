@@ -32,6 +32,71 @@ const (
 	JobFoldDisco       JobType = "folddisco"
 )
 
+var AllJobTypes = []JobType{
+	JobSearch,
+	JobIndex,
+	JobMsa,
+	JobNuclMsa,
+	JobPair,
+	JobStructureSearch,
+	JobRnaSearch,
+	JobComplexSearch,
+	JobInterfaceSearch,
+	JobFoldMasonMSA,
+	JobFoldDisco,
+}
+
+func (t JobType) Valid() bool {
+	return isInJobTypes(AllJobTypes, t)
+}
+
+func isInJobTypes(types []JobType, t JobType) bool {
+	for _, candidate := range types {
+		if candidate == t {
+			return true
+		}
+	}
+	return false
+}
+
+func jobTypeAllowed(types []JobType, t JobType) bool {
+	if types == nil {
+		return true
+	}
+	return isInJobTypes(types, t)
+}
+
+func ParseJobTypes(names []string) ([]JobType, error) {
+	types := make([]JobType, 0, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		t := JobType(name)
+		if !t.Valid() {
+			return nil, errors.New("unknown job type: " + name)
+		}
+		if isInJobTypes(types, t) {
+			continue
+		}
+		types = append(types, t)
+	}
+	return types, nil
+}
+
+// The set an in-process worker is allowed to run.
+func SubtractJobTypes(from []JobType, remove []JobType) []JobType {
+	types := make([]JobType, 0, len(from))
+	for _, t := range from {
+		if isInJobTypes(remove, t) {
+			continue
+		}
+		types = append(types, t)
+	}
+	return types
+}
+
 type JobRequest struct {
 	Id     Id          `json:"id" validate:"required"`
 	Status Status      `json:"status" validate:"required"`
@@ -308,7 +373,8 @@ type JobSystem interface {
 	GetTicket(Id) (Ticket, error)
 	NewJob(JobRequest, string, bool) (Ticket, error)
 	MultiStatus([]string) ([]Ticket, error)
-	Dequeue() (*Ticket, error)
+	Dequeue(types []JobType) (*Ticket, error)
+	Requeue(Id, JobType) error
 	QueueLength() (int, error)
 }
 
@@ -439,7 +505,7 @@ func (j *RedisJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	return t, nil
 }
 
-func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
+func (j *RedisJobSystem) Dequeue(types []JobType) (*Ticket, error) {
 	pop, err := j.Client.ZPopMin("mmseqs:pending", 1).Result()
 	if err != nil {
 		if pop != nil {
@@ -470,6 +536,25 @@ func (j *RedisJobSystem) Dequeue() (*Ticket, error) {
 	return &ticket, nil
 }
 
+func (j *RedisJobSystem) Requeue(id Id, jobtype JobType) error {
+	if err := j.SetStatus(id, StatusPending); err != nil {
+		return err
+	}
+	_, err := j.Client.ZAdd("mmseqs:pending", redis.Z{Score: j.rank(id), Member: string(id)}).Result()
+	return err
+}
+
+func (j *RedisJobSystem) rank(id Id) float64 {
+	request, err := getJobRequestFromFile(j.getJobFileName(id))
+	if err != nil {
+		return 0
+	}
+	if job, ok := request.Job.(Job); ok {
+		return job.Rank()
+	}
+	return 0
+}
+
 func (j *RedisJobSystem) QueueLength() (int, error) {
 	length, err := j.Client.ZCount("mmseqs:pending", "-inf", "+inf").Result()
 	if err != nil {
@@ -478,17 +563,22 @@ func (j *RedisJobSystem) QueueLength() (int, error) {
 	return int(length), nil
 }
 
+type queueEntry struct {
+	Id   Id
+	Type JobType
+}
+
 type LocalJobSystem struct {
 	BaseJobSystem
 	QueueMutex *sync.Mutex
-	Queue      []Id
+	Queue      []queueEntry
 	queued     int
 }
 
 func MakeLocalJobSystem(results string, CheckOld bool) (LocalJobSystem, error) {
 	jobsystem := LocalJobSystem{}
 	jobsystem.QueueMutex = &sync.Mutex{}
-	jobsystem.Queue = make([]Id, 0)
+	jobsystem.Queue = make([]queueEntry, 0)
 	jobsystem.StatusMutex = &sync.Mutex{}
 	jobsystem.Results = results
 	jobsystem.queued = 0
@@ -522,7 +612,7 @@ func MakeLocalJobSystem(results string, CheckOld bool) (LocalJobSystem, error) {
 		}
 
 		if job.Status == StatusPending {
-			jobsystem.Queue = append(jobsystem.Queue, job.Id)
+			jobsystem.Queue = append(jobsystem.Queue, queueEntry{job.Id, job.Type})
 			jobsystem.queued += 1
 		}
 	})
@@ -756,7 +846,7 @@ func (j *LocalJobSystem) NewJob(request JobRequest, jobsbase string, allowResubm
 	t.RawStatus = StatusPending
 
 	j.QueueMutex.Lock()
-	j.Queue = append(j.Queue, id)
+	j.Queue = append(j.Queue, queueEntry{id, request.Type})
 	j.queued += 1
 	j.QueueMutex.Unlock()
 
@@ -781,15 +871,22 @@ func (j *BaseJobSystem) MultiStatus(ids []string) ([]Ticket, error) {
 	return result, nil
 }
 
-func (j *LocalJobSystem) Dequeue() (*Ticket, error) {
+func (j *LocalJobSystem) Dequeue(types []JobType) (*Ticket, error) {
 	j.QueueMutex.Lock()
-	if len(j.Queue) == 0 {
+	// scan from the tail, skipping types this caller does not handle
+	pos := -1
+	for i := len(j.Queue) - 1; i >= 0; i-- {
+		if jobTypeAllowed(types, j.Queue[i].Type) {
+			pos = i
+			break
+		}
+	}
+	if pos == -1 {
 		j.QueueMutex.Unlock()
 		return nil, nil
 	}
-	// pop the tail of the queue
-	id := j.Queue[len(j.Queue)-1]
-	j.Queue = j.Queue[:len(j.Queue)-1]
+	id := j.Queue[pos].Id
+	j.Queue = append(j.Queue[:pos], j.Queue[pos+1:]...)
 	j.queued -= 1
 	j.QueueMutex.Unlock()
 
@@ -801,6 +898,26 @@ func (j *LocalJobSystem) Dequeue() (*Ticket, error) {
 	return &ticket, nil
 }
 
+func (j *LocalJobSystem) Requeue(id Id, jobtype JobType) error {
+	if err := j.SetStatus(id, StatusPending); err != nil {
+		return err
+	}
+
+	j.QueueMutex.Lock()
+	defer j.QueueMutex.Unlock()
+	for _, entry := range j.Queue {
+		if entry.Id == id {
+			return nil
+		}
+	}
+	j.Queue = append(j.Queue, queueEntry{id, jobtype})
+	j.queued += 1
+	return nil
+}
+
 func (j *LocalJobSystem) QueueLength() (int, error) {
-	return j.queued, nil
+	j.QueueMutex.Lock()
+	queued := j.queued
+	j.QueueMutex.Unlock()
+	return queued, nil
 }

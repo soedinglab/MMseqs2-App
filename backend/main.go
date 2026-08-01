@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strings"
 	"syscall"
 )
 
@@ -68,6 +69,88 @@ func ParseConfigName(args []string) (string, []string) {
 	return file, resArgs
 }
 
+type RemoteWorkerFlags struct {
+	Remote string
+	Token  string
+	Types  string
+	Name   string
+}
+
+func ParseRemoteWorkerFlags(args []string) (RemoteWorkerFlags, []string) {
+	var flags RemoteWorkerFlags
+	targets := map[string]*string{
+		"-remote": &flags.Remote,
+		"-token":  &flags.Token,
+		"-types":  &flags.Types,
+		"-name":   &flags.Name,
+	}
+
+	resArgs := make([]string, 0)
+	for i := 0; i < len(args); i++ {
+		target, ok := targets[args[i]]
+		if !ok {
+			resArgs = append(resArgs, args[i])
+			continue
+		}
+		if i+1 == len(args) {
+			log.Fatal(errors.New("value for " + args[i] + " is not specified"))
+		}
+		*target = args[i+1]
+		i++
+	}
+
+	return flags, resArgs
+}
+
+func (f RemoteWorkerFlags) Apply(config *ConfigRoot) error {
+	if f.Remote != "" {
+		config.Worker.Remote = f.Remote
+	}
+	if f.Token != "" {
+		config.Worker.Token = f.Token
+	}
+	if f.Name != "" {
+		config.Worker.Name = f.Name
+	}
+	if f.Types != "" {
+		types, err := ParseJobTypes(strings.Split(f.Types, ","))
+		if err != nil {
+			return err
+		}
+		config.Worker.Types = types
+	}
+	return nil
+}
+
+// What this process is allowed to run
+func runnableJobTypes(t RunType, config ConfigRoot) []JobType {
+	if t == WORKER && config.Worker.Remote != "" {
+		return config.Worker.Types
+	}
+	if len(config.Local.Delegate) == 0 {
+		return nil
+	}
+	return SubtractJobTypes(AllJobTypes, config.Local.Delegate)
+}
+
+func warnAboutDelegation(t RunType, config ConfigRoot) {
+	if len(config.Local.Delegate) == 0 {
+		return
+	}
+	for _, jobtype := range config.Local.Delegate {
+		if !jobtype.Valid() {
+			log.Fatal(errors.New("local.delegate lists unknown job type: " + string(jobtype)))
+		}
+	}
+	if t == SERVER || t == WORKER {
+		log.Println("WARNING: local.delegate is ignored by the redis queue, it only applies to -local")
+		return
+	}
+	if config.Server.WorkerToken == "" {
+		log.Println("WARNING: local.delegate is set but server.workertoken is not, so no remote worker can connect and delegated jobs will stay PENDING")
+	}
+}
+
 func main() {
 	t, args := ParseType(os.Args[1:])
 
@@ -91,6 +174,7 @@ func main() {
 	}
 
 	configFile, args := ParseConfigName(args)
+	remoteFlags, args := ParseRemoteWorkerFlags(args)
 
 	var config ConfigRoot
 	var err error
@@ -116,6 +200,10 @@ func main() {
 		panic(err)
 	}
 
+	if err := remoteFlags.Apply(&config); err != nil {
+		panic(err)
+	}
+
 	if t == UTIL_PRINT_CONFIG {
 		out, err := json.MarshalIndent(config, "", "    ")
 		if err != nil {
@@ -125,17 +213,28 @@ func main() {
 		return
 	}
 
-	if err := config.CheckPaths(); err != nil {
+	types := runnableJobTypes(t, config)
+	warnAboutDelegation(t, config)
+
+	if err := config.CheckPaths(types); err != nil {
 		panic(err)
 	}
 
 	switch t {
 	case WORKER:
+		if config.Worker.Remote != "" {
+			jobsystem, err := MakeHttpJobSystem(config)
+			if err != nil {
+				panic(err)
+			}
+			worker(jobsystem, config, types)
+			return
+		}
 		jobsystem, err := MakeRedisJobSystem(config.Redis, config.Paths.Results, false)
 		if err != nil {
 			panic(err)
 		}
-		worker(jobsystem, config)
+		worker(jobsystem, config, types)
 	case SERVER:
 		jobsystem, err := MakeRedisJobSystem(config.Redis, config.Paths.Results, config.Server.CheckOld)
 		if err != nil {
@@ -157,7 +256,7 @@ func main() {
 
 		loop := make(chan bool)
 		for i := 0; i < config.Local.Workers; i++ {
-			go worker(&jobsystem, config)
+			go worker(&jobsystem, config, types)
 		}
 		go server(&jobsystem, config)
 		<-loop
