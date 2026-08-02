@@ -281,15 +281,15 @@ export default {
         });
         if (this.hits && !this.selectedStates && !this.selectedCountPerDb && !this.dbToIdx) {
             const obj = Object.fromEntries(
-                n.results.map(( e, i ) => [i, Object.fromEntries(
-                    e.alignments.map((_, j) => [j, false])
+                this.hits.results.map(( e, i ) => [i, Object.fromEntries(
+                    Array.from({ length: e.alignments?.length ?? 0 }, (_, j) => [j, false])
                 )])
             )
             const obj2 = Object.fromEntries(
-                n.results.map(( e,i ) => [i, 0])
+                this.hits.results.map(( e,i ) => [i, 0])
             )
             const obj3 = Object.fromEntries(
-                n.results.map((e, i) => [e.db, i])
+                this.hits.results.map((e, i) => [e.db, i])
             )
             this.selectedStates = obj
             this.selectedCountPerDb = obj2
