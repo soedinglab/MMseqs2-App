@@ -26,17 +26,8 @@
         title="Toggle between the entire query structure and aligned region"
     >
         <span v-if="queryColorList.length >= 2" class="two-tone-icon">
-            <!-- Two copies of the mode-specific icon so BOTH chain colors are
-                 always visible (bfvd-web pattern). The icon shape itself
-                 changes with `showQuery`: CircleOneThird -> CircleTwoThird ->
-                 Circle. Left copy is drawn in `colorList[0]`; right copy in
-                 `colorList[1]`. For asymmetric glyphs (CircleOneThird /
-                 CircleTwoThird / CircleHalf) we mirror the right copy with
-                 `scaleX(-1)` so it fills the opposite side. For symmetric
-                 glyphs (Circle) mirroring is a no-op, so we split via
-                 `clip-path` instead. `mix-blend-mode: multiply` lets any
-                 overlap between the two colored halves visually blend rather
-                 than the top layer masking the bottom. -->
+            <!-- The icon shape itself changes with 
+                 `showQuery`: CircleOneThird -> CircleTwoThird -> Circle. -->
             <v-icon v-bind="toolbarIconProps"
                     :style="queryFirstHalfStyle">
                 {{ queryIconName }}
@@ -137,11 +128,8 @@ export default {
         disableArrowButton: { type: Boolean, default: false },
         disableResetButton: { type: Boolean, default: false },
         disableFullscreenButton: { type: Boolean, default: false },
-        // Colors used for the query/target toggle icons. Accepts a single
-        // color string OR an array of colors. When an array of >=2 colors is
-        // passed the icon is rendered as a two-tone split (left half = [0],
-        // right half = [1]), useful when the toggle controls multiple chains
-        // with distinct colors (e.g. interface search dimer viewer).
+        // Accepts a single color string OR an array of colors.
+        // When an array of >=2 colors is passed the icon is rendered as a two-tone split
         queryColors: { type: [String, Array], default: () => "#1E88E5" },
         targetColors: { type: [String, Array], default: () => "#FFC107" },
         // When true the query/target toggles are treated as a binary switch
@@ -174,8 +162,6 @@ export default {
             return Array.isArray(this.targetColors) ? this.targetColors : [this.targetColors];
         },
         // Two-state icon path: CircleHalf (aligned only) vs Circle (full).
-        // Used both for __LOCAL__ (which is inherently binary) and when the
-        // caller opts in via `binaryToggle`.
         isBinary: function() {
             return this.$LOCAL || this.binaryToggle;
         },
@@ -195,9 +181,6 @@ export default {
             if (this.showTarget === 1) return this.$MDI.CircleTwoThird;
             return this.$MDI.Circle;
         },
-        // Full `Circle` is the only symmetric shape we use, so a horizontal
-        // flip would overlay identically and hide the underlying color. For
-        // that case we split via clip-path instead of mirroring.
         queryIsSymmetricIcon: function() {
             return this.queryIconName === this.$MDI.Circle;
         },
@@ -273,9 +256,7 @@ export default {
     z-index: 1;
     left: 0;
 }
-/* Container for the query/target two-tone icons. Sized by the invisible
-   sizing icon so the button width matches the single-color case; both
-   half-clipped color icons stack absolutely on top of each other. */
+/* Container for the query/target two-tone icons. */
 .two-tone-icon {
     position: relative;
     display: inline-flex;
