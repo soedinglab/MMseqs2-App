@@ -323,8 +323,7 @@ export default {
                 for (let k = 0; k < cols_q_iface.length; k++) {
                     const qResno = qMap[cols_q_iface[k] - 1];
                     const tResno = tMap[cols_t_iface[k] - 1];
-                    // Drop the whole pair when either side is unmatched, so the
-                    // query/target correspondence never shifts out of step.
+                    // Drop the whole pair when either side is unmatched
                     if (qResno == null || tResno == null) { dropped++; continue; }
                     const from = qCa.get(qResno);
                     const to = tCa.get(tResno);
@@ -410,8 +409,7 @@ export default {
             if (!baseRepr) return;
             const sele = this.querySele;
             baseRepr.setSelection(sele);
-            // Mode 2 = show entire structure as solid (no interface overlay);
-            // otherwise keep the base cartoon faded and the interface overlay on top.
+            // Mode 2 = show entire structure as solid (no interface overlay)
             const fullOpacity = this.showQuery === 2;
             baseRepr.setParameters({ opacity: fullOpacity ? 1.0 : 0.3, depthWrite: fullOpacity });
             const ifaceRepr = this.stage.getRepresentationsByName("queryStructureIface");
