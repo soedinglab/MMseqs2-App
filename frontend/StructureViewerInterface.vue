@@ -192,12 +192,8 @@ const parseCaString = (str) => {
     return out;
 }
 
-// Match a list of interface CA coordinates (in interface-index order) to the
-// residues of `chain` in `structure` by nearest-CA matching. Returns an array
-// of resnos where entry `i` is the dimer resno corresponding to interface
-// residue index `i+1` (1-based). This lets us convert interface-based indices
-// coming from the alignment (qStartPos/dbStartPos, etc.) into real dimer resnos
-// so highlights and selections are consistent with foldseek's interface DB.
+// Match a list of interface CA coordinates (qStartPos/dbStartPos) to the
+// residues in Foldseek dimer DB.
 const matchCaToResnos = (structure, caArr, chain, warnTolerance = 0.5) => {
     if (!caArr || caArr.length === 0) return [];
     const chainCa = [];
@@ -268,9 +264,6 @@ export default {
             // Interface selections per chain, populated in mounted()
             interfaceSelesQuery: [],
             interfaceSelesTarget: [],
-            // Per-alignment mapping: interface index (1-based) -> dimer resno.
-            // targetIfaceToResno[i] is an array where index k (0-based) holds
-            // the target dimer resno for interface residue k+1 in alignment i.
             targetIfaceToResno: [],
             queryIfaceToResno: [],
         }
@@ -281,17 +274,10 @@ export default {
         queryFile: { type: String },
         queryChainPalette: {
             type: Array,
-            // Paired palette: queries are the LIGHT tone of their pair's hue.
-            // alignments[i].query and alignments[i].target share a hue so it
-            // is immediately obvious which query chain is aligned to which
-            // target chain. Pair 0 = blue, pair 1 = orange (both are also
-            // colorblind-safe against each other).
             default: () => (["#90CAF9", "#FFB74D"]),
         },
         targetChainPalette: {
             type: Array,
-            // Paired palette: targets are the DARK tone of their pair's hue.
-            // See queryChainPalette above. Pair 0 = deep blue, pair 1 = deep orange.
             default: () => (["#0D47A1", "#E65100"]),
         },
         qRepr: { type: String, default: "cartoon" },
@@ -305,32 +291,50 @@ export default {
         async drawArrows(str1, str2) {
             if (!this.stage) return;
             const shape = new Shape('arrows');
-            await Promise.all(this.alignments.map(async (alignment, idx) => {
+            // Build a resno -> CA coordinate lookup once per structure/chain
+            // instead of re-scanning every atom for each alignment.
+            const caMapCache = new Map();
+            const getCaMap = (structure, chain, tag) => {
+                const key = `${tag}:${chain}`;
+                let map = caMapCache.get(key);
+                if (map) return map;
+                map = new Map();
+                structure.eachAtom(ap => {
+                    // keep the first alt loc, mirroring foldseek's behavior
+                    if (!map.has(ap.resno)) map.set(ap.resno, [ap.x, ap.y, ap.z]);
+                }, new Selection(`:${chain}.CA`));
+                caMapCache.set(key, map);
+                return map;
+            };
+            let dropped = 0;
+            this.alignments.forEach((alignment, idx) => {
                 const chain_q = getChainName(alignment.query);
                 const chain_t = getChainName(alignment.target);
                 // getMatchingColumns returns 1-based indices into the interface
                 // sequences (qStartPos.. and dbStartPos..). Translate them to
                 // real dimer resnos via the CA-matched interface -> resno maps
-                // so selections are consistent with the loaded structures.
+                // so arrows connect the residues that are actually aligned.
                 const [cols_q_iface, cols_t_iface] = getMatchingColumns(alignment);
                 const qMap = this.queryIfaceToResno[idx] || [];
                 const tMap = this.targetIfaceToResno[idx] || [];
-                const cols_q_res = cols_q_iface.map(i => qMap[i - 1]).filter(v => v != null);
-                const cols_t_res = cols_t_iface.map(i => tMap[i - 1]).filter(v => v != null);
-                if (cols_q_res.length === 0 || cols_t_res.length === 0) return;
-                const sele_q = cols_q_res.join(" or ");
-                const sele_t = cols_t_res.join(" or ");
+                const qCa = getCaMap(str1, chain_q, 'q');
+                const tCa = getCaMap(str2, chain_t, 't');
 
-                const str1_xyz = getAtomXYZ(str1, new Selection(`(${sele_q}) and :${chain_q}.CA`));
-                const str2_xyz = getAtomXYZ(str2, new Selection(`(${sele_t}) and :${chain_t}.CA`));
-
-                // if (str1_xyz.length != str2_xyz.length) {
-                //     console.warn("Different number of CA atoms in query and target", str1_xyz.length, str2_xyz.length);
-                // }
-                for (let i = 0; i < Math.min(str1_xyz.length, str2_xyz.length); i++) {
-                    shape.addArrow(str1_xyz[i], str2_xyz[i], [0, 1, 1], 0.4);
+                for (let k = 0; k < cols_q_iface.length; k++) {
+                    const qResno = qMap[cols_q_iface[k] - 1];
+                    const tResno = tMap[cols_t_iface[k] - 1];
+                    // Drop the whole pair when either side is unmatched, so the
+                    // query/target correspondence never shifts out of step.
+                    if (qResno == null || tResno == null) { dropped++; continue; }
+                    const from = qCa.get(qResno);
+                    const to = tCa.get(tResno);
+                    if (!from || !to) { dropped++; continue; }
+                    shape.addArrow(from, to, [0, 1, 1], 0.4);
                 }
-            }));
+            });
+            if (dropped > 0) {
+                console.warn(`Skipped ${dropped} arrow(s) with unmatched query/target residues`);
+            }
             let component = this.stage.addComponentFromObject(shape);
             component.addRepresentation('buffer');
             component.setVisibility(this.showArrows);
@@ -341,12 +345,6 @@ export default {
         },
         handleToggleQuery() {
             if (!this.stage) return;
-            // 3-state cycle:
-            //   0 = interface residues only (chain faded, highlight solid)
-            //   1 = full aligned chains (chain faded, highlight solid)
-            //   2 = entire dimer solid (no highlight)
-            // __LOCAL__ keeps the original 2-state behavior since local mode
-            // never had the mode-2 solid view.
             if (__LOCAL__) {
                 this.showQuery = (this.showQuery === 0) ? 1 : 0;
             } else {
@@ -386,10 +384,6 @@ export default {
             let seles = [];
             for (let [i, start, length] of selection) {
                 let chain = getChainName(this.alignments[i].target);
-                // `start` is a 1-based index into the target's interface residues
-                // and `length` is the number of non-gap residues selected. Map
-                // those interface indices to real dimer resnos via the
-                // interface-index -> resno table built from tCa matching.
                 const map = this.targetIfaceToResno[i];
                 if (!map || map.length === 0) continue;
                 const resnos = [];
@@ -655,11 +649,7 @@ END
         const structure = concatStructures(getAccession(this.alignments[0].target), ...targets.map(t => t.structure));
         const target = this.stage.addComponentFromObject(structure, { name: "targetStructure" });
 
-        // Derive the target interface residues per alignment by matching the
-        // CA coordinates coming from foldseek's interface DB (alignment.tCa)
-        // to the CAs of the corresponding chain in the dimer structure. This
-        // guarantees consistency with foldseek's own definition of the
-        // interface (rather than a hard-coded distance cutoff).
+        // Match interface CA coordinates from dimerDB to interfaceDB alignment
         this.targetIfaceToResno = this.alignments.map((alignment, i) => {
             const chain = targetChainSeles[i].chain;
             const caArr = parseCaString(alignment.tCa);
@@ -728,9 +718,7 @@ END
 
             // Derive the query interface residues per alignment by matching the
             // CA coordinates from foldseek's interface DB (alignment.qCa) to
-            // the CAs of the corresponding chain in the query structure. We
-            // keep the original resnos from the uploaded PDB so highlights and
-            // sequence-to-structure mapping stay consistent with foldseek.
+            // the CAs in the query structure.
             this.queryIfaceToResno = this.alignments.map((alignment) => {
                 const chain = getChainName(alignment.query);
                 const caArr = parseCaString(alignment.qCa);
