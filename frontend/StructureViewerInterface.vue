@@ -24,6 +24,8 @@
             :showArrows="showArrows"
             :disableQueryButton="!hasQuery"
             :disableArrowButton="!hasQuery"
+            :queryColors="queryChainPalette"
+            :targetColors="targetChainPalette"
             @makeImage="handleMakeImage"
             @makePDB="handleMakePDB"
             @resetView="handleResetView"
@@ -176,26 +178,53 @@ const extractChainPdb = (pdbText, chainName) => {
     return out.join('\n');
 }
 
-// Return sorted resnos on `chain` whose CA is within `cutoff` Angstrom
-// of any CA on a different chain. Used to define the interface.
-const getInterfaceResnos = (structure, chain, cutoff = 10) => {
-    const onChain = [];
-    const offChain = [];
-    structure.eachAtom(ap => {
-        if (ap.atomname !== 'CA') return;
-        const entry = { resno: ap.resno, x: ap.x, y: ap.y, z: ap.z };
-        if (ap.chainname === chain) onChain.push(entry);
-        else offChain.push(entry);
-    });
-    const c2 = cutoff * cutoff;
-    const hits = new Set();
-    for (const r of onChain) {
-        for (const o of offChain) {
-            const dx = r.x - o.x, dy = r.y - o.y, dz = r.z - o.z;
-            if (dx*dx + dy*dy + dz*dz <= c2) { hits.add(r.resno); break; }
+// Parse a comma-separated CA coord string ("x1,y1,z1,x2,y2,z2,...") into
+// an array of [x, y, z] triples. Empty/invalid input returns [].
+const parseCaString = (str) => {
+    if (!str) return [];
+    const nums = str.split(',').map(parseFloat);
+    const out = [];
+    for (let i = 0; i + 2 < nums.length; i += 3) {
+        if (Number.isFinite(nums[i]) && Number.isFinite(nums[i+1]) && Number.isFinite(nums[i+2])) {
+            out.push([nums[i], nums[i+1], nums[i+2]]);
         }
     }
-    return Array.from(hits).sort((a, b) => a - b);
+    return out;
+}
+
+// Match a list of interface CA coordinates (qStartPos/dbStartPos) to the
+// residues in Foldseek dimer DB.
+const matchCaToResnos = (structure, caArr, chain, warnTolerance = 0.5) => {
+    if (!caArr || caArr.length === 0) return [];
+    const chainCa = [];
+    structure.eachAtom(ap => {
+        if (ap.atomname === 'CA') {
+            chainCa.push({ resno: ap.resno, x: ap.x, y: ap.y, z: ap.z });
+        }
+    }, new Selection(`:${chain}.CA`));
+    const resnos = new Array(caArr.length).fill(null);
+    for (let i = 0; i < caArr.length; i++) {
+        const [x, y, z] = caArr[i];
+        let bestResno = null;
+        let bestDist2 = Infinity;
+        for (const c of chainCa) {
+            const dx = c.x - x, dy = c.y - y, dz = c.z - z;
+            const d2 = dx*dx + dy*dy + dz*dz;
+            if (d2 < bestDist2) {
+                bestDist2 = d2;
+                bestResno = c.resno;
+            }
+        }
+        if (bestResno !== null && bestDist2 <= warnTolerance * warnTolerance) {
+            resnos[i] = bestResno;
+        } else if (bestResno !== null) {
+            // Coordinates should be identical between interface DB and dimer DB;
+            // record the nearest resno but warn if the deviation is unexpectedly large.
+            console.warn(`Interface CA match on chain ${chain} idx ${i+1} deviated by ${Math.sqrt(bestDist2).toFixed(3)} A`);
+            resnos[i] = bestResno;
+        }
+    }
+    return resnos;
 }
 
 // Compress an ordered list of resnos into an NGL range selection like
@@ -235,6 +264,8 @@ export default {
             // Interface selections per chain, populated in mounted()
             interfaceSelesQuery: [],
             interfaceSelesTarget: [],
+            targetIfaceToResno: [],
+            queryIfaceToResno: [],
         }
     },
     props: {
@@ -243,11 +274,11 @@ export default {
         queryFile: { type: String },
         queryChainPalette: {
             type: Array,
-            default: () => (["#1E88E5", "#43A047"]), // chain 1: blue, chain 2: green
+            default: () => (["#90CAF9", "#FFB74D"]),
         },
         targetChainPalette: {
             type: Array,
-            default: () => (["#FFC107", "#E53935"]), // chain 1: amber, chain 2: red
+            default: () => (["#0D47A1", "#E65100"]),
         },
         qRepr: { type: String, default: "cartoon" },
         tRepr: { type: String, default: "cartoon" },
@@ -260,21 +291,49 @@ export default {
         async drawArrows(str1, str2) {
             if (!this.stage) return;
             const shape = new Shape('arrows');
-            await Promise.all(this.alignments.map(async (alignment) => {
+            // Build a resno -> CA coordinate lookup once per structure/chain
+            // instead of re-scanning every atom for each alignment.
+            const caMapCache = new Map();
+            const getCaMap = (structure, chain, tag) => {
+                const key = `${tag}:${chain}`;
+                let map = caMapCache.get(key);
+                if (map) return map;
+                map = new Map();
+                structure.eachAtom(ap => {
+                    // keep the first alt loc, mirroring foldseek's behavior
+                    if (!map.has(ap.resno)) map.set(ap.resno, [ap.x, ap.y, ap.z]);
+                }, new Selection(`:${chain}.CA`));
+                caMapCache.set(key, map);
+                return map;
+            };
+            let dropped = 0;
+            this.alignments.forEach((alignment, idx) => {
                 const chain_q = getChainName(alignment.query);
                 const chain_t = getChainName(alignment.target);
-                const [sele_q, sele_t] = getMatchingColumns(alignment).map(arr => arr.join(" or "));
+                // getMatchingColumns returns 1-based indices into the interface
+                // sequences (qStartPos.. and dbStartPos..). Translate them to
+                // real dimer resnos via the CA-matched interface -> resno maps
+                // so arrows connect the residues that are actually aligned.
+                const [cols_q_iface, cols_t_iface] = getMatchingColumns(alignment);
+                const qMap = this.queryIfaceToResno[idx] || [];
+                const tMap = this.targetIfaceToResno[idx] || [];
+                const qCa = getCaMap(str1, chain_q, 'q');
+                const tCa = getCaMap(str2, chain_t, 't');
 
-                const str1_xyz = getAtomXYZ(str1, new Selection(`(${sele_q}) and :${chain_q}.CA`));
-                const str2_xyz = getAtomXYZ(str2, new Selection(`(${sele_t}) and :${chain_t}.CA`));
-
-                // if (str1_xyz.length != str2_xyz.length) {
-                //     console.warn("Different number of CA atoms in query and target", str1_xyz.length, str2_xyz.length);
-                // }
-                for (let i = 0; i < Math.min(str1_xyz.length, str2_xyz.length); i++) {
-                    shape.addArrow(str1_xyz[i], str2_xyz[i], [0, 1, 1], 0.4);
+                for (let k = 0; k < cols_q_iface.length; k++) {
+                    const qResno = qMap[cols_q_iface[k] - 1];
+                    const tResno = tMap[cols_t_iface[k] - 1];
+                    // Drop the whole pair when either side is unmatched
+                    if (qResno == null || tResno == null) { dropped++; continue; }
+                    const from = qCa.get(qResno);
+                    const to = tCa.get(tResno);
+                    if (!from || !to) { dropped++; continue; }
+                    shape.addArrow(from, to, [0, 1, 1], 0.4);
                 }
-            }));
+            });
+            if (dropped > 0) {
+                console.warn(`Skipped ${dropped} arrow(s) with unmatched query/target residues`);
+            }
             let component = this.stage.addComponentFromObject(shape);
             component.addRepresentation('buffer');
             component.setVisibility(this.showArrows);
@@ -297,10 +356,11 @@ export default {
         },
         handleToggleTarget() {
             if (!this.stage) return;
+            // See handleToggleQuery for state semantics.
             if (__LOCAL__) {
                 this.showTarget = (this.showTarget === 0) ? 1 : 0;
             } else {
-                this.showTarget = (this.showTarget === 2) ? 0 : this.showTarget + 1; 
+                this.showTarget = (this.showTarget === 2) ? 0 : this.showTarget + 1;
             }
         },
         clearSelection() {
@@ -323,37 +383,52 @@ export default {
             let seles = [];
             for (let [i, start, length] of selection) {
                 let chain = getChainName(this.alignments[i].target);
-                let end = start + length;
-                seles.push(`${start}-${end}:${chain}`);
-            } 
+                const map = this.targetIfaceToResno[i];
+                if (!map || map.length === 0) continue;
+                const resnos = [];
+                for (let k = 0; k < length; k++) {
+                    const r = map[start - 1 + k];
+                    if (r != null) resnos.push(r);
+                }
+                if (resnos.length === 0) continue;
+                resnos.sort((a, b) => a - b);
+                const sele = resnosToSele(resnos, chain);
+                if (sele) seles.push(sele);
+            }
+            if (seles.length === 0) {
+                repr.setVisibility(false);
+                return;
+            }
             let sele = seles.join(" or ");
             repr.setSelection(sele);
             repr.setVisibility(true);
         },
         setQuerySelection() {
             if (!this.stage) return;
-            const fullOpacity = this.showQuery === 2;
             const baseRepr = this.stage.getRepresentationsByName("queryStructure");
             if (!baseRepr) return;
             const sele = this.querySele;
             baseRepr.setSelection(sele);
-            // In mode 2 show entire structure at full opacity; otherwise keep it faded
+            // Mode 2 = show entire structure as solid (no interface overlay)
+            const fullOpacity = this.showQuery === 2;
             baseRepr.setParameters({ opacity: fullOpacity ? 1.0 : 0.3, depthWrite: fullOpacity });
-            this.stage.getRepresentationsByName("queryStructureIface").setVisibility(!fullOpacity);
+            const ifaceRepr = this.stage.getRepresentationsByName("queryStructureIface");
+            if (ifaceRepr) ifaceRepr.setVisibility(!fullOpacity);
             if (baseRepr.list && baseRepr.list[0]) {
                 baseRepr.list[0].parent.autoView(sele, this.autoViewTime);
             }
         },
         setTargetSelection() {
             if (!this.stage) return;
-            const fullOpacity = this.showTarget === 2;
             const repr = this.stage.getRepresentationsByName("targetStructure");
             if (!repr) return;
             const sele = this.targetSele;
             repr.setSelection(sele);
-            // In mode 2 show entire structure at full opacity; otherwise keep it faded
+            // Mode 2 = solid dimer, no interface overlay (see setQuerySelection).
+            const fullOpacity = this.showTarget === 2;
             repr.setParameters({ opacity: fullOpacity ? 1.0 : 0.3, depthWrite: fullOpacity });
-            this.stage.getRepresentationsByName("targetStructureIface").setVisibility(!fullOpacity);
+            const ifaceRepr = this.stage.getRepresentationsByName("targetStructureIface");
+            if (ifaceRepr) ifaceRepr.setVisibility(!fullOpacity);
         },
         async handleMakeImage() {
             if (!this.stage)
@@ -441,8 +516,9 @@ END
     },
     computed: {
         querySele: function() {
-            if (this.alignments.length === 0 || this.showQuery == 2)
-                return '';
+            // Mode 2 selects the entire structure (no NGL selection filter),
+            // so the base rep -- now at full opacity -- renders the whole dimer.
+            if (this.alignments.length === 0 || this.showQuery == 2) return '';
             if (this.showQuery === 0) {
                 // Show only interface residues; fall back to full chain if not yet computed
                 const iface = this.interfaceSelesQuery.filter(Boolean);
@@ -450,12 +526,13 @@ END
                     ? iface.join(' or ')
                     : this.alignments.map(a => `:${getChainName(a.query)}`).join(' or ');
             }
-            if (this.showQuery === 1)
+            if (this.showQuery === 1) {
                 return this.alignments.map(a => `:${getChainName(a.query)}`).join(" or ");
+            }
         },
         targetSele: function() {
-            if (this.alignments.length === 0 || this.showTarget == 2)
-                return '';
+            // See querySele.
+            if (this.alignments.length === 0 || this.showTarget == 2) return '';
             if (this.showTarget === 0) {
                 // Show only interface residues; fall back to full chain if not yet computed
                 const iface = this.interfaceSelesTarget.filter(Boolean);
@@ -463,8 +540,9 @@ END
                     ? iface.join(' or ')
                     : this.alignments.map(a => `:${getChainName(a.target)}`).join(' or ');
             }
-            if (this.showTarget === 1)
+            if (this.showTarget === 1) {
                 return this.alignments.map(a => `:${getChainName(a.target)}`).join(" or ");
+            }
         },
         tmPanelBindings: function() {
             return (this.isFullscreen) ? { 'style': 'margin-top: 10px; font-size: 2em; line-height: 2em' } : {  }
@@ -514,7 +592,6 @@ END
         let renumber = 0;
         // Cache dimer PDBs by db+targetKey so we only fetch each dimer once
         const dimerPdbCache = new Map();
-        const interfaceCutoff = 10;
         // It is wrapped in order to make it handle when it is destroyed even before it is fully mounted
         try {
             for (let alignment of this.alignments) {
@@ -570,13 +647,22 @@ END
         const structure = concatStructures(getAccession(this.alignments[0].target), ...targets.map(t => t.structure));
         const target = this.stage.addComponentFromObject(structure, { name: "targetStructure" });
 
-        // Now that all chains are concatenated into one structure, compute the
-        // interface (CA-CA distance < cutoff) per chain.
-        for (const entry of targetChainSeles) {
-            const resnos = getInterfaceResnos(target.structure, entry.chain, interfaceCutoff);
-            const sele = resnosToSele(resnos, entry.chain);
-            entry.alignedSele = sele;
-        }
+        // Match interface CA coordinates from dimerDB to interfaceDB alignment
+        this.targetIfaceToResno = this.alignments.map((alignment, i) => {
+            const chain = targetChainSeles[i].chain;
+            const caArr = parseCaString(alignment.tCa);
+            return matchCaToResnos(target.structure, caArr, chain);
+        });
+        targetChainSeles.forEach((entry, i) => {
+            const resnos = (this.targetIfaceToResno[i] || []).filter(r => r != null);
+            resnos.sort((a, b) => a - b);
+            // Deduplicate while preserving sorted order
+            const uniq = [];
+            for (const r of resnos) {
+                if (uniq.length === 0 || uniq[uniq.length - 1] !== r) uniq.push(r);
+            }
+            entry.alignedSele = resnosToSele(uniq, entry.chain);
+        });
         // Expose target interface seles to computed (targetSele mode 0)
         this.interfaceSelesTarget = targetChainSeles.map(e => e.alignedSele);
         
@@ -628,23 +714,34 @@ END
                 query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), {ext: 'pdb', firstModelOnly: true, name: 'queryStructure'}); 
             }
 
-            // Map 1-based indices to residue index/resno; only need for query structure
-            // Use queryChainSele to make all selections based on actual query chain
-            // Per-chain interface selections for the query structure (one entry per unique chain).
-            const seenQueryChains = new Map();
-            for (let alignment of this.alignments) {
+            // Derive the query interface residues per alignment by matching the
+            // CA coordinates from foldseek's interface DB (alignment.qCa) to
+            // the CAs in the query structure.
+            this.queryIfaceToResno = this.alignments.map((alignment) => {
                 const chain = getChainName(alignment.query);
-                if (seenQueryChains.has(chain)) continue;
-                // Renumber once per chain to avoid residue gaps
-                let renumber = 1;
-                query.structure.eachResidue(function(rp) {
-                    rp.resno = renumber++;
-                }, new Selection(`:${chain}`));
-                const resnos = getInterfaceResnos(query.structure, chain, interfaceCutoff);
-                const sele = resnosToSele(resnos, chain);
-                seenQueryChains.set(chain, { chain, alignedSele: sele, unalignedSele: `:${chain}` });
-            }
-            const queryChainSeles = Array.from(seenQueryChains.values());
+                const caArr = parseCaString(alignment.qCa);
+                return matchCaToResnos(query.structure, caArr, chain);
+            });
+
+            // Build one entry per unique query chain for coloring / selection.
+            const seenQueryChains = new Map();
+            this.alignments.forEach((alignment, i) => {
+                const chain = getChainName(alignment.query);
+                const resnos = (this.queryIfaceToResno[i] || []).filter(r => r != null);
+                if (!seenQueryChains.has(chain)) {
+                    seenQueryChains.set(chain, { chain, resnos: new Set(), unalignedSele: `:${chain}` });
+                }
+                const entry = seenQueryChains.get(chain);
+                for (const r of resnos) entry.resnos.add(r);
+            });
+            const queryChainSeles = Array.from(seenQueryChains.values()).map(entry => {
+                const sorted = Array.from(entry.resnos).sort((a, b) => a - b);
+                return {
+                    chain: entry.chain,
+                    alignedSele: resnosToSele(sorted, entry.chain),
+                    unalignedSele: entry.unalignedSele,
+                };
+            });
             // Expose query interface seles to computed (querySele mode 0)
             this.interfaceSelesQuery = queryChainSeles.map(e => e.alignedSele);
             if (ColormakerRegistry.hasScheme("_queryScheme")) {
@@ -764,7 +861,7 @@ END
     position: relative;
 }
 .structure-error {
-    width: 500px;
+    width: 100%;
     margin: 0 auto;
     padding: 16px 20px;
     border: 1px solid #E57373;

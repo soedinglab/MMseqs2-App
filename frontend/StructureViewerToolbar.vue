@@ -25,9 +25,25 @@
         @click="handleClickCycleQuery"
         title="Toggle between the entire query structure and aligned region"
     >
-        <v-icon v-bind="toolbarIconProps" style='color: #1E88E5;' v-if="showQuery === 0">{{ ($LOCAL) ? $MDI.CircleHalf : $MDI.CircleOneThird }}</v-icon>
-        <v-icon v-bind="toolbarIconProps" style='color: #1E88E5;' v-else-if="!$LOCAL && showQuery === 1">{{ $MDI.CircleTwoThird }}</v-icon>
-        <v-icon v-bind="toolbarIconProps" style='color: #1E88E5;' v-else>{{ $MDI.Circle }}</v-icon>
+        <span v-if="queryColorList.length >= 2" class="two-tone-icon">
+            <!-- The icon shape itself changes with 
+                 `showQuery`: CircleOneThird -> CircleTwoThird -> Circle. -->
+            <v-icon v-bind="toolbarIconProps"
+                    :style="queryFirstHalfStyle">
+                {{ queryIconName }}
+            </v-icon>
+            <v-icon v-bind="toolbarIconProps"
+                    :style="querySecondHalfStyle">
+                {{ queryIconName }}
+            </v-icon>
+            <!-- Invisible sizing icon so the span has intrinsic width/height. -->
+            <v-icon v-bind="toolbarIconProps" style="visibility: hidden;">
+                {{ queryIconName }}
+            </v-icon>
+        </span>
+        <v-icon v-else v-bind="toolbarIconProps" :style="{ color: queryColorList[0] }">
+            {{ queryIconName }}
+        </v-icon>
         <span v-if="isFullscreen">&nbsp;Toggle full query</span>
   </v-btn>
     <v-btn
@@ -36,9 +52,22 @@
         @click="handleClickToggleTarget"
         title="Toggle between the entire target structure and aligned region"
     >
-        <v-icon v-bind="toolbarIconProps" style='color: #FFC107;' v-if="showTarget === 0">{{ ($LOCAL) ? $MDI.CircleHalf : $MDI.CircleOneThird }}</v-icon>
-        <v-icon v-bind="toolbarIconProps" style='color: #FFC107;' v-else-if="!$LOCAL && showTarget === 1">{{ $MDI.CircleTwoThird }}</v-icon>
-        <v-icon v-bind="toolbarIconProps" style='color: #FFC107;' v-else>{{ $MDI.Circle }}</v-icon>
+        <span v-if="targetColorList.length >= 2" class="two-tone-icon">
+            <v-icon v-bind="toolbarIconProps"
+                    :style="targetFirstHalfStyle">
+                {{ targetIconName }}
+            </v-icon>
+            <v-icon v-bind="toolbarIconProps"
+                    :style="targetSecondHalfStyle">
+                {{ targetIconName }}
+            </v-icon>
+            <v-icon v-bind="toolbarIconProps" style="visibility: hidden;">
+                {{ targetIconName }}
+            </v-icon>
+        </span>
+        <v-icon v-else v-bind="toolbarIconProps" :style="{ color: targetColorList[0] }">
+            {{ targetIconName }}
+        </v-icon>
         <span v-if="isFullscreen">&nbsp;Toggle full target</span>
     </v-btn>
     <v-btn
@@ -99,6 +128,15 @@ export default {
         disableArrowButton: { type: Boolean, default: false },
         disableResetButton: { type: Boolean, default: false },
         disableFullscreenButton: { type: Boolean, default: false },
+        // Accepts a single color string OR an array of colors.
+        // When an array of >=2 colors is passed the icon is rendered as a two-tone split
+        queryColors: { type: [String, Array], default: () => "#1E88E5" },
+        targetColors: { type: [String, Array], default: () => "#FFC107" },
+        // When true the query/target toggles are treated as a binary switch
+        // (0 = aligned only, 1 = full) instead of the default 3-state cycle
+        // (0 = aligned, 1 = full aligned chains, 2 = full complex incl.
+        // non-aligned chains). Icons collapse to CircleHalf / Circle.
+        binaryToggle: { type: Boolean, default: false },
     },
     computed: {
         toolbarIconProps: function() {
@@ -116,6 +154,66 @@ export default {
                 small: true,
                 style: "width: 24px;",
             }
+        },
+        queryColorList: function() {
+            return Array.isArray(this.queryColors) ? this.queryColors : [this.queryColors];
+        },
+        targetColorList: function() {
+            return Array.isArray(this.targetColors) ? this.targetColors : [this.targetColors];
+        },
+        // Two-state icon path: CircleHalf (aligned only) vs Circle (full).
+        isBinary: function() {
+            return this.$LOCAL || this.binaryToggle;
+        },
+        queryIconName: function() {
+            if (this.isBinary) {
+                return this.showQuery === 0 ? this.$MDI.CircleHalf : this.$MDI.Circle;
+            }
+            if (this.showQuery === 0) return this.$MDI.CircleOneThird;
+            if (this.showQuery === 1) return this.$MDI.CircleTwoThird;
+            return this.$MDI.Circle;
+        },
+        targetIconName: function() {
+            if (this.isBinary) {
+                return this.showTarget === 0 ? this.$MDI.CircleHalf : this.$MDI.Circle;
+            }
+            if (this.showTarget === 0) return this.$MDI.CircleOneThird;
+            if (this.showTarget === 1) return this.$MDI.CircleTwoThird;
+            return this.$MDI.Circle;
+        },
+        queryIsSymmetricIcon: function() {
+            return this.queryIconName === this.$MDI.Circle;
+        },
+        targetIsSymmetricIcon: function() {
+            return this.targetIconName === this.$MDI.Circle;
+        },
+        queryFirstHalfStyle: function() {
+            const base = { color: this.queryColorList[0], position: 'absolute' };
+            if (this.queryIsSymmetricIcon) base.clipPath = 'inset(0 50% 0 0)';
+            return base;
+        },
+        querySecondHalfStyle: function() {
+            const base = { color: this.queryColorList[1], position: 'absolute', mixBlendMode: 'multiply' };
+            if (this.queryIsSymmetricIcon) {
+                base.clipPath = 'inset(0 0 0 50%)';
+            } else {
+                base.transform = 'scaleX(-1)';
+            }
+            return base;
+        },
+        targetFirstHalfStyle: function() {
+            const base = { color: this.targetColorList[0], position: 'absolute' };
+            if (this.targetIsSymmetricIcon) base.clipPath = 'inset(0 50% 0 0)';
+            return base;
+        },
+        targetSecondHalfStyle: function() {
+            const base = { color: this.targetColorList[1], position: 'absolute', mixBlendMode: 'multiply' };
+            if (this.targetIsSymmetricIcon) {
+                base.clipPath = 'inset(0 0 0 50%)';
+            } else {
+                base.transform = 'scaleX(-1)';
+            }
+            return base;
         },
     },
     methods: {
@@ -157,5 +255,13 @@ export default {
     bottom: 0;
     z-index: 1;
     left: 0;
+}
+/* Container for the query/target two-tone icons. */
+.two-tone-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
 }
 </style>
