@@ -11,7 +11,7 @@ Vue.use(Portal);
 import App from "./App.vue";
 import Search from "./Search.vue";
 import MultimerSearch from "./MultimerSearch.vue";
-// import InterfaceSearch from "./InterfaceSearch.vue";
+import InterfaceSearch from "./InterfaceSearch.vue";
 import FoldMasonSearch from "./FoldMasonSearch.vue";
 import FoldDiscoSearch from "./FoldDiscoSearch.vue";
 import RiboseekSearch from "./RiboseekSearch.vue";
@@ -40,7 +40,7 @@ const router = __LOCAL__
         { path: "/foldseek-multimer", redirect: { name: "multimer" } },
         { path: "/complex", redirect: { name: "multimer" } },
         { name: "multimer", path: "/multimer", component: MultimerSearch },
-        // { name: "interface", path: "/interface", component: InterfaceSearch },
+        { name: "interface", path: "/interface", component: InterfaceSearch },
         { name: "foldmason", path: "/foldmason", component: FoldMasonSearch },
         { name: "folddisco", path: "/folddisco", component: FoldDiscoSearch },
         { name: "riboseek", path: "/riboseek", component: RiboseekSearch },
