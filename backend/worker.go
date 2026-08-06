@@ -29,6 +29,16 @@ func (e *JobExecutionError) Error() string {
 	return "Execution Error: " + e.internal.Error()
 }
 
+// JobUserError is a failure caused by the submitted input rather than by the
+// server.
+type JobUserError struct {
+	message string
+}
+
+func (e *JobUserError) Error() string {
+	return e.message
+}
+
 type JobTimeoutError struct {
 }
 
@@ -1058,6 +1068,11 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			if err != nil {
 				return &JobExecutionError{err}
 			}
+		}
+
+		queryIndex := filepath.Join(resultBase, "tmp0", "latest", "interfacedb_query.index")
+		if info, statErr := os.Stat(queryIndex); statErr == nil && info.Size() == 0 {
+			return &JobUserError{"No interface was found in the query structure"}
 		}
 
 		err = execCommandSync(
@@ -2258,6 +2273,18 @@ func heartbeat(staging StagingJobSystem, id Id) func() {
 	}
 }
 
+// writeJobError records a user-facing failure message so it gives why it failed
+func writeJobError(resultsBase string, id Id, err error) {
+	userErr, ok := err.(*JobUserError)
+	if !ok {
+		return
+	}
+	path := filepath.Join(lookupJobDir(resultsBase, id), "job.err")
+	if writeErr := os.WriteFile(path, []byte(userErr.Error()), 0644); writeErr != nil {
+		log.Print(writeErr)
+	}
+}
+
 func mailReasonFor(err error) string {
 	switch err.(type) {
 	case *JobTimeoutError:
@@ -2479,6 +2506,7 @@ func worker(jobsystem JobSystem, config ConfigRoot, types []JobType) {
 		if stopHeartbeat != nil {
 			stopHeartbeat()
 		}
+		writeJobError(config.Paths.Results, ticket.Id, err)
 
 		if remote {
 			reason := mailReasonFor(err)
@@ -2509,7 +2537,7 @@ func worker(jobsystem JobSystem, config ConfigRoot, types []JobType) {
 
 		mailTemplate := config.Mail.Templates.Success
 		switch err.(type) {
-		case *JobExecutionError, *JobInvalidError:
+		case *JobExecutionError, *JobInvalidError, *JobUserError:
 			jobsystem.SetStatus(ticket.Id, StatusError)
 			log.Print(err)
 			mailTemplate = config.Mail.Templates.Error

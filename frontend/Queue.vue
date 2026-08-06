@@ -137,7 +137,7 @@ export default {
                         case "ERROR":
                         case "FAILED":
                             this.status = "FAILED";
-                            this.error = "Job failed. Please try again later.";
+                            this.error = data.error || "Job failed. Please try again later.";
                             break;
                         case "COMPLETE":
                             this.$axios.get("api/ticket/type/" + ticket).then(

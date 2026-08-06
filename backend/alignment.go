@@ -368,14 +368,19 @@ func ReadAlignments[T any, U interface{ ~uint32 | ~int64 }](id Id, entries []U, 
 
 	res := make([]SearchResult, 0)
 
+	var zero U
 	var lookupByKey bool
-	switch any(entries[0]).(type) {
+	switch any(zero).(type) {
 	case uint32:
 		lookupByKey = true
 	case int64:
 		lookupByKey = false
 	default:
-		return nil, fmt.Errorf("unsupported type: %T", entries[0])
+		return nil, fmt.Errorf("unsupported type: %T", zero)
+	}
+
+	if len(entries) == 0 {
+		return res, nil
 	}
 
 	for _, db := range databases {
