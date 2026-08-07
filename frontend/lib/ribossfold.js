@@ -1,4 +1,4 @@
-import * as wasm from "tornadofold-wasm";
+import * as wasm from "ribossfold-wasm";
 
 const CACHE_LIMIT = 256;
 const cache = new Map();
@@ -49,7 +49,7 @@ function resolveFolder() {
       return instance.foldSeq(seq);
     };
   }
-  throw new Error("tornadofold-wasm does not expose a folding function");
+  throw new Error("ribossfold-wasm does not expose a folding function");
 }
 
 export async function fold(sequence) {

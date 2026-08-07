@@ -34,7 +34,7 @@
 
 <script>
 import { FornaContainer } from 'fornac';
-import { fold, cleanSequence } from './lib/tornadofold.js';
+import { fold, cleanSequence } from './lib/ribossfold.js';
 import { downloadBlob } from './Utilities.js';
 
 const RNA_NAME = 'rna';

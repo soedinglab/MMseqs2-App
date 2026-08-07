@@ -133,7 +133,7 @@
     "style-loader": "^3.3.3",
     "svg2png": "^4.1.1",
     "tmalign-wasm": "^0.0.6",
-    "tornadofold-wasm": "^0.0.2",
+    "ribossfold-wasm": "^0.0.5",
     "url-loader": "^4.1.1",
     "vue": "^2.7.16",
     "vue-loader": "^15.11.1",
