@@ -1,0 +1,197 @@
+[
+  {
+    "opts": {
+      "db": "pdb_folddisco",
+      "limit": 5
+    },
+    "table": {
+      "page": "folddisco",
+      "motif": "",
+      "query": null,
+      "activeDatabase": null,
+      "databases": [
+        {
+          "db": "pdb_folddisco",
+          "dbIndex": 2,
+          "sortKey": "idf",
+          "sortOrder": -1,
+          "total": 1000,
+          "offset": 0,
+          "returned": 5,
+          "hasDescription": true,
+          "hasTaxonomy": false,
+          "clustered": false,
+          "filtersApplied": false,
+          "rows": [
+            {
+              "id": "2#0",
+              "entryIndex": 0,
+              "rank": 0,
+              "cluster": null,
+              "selected": false,
+              "visible": true,
+              "target": "6iuf.ent",
+              "targetName": "6IUF",
+              "dbkey": 166622,
+              "idfscore": "362.946",
+              "rmsd": "0.036",
+              "nodecount": 8,
+              "targetresidues": "A29,A32,A34,A38,A68,A71,A72,A77",
+              "motifPattern": "11111111",
+              "description": "CRYSTAL STRUCTURE OF ANTI-CRISPR PROTEIN ACRVA5 "
+            },
+            {
+              "id": "2#1",
+              "entryIndex": 1,
+              "rank": 1,
+              "cluster": null,
+              "selected": false,
+              "visible": true,
+              "target": "6iuf.ent",
+              "targetName": "6IUF",
+              "dbkey": 166622,
+              "idfscore": "299.213",
+              "rmsd": "0.142",
+              "nodecount": 8,
+              "targetresidues": "B29,B32,B34,B38,B68,B71,B72,B77",
+              "motifPattern": "11111111",
+              "description": "CRYSTAL STRUCTURE OF ANTI-CRISPR PROTEIN ACRVA5 "
+            },
+            {
+              "id": "2#2",
+              "entryIndex": 2,
+              "rank": 2,
+              "cluster": null,
+              "selected": false,
+              "visible": true,
+              "target": "1i12.ent",
+              "targetName": "1I12",
+              "dbkey": 84382,
+              "idfscore": "158.619",
+              "rmsd": "0.258",
+              "nodecount": 8,
+              "targetresidues": "A130,A110,A112,A116,A119,A142,A143,A148",
+              "motifPattern": "11111111",
+              "description": "CRYSTAL STRUCTURE OF SACCHAROMYCES CEREVISIAE GNA1 COMPLEXED WITH ACCOA "
+            },
+            {
+              "id": "2#3",
+              "entryIndex": 3,
+              "rank": 3,
+              "cluster": null,
+              "selected": false,
+              "visible": true,
+              "target": "1i1d.ent",
+              "targetName": "1I1D",
+              "dbkey": 115654,
+              "idfscore": "158.619",
+              "rmsd": "0.296",
+              "nodecount": 8,
+              "targetresidues": "B130,B110,B112,B116,B3,B142,B143,B148",
+              "motifPattern": "11111111",
+              "description": "CRYSTAL STRUCTURE OF YEAST GNA1 BOUND TO COA AND GLNAC-6P "
+            },
+            {
+              "id": "2#4",
+              "entryIndex": 4,
+              "rank": 4,
+              "cluster": null,
+              "selected": false,
+              "visible": true,
+              "target": "1i12.ent",
+              "targetName": "1I12",
+              "dbkey": 84382,
+              "idfscore": "158.619",
+              "rmsd": "0.325",
+              "nodecount": 7,
+              "targetresidues": "D130,D110,D112,D116,_,D142,D143,D148",
+              "motifPattern": "11110111",
+              "description": "CRYSTAL STRUCTURE OF SACCHAROMYCES CEREVISIAE GNA1 COMPLEXED WITH ACCOA "
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "opts": {
+      "db": "pdb_folddisco",
+      "limit": 3,
+      "sortKey": "rmsd"
+    },
+    "table": {
+      "page": "folddisco",
+      "motif": "",
+      "query": null,
+      "activeDatabase": null,
+      "databases": [
+        {
+          "db": "pdb_folddisco",
+          "dbIndex": 2,
+          "sortKey": "rmsd",
+          "sortOrder": 1,
+          "total": 1000,
+          "offset": 0,
+          "returned": 3,
+          "hasDescription": true,
+          "hasTaxonomy": false,
+          "clustered": false,
+          "filtersApplied": false,
+          "rows": [
+            {
+              "id": "2#647",
+              "entryIndex": 647,
+              "rank": 0,
+              "cluster": null,
+              "selected": false,
+              "visible": true,
+              "target": "7r44.ent",
+              "targetName": "7R44",
+              "dbkey": 171338,
+              "idfscore": "20.767",
+              "rmsd": "0.033",
+              "nodecount": 4,
+              "targetresidues": "_,_,_,F185,F350,F353,F354,_",
+              "motifPattern": "00011110",
+              "description": "BOVINE COMPLEX I IN THE PRESENCE OF IM1761092, ACTIVE CLASS IV (COMPOSITE MAP) "
+            },
+            {
+              "id": "2#0",
+              "entryIndex": 0,
+              "rank": 1,
+              "cluster": null,
+              "selected": false,
+              "visible": true,
+              "target": "6iuf.ent",
+              "targetName": "6IUF",
+              "dbkey": 166622,
+              "idfscore": "362.946",
+              "rmsd": "0.036",
+              "nodecount": 8,
+              "targetresidues": "A29,A32,A34,A38,A68,A71,A72,A77",
+              "motifPattern": "11111111",
+              "description": "CRYSTAL STRUCTURE OF ANTI-CRISPR PROTEIN ACRVA5 "
+            },
+            {
+              "id": "2#648",
+              "entryIndex": 648,
+              "rank": 2,
+              "cluster": null,
+              "selected": false,
+              "visible": true,
+              "target": "8om1.ent",
+              "targetName": "8OM1",
+              "dbkey": 35969,
+              "idfscore": "20.767",
+              "rmsd": "0.042",
+              "nodecount": 4,
+              "targetresidues": "_,_,_,F185,F350,F353,F354,_",
+              "motifPattern": "00011110",
+              "description": "MITOCHONDRIAL COMPLEX I FROM MUS MUSCULUS IN THE ACTIVE STATE "
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

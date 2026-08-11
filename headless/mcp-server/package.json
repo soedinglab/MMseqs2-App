@@ -1,0 +1,21 @@
+{
+  "name": "mmseqs2-agent-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server exposing Foldseek/FoldMason/FoldDisco search to an agent, over the MMseqs2-App backend API.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "bin": {
+    "mmseqs2-agent-mcp": "bin/mmseqs2-agent-mcp.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "mmseqs2-agent-core": "*"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

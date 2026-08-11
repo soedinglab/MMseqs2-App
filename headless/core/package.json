@@ -1,0 +1,18 @@
+{
+  "name": "mmseqs2-agent-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Headless client for the MMseqs2-App backend: submit, poll, fetch and decode Foldseek/FoldMason/FoldDisco jobs without a browser.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

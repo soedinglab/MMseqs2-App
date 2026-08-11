@@ -11,7 +11,7 @@
 // instead of letting a dying page clobber a live one.
 
 import { routeForTicket } from './ticketRoute.js';
-import { getJobType } from './HistoryMixin';
+import { getJobType } from './HistoryMixin.js';
 
 const GLOBAL_FOR = {
     result: 'resultsApi',
