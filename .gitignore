@@ -10,3 +10,7 @@ pkg/
 resources/
 backend/.cache/
 .vscode/
+*.md
+!README.md
+!readme.md
+!license.md

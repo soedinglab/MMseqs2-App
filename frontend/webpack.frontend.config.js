@@ -26,7 +26,7 @@ if (['mmseqs', 'foldseek', 'foldmason'].includes(frontendApp) == false) {
 }
 
 const fs = require('fs');
-const parsePo = require('./lib/po-reader');
+const parsePo = require('./build-tools/po-reader');
 const appStrings = {
     mmseqs: parsePo(fs.readFileSync('./frontend/assets/mmseqs.en_US.po', { encoding: 'utf8', flag: 'r' })).translations,
     foldseek: parsePo(fs.readFileSync('./frontend/assets/foldseek.en_US.po', { encoding: 'utf8', flag: 'r' })).translations,
@@ -75,6 +75,13 @@ module.exports = (env, argv) => {
                 {
                     test: /\.js$/,
                     loader: 'babel-loader',
+                    options: {
+                        // frontend/lib has its own package.json ({"type":"module"}, so Node can load
+                        // those files directly — see headless/). That package.json is also a Babel
+                        // package boundary: without listing frontend/lib as a babelrc root, Babel
+                        // finds no config for anything under it and silently ships it untranspiled.
+                        babelrcRoots: [path.resolve(__dirname, '..'), path.resolve(__dirname, 'lib')],
+                    },
                     include: [
                         path.resolve(__dirname),
                         path.resolve(__dirname, '../node_modules/vuetify/src')
@@ -131,7 +138,7 @@ module.exports = (env, argv) => {
                 {
                     test: /\.po$/,
                     use: [
-                        { loader: path.resolve('./frontend/lib/po-loader.js') },
+                        { loader: path.resolve('./frontend/build-tools/po-loader.js') },
                     ]
                 }
             ]

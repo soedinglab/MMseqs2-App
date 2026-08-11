@@ -25,6 +25,14 @@ function tryLinkTargetToDB(target, db) {
           .replaceAll(/[0-9]+DI_/g, "") // For interface cluster, should we link to cluster web?
           .split("_")[0]
       );
+    } else if (res.startsWith("humanppi")) {
+      return (
+        "http://prodata.swmed.edu/humanPPI/results/" +
+        target
+          .split("__")
+          .map((half) => half.split("_")[0])
+          .join("_")
+      );
     } else if (
       res.startsWith("uniclust") ||
       res.startsWith("uniprot") ||
@@ -42,23 +50,30 @@ function tryLinkTargetToDB(target, db) {
 
     if (APP == "foldseek") {
       if (target.startsWith("AF-")) {
-        let accession = target.replaceAll(
-          /-F[0-9]+-model_v[0-9]+(\.(cif|pdb))?(\.gz)?(_[A-Z0-9]+)?$/g,
+        // Old: AF-<uniprot>-F1-model_v4, entry keyed on the bare accession.
+        // New: AF-<id>-model_v1, entry keyed on the whole AF-<id>, no UniProt.
+        // Interface entries append _<chain1>_<chain2>_<side>.
+        const stem = target.replaceAll(
+          /-(F[0-9]+-)?model_v[0-9]+(\.(cif|pdb))?(\.gz)?(_[A-Za-z0-9]+){0,3}$/g,
           "",
         );
-        accession = accession.substring(3);
-        return [
+        const isUniProt = /-F[0-9]+-model_v/.test(target);
+        const accession = isUniProt ? stem.substring(3) : stem;
+        const links = [
           {
             label: "AFDB",
             accession: accession,
             href: "https://www.alphafold.ebi.ac.uk/entry/" + accession,
           },
-          {
+        ];
+        if (isUniProt) {
+          links.push({
             label: "UniProt",
             accession: accession,
             href: "https://www.uniprot.org/uniprot/" + accession,
-          },
-        ];
+          });
+        }
+        return links;
       } else if (target.startsWith("GMGC")) {
         return (
           "https://gmgc.embl.de/search.cgi?search_id=" +
@@ -198,18 +213,21 @@ export function parseResults(data) {
       empty++;
     }
     total++;
-    const grouped = {};
+    const isGrouped =
+      result.alignments != null && !Array.isArray(result.alignments);
+    const grouped = isGrouped ? result.alignments : {};
     for (let j in result.alignments) {
       for (let k in result.alignments[j]) {
         let item = result.alignments[j][k];
-        let split = item.target.split(" ");
-        item.target = split[0];
-        item.description = split.slice(1).join(" ");
+        if (item.description === undefined) {
+          let split = item.target.split(" ");
+          item.description = split.slice(1).join(" ");
+          item.href = tryLinkTargetToDB(split[0], db);
+          item.target = tryFixTargetName(split[0], db);
+        }
         if (item.description.length > 1) {
           result.hasDescription = true;
         }
-        item.href = tryLinkTargetToDB(item.target, db);
-        item.target = tryFixTargetName(item.target, db);
         item.id = "result-" + i + "-" + j;
         item.active = false;
         if (APP != "foldseek" || data.mode != "tmalign") {
@@ -232,12 +250,13 @@ export function parseResults(data) {
         if ("taxId" in item) {
           result.hasTaxonomy = true;
         }
-        let groupId = item.complexid ?? k;
-        // console.log("Group ID: " + groupId + " complexid: " + item.complexid + " j: " + j)
-        if (!grouped[groupId]) {
-          grouped[groupId] = [];
+        if (!isGrouped) {
+          let groupId = item.complexid ?? k;
+          if (!grouped[groupId]) {
+            grouped[groupId] = [];
+          }
+          grouped[groupId].push(item);
         }
-        grouped[groupId].push(item);
       }
     }
     result.alignments = grouped;
@@ -318,6 +337,48 @@ function computeInterresidueDist(splitTarget) {
   }
 
   return dist;
+}
+
+export function parseResultsRiboseek(data) {
+  let empty = 0;
+  let total = 0;
+  for (let i in data.results) {
+    let result = data.results[i];
+    let db = result.db;
+    result.hasDescription = false;
+    result.hasTaxonomy = false;
+    if (result.alignments == null) {
+      empty++;
+    }
+    total++;
+    const raw = result.alignments || [];
+    const groups = raw.length > 0 && Array.isArray(raw[0]) ? raw : [raw];
+    const hits = [];
+    for (const group of groups) {
+      for (const item of group) {
+        if (item.description === undefined) {
+          const split = item.target.split(" ");
+          item.target = tryFixTargetName(split[0], db);
+          item.description = split.slice(1).join(" ");
+          item.href = tryLinkTargetToDB(split[0], db);
+        }
+        if (item.description.length > 1) {
+          result.hasDescription = true;
+        }
+        item.id = "result-" + i + "-" + hits.length;
+        item.evalStr = typeof item.eval === "string" ? item.eval : item.eval.toExponential(2);
+        item.strand = item.qStartPos > item.qEndPos ? "-" : "+";
+        if ("taxId" in item) {
+          result.hasTaxonomy = true;
+        }
+        hits.push(item);
+      }
+    }
+    result.alignments = hits;
+  }
+  return total != 0 && empty / total == 1
+    ? { results: [], mode: data.mode }
+    : data;
 }
 
 export function parseResultsFoldDisco(data) {
