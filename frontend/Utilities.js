@@ -1,3 +1,12 @@
+/*
+ * File: Utilities.js
+ * Project: mmseqs-app
+ * File Created: 12th Aug 2026
+ * Author: Rachel Seongeun Kim (seamustard52@gmail.com)
+ * -----
+ * Copyright: Rachel Seongeun Kim
+ */
+
 import { Selection, Matrix4, PdbWriter } from "ngl";
 import { ungzip } from "pako";
 
@@ -14,6 +23,14 @@ function tryLinkTargetToDB(target, db) {
           .replaceAll(/\.(cif|pdb|ent)(\.gz)?/g, "")
           .replaceAll(/[0-9]+DI_/g, "") // For interface cluster, should we link to cluster web?
           .split("_")[0]
+      );
+    } else if (res.startsWith("humanppi")) {
+      return (
+        "http://prodata.swmed.edu/humanPPI/results/" +
+        target
+          .split("__")
+          .map((half) => half.split("_")[0])
+          .join("_")
       );
     } else if (
       res.startsWith("uniclust") ||
@@ -32,23 +49,30 @@ function tryLinkTargetToDB(target, db) {
 
     if (__APP__ == "foldseek") {
       if (target.startsWith("AF-")) {
-        let accession = target.replaceAll(
-          /-F[0-9]+-model_v[0-9]+(\.(cif|pdb))?(\.gz)?(_[A-Z0-9]+)?$/g,
+        // Old: AF-<uniprot>-F1-model_v4, entry keyed on the bare accession.
+        // New: AF-<id>-model_v1, entry keyed on the whole AF-<id>, no UniProt.
+        // Interface entries append _<chain1>_<chain2>_<side>.
+        const stem = target.replaceAll(
+          /-(F[0-9]+-)?model_v[0-9]+(\.(cif|pdb))?(\.gz)?(_[A-Za-z0-9]+){0,3}$/g,
           "",
         );
-        accession = accession.substring(3);
-        return [
+        const isUniProt = /-F[0-9]+-model_v/.test(target);
+        const accession = isUniProt ? stem.substring(3) : stem;
+        const links = [
           {
             label: "AFDB",
             accession: accession,
             href: "https://www.alphafold.ebi.ac.uk/entry/" + accession,
           },
-          {
+        ];
+        if (isUniProt) {
+          links.push({
             label: "UniProt",
             accession: accession,
             href: "https://www.uniprot.org/uniprot/" + accession,
-          },
-        ];
+          });
+        }
+        return links;
       } else if (target.startsWith("GMGC")) {
         return (
           "https://gmgc.embl.de/search.cgi?search_id=" +
