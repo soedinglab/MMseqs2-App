@@ -11,7 +11,10 @@ export {
 } from './client.js';
 
 export { ResultTable } from './results.js';
-export { foldMasonColumns, foldMasonColumnSummary, compressRanges, COLUMN_METRICS } from './msa.js';
+export {
+    foldMasonColumns, foldMasonColumnSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
+    compressRanges, COLUMN_METRICS,
+} from './msa.js';
 export { Store, defaultStateDir, summarizeRequest } from './store.js';
 export { checkMotif, assertMotif, MOTIF_MAX_RESIDUES } from './motif.js';
 

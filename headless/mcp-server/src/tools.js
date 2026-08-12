@@ -8,7 +8,10 @@
 //
 // Handlers return plain objects; server.js does the JSON-and-content-block wrapping.
 
-import { UnsupportedOnDeploymentError, COLUMN_METRICS } from 'mmseqs2-agent-core';
+import {
+    UnsupportedOnDeploymentError, COLUMN_METRICS,
+    foldMasonEntries, foldMasonFasta, foldMasonCoordinates,
+} from 'mmseqs2-agent-core';
 
 /**
  * Submit, then optionally wait. A wait that runs out is not a failure: the ticket exists and the
@@ -42,6 +45,19 @@ const WAIT = {
 };
 
 export function createTools(client) {
+    /** The four submit paths, shared by the search tools and submit_ticket. */
+    const submitByTool = async (tool, args) => {
+        const submit = {
+            foldseek: () => client.submitFoldseekSearch(args),
+            multimer: () => client.submitMultimerSearch(args),
+            foldmason: () => client.submitFoldMason(args),
+            folddisco: () => client.submitFoldDisco(args),
+        }[tool];
+        if (!submit) throw new Error(`unknown tool: ${tool}`);
+        const ticket = await submit();
+        return { ticketId: ticket.id, status: ticket.status ?? 'PENDING' };
+    };
+
     const tools = [
         {
             name: 'list_databases',
@@ -149,7 +165,10 @@ export function createTools(client) {
 
         {
             name: 'submit_ticket',
-            description: 'Submit any of the above without waiting. Returns as soon as the job is queued.',
+            description:
+                'Submit any of the above without waiting. Returns as soon as the job is queued. Pass ' +
+                'validateOnly:true to run every check — databases, motif against the query, taxon ' +
+                'filter — and see what would be sent, without queueing anything.',
             inputSchema: {
                 type: 'object',
                 required: ['tool'],
@@ -163,24 +182,20 @@ export function createTools(client) {
                     iterativeSearch: { type: 'boolean' },
                     taxFilter: { type: 'string' },
                     email: { type: 'string' },
+                    validateOnly: { type: 'boolean', description: 'Check without submitting.' },
                 },
             },
-            async handler({ tool, ...rest }) {
-                const submit = {
-                    foldseek: () => client.submitFoldseekSearch(rest),
-                    multimer: () => client.submitMultimerSearch(rest),
-                    foldmason: () => client.submitFoldMason(rest),
-                    folddisco: () => client.submitFoldDisco(rest),
-                }[tool];
-                if (!submit) throw new Error(`unknown tool: ${tool}`);
-                const ticket = await submit();
-                return { ticketId: ticket.id, status: ticket.status ?? 'PENDING' };
+            async handler({ tool, validateOnly = false, ...rest }) {
+                if (validateOnly) return client.validateSubmission({ tool, ...rest });
+                return submitByTool(tool, rest);
             },
         },
 
         {
             name: 'get_ticket_status',
-            description: 'Current status of a ticket, and what kind of job it is.',
+            description:
+                'Current status of a ticket, what kind of job it is, and the page URL where a human ' +
+                'would read it.',
             inputSchema: {
                 type: 'object',
                 required: ['ticketId'],
@@ -191,7 +206,8 @@ export function createTools(client) {
                     client.pollTicket(ticketId),
                     client.getTicketType(ticketId).catch(() => null),
                 ]);
-                return { ticketId, status, jobType: type?.type ?? null };
+                const resultUrl = await client.resultUrl(ticketId).catch(() => null);
+                return { ticketId, status, jobType: type?.type ?? null, resultUrl };
             },
         },
 
@@ -208,6 +224,12 @@ export function createTools(client) {
                 properties: {
                     ticketId: { type: 'string' },
                     entry: { type: 'number', description: 'Query index for a multi-query ticket. Foldseek only.' },
+                    view: {
+                        type: 'string', enum: ['rows', 'summary'],
+                        description: '"rows" (default) returns hits. "summary" surveys every database ' +
+                                     'without transporting rows — totals, the sort key\'s ' +
+                                     'best/median/worst, and a small top sample. Start there.',
+                    },
                     db: { description: 'Database name, index, array of either, or "*".' },
                     sortKey: { type: 'string' },
                     sortOrder: { type: 'number' },
@@ -215,53 +237,111 @@ export function createTools(client) {
                     limit: { type: 'number' },
                     includeChains: { type: 'boolean' },
                     fields: { type: 'array', items: { type: 'string' } },
+                    topN: { type: 'number', description: 'summary view: sample per database, default 3; 0 for stats only.' },
+                    merged: {
+                        type: 'boolean',
+                        description: 'summary view: add one ranking across every database. Up to 100 ' +
+                                     'hits per database enter the pool regardless of topN.',
+                    },
+                    mergedLimit: { type: 'number', description: 'summary view: merged rows to return; defaults to topN.' },
                     taxonFilter: {
                         type: 'object',
                         properties: {
-                            taxId: { type: ['string', 'number'] },
-                            includeDescendants: { type: 'boolean' },
+                            taxon: {
+                                type: ['string', 'number', 'array'],
+                                description: 'A taxId, a taxon name, or an array of either. Names are ' +
+                                             'resolved within this database\'s own tree.',
+                            },
+                            taxId: { type: ['string', 'number'], description: 'Alias for taxon.' },
+                            includeDescendants: {
+                                type: 'boolean',
+                                description: 'Default true. Hits carry leaf taxIds, so an internal ' +
+                                             'node without its subtree matches nothing.',
+                            },
                         },
                         description: 'Keep only hits under this taxon. Applied before sorting and ' +
                                      'paging, so total/returned describe the filtered set.',
                     },
+                    motifFilter: {
+                        type: ['string', 'array'],
+                        description: 'FoldDisco only: keep hits whose matched-query-residue pattern ' +
+                                     'equals this ("1" matched, "0" missing). See the summary view ' +
+                                     'for which patterns exist.',
+                    },
                 },
             },
-            async handler({ ticketId, entry = 0, ...opts }) {
-                const { type } = await client.getTicketType(ticketId);
-                const table = type === 'folddisco'
-                    ? await client.getFoldDiscoResult(ticketId)
-                    : await client.getResult(ticketId, entry);
-                return table.getTable(opts);
+            async handler({ ticketId, entry = 0, view = 'rows', ...opts }) {
+                const table = await client.getResultTable(ticketId, { entry });
+                return view === 'summary' ? table.getTableSummary(opts) : table.getTable(opts);
+            },
+        },
+
+        {
+            name: 'get_taxonomy',
+            description:
+                'The taxa present in one database\'s hits, depth-ordered with clade read counts — ' +
+                'what to filter on. Names from here can be passed straight to get_result_table\'s ' +
+                'taxonFilter. A database without taxonomy says so rather than erroring.',
+            inputSchema: {
+                type: 'object',
+                required: ['ticketId'],
+                properties: {
+                    ticketId: { type: 'string' },
+                    entry: { type: 'number' },
+                    db: { description: 'Database name or index. Required unless the ticket has one.' },
+                    minCladeReads: { type: 'number', description: 'Drop taxa below this count.' },
+                    maxRows: { type: 'number', description: 'Default 200.' },
+                },
+            },
+            handler({ ticketId, ...opts }) {
+                return client.getTaxonomy(ticketId, opts);
             },
         },
 
         {
             name: 'get_foldmason_result',
             description:
-                'The alignment for a completed FoldMason ticket: entries, per-entry sequences and ' +
-                'the guide tree. Pass includeEntries:false for just the statistics.',
+                'The alignment for a completed FoldMason ticket. `include` picks what comes back: ' +
+                'statistics (always), entries (the roster), fasta (aligned sequences), coordinates ' +
+                '(CA traces), tree (the guide tree). Coordinates are never included unless asked for ' +
+                '— they dominate the response — and default to one entry unless you name others.',
             inputSchema: {
                 type: 'object',
                 required: ['ticketId'],
                 properties: {
                     ticketId: { type: 'string' },
-                    includeEntries: { type: 'boolean' },
+                    include: {
+                        type: 'array',
+                        items: { type: 'string', enum: ['statistics', 'entries', 'fasta', 'coordinates', 'tree'] },
+                        description: 'Default ["statistics","entries"].',
+                    },
+                    representation: {
+                        type: 'string', enum: ['aa', '3di'],
+                        description: 'Which alignment fasta returns. Default aa.',
+                    },
+                    entries: {
+                        type: 'array', items: { type: 'number' },
+                        description: 'Entry indices for fasta/coordinates. Omit for a range (fasta) ' +
+                                     'or the first entry (coordinates).',
+                    },
+                    offset: { type: 'number' },
+                    limit: { type: 'number', description: 'fasta only; default 500.' },
                 },
             },
-            async handler({ ticketId, includeEntries = true }) {
+            async handler({ ticketId, include = ['statistics', 'entries'], representation = 'aa', entries = null, offset = 0, limit = 500 }) {
                 const res = await client.getFoldMasonResult(ticketId);
-                const summary = {
+                const out = {
                     ticketId,
                     entryCount: res.entries?.length ?? 0,
                     columns: res.entries?.[0]?.aa?.length ?? 0,
-                    statistics: res.statistics,
                 };
-                if (!includeEntries) return summary;
-                return {
-                    ...summary,
-                    entries: (res.entries ?? []).map(e => ({ name: e.name, aa: e.aa })),
-                    tree: res.tree,
-                };
+                const want = new Set(include);
+                if (want.has('statistics')) out.statistics = res.statistics;
+                if (want.has('entries')) out.entries = foldMasonEntries(res).entries;
+                if (want.has('fasta')) out.fasta = foldMasonFasta(res, { representation, entries, offset, limit });
+                if (want.has('coordinates')) out.coordinates = foldMasonCoordinates(res, { entries });
+                if (want.has('tree')) out.tree = res.tree;
+                return out;
             },
         },
 
@@ -329,6 +409,16 @@ export function createTools(client) {
                     offset: { type: 'number' },
                     limit: { type: 'number', description: 'Default 50; 0 means every column.' },
                     precision: { type: 'number', description: 'Decimal places for floats, default 4.' },
+                    minOccupancy: {
+                        type: 'number',
+                        description: 'Drop columns whose occupancy is below this (0-1) — the gap ' +
+                                     'masking the page applies with a threshold slider.',
+                    },
+                    includeLetters: {
+                        type: 'boolean',
+                        description: 'Add each column\'s residue composition with logo fractions.',
+                    },
+                    maxLetters: { type: 'number', description: 'Letters per column, default 5.' },
                 },
             },
             handler({ ticketId, limit = 50, ...opts }) {

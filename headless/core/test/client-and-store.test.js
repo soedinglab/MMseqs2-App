@@ -252,3 +252,59 @@ test('each job type gets its own cache file', async () => {
     const entries = (await fs.readdir(store.ticketDir('AABBCCDD'))).sort();
     assert.deepEqual(entries, ['folddisco.json', 'foldmason.json', 'result-2.json']);
 });
+
+test('validateSubmission runs every check without contacting /ticket', async () => {
+    const fetchImpl = stubFetch({ '/ticket': ok({ id: 'SHOULD_NOT_HAPPEN', status: 'PENDING' }) });
+    const client = createClient({ baseUrl: 'https://example.test', stateDir: await tmpDir(), fetchImpl });
+
+    const bad = await client.validateSubmission({
+        tool: 'folddisco', query: QUERY, databases: ['afdb50'], motif: 'A9',
+    });
+    assert.equal(bad.ok, false);
+    assert.equal(bad.problems.length, 2, 'an unusable database and an absent residue are both reported');
+    assert.ok(bad.problems.some(p => /not in the query structure/.test(p)));
+    assert.ok(bad.problems.some(p => /cannot be used for folddisco/.test(p)));
+
+    const good = await client.validateSubmission({
+        tool: 'foldseek', query: QUERY, databases: ['pdb100'], taxFilter: '9606',
+    });
+    assert.equal(good.ok, true);
+    assert.deepEqual(good.problems, []);
+    assert.equal(good.would.endpoint, '/ticket');
+    assert.equal(good.would.mode, '3diaa');
+    assert.equal(good.would.queryBytes, Buffer.byteLength(QUERY));
+
+    assert.equal(fetchImpl.calls.filter(c => c.method === 'POST').length, 0,
+        'validation must never submit — that is the whole point');
+});
+
+test('validateSubmission reports the mode a multimer job would use', async () => {
+    const client = await makeClient();
+    const out = await client.validateSubmission({ tool: 'multimer', query: QUERY, databases: ['pdb100'] });
+    assert.equal(out.would.mode, 'complex-3diaa');
+
+    const clash = await client.validateSubmission({
+        tool: 'multimer', query: QUERY, databases: ['pdb100'], iterativeSearch: true,
+    });
+    assert.ok(clash.problems.some(p => /does not support iterative/.test(p)));
+});
+
+test('validateSubmission checks FoldMason file count', async () => {
+    const client = await makeClient();
+    const one = await client.validateSubmission({ tool: 'foldmason', files: [{ name: 'a.pdb', content: QUERY }] });
+    assert.equal(one.ok, false);
+    assert.match(one.problems[0], /at least 2/);
+
+    const two = await client.validateSubmission({
+        tool: 'foldmason', files: [{ name: 'a.pdb', content: QUERY }, { name: 'b.pdb', content: QUERY }],
+    });
+    assert.equal(two.ok, true);
+    assert.deepEqual(two.would.files, ['a.pdb', 'b.pdb']);
+});
+
+test('resultUrl points at the page, built from the origin rather than the api root', async () => {
+    const client = await makeClient({ '/ticket/type/': ok({ type: 'foldmasoneasymsa' }) });
+    const url = await client.resultUrl('AABBCCDD');
+    assert.equal(url, 'https://example.test/result/foldmason/AABBCCDD');
+    assert.ok(!url.includes('/api'), 'the /api prefix belongs to the endpoints, not the page');
+});

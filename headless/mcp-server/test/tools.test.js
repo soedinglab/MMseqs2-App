@@ -31,6 +31,14 @@ function stubClient(overrides = {}) {
         async waitForCompletion(t) { record('waitForCompletion', t); return { id: t, status: 'COMPLETE' }; },
         async getResult(t, e) { record('getResult', t, e); return { getTable: opts => ({ ok: true, from: 'foldseek', opts }) }; },
         async getFoldDiscoResult(t) { record('getFoldDiscoResult', t); return { getTable: opts => ({ ok: true, from: 'folddisco', opts }) }; },
+        // Dispatches the way the real client does, so the tools' behaviour is still observable
+        // through which fetch it ends up making.
+        async getResultTable(t, { entry = 0 } = {}) {
+            record('getResultTable', t, entry);
+            const { type } = await client.getTicketType(t);
+            return type === 'folddisco' ? client.getFoldDiscoResult(t) : client.getResult(t, entry);
+        },
+        async resultUrl(t) { record('resultUrl', t); return `https://example.test/result/${t}/0`; },
         async getFoldMasonResult(t) {
             record('getFoldMasonResult', t);
             return { entries: [{ name: 'a', aa: '--AB' }, { name: 'b', aa: 'CD--' }], statistics: { msaLDDT: 0.5 }, tree: '(a,b);' };
@@ -153,29 +161,36 @@ test('submit_ticket routes to each tool and rejects an unknown one', async () =>
     assert.match(bad.error, /unknown tool: blast/);
 });
 
-test('get_ticket_status reports status and job type together', async () => {
+test('get_ticket_status reports status, job type and the page URL together', async () => {
     const out = await runTool(createTools(stubClient()), 'get_ticket_status', { ticketId: 'T' });
-    assert.deepEqual(out, { ticketId: 'T', status: 'COMPLETE', jobType: 'structuresearch' });
+    assert.deepEqual(out, {
+        ticketId: 'T', status: 'COMPLETE', jobType: 'structuresearch',
+        resultUrl: 'https://example.test/result/T/0',
+    });
 });
 
-test('get_ticket_status still reports status when the job type cannot be read', async () => {
-    const client = stubClient({ async getTicketType() { throw new Error('no job.json'); } });
+test('get_ticket_status still reports status when the job type or URL cannot be read', async () => {
+    const client = stubClient({
+        async getTicketType() { throw new Error('no job.json'); },
+        async resultUrl() { throw new Error('unknown type'); },
+    });
     const out = await runTool(createTools(client), 'get_ticket_status', { ticketId: 'T' });
-    assert.deepEqual(out, { ticketId: 'T', status: 'COMPLETE', jobType: null });
+    assert.deepEqual(out, { ticketId: 'T', status: 'COMPLETE', jobType: null, resultUrl: null });
 });
 
-test('get_foldmason_result can summarise without shipping the alignment', async () => {
+test('get_foldmason_result reports the shape of the alignment by default', async () => {
     const tools = createTools(stubClient());
-    const full = await runTool(tools, 'get_foldmason_result', { ticketId: 'T' });
-    assert.equal(full.entryCount, 2);
-    assert.equal(full.columns, 4);
-    assert.equal(full.entries.length, 2);
-    assert.equal(full.tree, '(a,b);');
+    const lean = await runTool(tools, 'get_foldmason_result', { ticketId: 'T' });
+    assert.equal(lean.entryCount, 2);
+    assert.equal(lean.columns, 4);
+    assert.equal(lean.entries.length, 2);
+    assert.ok(lean.statistics, 'statistics come by default');
+    assert.equal(lean.tree, undefined, 'the tree is opt-in');
+    assert.equal(lean.fasta, undefined);
 
-    const summary = await runTool(tools, 'get_foldmason_result', { ticketId: 'T', includeEntries: false });
-    assert.equal(summary.entryCount, 2);
-    assert.equal(summary.entries, undefined);
-    assert.equal(summary.tree, undefined);
+    const statsOnly = await runTool(tools, 'get_foldmason_result', { ticketId: 'T', include: ['statistics'] });
+    assert.ok(statsOnly.statistics);
+    assert.equal(statsOnly.entries, undefined);
 });
 
 test('list_cached_tickets is a local read', async () => {
@@ -250,4 +265,93 @@ test('the column tools describe the metrics they accept', () => {
         assert.ok(metrics.items.enum.includes('conservation'), `${name} should offer conservation`);
         assert.match(tool.description, /lddt|LDDT/, `${name} should say what it ranks on`);
     }
+});
+
+test('get_result_table switches shape on view, and get_taxonomy is its own tool', async () => {
+    const client = stubClient({
+        async getResultTable(t, o) {
+            return {
+                getTable: opts => ({ shape: 'rows', opts }),
+                getTableSummary: opts => ({ shape: 'summary', opts }),
+                getTaxonomy: (db, opts) => ({ shape: 'taxonomy', db, opts }),
+            };
+        },
+        async getTaxonomy(t, o) { return { shape: 'taxonomy', ticket: t, opts: o }; },
+    });
+    const tools = createTools(client);
+
+    assert.equal((await runTool(tools, 'get_result_table', { ticketId: 'T' })).shape, 'rows');
+    const summary = await runTool(tools, 'get_result_table', { ticketId: 'T', view: 'summary', topN: 2, merged: true });
+    assert.equal(summary.shape, 'summary');
+    assert.deepEqual(summary.opts, { topN: 2, merged: true }, 'view must not leak into the options');
+
+    const tax = await runTool(tools, 'get_taxonomy', { ticketId: 'T', db: 'pdb100', maxRows: 5 });
+    assert.equal(tax.shape, 'taxonomy');
+    assert.deepEqual(tax.opts, { db: 'pdb100', maxRows: 5 });
+});
+
+test('filters reach the table untouched', async () => {
+    const client = stubClient({
+        async getResultTable() { return { getTable: opts => opts, getTableSummary: opts => opts }; },
+    });
+    const out = await runTool(createTools(client), 'get_result_table', {
+        ticketId: 'T', taxonFilter: { taxon: 'Bacteria' }, motifFilter: '1010',
+    });
+    assert.deepEqual(out.taxonFilter, { taxon: 'Bacteria' });
+    assert.equal(out.motifFilter, '1010');
+});
+
+test('submit_ticket validateOnly never submits', async () => {
+    const client = stubClient({
+        async validateSubmission(args) { return { ok: true, tool: args.tool, would: {} }; },
+    });
+    const tools = createTools(client);
+
+    const validated = await runTool(tools, 'submit_ticket',
+        { tool: 'foldseek', query: 'x', databases: ['pdb100'], validateOnly: true });
+    assert.equal(validated.ok, true);
+    assert.ok(client.calls.every(c => !c.name.startsWith('submit')), 'no submit call may be made');
+
+    await runTool(tools, 'submit_ticket', { tool: 'foldseek', query: 'x', databases: ['pdb100'] });
+    assert.ok(client.calls.some(c => c.name === 'submitFoldseekSearch'), 'without the flag it submits');
+});
+
+test('get_ticket_status carries the page URL', async () => {
+    const client = stubClient({ async resultUrl(t) { return `https://example.test/result/${t}/0`; } });
+    const out = await runTool(createTools(client), 'get_ticket_status', { ticketId: 'T' });
+    assert.equal(out.resultUrl, 'https://example.test/result/T/0');
+});
+
+test('get_foldmason_result includes only what was asked for', async () => {
+    const client = stubClient({
+        async getFoldMasonResult() {
+            return {
+                entries: [{ name: 'a', aa: 'AB', ss: 'AB', ca: '1,2,3' }, { name: 'b', aa: 'CD', ss: 'CD', ca: '4,5,6' }],
+                statistics: { msaLDDT: 0.5 }, tree: '(a,b);',
+            };
+        },
+    });
+    const tools = createTools(client);
+
+    const lean = await runTool(tools, 'get_foldmason_result', { ticketId: 'T' });
+    assert.ok(lean.statistics && lean.entries, 'statistics and the roster are the default');
+    assert.equal(lean.fasta, undefined);
+    assert.equal(lean.coordinates, undefined, 'coordinates are never default — they dominate the payload');
+    assert.equal(lean.tree, undefined);
+
+    const full = await runTool(tools, 'get_foldmason_result',
+        { ticketId: 'T', include: ['fasta', 'coordinates', 'tree'] });
+    assert.match(full.fasta.fasta, /^>a\nAB/);
+    assert.equal(full.coordinates.returned, 1, 'one entry unless others are named');
+    assert.equal(full.tree, '(a,b);');
+    assert.equal(full.statistics, undefined, 'include is exhaustive, not additive');
+});
+
+test('the column tool forwards the masking and letter options', async () => {
+    const client = stubClient({ async getFoldMasonColumns(t, opts) { return { opts }; } });
+    const { opts } = await runTool(createTools(client), 'get_foldmason_columns',
+        { ticketId: 'T', minOccupancy: 0.8, includeLetters: true, maxLetters: 3 });
+    assert.equal(opts.minOccupancy, 0.8);
+    assert.equal(opts.includeLetters, true);
+    assert.equal(opts.maxLetters, 3);
 });

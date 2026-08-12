@@ -1,0 +1,89 @@
+[
+  {
+    "opts": {
+      "db": "bfmd",
+      "topN": 3
+    },
+    "summary": {
+      "ok": true,
+      "page": "foldseek",
+      "isComplex": false,
+      "activeDatabase": null,
+      "databases": [
+        {
+          "db": "bfmd",
+          "dbIndex": 4,
+          "total": 150,
+          "visibleCount": 150,
+          "selectedCount": 0,
+          "sortKey": "score",
+          "sortOrder": -1,
+          "sortKeySource": "default",
+          "hasTaxonomy": true,
+          "metrics": {
+            "score": {
+              "best": 136,
+              "median": 25,
+              "worst": 12
+            }
+          },
+          "top": [
+            {
+              "id": "4#0",
+              "entryIndex": 0,
+              "rank": 0,
+              "target": "ProtVar_O14503_Q9GZZ1_B",
+              "score": 136
+            },
+            {
+              "id": "4#1",
+              "entryIndex": 1,
+              "rank": 0,
+              "target": "LevyLab_Q8XCZ1_V1_2_relaxed_B",
+              "score": 131
+            },
+            {
+              "id": "4#2",
+              "entryIndex": 2,
+              "rank": 0,
+              "target": "ProtVar_O75478_Q92830-2_B",
+              "score": 119
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "opts": {
+      "db": "bfmd",
+      "topN": 0
+    },
+    "summary": {
+      "ok": true,
+      "page": "foldseek",
+      "isComplex": false,
+      "activeDatabase": null,
+      "databases": [
+        {
+          "db": "bfmd",
+          "dbIndex": 4,
+          "total": 150,
+          "visibleCount": 150,
+          "selectedCount": 0,
+          "sortKey": "score",
+          "sortOrder": -1,
+          "sortKeySource": "default",
+          "hasTaxonomy": true,
+          "metrics": {
+            "score": {
+              "best": 136,
+              "median": 25,
+              "worst": 12
+            }
+          }
+        }
+      ]
+    }
+  }
+]

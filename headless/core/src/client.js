@@ -28,7 +28,10 @@ import { parseResults, parseResultsFoldDisco } from '../../../frontend/lib/parse
 import { Store, defaultStateDir, summarizeRequest } from './store.js';
 import { ResultTable } from './results.js';
 import { assertMotif } from './motif.js';
-import { foldMasonColumns, foldMasonColumnSummary } from './msa.js';
+import {
+    foldMasonColumns, foldMasonColumnSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
+} from './msa.js';
+import { pathForTicket } from '../../../frontend/lib/ticketRoute.js';
 
 export const TERMINAL_STATUSES = new Set(['COMPLETE', 'ERROR', 'UNKNOWN']);
 
@@ -325,6 +328,15 @@ export function createClient({
             return res;
         },
 
+        /**
+         * The page a human would open for this ticket. Built from `baseUrl`, the **site origin** —
+         * not from `apiRoot`, which carries the /api prefix that belongs to the endpoints.
+         */
+        async resultUrl(ticket, { entry = 0 } = {}) {
+            const { type } = await client.getTicketType(ticket).catch(() => ({ type: null }));
+            return `${client.baseUrl}${pathForTicket(ticket, type, { entry })}`;
+        },
+
         async getTicketType(ticket) {
             const cached = await store.readTicket(ticket);
             if (cached?.jobType) return { type: cached.jobType };
@@ -404,6 +416,34 @@ export function createClient({
             return foldMasonColumnSummary(await client.getFoldMasonResult(ticket), opts);
         },
 
+        async getFoldMasonFasta(ticket, opts = {}) {
+            return foldMasonFasta(await client.getFoldMasonResult(ticket), opts);
+        },
+
+        async getFoldMasonCoordinates(ticket, opts = {}) {
+            return foldMasonCoordinates(await client.getFoldMasonResult(ticket), opts);
+        },
+
+        async getFoldMasonEntries(ticket) {
+            return foldMasonEntries(await client.getFoldMasonResult(ticket));
+        },
+
+        /**
+         * Which table a ticket has, without the caller having to know its job type. Foldseek and
+         * FoldDisco results live behind different endpoints and only one of them takes an entry index.
+         */
+        async getResultTable(ticket, { entry = 0 } = {}) {
+            const { type } = await client.getTicketType(ticket);
+            return type === 'folddisco'
+                ? client.getFoldDiscoResult(ticket)
+                : client.getResult(ticket, entry);
+        },
+
+        async getTaxonomy(ticket, { entry = 0, db = null, ...opts } = {}) {
+            const table = await client.getResultTable(ticket, { entry });
+            return table.getTaxonomy(db, opts);
+        },
+
         /**
          * The whole FoldDisco result table. No entry index exists on this route, unlike Foldseek's
          * /result/{ticket}/{entry}, and no query string is sent: `database` there narrows the table
@@ -454,6 +494,63 @@ export function createClient({
 
         getQueries(ticket, { limit = 200, page = 0 } = {}) {
             return request(`/result/queries/${encodeURIComponent(ticket)}/${limit}/${page}`);
+        },
+
+        /**
+         * Run every pre-submission check and report what *would* be sent, without queueing anything.
+         *
+         * The validation already runs inside each submit call; what did not exist was a way to ask
+         * for it on its own. A caller assembling a job — resolving databases, building a motif — could
+         * otherwise only find out by submitting, which occupies a queue slot to answer a question.
+         */
+        async validateSubmission({ tool, query, databases, motif, mode = '3diaa', files, iterativeSearch = false, taxFilter = '' }) {
+            const problems = [];
+            const record = (fn) => { try { fn(); } catch (err) { problems.push(err.message); } };
+
+            if (tool === 'foldmason') {
+                record(() => {
+                    if (!Array.isArray(files) || files.length < FOLDMASON_MIN_FILES) {
+                        throw new Error(`FoldMason needs at least ${FOLDMASON_MIN_FILES} structures; `
+                            + `${Array.isArray(files) ? files.length : 0} provided`);
+                    }
+                });
+                return {
+                    ok: problems.length === 0, tool, problems,
+                    would: { endpoint: '/ticket/foldmason', files: (files ?? []).map(f => f.name) },
+                };
+            }
+
+            if (!query) problems.push(`${tool}: a query structure is required`);
+            const isComplex = tool === 'multimer' || String(mode).split('-').includes('complex');
+            const kind = tool === 'folddisco' ? 'folddisco' : (isComplex ? 'complexsearch' : 'search');
+
+            if (tool === 'folddisco') {
+                record(() => assertMotif(motif, query));
+            } else {
+                record(() => assertTaxFilter(taxFilter));
+                if (isComplex && iterativeSearch) {
+                    problems.push('multimer (complex) search does not support iterative search');
+                }
+            }
+            try {
+                await assertDatabases(databases, kind);
+            } catch (err) {
+                problems.push(err.message);
+            }
+
+            const effectiveMode = tool === 'multimer' && !String(mode).split('-').includes('complex')
+                ? `complex-${mode}` : mode;
+            return {
+                ok: problems.length === 0,
+                tool,
+                problems,
+                would: {
+                    endpoint: tool === 'folddisco' ? '/ticket/folddisco' : '/ticket',
+                    databases: databases ?? [],
+                    ...(tool === 'folddisco' ? { motif } : { mode: effectiveMode, taxFilter, iterativeSearch }),
+                    queryBytes: query ? Buffer.byteLength(query) : 0,
+                },
+            };
         },
 
         listCachedTickets(opts) { return store.listTickets(opts); },

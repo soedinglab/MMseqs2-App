@@ -163,6 +163,7 @@ function statOf(values) {
  */
 export function foldMasonColumns(foldMasonResult, {
     representation = 'aa', metrics: wanted = null, columns = null, offset = 0, limit = 0, precision = 4,
+    minOccupancy = null, includeLetters = false, maxLetters = 5,
 } = {}) {
     const prepared = prepare(foldMasonResult, representation, wanted);
     if (prepared.error) return prepared;
@@ -172,6 +173,12 @@ export function foldMasonColumns(foldMasonResult, {
     const total = metrics.occupancy.length;
 
     let indices = columns ?? Array.from({ length: total }, (_, i) => i);
+    // The data operation behind the page's gap threshold and getColumnVisibility, without the
+    // retained state or its debounce: a column is masked when too few rows have a residue in it.
+    const maskedByOccupancy = minOccupancy == null
+        ? 0
+        : indices.filter(c => metrics.occupancy[c] < minOccupancy).length;
+    if (minOccupancy != null) indices = indices.filter(c => metrics.occupancy[c] >= minOccupancy);
     indices = limit ? indices.slice(offset, offset + limit) : indices.slice(offset);
 
     const rows = indices.map(c => {
@@ -183,6 +190,22 @@ export function foldMasonColumns(foldMasonResult, {
                     glyph: metrics.consensusTie[c] === 1 ? '+' : (idx < symbols.length ? symbols[idx] : null),
                     modalFractionNonGap: round(metrics.modalFractionNonGap[c], precision),
                 };
+                if (includeLetters) {
+                    const counts = metrics.counts[c];
+                    const nonGap = counts.reduce((a, b) => a + b, 0);
+                    const present = counts
+                        .map((count, i) => ({ glyph: symbols[i], count }))
+                        .filter(l => l.count > 0)
+                        .sort((a, b) => b.count - a.count);
+                    row.consensus.nonGapCount = nonGap;
+                    // Capped like the page's getColumnTable, which slices to 5: a column can hold 20
+                    // residue types and the tail is almost always single counts.
+                    row.consensus.letters = present.slice(0, maxLetters).map(l => ({
+                        glyph: l.glyph, count: l.count,
+                        logoFraction: round(nonGap ? l.count / nonGap : 0, precision),
+                    }));
+                    if (present.length > maxLetters) row.consensus.lettersTruncated = present.length;
+                }
             } else if (metric === 'conservation') {
                 row.conservation = decodeConservation(metrics.conservationMask[c], metrics.conservationScore[c]);
             } else {
@@ -200,7 +223,103 @@ export function foldMasonColumns(foldMasonResult, {
         offset,
         returned: rows.length,
         metrics: include,
+        ...(minOccupancy != null ? { minOccupancy, maskedByOccupancy } : {}),
         rows,
+    };
+}
+
+/**
+ * FASTA for the alignment. Records keep their gap characters, so each is `totalColumns` long — the
+ * page's getFasta does the same, and column masking deliberately does not apply here.
+ */
+export function foldMasonFasta(foldMasonResult, {
+    representation = 'aa', entries: wantedEntries = null, offset = 0, limit = 500,
+} = {}) {
+    const spec = REPRESENTATIONS[representation];
+    if (!spec) {
+        return { error: `unknown representation: ${representation}`, available: Object.keys(REPRESENTATIONS) };
+    }
+    const all = foldMasonResult?.entries ?? [];
+    if (all.length === 0) return { error: 'this result has no entries' };
+
+    let indices = wantedEntries ?? all.map((_, i) => i);
+    const totalRequested = indices.length;
+    indices = limit ? indices.slice(offset, offset + limit) : indices.slice(offset);
+
+    const records = [];
+    for (const i of indices) {
+        const entry = all[i];
+        if (!entry || typeof entry[spec.field] !== 'string') continue;
+        records.push(`>${entry.name}\n${entry[spec.field]}`);
+    }
+    const fasta = records.length ? `${records.join('\n')}\n` : '';
+    return {
+        representation,
+        alphabet: spec.field,
+        totalEntries: all.length,
+        offset,
+        returned: records.length,
+        truncated: offset + records.length < totalRequested,
+        bytes: Buffer.byteLength(fasta),
+        fasta,
+    };
+}
+
+/**
+ * CA coordinates per entry.
+ *
+ * Opt-in and never returned by default: coordinates dominate the response, which is why the page's
+ * own getCoordinates() hands back only the viewer's reference row unless asked for more. `ca` stays a
+ * string of comma-separated x,y,z triplets rather than being parsed into arrays — parsing it would
+ * roughly triple the payload for no added information.
+ *
+ * `residueCount` and `alignedLength` are deliberately separate: the first counts triplets (ungapped
+ * residues), the second is the column count, and they differ.
+ */
+export function foldMasonCoordinates(foldMasonResult, { entries: wantedEntries = null } = {}) {
+    const all = foldMasonResult?.entries ?? [];
+    if (all.length === 0) return { error: 'this result has no entries' };
+
+    const indices = wantedEntries == null
+        ? [0]                       // no argument means one entry, not all of them
+        : (Array.isArray(wantedEntries) ? wantedEntries : [wantedEntries]);
+
+    const out = [];
+    for (const i of indices) {
+        const entry = all[i];
+        if (!entry) continue;
+        const ca = typeof entry.ca === 'string' ? entry.ca : '';
+        out.push({
+            index: i,
+            name: entry.name,
+            residueCount: ca ? ca.split(',').length / 3 : 0,
+            alignedLength: entry.aa?.length ?? null,
+            bytes: Buffer.byteLength(ca),
+            ca,
+        });
+    }
+    return {
+        totalEntries: all.length,
+        format: 'comma-separated x,y,z triplets, one per ungapped residue — indices are residue '
+            + 'positions, not alignment columns',
+        returned: out.length,
+        entries: out,
+    };
+}
+
+/** Entry roster: names, ungapped lengths, and which representations each carries. */
+export function foldMasonEntries(foldMasonResult) {
+    const all = foldMasonResult?.entries ?? [];
+    return {
+        totalEntries: all.length,
+        columns: all[0]?.aa?.length ?? 0,
+        entries: all.map((e, index) => ({
+            index,
+            name: e.name,
+            residueCount: typeof e.aa === 'string' ? e.aa.replace(/-/g, '').length : null,
+            alignedLength: e.aa?.length ?? null,
+            has: ['aa', 'ss', 'ca'].filter(f => typeof e[f] === 'string' && e[f].length > 0),
+        })),
     };
 }
 
