@@ -217,3 +217,37 @@ test('an unknown tool name is a result, not a crash', async () => {
     assert.equal(out.isError, true);
     assert.match(out.error, /unknown tool: no_such_tool/);
 });
+
+test('the FoldMason column tools are advertised and route to the client', async () => {
+    const client = stubClient({
+        async getFoldMasonColumns(t, opts) { return { called: 'columns', ticket: t, opts }; },
+        async getFoldMasonColumnSummary(t, opts) { return { called: 'summary', ticket: t, opts }; },
+    });
+    const tools = createTools(client);
+
+    const summary = await runTool(tools, 'get_foldmason_column_summary',
+        { ticketId: 'FM1', metrics: ['lddt', 'conservation'], primary: 'lddt' });
+    assert.equal(summary.called, 'summary');
+    assert.deepEqual(summary.opts.metrics, ['lddt', 'conservation']);
+    assert.equal(summary.opts.ticketId, undefined, 'the ticket is an argument, not an option');
+
+    const columns = await runTool(tools, 'get_foldmason_columns',
+        { ticketId: 'FM1', columns: [1, 2], metrics: ['quality'] });
+    assert.equal(columns.called, 'columns');
+    assert.deepEqual(columns.opts.columns, [1, 2]);
+    // A default cap matters here: a long alignment would otherwise return every column.
+    assert.equal(columns.opts.limit, 50);
+    assert.equal((await runTool(tools, 'get_foldmason_columns', { ticketId: 'FM1', limit: 0 })).opts.limit, 0,
+        'limit:0 must stay 0 — that is how a caller asks for everything');
+});
+
+test('the column tools describe the metrics they accept', () => {
+    const tools = createTools(stubClient());
+    for (const name of ['get_foldmason_columns', 'get_foldmason_column_summary']) {
+        const tool = tools.find(t => t.name === name);
+        const metrics = tool.inputSchema.properties.metrics;
+        assert.ok(metrics.items.enum.includes('lddt'), `${name} should offer lddt`);
+        assert.ok(metrics.items.enum.includes('conservation'), `${name} should offer conservation`);
+        assert.match(tool.description, /lddt|LDDT/, `${name} should say what it ranks on`);
+    }
+});

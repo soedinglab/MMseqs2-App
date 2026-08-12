@@ -103,6 +103,156 @@ function resolveRepId(viewer, repId) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Quality and conservation
+//
+// Ports of the WGSL `calculate_quality` and `calculate_conservation` in msa-webgpu's compute
+// shader, so the same two numbers can be produced without a GPU. Both are plain arithmetic over a
+// column's residue counts; nothing about them needed the GPU in the first place.
+//
+// The substitution matrix is never copied here — it is passed in from the alphabet's own
+// `qualityMatrix`, so a library update to BLOSUM62 or the 3Di matrix is picked up automatically.
+// The AMAS property table below is the one thing that must be transcribed, since the library keeps
+// it only inside the shader string with no data export. A test re-parses that string from the
+// installed package on every run and fails if this table drifts from it.
+// ---------------------------------------------------------------------------------------------
+
+/** Livingstone & Barton (1993) physicochemical property groups, bits 0-9. */
+export const AMAS_PROP = {
+    HYDROPHOBIC: 1 << 0, POLAR: 1 << 1, SMALL: 1 << 2, PROLINE: 1 << 3, TINY: 1 << 4,
+    ALIPHATIC: 1 << 5, AROMATIC: 1 << 6, POSITIVE: 1 << 7, NEGATIVE: 1 << 8, CHARGED: 1 << 9,
+};
+export const AMAS_PROPERTY_MASK_ALL = Object.values(AMAS_PROP).reduce((a, b) => a | b, 0);
+export const AMAS_NEGATIVE_SHIFT = 10;
+export const AMAS_IDENTITY_BIT = 1 << 20;
+export const AMAS_ALL_PROPERTIES_BIT = 1 << 21;
+
+const P = AMAS_PROP;
+/** Indexed by the amino-acid alphabet's bucket order, ARNDCQEGHILKMFPSTWYV. */
+export const AMAS_PROPERTY_BITS = [
+    /* A */ P.HYDROPHOBIC | P.SMALL | P.TINY,
+    /* R */ P.POLAR | P.POSITIVE | P.CHARGED,
+    /* N */ P.POLAR | P.SMALL,
+    /* D */ P.POLAR | P.SMALL | P.NEGATIVE | P.CHARGED,
+    /* C */ P.HYDROPHOBIC | P.SMALL,
+    /* Q */ P.POLAR,
+    /* E */ P.POLAR | P.NEGATIVE | P.CHARGED,
+    /* G */ P.HYDROPHOBIC | P.SMALL | P.TINY,
+    /* H */ P.HYDROPHOBIC | P.POLAR | P.AROMATIC | P.POSITIVE | P.CHARGED,
+    /* I */ P.HYDROPHOBIC | P.ALIPHATIC,
+    /* L */ P.HYDROPHOBIC | P.ALIPHATIC,
+    /* K */ P.POLAR | P.POSITIVE | P.CHARGED,
+    /* M */ P.HYDROPHOBIC,
+    /* F */ P.HYDROPHOBIC | P.AROMATIC,
+    /* P */ P.SMALL | P.PROLINE,
+    /* S */ P.POLAR | P.SMALL | P.TINY,
+    /* T */ P.POLAR | P.SMALL,
+    /* W */ P.HYDROPHOBIC | P.POLAR | P.AROMATIC,
+    /* Y */ P.HYDROPHOBIC | P.POLAR | P.AROMATIC,
+    /* V */ P.HYDROPHOBIC | P.SMALL | P.ALIPHATIC,
+];
+
+function popcount(n) {
+    let x = n - ((n >> 1) & 0x55555555);
+    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+    x = (x + (x >> 4)) & 0x0f0f0f0f;
+    return (x * 0x01010101) >> 24;
+}
+
+/**
+ * One column's quality: every ordered pair of residue types present, weighted by how often each
+ * occurs, scored by the substitution matrix normalised against the better of the two self-scores,
+ * then scaled by occupancy.
+ *
+ * @param {number[]} counts   per-core-bucket counts for the column
+ * @param {{qualityMatrix: ArrayLike<number>, qualityMatrixSize: number, rows: number}} opts
+ */
+export function columnQuality(counts, { qualityMatrix, qualityMatrixSize, rows }) {
+    const core = counts.length;
+    let nonGap = 0;
+    for (let i = 0; i < core; i++) nonGap += counts[i];
+    // A single residue has nothing to be compared against, so the shader reports 0 rather than a
+    // perfect score.
+    if (nonGap < 2 || rows === 0) return 0;
+
+    const occupancy = nonGap / rows;
+    let quality = 0;
+    let totalPairs = 0;
+
+    for (let i = 0; i < core; i++) {
+        const countI = counts[i];
+        if (countI === 0) continue;
+        const selfI = qualityMatrix[i * qualityMatrixSize + i];
+        for (let j = 0; j < core; j++) {
+            const countJ = counts[j];
+            if (countJ === 0) continue;
+            const pairCount = countI * countJ;          // includes i === j, as the shader does
+            const selfJ = qualityMatrix[j * qualityMatrixSize + j];
+            const denom = Math.max(selfI, selfJ);
+            const ratio = denom > 0 ? qualityMatrix[i * qualityMatrixSize + j] / denom : 0;
+            quality += pairCount * ratio;
+            totalPairs += pairCount;
+        }
+    }
+    if (totalPairs === 0) return 0;
+    return Math.max(0, (quality / totalPairs) * occupancy);
+}
+
+/**
+ * One column's conservation: the AMAS score, i.e. how many physicochemical properties every
+ * sufficiently common residue in the column shares (or all lack).
+ *
+ * Amino acids only. The shader stubs this to zero for the 3Di and nucleotide alphabets, so this is
+ * the existing in-browser contract rather than a headless shortcut.
+ *
+ * @param {number[]} counts   per-core-bucket counts for the column
+ * @param {{rows: number, gapCount: number}} opts
+ * @returns {{score: number, mask: number}}
+ */
+export function columnConservation(counts, { rows, gapCount }) {
+    const core = counts.length;
+    let nonGap = 0;
+    for (let i = 0; i < core; i++) nonGap += counts[i];
+    if (nonGap === 0 || rows === 0) return { score: 0, mask: 0 };
+
+    // A column that is a quarter gaps is not called conserved at all.
+    if (gapCount * 100 >= 25 * rows) return { score: 0, mask: 0 };
+
+    // Residues appearing in 3% of rows or fewer are treated as noise and ignored — integer
+    // division, so for small alignments the threshold is 0 and every residue counts.
+    const residueThreshold = Math.floor((rows * 3) / 100);
+
+    let observedKinds = 0;
+    let observedNonGapKindsAll = 0;
+    let conservedPositive = AMAS_PROPERTY_MASK_ALL;
+    let conservedNegative = AMAS_PROPERTY_MASK_ALL;
+
+    for (let aa = 0; aa < core; aa++) {
+        const count = counts[aa];
+        if (count === 0) continue;
+        observedNonGapKindsAll++;
+        if (count <= residueThreshold) continue;
+        const props = AMAS_PROPERTY_BITS[aa] ?? 0;
+        conservedPositive &= props;
+        conservedNegative &= AMAS_PROPERTY_MASK_ALL & ~props;
+        observedKinds++;
+    }
+
+    if (observedKinds === 0) return { score: 0, mask: 0 };
+
+    let score = popcount(conservedPositive) + popcount(conservedNegative);
+    let mask = conservedPositive | (conservedNegative << AMAS_NEGATIVE_SHIFT);
+
+    // One residue type throughout is identity, scored above the 10-property maximum.
+    if (observedNonGapKindsAll === 1) {
+        score = 11;
+        mask |= AMAS_IDENTITY_BIT;
+    } else if (score === 10) {
+        mask |= AMAS_ALL_PROPERTIES_BIT;
+    }
+    return { score, mask };
+}
+
+// ---------------------------------------------------------------------------------------------
 // CPU fallback
 // ---------------------------------------------------------------------------------------------
 
@@ -110,8 +260,13 @@ function resolveRepId(viewer, repId) {
  * Recompute the column metrics from the alignment strings. Mirrors the shader's definitions:
  * lowercase is treated as an insertion and skipped; entropy is normalised by log2(coreSize) and
  * is 0 when fewer than two non-gap residues; informationContentRaw is max(0, 1 - entropy).
+ *
+ * `alphabet` is opt-in and is what unlocks quality/conservation: they need the substitution matrix
+ * and bucket layout, which only the alphabet carries. Without it the two stay null, which is what
+ * the page's own fallback still does — see claude-plan/headless-agent-layer/checklist.md 2.6.
+ * Pass msa-webgpu's `aminoAcidAlphabet` (or `threeDIAlphabet`, quality only) to enable them.
  */
-export function computeMetricsCpu(sequences, { symbols = AA_CORE } = {}) {
+export function computeMetricsCpu(sequences, { symbols = AA_CORE, alphabet = null } = {}) {
     const rows = sequences.length;
     const cols = rows ? sequences[0].length : 0;
     const core = symbols.length;
@@ -126,17 +281,39 @@ export function computeMetricsCpu(sequences, { symbols = AA_CORE } = {}) {
     const consensusTie = new Array(cols).fill(0);
     const countsPerCol = [];
 
+    // The alphabet decides whether the matrix-dependent metrics can be computed at all, and
+    // conservation is defined for amino acids only — the shader stubs the other alphabets to zero.
+    const qualityMatrix = alphabet?.qualityMatrix ?? null;
+    const qualityMatrixSize = alphabet?.metricConfig?.qualityMatrixSize ?? null;
+    const wantQuality = !!(qualityMatrix && qualityMatrixSize);
+    const wantConservation = wantQuality && alphabet?.id === 'aa';
+    const quality = wantQuality ? new Array(cols).fill(0) : null;
+    const conservationScore = wantConservation ? new Array(cols).fill(0) : null;
+    const conservationMask = wantConservation ? new Array(cols).fill(0) : null;
+
     for (let c = 0; c < cols; c++) {
         const counts = new Array(core).fill(0);
         let nonGap = 0;
+        // Insertions are skipped rather than counted as gaps, so gaps are counted directly instead
+        // of inferred from rows - nonGap. Unknown residues share the gap bucket in the shader
+        // (unknownBucketIndex === gapBucketIndex), so they belong here too.
+        let gapCount = 0;
         for (let r = 0; r < rows; r++) {
             const ch = sequences[r][c];
             if (ch >= 'a' && ch <= 'z') continue;          // insertion column for this row
             const i = index.get(ch);
-            if (i === undefined) continue;                  // gap / unknown
+            if (i === undefined) { gapCount++; continue; }  // gap / unknown
             counts[i]++; nonGap++;
         }
         countsPerCol.push(counts);
+        if (wantQuality) {
+            quality[c] = columnQuality(counts, { qualityMatrix, qualityMatrixSize, rows });
+        }
+        if (wantConservation) {
+            const { score, mask } = columnConservation(counts, { rows, gapCount });
+            conservationScore[c] = score;
+            conservationMask[c] = mask;
+        }
         occupancy[c] = rows > 0 ? nonGap / rows : 0;
 
         let max = 0, argmax = core, ties = 0;
@@ -163,9 +340,9 @@ export function computeMetricsCpu(sequences, { symbols = AA_CORE } = {}) {
     return {
         occupancy, entropy, modalFractionNonGap, informationContentRaw,
         consensusIndex, consensusTie,
-        // quality and conservation need the substitution matrices the shader carries; the
-        // fallback reports them as absent rather than inventing numbers.
-        quality: null, conservationScore: null, conservationMask: null,
+        // Null unless an alphabet was supplied: these need its substitution matrix and bucket
+        // layout, and reporting a number computed without them would be inventing one.
+        quality, conservationScore, conservationMask,
         counts: countsPerCol, symbols,
     };
 }

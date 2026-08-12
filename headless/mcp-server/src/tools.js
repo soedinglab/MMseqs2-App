@@ -8,7 +8,7 @@
 //
 // Handlers return plain objects; server.js does the JSON-and-content-block wrapping.
 
-import { UnsupportedOnDeploymentError } from 'mmseqs2-agent-core';
+import { UnsupportedOnDeploymentError, COLUMN_METRICS } from 'mmseqs2-agent-core';
 
 /**
  * Submit, then optionally wait. A wait that runs out is not a failure: the ticket exists and the
@@ -262,6 +262,77 @@ export function createTools(client) {
                     entries: (res.entries ?? []).map(e => ({ name: e.name, aa: e.aa })),
                     tree: res.tree,
                 };
+            },
+        },
+
+        {
+            name: 'get_foldmason_column_summary',
+            description:
+                'Where to look in a FoldMason alignment. Gives each metric\'s spread, the notable ' +
+                'columns (identity, fully conserved, unconserved) as compressed ranges, the ' +
+                'best-scoring columns, and the contiguous ranges where the ranking metric runs high, ' +
+                'best region first. Ranked on LDDT by default, since that measures how well the ' +
+                'structures superpose; the cut-off defaults to this alignment\'s own median rather ' +
+                'than a fixed bar, which would return nothing on many real alignments. Cheap at any ' +
+                'length — call this before get_foldmason_columns.',
+            inputSchema: {
+                type: 'object',
+                required: ['ticketId'],
+                properties: {
+                    ticketId: { type: 'string' },
+                    representation: {
+                        type: 'string', enum: ['aa', '3di'],
+                        description: 'Amino acid (default) or 3Di. 3Di has no conservation.',
+                    },
+                    metrics: {
+                        type: 'array', items: { type: 'string', enum: COLUMN_METRICS },
+                        description: `Any of ${COLUMN_METRICS.join(', ')}. Default: all available.`,
+                    },
+                    primary: {
+                        type: 'string', enum: COLUMN_METRICS.filter(m => m !== 'consensus'),
+                        description: 'Metric the regions and top columns are ranked on. Default lddt.',
+                    },
+                    threshold: { description: 'A number, or "auto" (default) for a quantile.' },
+                    quantile: { type: 'number', description: 'Used when threshold is "auto"; default 0.5.' },
+                    minLength: { type: 'number', description: 'Shortest run to report; default 3.' },
+                    maxRegions: { type: 'number', description: 'Regions returned, best first; default 10.' },
+                    topColumns: { type: 'number', description: 'Columns returned, best first; default 10.' },
+                },
+            },
+            handler({ ticketId, ...opts }) {
+                return client.getFoldMasonColumnSummary(ticketId, opts);
+            },
+        },
+
+        {
+            name: 'get_foldmason_columns',
+            description:
+                'Per-column metrics for a completed FoldMason alignment: LDDT, quality ' +
+                '(substitution-matrix agreement), conservation (which physicochemical properties ' +
+                'every residue in the column shares), consensus, occupancy, entropy. Pass `metrics` ' +
+                'for just the ones you need and `columns`/`offset`/`limit` to scope the range. ' +
+                'Conservation is amino-acid only.',
+            inputSchema: {
+                type: 'object',
+                required: ['ticketId'],
+                properties: {
+                    ticketId: { type: 'string' },
+                    representation: { type: 'string', enum: ['aa', '3di'] },
+                    metrics: {
+                        type: 'array', items: { type: 'string', enum: COLUMN_METRICS },
+                        description: `Any of ${COLUMN_METRICS.join(', ')}. Default: all available.`,
+                    },
+                    columns: {
+                        type: 'array', items: { type: 'number' },
+                        description: 'Specific column indices. Omit for a contiguous range.',
+                    },
+                    offset: { type: 'number' },
+                    limit: { type: 'number', description: 'Default 50; 0 means every column.' },
+                    precision: { type: 'number', description: 'Decimal places for floats, default 4.' },
+                },
+            },
+            handler({ ticketId, limit = 50, ...opts }) {
+                return client.getFoldMasonColumns(ticketId, { limit, ...opts });
             },
         },
 

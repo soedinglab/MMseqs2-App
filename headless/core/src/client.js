@@ -28,6 +28,7 @@ import { parseResults, parseResultsFoldDisco } from '../../../frontend/lib/parse
 import { Store, defaultStateDir, summarizeRequest } from './store.js';
 import { ResultTable } from './results.js';
 import { assertMotif } from './motif.js';
+import { foldMasonColumns, foldMasonColumnSummary } from './msa.js';
 
 export const TERMINAL_STATUSES = new Set(['COMPLETE', 'ERROR', 'UNKNOWN']);
 
@@ -388,6 +389,19 @@ export function createClient({
             const res = await request(`/result/foldmason/${encodeURIComponent(ticket)}`);
             await store.writeResult(ticket, 'foldmason', 0, res);
             return res;
+        },
+
+        /**
+         * Per-column metrics for an alignment — occupancy, entropy, quality, conservation. The page
+         * computes these on the GPU; these come from the CPU port in msaTracks.js, which reproduces
+         * that output column for column.
+         */
+        async getFoldMasonColumns(ticket, opts = {}) {
+            return foldMasonColumns(await client.getFoldMasonResult(ticket), opts);
+        },
+
+        async getFoldMasonColumnSummary(ticket, opts = {}) {
+            return foldMasonColumnSummary(await client.getFoldMasonResult(ticket), opts);
         },
 
         /**
