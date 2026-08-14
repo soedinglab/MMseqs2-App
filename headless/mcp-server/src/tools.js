@@ -9,8 +9,8 @@
 // Handlers return plain objects; server.js does the JSON-and-content-block wrapping.
 
 import {
-    UnsupportedOnDeploymentError, COLUMN_METRICS,
-    foldMasonEntries, foldMasonFasta, foldMasonCoordinates,
+    UnsupportedOnDeploymentError, COLUMN_METRICS, DESTINATIONS,
+    foldMasonEntries, foldMasonFasta, foldMasonCoordinates, expandRanges,
 } from 'mmseqs2-agent-core';
 
 /**
@@ -35,6 +35,17 @@ async function submitAndMaybeWait(client, submit, { waitTimeoutMs = 0 } = {}) {
 }
 
 const QUERY = { type: 'string', description: 'Query structure as PDB or mmCIF text.' };
+const ACCESSION = {
+    type: ['string', 'object'],
+    description: 'Load the query from a public database instead of passing its text: an id, or ' +
+                 '{id, source: "PDB"|"AlphaFoldDB"|"BFVD", autoMotif}. For a PDB id, a Q-BioLiP ' +
+                 'binding site is looked up and used as the motif unless one is given.',
+    properties: {
+        id: { type: 'string' },
+        source: { type: 'string', enum: ['PDB', 'AlphaFoldDB', 'BFVD'] },
+        autoMotif: { type: 'boolean' },
+    },
+};
 const DATABASES = {
     type: 'array', items: { type: 'string' },
     description: 'Database paths, as returned by list_databases (e.g. "pdb100", "afdb50").',
@@ -44,7 +55,101 @@ const WAIT = {
     description: 'Milliseconds to wait for completion. Omit or 0 to return as soon as it is queued.',
 };
 
+/**
+ * A selection, short enough to read. `size` is always exact; the entry list is capped, because the
+ * point of a selection is that it can hold a thousand rows without transporting them.
+ */
+function brief(selection, maxEntries) {
+    const full = selection.describe();
+    const entries = full.entries.slice(0, Math.max(0, maxEntries));
+    return {
+        ...full,
+        entries,
+        ...(full.entries.length > entries.length ? { entriesTruncated: full.entries.length } : {}),
+    };
+}
+
 export function createTools(client) {
+    /**
+     * Turn send_to's `from` into something with a sendTo() — a row, a saved selection, a saved column
+     * selection, or a freshly loaded accession.
+     *
+     * These are references rather than opaque handles on purpose. A row is already addressed by the
+     * `id` get_result_table prints, and a selection by the ticket and name it was saved under; both
+     * survive a restart and can be read back with the tool that made them. An encoded blob would be a
+     * second addressing scheme that says nothing about what it points at.
+     */
+    const resolveSource = async (from) => {
+        const type = from?.type;
+        if (type === 'row') {
+            const table = await client.getResultTable(from.ticketId, { entry: from.entry ?? 0 });
+            return table.row(from.rowId);
+        }
+        if (type === 'selection') {
+            const table = await client.getResultTable(from.ticketId, { entry: from.entry ?? 0 });
+            const selection = await table.loadSelection(from.name ?? 'default');
+            if (!selection) {
+                throw new Error(`no saved selection named "${from.name ?? 'default'}" on ${from.ticketId}` +
+                                ' — make one with select_hits first');
+            }
+            if (selection.size === 0) throw new Error('that selection is empty');
+            return selection;
+        }
+        if (type === 'msaColumns') {
+            const selection = await client.loadMsaSelection(from.ticketId, from.name ?? 'default');
+            if (!selection) {
+                throw new Error(`no saved column selection named "${from.name ?? 'default'}" on ` +
+                                `${from.ticketId} — make one with select_msa_columns first`);
+            }
+            return selection;
+        }
+        throw new Error(`unknown source type: ${JSON.stringify(type)} ` +
+                        '(expected row, selection or msaColumns). To search with a structure loaded ' +
+                        'by accession, pass `accession` to the search tool itself — an accession is ' +
+                        'not something a previous job produced.');
+    };
+
+    /**
+     * Resolve an `accession` argument into the query a search tool submits.
+     *
+     * This belongs on the *submit* side rather than in send_to, which the first draft had wrong.
+     * send_to forwards something a previous job produced and is addressed by that job's ticket; an
+     * accession is a public identifier that depends on no ticket at all, so putting it there made two
+     * unrelated things look like one. The page draws the same line — Load Accession is a control on
+     * the search pages, not on a result page.
+     *
+     * For a PDB id with a Q-BioLiP binding site this also fills in the motif, so a FoldDisco search on
+     * a known binding site is one call with no motif argument.
+     */
+    const queryFromAccession = async (spec) => {
+        const id = typeof spec === 'string' ? spec : spec?.id ?? spec?.accession;
+        if (!id) throw new Error('accession must be an id, or {id, source?, autoMotif?}');
+        const loaded = await client.loadAccession(id, {
+            source: (typeof spec === 'object' && spec.source) || 'PDB',
+            autoMotif: typeof spec === 'object' && spec.autoMotif !== undefined ? spec.autoMotif : true,
+        });
+        return loaded;
+    };
+
+    /**
+     * A search tool's query, from either `query` text or an `accession`. Returns the arguments to
+     * submit with, plus what was loaded, so a caller can see which entry an accession resolved to —
+     * AlphaFoldDB is a fuzzy search and can answer with a different one.
+     */
+    const resolveQuery = async ({ query, accession, motif }) => {
+        if (query && accession) {
+            throw new Error('pass either query or accession, not both');
+        }
+        if (!accession) return { query, motif };
+        const loaded = await queryFromAccession(accession);
+        return {
+            query: loaded.text,
+            // An explicit motif wins; the loaded one is a default, not an override.
+            motif: motif ?? loaded.motif,
+            loaded: loaded.describe(),
+        };
+    };
+
     /** The four submit paths, shared by the search tools and submit_ticket. */
     const submitByTool = async (tool, args) => {
         const submit = {
@@ -90,9 +195,10 @@ export function createTools(client) {
                 'support iterativeSearch.',
             inputSchema: {
                 type: 'object',
-                required: ['query', 'databases'],
+                required: ['databases'],
                 properties: {
                     query: QUERY,
+                    accession: ACCESSION,
                     databases: DATABASES,
                     mode: { type: 'string', description: 'Alignment mode, default "3diaa".' },
                     multimer: { type: 'boolean', description: 'Complex (FS-MM) search.' },
@@ -106,8 +212,11 @@ export function createTools(client) {
                     waitTimeoutMs: WAIT,
                 },
             },
-            handler(args) {
-                return submitAndMaybeWait(client, () => client.submitFoldseekSearch(args), args);
+            async handler({ accession, ...args }) {
+                const resolved = await resolveQuery({ ...args, accession });
+                const out = await submitAndMaybeWait(
+                    client, () => client.submitFoldseekSearch({ ...args, query: resolved.query }), args);
+                return resolved.loaded ? { ...out, loaded: resolved.loaded } : out;
             },
         },
 
@@ -149,17 +258,27 @@ export function createTools(client) {
                 'in the query structure.',
             inputSchema: {
                 type: 'object',
-                required: ['query', 'databases', 'motif'],
+                required: ['databases'],
                 properties: {
                     query: QUERY,
+                    accession: ACCESSION,
                     databases: { ...DATABASES, description: 'Motif-capable databases (see list_databases).' },
-                    motif: { type: 'string' },
+                    motif: {
+                        type: 'string',
+                        description: 'Required, unless an `accession` supplies one from Q-BioLiP.',
+                    },
                     email: { type: 'string' },
                     waitTimeoutMs: WAIT,
                 },
             },
-            handler(args) {
-                return submitAndMaybeWait(client, () => client.submitFoldDisco(args), args);
+            async handler({ accession, ...args }) {
+                const resolved = await resolveQuery({ ...args, accession });
+                const out = await submitAndMaybeWait(client, () => client.submitFoldDisco({
+                    ...args, query: resolved.query, motif: resolved.motif,
+                }), args);
+                return resolved.loaded
+                    ? { ...out, motif: resolved.motif, loaded: resolved.loaded }
+                    : out;
             },
         },
 
@@ -175,6 +294,7 @@ export function createTools(client) {
                 properties: {
                     tool: { type: 'string', enum: ['foldseek', 'multimer', 'foldmason', 'folddisco'] },
                     query: QUERY,
+                    accession: ACCESSION,
                     databases: DATABASES,
                     files: { type: 'array', items: { type: 'object' } },
                     motif: { type: 'string' },
@@ -185,9 +305,13 @@ export function createTools(client) {
                     validateOnly: { type: 'boolean', description: 'Check without submitting.' },
                 },
             },
-            async handler({ tool, validateOnly = false, ...rest }) {
-                if (validateOnly) return client.validateSubmission({ tool, ...rest });
-                return submitByTool(tool, rest);
+            async handler({ tool, validateOnly = false, accession, ...rest }) {
+                const resolved = await resolveQuery({ ...rest, accession });
+                const args = { ...rest, query: resolved.query, ...(resolved.motif ? { motif: resolved.motif } : {}) };
+                const out = validateOnly
+                    ? await client.validateSubmission({ tool, ...args })
+                    : await submitByTool(tool, args);
+                return resolved.loaded ? { ...out, loaded: resolved.loaded } : out;
             },
         },
 
@@ -207,7 +331,18 @@ export function createTools(client) {
                     client.getTicketType(ticketId).catch(() => null),
                 ]);
                 const resultUrl = await client.resultUrl(ticketId).catch(() => null);
-                return { ticketId, status, jobType: type?.type ?? null, resultUrl };
+                // Where this job came from, when it came from another one — the ticket, the row or
+                // columns, and how the structure was assembled. Absent for a job submitted directly.
+                // Wrapped rather than awaited directly: readTicket throws synchronously on an id the
+                // cache will not build a path from, and a ticket whose record cannot be read still has
+                // a status worth reporting.
+                const record = await Promise.resolve()
+                    .then(() => client.store.readTicket(ticketId))
+                    .catch(() => null);
+                return {
+                    ticketId, status, jobType: type?.type ?? null, resultUrl,
+                    ...(record?.derivedFrom ? { derivedFrom: record.derivedFrom } : {}),
+                };
             },
         },
 
@@ -444,21 +579,245 @@ export function createTools(client) {
         },
 
         {
+            name: 'select_hits',
+            description:
+                'Mark hits as selected, so send_to can forward them. Takes the row ids ' +
+                'get_result_table prints ("dbIndex#entryIndex") — the id carries the database, so ' +
+                'nothing else needs naming. The selection is saved against the ticket under a name ' +
+                'and survives between calls, so "add" and "remove" adjust the one already there. ' +
+                'Ids that do not resolve are rejected individually and reported, never silently ' +
+                'dropped and never fatal. Nothing is fetched by selecting.',
+            inputSchema: {
+                type: 'object',
+                required: ['ticketId'],
+                properties: {
+                    ticketId: { type: 'string' },
+                    entry: { type: 'number', description: 'Query index for a multi-query ticket.' },
+                    name: { type: 'string', description: 'Selection name; default "default".' },
+                    action: {
+                        type: 'string',
+                        enum: ['set', 'add', 'remove', 'clear', 'describe', 'list', 'delete'],
+                        description: '"set" replaces the selection (the default), "describe" reads it ' +
+                                     'back, "list" names every saved selection for this ticket.',
+                    },
+                    ids: {
+                        type: 'array', items: { type: 'string' },
+                        description: 'Row ids from get_result_table, e.g. ["8#0","8#5"]. Read them ' +
+                                     'from a table — on a multimer result the entry index is a sparse, ' +
+                                     'opaque group id, so a synthesised one is unlikely to exist.',
+                    },
+                    maxEntries: { type: 'number', description: 'Entries listed back, default 25.' },
+                },
+            },
+            async handler({ ticketId, entry = 0, name = 'default', action = 'set', ids = [], maxEntries = 25 }) {
+                const table = await client.getResultTable(ticketId, { entry });
+                if (action === 'list') return { ticketId, selections: await table.listSelections() };
+                if (action === 'delete') {
+                    return { ticketId, name, deleted: await table.deleteSelection(name) };
+                }
+
+                const existing = await table.loadSelection(name);
+                if (action === 'describe') {
+                    if (!existing) return { ticketId, name, error: `no saved selection named "${name}"` };
+                    return brief(existing, maxEntries);
+                }
+
+                // One bad id in a list of fifty should not lose the other forty-nine, and a caller
+                // deserves to know which one it was.
+                const accepted = [];
+                const rejected = [];
+                for (const id of ids) {
+                    try { accepted.push(table.row(id).id); }
+                    catch (err) { rejected.push({ id, reason: err.message }); }
+                }
+
+                const selection = existing ?? table.select([], { name });
+                if (action === 'set') selection.clear().add(accepted);
+                else if (action === 'add') selection.add(accepted);
+                else if (action === 'remove') selection.remove(accepted);
+                else if (action === 'clear') selection.clear();
+
+                await selection.save(name);
+                return { ...brief(selection, maxEntries), ...(rejected.length ? { rejected } : {}) };
+            },
+        },
+
+        {
+            name: 'select_msa_columns',
+            description:
+                'Pick columns of one FoldMason entry and see the motif they map to — the residues those ' +
+                'columns cover, as chain+number. Saved against the ticket like select_hits, so the ' +
+                'region can be widened, narrowed, read off a different entry, or given an explicit ' +
+                'motif before being sent to FoldDisco with send_to. Take the ranges straight from ' +
+                'get_foldmason_column_summary.',
+            inputSchema: {
+                type: 'object',
+                required: ['ticketId'],
+                properties: {
+                    ticketId: { type: 'string' },
+                    name: { type: 'string', description: 'Selection name; default "default".' },
+                    action: {
+                        type: 'string',
+                        enum: ['set', 'add', 'remove', 'describe', 'list', 'delete'],
+                    },
+                    entry: { type: 'number', description: 'Which entry the residues are read off. Default 0.' },
+                    columns: { type: 'array', items: { type: 'number' }, description: 'Column indices.' },
+                    ranges: {
+                        type: 'array', items: { type: 'string' },
+                        description: 'Columns as ranges ("12-28"), the form the summary reports them in.',
+                    },
+                    motif: {
+                        type: 'string',
+                        description: 'Use this motif instead of the one the columns produce. Empty string ' +
+                                     'goes back to deriving it.',
+                    },
+                },
+            },
+            async handler({ ticketId, name = 'default', action = 'set', entry, columns, ranges, motif }) {
+                if (action === 'list') return { ticketId, selections: await client.listSelections(ticketId) };
+                if (action === 'delete') {
+                    return { ticketId, name, deleted: await client.deleteSelection(ticketId, name) };
+                }
+
+                const existing = await client.loadMsaSelection(ticketId, name);
+                if (action === 'describe') {
+                    if (!existing) return { ticketId, name, error: `no saved selection named "${name}"` };
+                    return existing.describe();
+                }
+
+                const selection = existing
+                    ?? await client.selectMsaColumns(ticketId, { entry: entry ?? 0, columns: [], name });
+                if (entry !== undefined) selection.setEntry(entry);
+
+                const picked = [...(columns ?? []), ...expandRanges(ranges ?? [])];
+                if (action === 'set') selection.setColumns(picked);
+                else if (action === 'add') selection.addColumns(picked);
+                else if (action === 'remove') selection.removeColumns(picked);
+
+                if (motif !== undefined) selection.setMotif(motif);
+                await selection.save(name);
+                return selection.describe();
+            },
+        },
+
+        {
+            name: 'load_accession',
+            description:
+                'Look up a structure by accession from PDB, AlphaFoldDB or BFVD without submitting ' +
+                'anything: what it resolved to, how large it is, and — for a PDB id — the Q-BioLiP ' +
+                'binding sites, with the first already expressed as a motif. Use it to check an ' +
+                'accession before searching; to actually search with it, pass `accession` to ' +
+                'foldseek_search / folddisco_search / submit_ticket, which loads it the same way.',
+            inputSchema: {
+                type: 'object',
+                required: ['accession'],
+                properties: {
+                    accession: { type: ['string', 'array'], description: 'One id, or several.' },
+                    source: {
+                        type: 'string', enum: ['PDB', 'AlphaFoldDB', 'BFVD'],
+                        description: 'Default PDB. AlphaFoldDB is a fuzzy search, so the entry returned ' +
+                                     'can differ from the one asked for — check the name.',
+                    },
+                    autoMotif: {
+                        type: 'boolean',
+                        description: 'Q-BioLiP lookup for PDB ids. Default true; the other sources skip it.',
+                    },
+                },
+            },
+            async handler({ accession, source = 'PDB', autoMotif = true }) {
+                if (Array.isArray(accession)) {
+                    const list = await client.loadAccessions(accession, { source, autoMotif });
+                    return list.describe();
+                }
+                const loaded = await client.loadAccession(accession, { source, autoMotif });
+                return loaded.describe();
+            },
+        },
+
+        {
+            name: 'send_to',
+            description:
+                'Forward something a previous job produced into a new one: a hit row, a saved ' +
+                'selection, or a saved MSA column selection. The structure is assembled for the ' +
+                'destination — chains merged for Foldseek, encoded for FoldMason, reconstructed to ' +
+                'full atoms for FoldDisco when the original file is not available — so the caller does ' +
+                'not decide any of that, and the new ticket records which ticket it came out of. ' +
+                'FoldMason needs two or more structures, so only a selection can reach it. To search ' +
+                'with a structure from PDB/AlphaFoldDB/BFVD, pass `accession` to the search tool ' +
+                'instead — that depends on no ticket.',
+            inputSchema: {
+                type: 'object',
+                required: ['from', 'tool'],
+                properties: {
+                    from: {
+                        type: 'object',
+                        required: ['type'],
+                        description: 'What to send.',
+                        properties: {
+                            type: {
+                                type: 'string',
+                                enum: ['row', 'selection', 'msaColumns'],
+                            },
+                            ticketId: { type: 'string' },
+                            entry: { type: 'number' },
+                            rowId: { type: 'string', description: 'row: "dbIndex#entryIndex".' },
+                            name: { type: 'string', description: 'selection/msaColumns: default "default".' },
+                        },
+                    },
+                    tool: { type: 'string', enum: DESTINATIONS },
+                    databases: DATABASES,
+                    mode: { type: 'string' },
+                    motif: {
+                        type: 'string',
+                        description: 'FoldDisco. Defaults to whatever motif the source carries — a ' +
+                                     'FoldDisco hit\'s matched residues, an MSA column selection\'s ' +
+                                     'residues, a Q-BioLiP binding site.',
+                    },
+                    taxFilter: { type: 'string' },
+                    iterativeSearch: { type: 'boolean' },
+                    includeQuery: {
+                        type: 'boolean',
+                        description: 'FoldMason from a selection: also forward the original query ' +
+                                     'structure as an entry. Default true.',
+                    },
+                    email: { type: 'string' },
+                    waitTimeoutMs: WAIT,
+                },
+            },
+            async handler({ from, tool, waitTimeoutMs = 0, ...opts }) {
+                const sender = await resolveSource(from);
+                return submitAndMaybeWait(client, () => sender.sendTo({ tool, ...opts }), { waitTimeoutMs });
+            },
+        },
+
+        {
             name: 'list_cached_tickets',
             description:
                 'Tickets this agent has already seen, newest first, read from the local cache — no ' +
-                'network, and it survives restarts.',
+                'network, and it survives restarts. Each carries `derivedFrom` when it was forwarded ' +
+                'out of another ticket, so a chain of searches can be walked back; `derivedFromTicket` ' +
+                'filters to the jobs one ticket produced.',
             inputSchema: {
                 type: 'object',
-                properties: { limit: { type: 'number' } },
+                properties: {
+                    limit: { type: 'number' },
+                    derivedFromTicket: {
+                        type: 'string',
+                        description: 'Only jobs forwarded out of this ticket.',
+                    },
+                },
             },
-            async handler({ limit = 100 } = {}) {
-                const tickets = await client.listCachedTickets({ limit });
+            async handler({ limit = 100, derivedFromTicket = null } = {}) {
+                const tickets = await client.listCachedTickets({ limit: derivedFromTicket ? 10000 : limit });
+                const matching = derivedFromTicket
+                    ? tickets.filter(t => t.derivedFrom?.ticket === derivedFromTicket).slice(0, limit)
+                    : tickets;
                 return {
-                    tickets: tickets.map(t => ({
+                    tickets: matching.map(t => ({
                         ticketId: t.id, kind: t.kind, jobType: t.jobType,
                         submittedAt: t.submittedAt, lastStatus: t.lastStatus,
                         lastPolledAt: t.lastPolledAt, request: t.request,
+                        ...(t.derivedFrom ? { derivedFrom: t.derivedFrom } : {}),
                     })),
                 };
             },

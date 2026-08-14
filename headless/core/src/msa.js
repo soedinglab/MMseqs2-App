@@ -13,6 +13,9 @@
 // `selected` are absent here: both read mounted-component state and have no headless meaning.
 
 import { computeMetricsCpu, decodeConservation } from '../../../frontend/lib/msaTracks.js';
+import { getResidueIndices, entryChainMap } from '../../../frontend/lib/alignmentColumns.js';
+import { mockPDB } from '../../../frontend/lib/pdbAssembly.js';
+import { getAccession } from '../../../frontend/lib/targetName.js';
 import { aminoAcidAlphabet, threeDIAlphabet } from 'msa-webgpu';
 
 /**
@@ -119,6 +122,30 @@ export function compressRanges(columns) {
         i = j + 1;
     }
     return out;
+}
+
+/**
+ * The inverse of compressRanges: ['1-6', '8'] -> [1,2,3,4,5,6,8]. Accepts plain numbers too, so a
+ * caller can hand back exactly what a summary printed — the regions it reports are the columns worth
+ * selecting, and retyping them as a list is the step where they get miscopied.
+ */
+export function expandRanges(ranges) {
+    const out = [];
+    for (const item of ranges ?? []) {
+        if (typeof item === 'number') { out.push(item); continue; }
+        const text = String(item).trim();
+        const dash = text.indexOf('-', 1);          // index 1: a leading '-' would be a negative
+        if (dash === -1) {
+            const n = Number(text);
+            if (Number.isInteger(n)) out.push(n);
+            continue;
+        }
+        const start = Number(text.slice(0, dash));
+        const end = Number(text.slice(dash + 1));
+        if (!Number.isInteger(start) || !Number.isInteger(end)) continue;
+        for (let c = Math.min(start, end); c <= Math.max(start, end); c++) out.push(c);
+    }
+    return [...new Set(out)].sort((a, b) => a - b);
 }
 
 /**
@@ -447,4 +474,174 @@ export function foldMasonColumnSummary(foldMasonResult, {
     }
 
     return out;
+}
+
+// -------------------------------------------------------------------------------------------------
+// Selecting columns of one entry, and forwarding what they cover.
+//
+// The interesting part of an alignment is usually a few columns of it — the conserved core, the run
+// where LDDT is high. Selecting those and asking "what is this region, structurally?" is a FoldDisco
+// search over the residues they map to, and the mapping already exists: getResidueIndices turns
+// alignment columns into ungapped sequence positions, and entryChainMap turns those into (chain,
+// resno) for a multimer. Both are the page's, unchanged.
+// -------------------------------------------------------------------------------------------------
+
+/** Entry names carry an encodeMultimer suffix after this delimiter, as MSA.vue reads it back. */
+const SUFFIX_DELIMITER = '-_-_-_';
+
+function suffixOf(name) {
+    return String(name).includes(SUFFIX_DELIMITER) ? String(name).split(SUFFIX_DELIMITER)[1] : '';
+}
+
+/**
+ * A set of alignment columns within one FoldMason entry, and the query they describe.
+ *
+ * Column indices are alignment columns, not residue numbers — the two differ by every gap before
+ * them, which is what getResidueIndices exists to resolve. Columns that are gaps in this entry
+ * contribute no residue and are reported as such rather than silently dropped.
+ *
+ * Mutable and savable, for the same reason a row selection is: picking a region and picking the entry
+ * to read it off are two decisions that get revised. Going to FoldDisco and coming back to widen the
+ * region by three columns, or to take the same columns from a different entry, should not mean
+ * finding them again — so `save()` puts the choice in the ticket's cache entry, where a later process
+ * can `loadMsaSelection` it.
+ */
+export class MsaColumnSelection {
+    constructor(client, foldMasonResult, {
+        entry = 0, columns = [], ticket = null, name = 'default', motif = null, savedAt = null,
+    } = {}) {
+        this.client = client;
+        this.result = foldMasonResult;
+        this.ticket = ticket;
+        this.name = name;
+        this.savedAt = savedAt;
+        this._motif = motif;
+        this.columns = MsaColumnSelection._normalize(columns);
+        this.setEntry(entry);
+    }
+
+    static _normalize(columns) {
+        return [...new Set((columns ?? []).map(Number).filter(Number.isInteger))]
+            .sort((a, b) => a - b);
+    }
+
+    /**
+     * Read the columns off a different entry. The columns themselves are alignment coordinates and
+     * mean the same thing in every entry, so the region survives the switch; which residues it covers
+     * does not, and that is usually the point.
+     */
+    setEntry(entry) {
+        const entries = this.result?.entries ?? [];
+        const data = entries[entry];
+        if (!data) {
+            throw new Error(`no entry ${entry} in this alignment (it has ${entries.length})`);
+        }
+        this.entryIndex = entry;
+        this.entry = data;
+        this.suffix = data.suffix ?? suffixOf(data.name);
+        this.map = entryChainMap(data.aa, this.suffix);
+        return this;
+    }
+
+    setColumns(columns) { this.columns = MsaColumnSelection._normalize(columns); return this; }
+
+    addColumns(columns) {
+        this.columns = MsaColumnSelection._normalize([...this.columns, ...(columns ?? [])]);
+        return this;
+    }
+
+    removeColumns(columns) {
+        const drop = new Set((columns ?? []).map(Number));
+        this.columns = this.columns.filter(c => !drop.has(c));
+        return this;
+    }
+
+    /**
+     * Use this motif instead of the one the columns produce.
+     *
+     * The derived motif is right for "these columns", but a caller may want to drop a residue the
+     * region happens to include, or reuse a motif from elsewhere. Passing null goes back to deriving
+     * it from the columns.
+     */
+    setMotif(motif) { this._motif = motif || null; return this; }
+
+    /** 1-based residue positions in the ungapped sequence, as the page's `resnoStr` computes them. */
+    get residues() {
+        return getResidueIndices(this.entry.aa, this.columns).map(i => i + 1);
+    }
+
+    /**
+     * The motif these columns describe: `chain + original residue number` per residue.
+     *
+     * Joined with ", " like SelectToSendPanelFoldMason.vue's motifStr — the same string the page
+     * hands to the FoldDisco search page. An override set with setMotif() wins.
+     */
+    get motif() {
+        if (this._motif) return this._motif;
+        return this.residues
+            .map((i) => {
+                const chain = this.map.chains[i] ?? 'A';
+                return chain + String(i - (this.map.offsets[chain] ?? 0));
+            })
+            .join(', ');
+    }
+
+    /** Persist under `name`, scoped to this alignment's ticket. */
+    async save(name = this.name) {
+        if (!this.ticket) throw new Error('this selection has no ticket, so there is nothing to save it against');
+        this.name = name;
+        const record = await this.client.store.writeSelection(this.ticket, name, {
+            page: 'foldmason',
+            entry: this.entryIndex,
+            columns: this.columns,
+            ...(this._motif ? { motif: this._motif } : {}),
+        });
+        this.savedAt = record.updatedAt;
+        return record;
+    }
+
+    describe() {
+        const residues = this.residues;
+        return {
+            name: this.name,
+            ticket: this.ticket,
+            entry: this.entryIndex,
+            entryName: this.entry.name,
+            accession: getAccession(this.entry.name),
+            isMultimer: !!this.suffix,
+            chains: [...new Set(this.map.chains.slice(1))],
+            totalColumns: this.entry.aa?.length ?? 0,
+            selectedColumns: compressRanges(this.columns),
+            // Columns that are gaps in this entry map to no residue at all. Saying how many were
+            // dropped is the difference between "you selected a gap" and a motif quietly one short.
+            residueCount: residues.length,
+            gapColumns: this.columns.length - residues.length,
+            ...(this.savedAt ? { savedAt: this.savedAt } : { saved: false }),
+            ...(this._motif ? { motifSource: 'override' } : {}),
+            motif: this.motif,
+        };
+    }
+
+    /**
+     * A FoldMason entry's native pseudo-monomer form, which is the one origin that already has a
+     * motif attached — the columns picked it out.
+     */
+    toQuery() {
+        return this.client.query({
+            kind: 'fm-entry',
+            pdb: mockPDB(this.entry.ca, this.entry.aa.replace(/-/g, ''), 'A'),
+            suffix: this.suffix,
+            name: this.entry.name,
+            motif: this.motif || undefined,
+            ticket: this.ticket ?? undefined,
+            lineage: {
+                entry: this.entryIndex,
+                entryName: this.entry.name,
+                columns: compressRanges(this.columns),
+                ...(this.name ? { selection: this.name } : {}),
+            },
+        });
+    }
+
+    sendTo(opts) { return this.toQuery().sendTo(opts); }
 }

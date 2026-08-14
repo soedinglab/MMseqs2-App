@@ -111,3 +111,68 @@ test('live: a submitted job runs to completion and its results parse', { skip: !
     assert.equal(view.ok, true);
     assert.equal(typeof view.total, 'number');
 });
+
+// -------------------------------------------------------------------------------------------------
+// Third-party services. These need no MMseqs2 backend at all — only the network — but they are
+// opt-in for the same reason as the rest: they reach out of the process.
+// -------------------------------------------------------------------------------------------------
+
+/** Streptavidin–biotin: a documented Q-BioLiP binding site, and small enough to fetch quickly. */
+const QBIOLIP_PDB_ID = '1STP';
+/** Crambin: a real PDB entry Q-BioLiP knows and has no binding site for. */
+const NO_SITE_PDB_ID = '1CRN';
+
+test('live: loadAccession finds a Q-BioLiP binding site and comes back with a motif', { skip: !LIVE }, async () => {
+    const client = await liveClient();
+    const loaded = await client.loadAccession(QBIOLIP_PDB_ID, { source: 'PDB' });
+
+    assert.equal(loaded.motifSource, 'qbiolip');
+    assert.ok(loaded.motif.length > 0);
+    assert.ok(loaded.qbiolipSites.length > 0, 'every candidate site stays visible');
+    // The structure is swapped for the binding site's own receptor assembly, because that is the
+    // file the motif's residue numbering refers to.
+    assert.equal(loaded.resolvedFrom, 'qbiolip-assembly');
+    assert.match(loaded.name, /^1stp_1\.cif$/);
+    assert.ok(loaded.text.includes('_atom_site.'), 'an mmCIF came back');
+
+    // Every residue the motif names is one this file actually contains — the check submitFoldDisco
+    // would run. Worth asserting here because Q-BioLiP reports label chains and the app uses auth
+    // chains, and that mapping is the part that can silently produce residues nobody has.
+    const { checkMotif } = await import('../src/motif.js');
+    const checked = checkMotif(loaded.motif, loaded.text);
+    assert.equal(checked.valid, true, checked.reason);
+});
+
+test('live: an entry with no binding site loads without a motif and without an error', { skip: !LIVE }, async () => {
+    const client = await liveClient();
+    const loaded = await client.loadAccession(NO_SITE_PDB_ID, { source: 'PDB' });
+
+    assert.equal(loaded.motif, undefined);
+    assert.equal(loaded.motifSource, undefined);
+    assert.equal(loaded.qbiolipSites, undefined, 'a record with an empty site list is not a candidate');
+    assert.equal(loaded.name, `${NO_SITE_PDB_ID}.cif`, 'the plain entry, not an assembly');
+    assert.ok(loaded.text.includes('_atom_site.'));
+});
+
+test('live: autoMotif can be turned off, and non-PDB sources skip Q-BioLiP', { skip: !LIVE }, async () => {
+    const client = await liveClient();
+    const plain = await client.loadAccession(QBIOLIP_PDB_ID, { source: 'PDB', autoMotif: false });
+    assert.equal(plain.motif, undefined);
+    assert.equal(plain.name, `${QBIOLIP_PDB_ID}.cif`);
+});
+
+test('live: resolveStructureFromDb reaches the real databases', { skip: !LIVE }, async () => {
+    const client = await liveClient();
+
+    // 7A01 exceeds what the PDB format can hold, so RCSB serves no .pdb for it: this exercises the
+    // .cif fallback against RCSB itself rather than against a stub that was told to 404. (It is a
+    // 14 MB download — the smallest such entry is still large, which is the whole reason they exist.)
+    // Given a long ceiling on purpose: what is under test is which URL is chosen, not how fast
+    // a 14 MB file arrives on whatever connection this runs on.
+    const big = await client.resolveStructureFromDb('pdb100', '7a01_A', { timeoutMs: 300_000 });
+    assert.match(big.url, /7A01\.cif$/);
+    assert.ok(big.text.includes('_atom_site.'));
+
+    const small = await client.resolveStructureFromDb('pdb100', '1crn_A');
+    assert.match(small.url, /1CRN\.pdb$/, 'an entry that has a PDB-format file is taken as PDB');
+});

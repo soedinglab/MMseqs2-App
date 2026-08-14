@@ -25,6 +25,9 @@ import {
     createSortMemo, defaultSortOrder, isValidSortKey, sortIndices, rowFieldForSortKey,
 } from '../../../frontend/lib/resultSort.js';
 import { expandDescendants, findTaxonByName, summarizeTaxonomy } from '../../../frontend/lib/taxonomyFilter.js';
+import { getAccession } from '../../../frontend/lib/targetName.js';
+import { QuerySet } from './submit.js';
+import { motifFromTargetResidues } from './motif.js';
 
 const SORT_KEYS = { foldseek: FOLDSEEK_SORT_KEYS, folddisco: FOLDDISCO_SORT_KEYS };
 
@@ -38,6 +41,89 @@ const MERGE_POOL_PER_DB = 100;
 /** Sort keys whose values are not comparable between databases. See getTableSummary's `merged`. */
 const INCOMPARABLE_ACROSS_DATABASES = { eval: 'e-values depend on each database\'s search-space size' };
 
+/**
+ * How many rows a filter-spec selection may resolve to. The page's own selection cap
+ * (`selectUpperbound`), and the reason it exists is the same here: every selected row is a structure
+ * that has to be fetched and built before anything can be submitted.
+ */
+export const SELECT_MAX = 1000;
+
+/**
+ * The identifier a FoldDisco hit's structure is addressed by, per ResultFoldDisco.vue's getTargetPdb:
+ * pdb* databases address structures by filename (`6iuf.ent`), everything else by numeric dbkey.
+ *
+ * Lives here rather than in client.js because it reads a parsed row, and because client.js imports
+ * this module — the other direction would be a cycle.
+ */
+export function idForHit(hit, database) {
+    return String(database).startsWith('pdb') ? hit.target : hit.dbkey;
+}
+
+/**
+ * One hit, with the ability to become a new job's query.
+ *
+ * `toQuery()` returns a query whose spec resolves lazily, because producing it means another HTTP
+ * request — a Foldseek hit's CA coordinates are not in the result table (fetching them for every hit
+ * would make it enormous), and a FoldDisco hit's structure is served per hit. Constructing a thousand
+ * Rows therefore costs nothing until something is actually sent.
+ */
+export class Row {
+    constructor(table, dbIdx, groupId) {
+        this.table = table;
+        this.dbIdx = dbIdx;
+        this.groupId = String(groupId);
+    }
+
+    get id() { return `${this.dbIdx}#${this.groupId}`; }
+    get db() { return this.table.raw.results[this.dbIdx]?.db ?? null; }
+
+    /** The group's chains; `head` is the first, which carries the fields shared by all of them. */
+    get chains() {
+        const group = this.table.raw.results[this.dbIdx]?.alignments?.[this.groupId];
+        return Array.isArray(group) ? group : (group ? [group] : []);
+    }
+
+    get head() { return this.chains[0] ?? null; }
+
+    /** @returns {SubmittableQuery} */
+    toQuery() {
+        const { table } = this;
+        const head = this.head;
+        if (!head) throw new Error(`no hit ${this.id} in this result`);
+        const db = this.db;
+        const client = table.requireClient();
+        const label = head.target ?? head.targetname ?? this.id;
+
+        if (table.tool === 'folddisco') {
+            // A FoldDisco hit is served as the original full-atom structure, and its matched residues
+            // come back with it — so this is a 'structure' origin with a motif already attached, and
+            // needs neither reconstruction nor a database lookup (context.md §9).
+            return client.query(async () => ({
+                kind: 'structure',
+                text: await client.getFoldDiscoTargetStructure(table.ticket,
+                    { id: idForHit(head, db), database: db }),
+                name: getAccession(head.target ?? label),
+                motif: motifFromTargetResidues(head.targetresidues) || undefined,
+                db,
+                ticket: table.ticket,
+                lineage: { entry: table.entry, rowId: this.id, db },
+            }), { label });
+        }
+
+        return client.query(async () => ({
+            kind: 'chains',
+            chains: await client.getHitChains(table.ticket,
+                { entry: table.entry, db, idx: Number(this.groupId) }),
+            db,
+            accession: getAccession(head.target ?? label),
+            ticket: table.ticket,
+            lineage: { entry: table.entry, rowId: this.id, db },
+        }), { label });
+    }
+
+    sendTo(opts) { return this.toQuery().sendTo(opts); }
+}
+
 function numeric(value) {
     const n = typeof value === 'string' ? Number(value) : value;
     return Number.isFinite(n) ? n : null;
@@ -48,13 +134,24 @@ export class ResultTable {
      * @param {object} parsed  parseResults()/parseResultsFoldDisco() output
      * @param {{ticket: string, entry: number, app: string, tool?: string}} meta
      */
-    constructor(parsed, { ticket, entry = 0, app = 'foldseek', tool = 'foldseek' } = {}) {
+    constructor(parsed, { ticket, entry = 0, app = 'foldseek', tool = 'foldseek', client = null } = {}) {
         this.raw = parsed;
         this.ticket = ticket;
         this.entry = entry;
         this.app = app;
         this.tool = tool;
+        // Reading a table needs no client; forwarding a row does. A table built straight from a
+        // parsed fixture is therefore still usable for everything except sendTo.
+        this.client = client;
         this._sortMemo = createSortMemo();
+    }
+
+    requireClient() {
+        if (!this.client) {
+            throw new Error('this result table was built without a client, so its rows cannot be ' +
+                            'forwarded — use client.getResult()/getFoldDiscoResult() to get one that can');
+        }
+        return this.client;
     }
 
     get databases() { return (this.raw?.results ?? []).map(r => r.db); }
@@ -525,4 +622,198 @@ export class ResultTable {
         }
         return out;
     }
+
+    /**
+     * One row, by the `id` getTable reports (`dbIndex#entryIndex`), by `{db, idx}`, or by `[db, idx]`.
+     * The database half may be a name or an index either way.
+     */
+    row(id) {
+        let db;
+        let idx;
+        if (typeof id === 'string') {
+            const hash = id.indexOf('#');
+            if (hash === -1) throw new Error(`not a row id: ${id} (expected "db#index")`);
+            db = id.slice(0, hash);
+            idx = id.slice(hash + 1);
+        } else if (Array.isArray(id) && id.length === 2) {
+            [db, idx] = id;
+        } else if (id && typeof id === 'object') {
+            ({ db, idx } = id);
+        } else {
+            throw new Error(`not a row id: ${JSON.stringify(id)}`);
+        }
+
+        const dbIdx = this._resolveDb(db);
+        if (dbIdx === null) {
+            throw new Error(`unknown database: ${db}. Available: ${this.databases.join(', ')}`);
+        }
+        if (!(String(idx) in (this.raw.results[dbIdx].alignments || {}))) {
+            throw new Error(`no hit ${idx} in ${this.raw.results[dbIdx].db}`);
+        }
+        return new Row(this, dbIdx, idx);
+    }
+
+    rows(ids) { return (ids ?? []).map(id => this.row(id)); }
+
+    /**
+     * The row ids a spec selects.
+     *
+     * A spec is either an explicit list of ids — an array, or `{ids: [...]}` — or any getTable filter:
+     * database, sort key, limit, taxon filter, motif filter. The filter form is what makes "the top 50
+     * of this database" a single call; selecting by id alone would mean paging those 50 rows out only
+     * to hand them straight back, which is exactly why the page has selectAll/selectVisible rather
+     * than an id list. Sorting, filtering and paging all come from getTable, so a selection can never
+     * disagree with the table a caller just read.
+     */
+    selectIds(spec = {}) {
+        if (Array.isArray(spec)) return this.rows(spec).map(r => r.id);
+        if (spec.ids) return this.rows(spec.ids).map(r => r.id);
+
+        const { limit = 25, ...rest } = spec;
+        const capped = Math.max(0, Math.min(limit, SELECT_MAX));
+        const table = this.getTable({ ...rest, limit: capped, fields: ['target'] });
+        if (table.error) throw new Error(table.error);
+
+        const ids = [];
+        const take = rows => { for (const r of rows ?? []) ids.push(r.id); };
+        take(table.rows);                       // single-database alias
+        for (const d of table.databases ?? []) {
+            if (d.error) throw new Error(`${d.db}: ${d.error}`);
+            take(d.rows);
+        }
+        return ids;
+    }
+
+    /**
+     * A named set of hits to work with — inspect it, add to it, drop from it, save it, and submit when
+     * it is what you meant. Takes the same spec as selectIds.
+     *
+     * @returns {Selection}
+     */
+    select(spec = {}, { name = 'default' } = {}) {
+        return new Selection(this, this.selectIds(spec), { name });
+    }
+
+    /** A selection saved earlier, for this ticket. Null if there is none by that name. */
+    async loadSelection(name = 'default') {
+        const record = await this.requireClient().store.readSelection(this.ticket, name);
+        if (!record) return null;
+        return new Selection(this, record.ids ?? [], { name, savedAt: record.updatedAt });
+    }
+
+    /** Names and sizes of this ticket's saved selections. */
+    listSelections() {
+        return this.requireClient().store.listSelections(this.ticket);
+    }
+
+    deleteSelection(name = 'default') {
+        return this.requireClient().store.deleteSelection(this.ticket, name);
+    }
+}
+
+/**
+ * A mutable, savable set of selected rows.
+ *
+ * Deliberately not a QuerySet: choosing rows and submitting them are separate steps, and collapsing
+ * them would mean every adjustment — one more database, one hit dropped, a look at what is actually in
+ * there — required rebuilding the whole thing. This holds row ids only, which cost nothing; the
+ * structures behind them are fetched when `sendTo` runs.
+ *
+ * `save()` writes it to the ticket's cache entry, so the selection outlives the process that made it.
+ * That is not a convenience: forwarding a selection to FoldMason moves the work to a new ticket, and
+ * coming back to adjust the original choice — a different database, three hits dropped — otherwise
+ * means making the whole selection again from nothing.
+ *
+ * Ids are canonicalised on the way in, so `"BFVD#12"` and `"0#12"` are the same row and cannot both be
+ * present. Insertion order is kept: a selection reads back in the order it was built, not the order
+ * the table happens to sort in.
+ */
+export class Selection {
+    constructor(table, ids = [], { name = 'default', savedAt = null } = {}) {
+        this.table = table;
+        this.name = name;
+        this.savedAt = savedAt;
+        this._ids = new Set();
+        this.add(ids);
+    }
+
+    get ids() { return [...this._ids]; }
+    get size() { return this._ids.size; }
+
+    /** Add rows. Takes an id list or a filter spec, exactly like table.select(). */
+    add(spec) {
+        for (const id of this.table.selectIds(spec)) this._ids.add(id);
+        return this;
+    }
+
+    /** Drop rows. Same forms as add(), so a filter can be subtracted as well as added. */
+    remove(spec) {
+        for (const id of this.table.selectIds(spec)) this._ids.delete(id);
+        return this;
+    }
+
+    clear() { this._ids.clear(); return this; }
+
+    has(id) { return this._ids.has(this.table.row(id).id); }
+
+    rows() { return this.table.rows(this.ids); }
+
+    /** Persist under `name`, scoped to this ticket. Returns the stored record. */
+    async save(name = this.name) {
+        this.name = name;
+        const record = await this.table.requireClient().store.writeSelection(this.table.ticket, name, {
+            entry: this.table.entry,
+            page: this.table.tool,
+            ids: this.ids,
+        });
+        this.savedAt = record.updatedAt;
+        return record;
+    }
+
+    /**
+     * What is in the selection, without fetching a single structure.
+     *
+     * `duplicateNames` is the one thing worth checking before a FoldMason submission: the afdb
+     * databases share entries, so taking the best hit from each can select the same structure twice,
+     * and FoldMason entries are addressed by name. sendTo drops the extra copies rather than failing,
+     * but a caller that would rather pick different rows can see it here first.
+     */
+    describe() {
+        const entries = this.rows().map(r => ({
+            id: r.id,
+            db: r.db,
+            target: r.head?.target ?? r.head?.targetname ?? null,
+            name: getAccession(r.head?.target ?? ''),
+            ...(this.table.tool === 'folddisco' ? {} : { chainCount: r.chains.length }),
+        }));
+        const counts = new Map();
+        for (const e of entries) counts.set(e.name, (counts.get(e.name) ?? 0) + 1);
+        const duplicateNames = [...counts.entries()]
+            .filter(([, n]) => n > 1)
+            .map(([name, count]) => ({ name, count }));
+
+        return {
+            name: this.name,
+            ticket: this.table.ticket,
+            entry: this.table.entry,
+            page: this.table.tool,
+            size: entries.length,
+            ...(this.savedAt ? { savedAt: this.savedAt } : { saved: false }),
+            databases: [...new Set(entries.map(e => e.db))],
+            ...(duplicateNames.length ? { duplicateNames } : {}),
+            entries,
+        };
+    }
+
+    /** The queries this selection would submit. Lazily resolved — nothing is fetched by asking. */
+    toQuerySet() {
+        const client = this.table.requireClient();
+        return new QuerySet(client, this.rows().map(r => r.toQuery()), {
+            ticket: this.table.ticket,
+            entry: this.table.entry,
+            description: this.describe(),
+        });
+    }
+
+    sendTo(opts) { return this.toQuerySet().sendTo(opts); }
 }

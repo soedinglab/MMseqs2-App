@@ -10,6 +10,9 @@
 //   GET  /api/ticket/{id}       -> { id, status }
 //   GET  /api/ticket/type/{id}  -> { type }
 //   GET  /api/result/{id}/{entry}
+//   GET  /api/result/{id}/{entry}?format=brief&index=&database=   one hit's chains, with the CA
+//                                                   coordinates the full table omits — see getHitChains
+//   GET  /api/result/{id}/query                the original query file, whole (no per-entry form)
 //   GET  /api/result/foldmason/{id}
 //   GET  /api/result/folddisco/{id}            the result table
 //   GET  /api/result/folddisco/{id}?id=&database=   the same route with `id` set returns that hit's
@@ -30,7 +33,14 @@ import { ResultTable } from './results.js';
 import { assertMotif } from './motif.js';
 import {
     foldMasonColumns, foldMasonColumnSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
+    MsaColumnSelection,
 } from './msa.js';
+import {
+    fetchFoldDiscoStructure, reconstructFullAtom, resolveStructureFromDb,
+    loadAccession, loadAccessions, ensureStructureExtension,
+} from './structures.js';
+import { SubmittableQuery } from './submit.js';
+import { getChainName } from '../../../frontend/lib/targetName.js';
 import { pathForTicket } from '../../../frontend/lib/ticketRoute.js';
 
 export const TERMINAL_STATUSES = new Set(['COMPLETE', 'ERROR', 'UNKNOWN']);
@@ -111,6 +121,7 @@ export function createClient({
     stateDir = defaultStateDir(),
     basicAuth = null,
     fetchImpl = globalThis.fetch,
+    onWarning = null,
 } = {}) {
     // Never default this. A wrong-but-plausible default would send someone's structures to a public
     // production server without them choosing it.
@@ -208,15 +219,27 @@ export function createClient({
         }
     }
 
+    /**
+     * Note the submission locally, and hand back the ticket either way.
+     *
+     * The cache write is deliberately not allowed to fail the call. By the time it runs the job is
+     * already queued on the server, so throwing would report a failure that did not happen and invite
+     * the caller to submit it again — and the reasons it can fail are all environmental (an
+     * unwritable state directory, a full disk) rather than anything about the job.
+     */
     async function recordSubmission(result, kind, submitted) {
         const now = new Date().toISOString();
-        await store.writeTicket(result.id, {
-            kind,
-            submittedAt: now,
-            lastStatus: result.status ?? 'PENDING',
-            lastPolledAt: now,
-            request: summarizeRequest(submitted),
-        });
+        try {
+            await store.writeTicket(result.id, {
+                kind,
+                submittedAt: now,
+                lastStatus: result.status ?? 'PENDING',
+                lastPolledAt: now,
+                request: summarizeRequest(submitted),
+            });
+        } catch (err) {
+            onWarning?.(`submitted ${result.id}, but could not write its cache record: ${err.message}`);
+        }
         return new Ticket(client, result.id, result.status ?? 'PENDING', kind);
     }
 
@@ -226,6 +249,14 @@ export function createClient({
         app,
         cg2allUrl,
         store,
+        // The send-to path reaches third-party services (cg2all, the structure databases) that are
+        // not behind `request`, so it needs the same fetch this client was given — a test that
+        // substitutes one would otherwise find half the calls escaping to the network.
+        fetchImpl,
+        // Things worth saying that are not failures: a database URL that did not answer and was
+        // reconstructed instead, rows a batch could not build. Nothing here writes to the console
+        // on its own.
+        onWarning,
 
         /** Complete databases and their capability flags. Fetched once per client. */
         getDatabases({ refresh = false } = {}) {
@@ -386,12 +417,12 @@ export function createClient({
         /** Foldseek/plain search results, parsed with the frontend's own parseResults. */
         async getResult(ticket, entry = 0) {
             const cached = await store.readResult(ticket, 'search', entry);
-            if (cached) return new ResultTable(cached, { ticket, entry, app });
+            if (cached) return new ResultTable(cached, { ticket, entry, app, client });
 
             const raw = await request(`/result/${encodeURIComponent(ticket)}/${encodeURIComponent(entry)}`);
             const parsed = parseResults(raw);
             await store.writeResult(ticket, 'search', entry, parsed);
-            return new ResultTable(parsed, { ticket, entry, app });
+            return new ResultTable(parsed, { ticket, entry, app, client });
         },
 
         /** The backend parses FoldMason results itself; there is nothing to run parseResults on. */
@@ -429,6 +460,35 @@ export function createClient({
         },
 
         /**
+         * Columns of one alignment entry, as something submittable: the residues they cover become a
+         * FoldDisco motif on the entry's own structure.
+         */
+        async selectMsaColumns(ticket, { entry = 0, columns = [], name = 'default' } = {}) {
+            return new MsaColumnSelection(
+                client, await client.getFoldMasonResult(ticket), { entry, columns, ticket, name });
+        },
+
+        /** A column selection saved earlier against this alignment. Null if there is none. */
+        async loadMsaSelection(ticket, name = 'default') {
+            const record = await store.readSelection(ticket, name);
+            if (!record) return null;
+            if (record.page && record.page !== 'foldmason') {
+                throw new Error(`selection "${name}" on ${ticket} is a ${record.page} row selection, ` +
+                                'not a column selection');
+            }
+            return new MsaColumnSelection(client, await client.getFoldMasonResult(ticket), {
+                ticket, name,
+                entry: record.entry ?? 0,
+                columns: record.columns ?? [],
+                motif: record.motif ?? null,
+                savedAt: record.updatedAt,
+            });
+        },
+
+        listSelections(ticket) { return store.listSelections(ticket); },
+        deleteSelection(ticket, name = 'default') { return store.deleteSelection(ticket, name); },
+
+        /**
          * Which table a ticket has, without the caller having to know its job type. Foldseek and
          * FoldDisco results live behind different endpoints and only one of them takes an entry index.
          */
@@ -452,12 +512,12 @@ export function createClient({
          */
         async getFoldDiscoResult(ticket) {
             const cached = await store.readResult(ticket, 'folddisco');
-            if (cached) return new ResultTable(cached, { ticket, entry: 0, app, tool: 'folddisco' });
+            if (cached) return new ResultTable(cached, { ticket, entry: 0, app, tool: 'folddisco', client });
 
             const raw = await request(`/result/folddisco/${encodeURIComponent(ticket)}`);
             const parsed = parseResultsFoldDisco(raw);
             await store.writeResult(ticket, 'folddisco', 0, parsed);
-            return new ResultTable(parsed, { ticket, entry: 0, app, tool: 'folddisco' });
+            return new ResultTable(parsed, { ticket, entry: 0, app, tool: 'folddisco', client });
         },
 
         /**
@@ -472,29 +532,69 @@ export function createClient({
          * Retried because the server may have to decompress the structure with foldcomp on first
          * request; the page retries this same call for the same reason.
          */
-        async getFoldDiscoTargetStructure(ticket, { id, database, retries = 4, retryDelayMs = 500 }) {
-            if (!id) throw new Error('getFoldDiscoTargetStructure({ id }) is required');
-            const qs = new URLSearchParams({ id });
-            if (database !== undefined) qs.set('database', database);
-            const path = `/result/folddisco/${encodeURIComponent(ticket)}?${qs}`;
-
-            let lastErr;
-            for (let attempt = 0; attempt < retries; attempt++) {
-                try {
-                    return await request(path, { as: 'text' });
-                } catch (err) {
-                    lastErr = err;
-                    if (attempt < retries - 1) {
-                        await new Promise(r => setTimeout(r, retryDelayMs * (attempt + 1)));
-                    }
-                }
-            }
-            throw lastErr;
+        getFoldDiscoTargetStructure(ticket, opts) {
+            return fetchFoldDiscoStructure(request, ticket, opts);
         },
 
         getQueries(ticket, { limit = 200, page = 0 } = {}) {
             return request(`/result/queries/${encodeURIComponent(ticket)}/${limit}/${page}`);
         },
+
+        /**
+         * One hit's chains, with the CA coordinates the full result omits.
+         *
+         * The result table carries alignment statistics but no coordinates — for a thousand hits it
+         * would be enormous — so forwarding a hit means asking for that one hit's `brief` record,
+         * exactly as ResultView.vue's getMockPdb does. A complex hit answers with one entry per chain.
+         *
+         * @returns {Promise<{ca: string, seq: string, chain: string, target: string}[]>}
+         */
+        async getHitChains(ticket, { entry = 0, db, idx, signal } = {}) {
+            if (db === undefined || idx === undefined) {
+                throw new Error('getHitChains({ db, idx }) is required');
+            }
+            const qs = new URLSearchParams({ format: 'brief', index: String(idx), database: String(db) });
+            const rows = await request(
+                `/result/${encodeURIComponent(ticket)}/${encodeURIComponent(entry)}?${qs}`, { signal });
+            if (!Array.isArray(rows) || rows.length === 0) {
+                throw new Error(`no hit at index ${idx} in ${db} for ticket ${ticket}`);
+            }
+            return rows.map(r => ({
+                ca: r.tCa, seq: r.tSeq, chain: getChainName(r.target), target: r.target,
+            }));
+        },
+
+        /**
+         * The ticket's own query structure, as a submittable file.
+         *
+         * The route serves the original upload (job.pdb or job.cif) whole — there is no per-entry
+         * form of it, so a multi-query ticket returns everything that was submitted. The name is
+         * given the extension matching the content, without which FoldMason drops a mmCIF entry.
+         */
+        async getQueryStructure(ticket, { signal } = {}) {
+            const text = await request(`/result/${encodeURIComponent(ticket)}/query`,
+                { as: 'text', signal });
+            return { name: ensureStructureExtension('query', text), content: text };
+        },
+
+        /**
+         * Wrap a query spec so it can be sent to a tool — the one construction path, so everything
+         * that can be forwarded (a row, an accession, a column selection) goes through here. See
+         * submit.js for the origin shapes; `spec` may be a resolver function for the ones that cost
+         * a request to produce.
+         */
+        query(spec, opts) { return new SubmittableQuery(client, spec, opts); },
+
+        reconstructFullAtom(pdbText, opts = {}) {
+            return reconstructFullAtom(pdbText, { cg2allUrl, fetchImpl, ...opts });
+        },
+
+        resolveStructureFromDb(db, accession, opts = {}) {
+            return resolveStructureFromDb(db, accession, { fetchImpl, ...opts });
+        },
+
+        loadAccession(id, opts) { return loadAccession(client, id, opts); },
+        loadAccessions(ids, opts) { return loadAccessions(client, ids, opts); },
 
         /**
          * Run every pre-submission check and report what *would* be sent, without queueing anything.
@@ -559,10 +659,6 @@ export function createClient({
     return client;
 }
 
-/**
- * The identifier getFoldDiscoTargetStructure wants for a hit, per ResultFoldDisco.vue's getTargetPdb:
- * pdb* databases address structures by filename (`6iuf.ent`), everything else by numeric dbkey.
- */
-export function idForHit(hit, database) {
-    return String(database).startsWith('pdb') ? hit.target : hit.dbkey;
-}
+// Moved to results.js, where it reads a parsed row alongside everything else that does; re-exported
+// here because that is where callers found it.
+export { idForHit } from './results.js';

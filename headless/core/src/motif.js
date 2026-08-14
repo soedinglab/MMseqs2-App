@@ -104,6 +104,20 @@ export function checkMotif(motif, structureText) {
     return { valid: true, residues: distinct, missing: [] };
 }
 
+/**
+ * A FoldDisco hit's matched residues, as a motif.
+ *
+ * The backend reports `targetresidues` with an `_` wherever a query residue had no match, so the raw
+ * string is a positional record rather than a residue list. These are SelectToSendPanel.vue's two
+ * substitutions, which drop the placeholders at either end and collapse runs of them in the middle —
+ * leaving the residues that actually matched, in order.
+ */
+export function motifFromTargetResidues(targetResidues) {
+    return String(targetResidues ?? '')
+        .replace(/^_,(_,)*|(,_)*,_$/g, '')
+        .replace(/,_,(_,)*/g, ',');
+}
+
 export function assertMotif(motif, structureText) {
     const { valid, reason } = checkMotif(motif, structureText);
     if (!valid) throw new Error(`invalid FoldDisco motif: ${reason}`);

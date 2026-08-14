@@ -7,7 +7,12 @@
 // (files.rcsb.org, alphafold.ebi.ac.uk, bfvd.steineggerlab.workers.dev, yanglab.qd.sdu.edu.cn),
 // so they fail independently of it.
 
-import { create } from 'axios';
+// Default import, then destructure: axios is CommonJS, and while webpack resolves
+// `import { create } from 'axios'` fine, Node's ESM loader cannot detect that named export and
+// throws `SyntaxError: Named export 'create' not found`. This form works under both, which is what
+// lets the headless layer reuse fetchAccession instead of reimplementing it.
+import axios from 'axios';
+const { create } = axios;
 
 /** Always available. */
 export const BASE_SOURCES = [

@@ -10,13 +10,22 @@ export {
     FOLDMASON_MIN_FILES,
 } from './client.js';
 
-export { ResultTable } from './results.js';
+export { ResultTable, Row, Selection, SELECT_MAX } from './results.js';
 export {
     foldMasonColumns, foldMasonColumnSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
-    compressRanges, COLUMN_METRICS,
+    compressRanges, expandRanges, COLUMN_METRICS, MsaColumnSelection,
 } from './msa.js';
 export { Store, defaultStateDir, summarizeRequest } from './store.js';
-export { checkMotif, assertMotif, MOTIF_MAX_RESIDUES } from './motif.js';
+export { checkMotif, assertMotif, motifFromTargetResidues, MOTIF_MAX_RESIDUES } from './motif.js';
+export {
+    SubmittableQuery, QuerySet, provenanceRemark, ORIGINS, DESTINATIONS,
+} from './submit.js';
+export {
+    reconstructFullAtom, resolveStructureFromDb, prependRemark, ensureStructureExtension,
+    fetchFoldDiscoStructure, loadAccession, loadAccessions,
+    LoadedStructure, LoadedStructureList,
+    DatabaseNotResolvableError, StructureFetchError, ReconstructionError,
+} from './structures.js';
 
 // Re-exported from frontend/lib so a consumer of this package does not have to reach across the
 // repo for the pieces it shares with the page.

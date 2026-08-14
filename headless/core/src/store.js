@@ -112,6 +112,69 @@ export class Store {
         return this.#writeJson(this.#resultFile(id, kind, entry), value);
     }
 
+    // -----------------------------------------------------------------------------------------
+    // Selections — which hits of a ticket someone picked out, kept across processes.
+    //
+    // A selection is worth persisting for the same reason it is worth having: choosing fifty hits out
+    // of a thousand is the expensive part, and forwarding them to FoldMason ends the session that
+    // made the choice. Coming back to adjust it — drop three, add another database — should not mean
+    // making it again, and an agent has no page state to hold it in between calls.
+    //
+    // Ticket-scoped, and in their own file rather than inside ticket.json: polling merges into that
+    // record constantly, and a selection write racing a status write would cost one or the other.
+    // Ids only (~8 bytes each, capped at the selection limit), never the structures behind them.
+    // -----------------------------------------------------------------------------------------
+
+    #selectionFile(id) {
+        return path.join(this.ticketDir(id), 'selections.json');
+    }
+
+    async readSelections(id) {
+        return (await this.#readJson(this.#selectionFile(id))) ?? {};
+    }
+
+    async readSelection(id, name = 'default') {
+        return (await this.readSelections(id))[name] ?? null;
+    }
+
+    /** Merge-write, so saving one selection never drops another. */
+    async writeSelection(id, name, payload) {
+        const all = await this.readSelections(id);
+        const now = new Date().toISOString();
+        const record = {
+            ...payload,
+            name,
+            createdAt: all[name]?.createdAt ?? now,
+            updatedAt: now,
+        };
+        all[name] = record;
+        await this.#writeJson(this.#selectionFile(id), all);
+        return record;
+    }
+
+    async deleteSelection(id, name) {
+        const all = await this.readSelections(id);
+        if (!(name in all)) return false;
+        delete all[name];
+        await this.#writeJson(this.#selectionFile(id), all);
+        return true;
+    }
+
+    /**
+     * Names and sizes, without the lists themselves — enough to pick one to load.
+     *
+     * Two kinds of selection share this file: rows of a search result (`ids`) and columns of an
+     * alignment (`columns`). They belong to different tickets, so they never mix in practice, but the
+     * size is reported from whichever the record holds rather than assuming one.
+     */
+    async listSelections(id) {
+        const all = await this.readSelections(id);
+        return Object.values(all).map(({ ids, columns, ...rest }) => ({
+            ...rest,
+            size: (ids ?? columns)?.length ?? 0,
+        }));
+    }
+
     /**
      * Walk the sharded tree. There is deliberately no index file: an index is a second source of
      * truth that can disagree with the directories it describes, and the walk is cheap — records
