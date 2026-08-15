@@ -1,25 +1,5 @@
-// The sorted, paginated view of a parsed result — the headless counterpart of ResultView.vue's
-// getTable().
+// The sorted, paginated view of a parsed result
 //
-// Sorting is not reimplemented: it imports resultSort.js, the same module the mounted table and the
-// in-page API use. That file's own header explains why it exists ("the mounted table and the API
-// import from here, which is the point: they cannot drift into sorting differently"), and a second
-// implementation here would reintroduce exactly the drift it was extracted to prevent.
-//
-// Row shape follows _rowFor(), minus the fields that only mean something on a mounted page:
-//   `selected`        reads component selection state
-//   `visible`         reads the table's render-window filter
-//   `filtersApplied`  reports whether the *open tab's* filters were in play
-//   `activeDatabase`  is the open tab
-// None have a headless equivalent, and reporting e.g. visible:true would state that no filter is
-// active as though that had been checked. They are omitted rather than faked.
-//
-// Shape of the parsed object, since it is easy to guess wrong: parseResults() returns
-// `{type, queries, mode, results}`. There is no top-level `query` — the queries are
-// `queries[i].header`/`.sequence`, and each hit also names its own query. Taxonomy reports hang off
-// each database, nested one level: `results[i].taxonomyreports[0]` is the flat depth-first array,
-// which is how ResultView.vue and taxonomyFilter.js both address it.
-
 import {
     FOLDSEEK_SORT_KEYS, FOLDDISCO_SORT_KEYS,
     createSortMemo, defaultSortOrder, isValidSortKey, sortIndices, rowFieldForSortKey,
@@ -31,41 +11,18 @@ import { motifFromTargetResidues } from './motif.js';
 
 const SORT_KEYS = { foldseek: FOLDSEEK_SORT_KEYS, folddisco: FOLDDISCO_SORT_KEYS };
 
-/**
- * How many hits per database enter a merged ranking. Matches the page's constant, and is deliberately
- * independent of `topN`: pooling only each database's topN would make the cross-database ranking
- * depend on a display option, so a database holding the ten best hits would contribute three.
- */
 const MERGE_POOL_PER_DB = 100;
 
-/** Sort keys whose values are not comparable between databases. See getTableSummary's `merged`. */
 const INCOMPARABLE_ACROSS_DATABASES = { eval: 'e-values depend on each database\'s search-space size' };
 
-/**
- * How many rows a filter-spec selection may resolve to. The page's own selection cap
- * (`selectUpperbound`), and the reason it exists is the same here: every selected row is a structure
- * that has to be fetched and built before anything can be submitted.
- */
 export const SELECT_MAX = 1000;
 
-/**
- * The identifier a FoldDisco hit's structure is addressed by, per ResultFoldDisco.vue's getTargetPdb:
- * pdb* databases address structures by filename (`6iuf.ent`), everything else by numeric dbkey.
- *
- * Lives here rather than in client.js because it reads a parsed row, and because client.js imports
- * this module — the other direction would be a cycle.
- */
 export function idForHit(hit, database) {
     return String(database).startsWith('pdb') ? hit.target : hit.dbkey;
 }
 
 /**
  * One hit, with the ability to become a new job's query.
- *
- * `toQuery()` returns a query whose spec resolves lazily, because producing it means another HTTP
- * request — a Foldseek hit's CA coordinates are not in the result table (fetching them for every hit
- * would make it enormous), and a FoldDisco hit's structure is served per hit. Constructing a thousand
- * Rows therefore costs nothing until something is actually sent.
  */
 export class Row {
     constructor(table, dbIdx, groupId) {
@@ -95,9 +52,6 @@ export class Row {
         const label = head.target ?? head.targetname ?? this.id;
 
         if (table.tool === 'folddisco') {
-            // A FoldDisco hit is served as the original full-atom structure, and its matched residues
-            // come back with it — so this is a 'structure' origin with a motif already attached, and
-            // needs neither reconstruction nor a database lookup (context.md §9).
             return client.query(async () => ({
                 kind: 'structure',
                 text: await client.getFoldDiscoTargetStructure(table.ticket,
@@ -176,12 +130,6 @@ export class ResultTable {
 
     /**
      * The taxa a filter names, resolving a taxon **name** through this database's own tree.
-     *
-     * `taxon` may be an id, a name, or an array of either — matching what the page's
-     * setTaxonomyFilter accepts. Names are resolved per database on purpose: a real taxon absent
-     * from this database's report is a miss, not a match, and saying so is more useful than
-     * silently filtering to nothing.
-     *
      * @returns {{ids: string[]} | {error: string}}
      */
     _resolveTaxa(report, taxon) {
@@ -199,13 +147,6 @@ export class ResultTable {
 
     /**
      * Group ids allowed through by a taxonomy filter, or null for "no filter".
-     *
-     * The page does this by writing a visibility mask onto the mounted table and re-running its
-     * render-window bookkeeping. None of that exists here, and none of it is the actual operation:
-     * expandDescendants() already answers "every taxId under this subtree", and intersecting that
-     * with each group's own taxId is the whole filter. Applied before sorting and pagination, so
-     * `total` and `returned` describe the filtered set rather than the unfiltered one.
-     *
      * @returns {{allow: Set<string>|null, resolvedIds?: string[], error?: string}}
      */
     _taxonAllowSet(entryData, taxonFilter) {
@@ -232,10 +173,6 @@ export class ResultTable {
 
     /**
      * Group ids allowed through by a FoldDisco motif-pattern filter.
-     *
-     * The pattern is one character per query residue, "1" matched and "0" missing — the parser calls
-     * it `gaps`, which is why the page's own setter warns that its internal `gapFilter` has nothing
-     * to do with sequence gaps. Named after what it selects.
      */
     _motifAllowSet(entryData, motifFilter) {
         if (motifFilter === undefined || motifFilter === null || motifFilter === '') return null;
@@ -294,8 +231,6 @@ export class ResultTable {
             rank,
             target: head.target,
         };
-        // A FoldDisco hit is one structure, not a chain group; the page reports no chain count for
-        // it, and a constant 1 would only invite someone to read meaning into it.
         if (this.tool !== 'folddisco') row.chainCount = chains.length;
         if (entryData.hasDescription) row.description = head.description;
         if (entryData.hasTaxonomy) { row.taxId = head.taxId; row.taxName = head.taxName; }
@@ -304,14 +239,7 @@ export class ResultTable {
             row.complexttm = head.complexttm;
         }
         if (this.tool === 'folddisco') {
-            // FoldDisco hits carry their own measures, and dbkey is what addresses the structure
-            // (see idForHit) — reporting Foldseek's alignment fields here would be nulls.
-            // targetresidues/motifPattern are the matched motif on the hit itself, which is what a
-            // caller forwarding this hit onwards needs.
             Object.assign(row, {
-                // The page renames two parser fields on the way out, and the names it exposes are
-                // the ones callers know: targetname -> targetName, gaps -> motifPattern (a
-                // per-query-residue bitmask, "1" matched and "0" missing).
                 targetName: head.targetname,
                 dbkey: head.dbkey, idfscore: head.idfscore,
                 rmsd: head.rmsd, nodecount: head.nodecount,
@@ -370,8 +298,6 @@ export class ResultTable {
         }
 
         if (db === null || db === undefined) {
-            // No open tab exists here, so there is no "current" database to fall back to. One
-            // database means no ambiguity; more than one is the caller's choice to make.
             if (results.length === 1) return { targets: [0] };
             return {
                 error: {
@@ -509,10 +435,6 @@ export class ResultTable {
     /**
      * Survey every database without transporting rows — "which database has the good hits?".
      *
-     * The page API added this for a measured reason: 1,071 tokens to survey nine databases against
-     * 73,545 for the equivalent getTable({db:'*'}). Without it, finding the database worth reading
-     * means fetching rows from all of them.
-     *
      * @param {object} [opts]
      * @param {string|number|Array} [opts.db]  default '*', every database
      * @param {number} [opts.topN]   sample size per database, and the default size of the merged
@@ -537,14 +459,10 @@ export class ResultTable {
             const sorted = this._sortMemo.get(`${dbIdx}:${this.mode}`, alignments, key, order,
                 { mode: this.mode, isComplex: this.isComplex, tool: this.tool });
 
-            // The sort key is not always the row field: qtm lives in complexqtm, idf in idfscore,
-            // desc in description. Asking for the key directly returns nulls for those.
             const field = rowFieldForSortKey(key, this.tool);
             const valueAt = gid => numeric(
                 this._rowFor(dbIdx, gid, entryData, alignments, 0, false, [field])?.[field]);
 
-            // best/median/worst are free: the sort cache already holds the ordering, so these are its
-            // first, middle and last entries. Any other column would cost a full pass.
             const metrics = {
                 [key]: sorted.length
                     ? {
@@ -568,9 +486,6 @@ export class ResultTable {
                 total: sorted.length,
                 sortKey: key,
                 sortOrder: order,
-                // There is no mounted tab here, so this is always the built-in default rather than a
-                // sort anyone chose. The page reports 'active' for its open tab; saying so keeps a
-                // caller from presenting it as a user's choice.
                 sortKeySource: 'default',
                 hasTaxonomy: !!entryData.hasTaxonomy,
                 metrics,
@@ -597,12 +512,6 @@ export class ResultTable {
                 .filter(r => r._value !== null)
                 .sort((a, b) => (a._value - b._value) * (order < 0 ? -1 : 1));
 
-            // Two different numbers, kept apart. The *pool* is 100 per database and never depends on
-            // topN — pooling only each database's topN would make the cross-database ranking depend
-            // on a display option, so a database holding the ten best hits would contribute three.
-            // How many of the result are *returned* is a display choice, and follows what the caller
-            // asked for. The page returns up to 100 here regardless, which hands a caller asking for
-            // 3 a hundred rows.
             const limit = Math.min(mergedLimit ?? (topN > 0 ? topN : 100), 100);
             out.merged = {
                 sortKey: key,
@@ -612,9 +521,6 @@ export class ResultTable {
                 returned: Math.min(limit, ranked.length),
                 topN: ranked.slice(0, limit).map(({ _value, ...r }) => r),
             };
-            // Not every sort key means the same thing in two databases. The UI's own top-100 has the
-            // same property — it is a property of e-values, not of this API — but a caller reading a
-            // merged e-value ranking should know it is comparing different denominators.
             if (INCOMPARABLE_ACROSS_DATABASES[key]) {
                 out.merged.caveat = `ranking by "${key}" across databases is not strictly comparable: `
                     + INCOMPARABLE_ACROSS_DATABASES[key];
@@ -659,11 +565,7 @@ export class ResultTable {
      * The row ids a spec selects.
      *
      * A spec is either an explicit list of ids — an array, or `{ids: [...]}` — or any getTable filter:
-     * database, sort key, limit, taxon filter, motif filter. The filter form is what makes "the top 50
-     * of this database" a single call; selecting by id alone would mean paging those 50 rows out only
-     * to hand them straight back, which is exactly why the page has selectAll/selectVisible rather
-     * than an id list. Sorting, filtering and paging all come from getTable, so a selection can never
-     * disagree with the table a caller just read.
+     * database, sort key, limit, taxon filter, motif filter. 
      */
     selectIds(spec = {}) {
         if (Array.isArray(spec)) return this.rows(spec).map(r => r.id);
@@ -714,16 +616,6 @@ export class ResultTable {
 /**
  * A mutable, savable set of selected rows.
  *
- * Deliberately not a QuerySet: choosing rows and submitting them are separate steps, and collapsing
- * them would mean every adjustment — one more database, one hit dropped, a look at what is actually in
- * there — required rebuilding the whole thing. This holds row ids only, which cost nothing; the
- * structures behind them are fetched when `sendTo` runs.
- *
- * `save()` writes it to the ticket's cache entry, so the selection outlives the process that made it.
- * That is not a convenience: forwarding a selection to FoldMason moves the work to a new ticket, and
- * coming back to adjust the original choice — a different database, three hits dropped — otherwise
- * means making the whole selection again from nothing.
- *
  * Ids are canonicalised on the way in, so `"BFVD#12"` and `"0#12"` are the same row and cannot both be
  * present. Insertion order is kept: a selection reads back in the order it was built, not the order
  * the table happens to sort in.
@@ -772,11 +664,6 @@ export class Selection {
 
     /**
      * What is in the selection, without fetching a single structure.
-     *
-     * `duplicateNames` is the one thing worth checking before a FoldMason submission: the afdb
-     * databases share entries, so taking the best hit from each can select the same structure twice,
-     * and FoldMason entries are addressed by name. sendTo drops the extra copies rather than failing,
-     * but a caller that would rather pick different rows can see it here first.
      */
     describe() {
         const entries = this.rows().map(r => ({

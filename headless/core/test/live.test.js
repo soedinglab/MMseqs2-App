@@ -176,3 +176,70 @@ test('live: resolveStructureFromDb reaches the real databases', { skip: !LIVE },
     const small = await client.resolveStructureFromDb('pdb100', '1crn_A');
     assert.match(small.url, /1CRN\.pdb$/, 'an entry that has a PDB-format file is taken as PDB');
 });
+
+/**
+ * The entry that reproduces the numbering bug: Q-BioLiP reports its binding site in label_seq_id
+ * numbering, which the auth-keyed lookup could not resolve, so all three residues were dropped and
+ * the motif came back empty — indistinguishable from "no binding site".
+ */
+const LABEL_NUMBERED_PDB_ID = '1A4G';
+
+test('live: a binding site reported in label numbering is translated, not dropped', { skip: !LIVE }, async () => {
+    const client = await liveClient();
+    const loaded = await client.loadAccession(LABEL_NUMBERED_PDB_ID, { source: 'PDB' });
+
+    assert.equal(loaded.motifSource, 'qbiolip');
+    assert.equal(loaded.motif.split(',').length, 3, 'three site residues, none dropped');
+    assert.equal(loaded.motifRenumbered, 3, 'all three came back in the other numbering scheme');
+    assert.equal(loaded.motifDropped, undefined);
+
+    // Every residue named exists in the file that came with it — under *its* numbering, which is the
+    // whole point of translating rather than passing the reported number through.
+    const { checkMotif } = await import('../src/motif.js');
+    const checked = checkMotif(loaded.motif, loaded.text);
+    assert.deepEqual(checked.missing, [], 'none names a residue that is absent under either reading');
+    assert.equal(checked.valid, true);
+});
+
+test('live: an assembly\'s chains are renamed so its motif becomes addressable', { skip: !LIVE }, async () => {
+    const client = await liveClient();
+    const loaded = await client.loadAccession(QBIOLIP_PDB_ID, { source: 'PDB' });
+
+    // 1STP's receptor assembly names its four copies A1…A4, which no motif token can address. The
+    // structure comes back renamed rather than flagged as a dead end.
+    assert.deepEqual(loaded.chainsRenamed, { A1: 'A', A2: 'B', A3: 'C', A4: 'D' });
+    assert.equal(loaded.motifProblem, undefined);
+    assert.equal(loaded.motifWarnings, undefined);
+
+    const { checkMotif } = await import('../src/motif.js');
+    const checked = checkMotif(loaded.motif, loaded.text);
+    assert.equal(checked.valid, true);
+    assert.equal(checked.ambiguous, undefined, 'no token needs concatenation to resolve any more');
+    assert.ok(loaded.motif.split(',').every(t => /^[A-D]\d+$/.test(t)), loaded.motif);
+
+    // The structure is otherwise the one Q-BioLiP shipped: same residues, same coordinates.
+    const { listChains, listResidues } = await import('../../../frontend/lib/structureText.js');
+    assert.equal(listResidues(loaded.text).length, 484);
+    assert.deepEqual(listChains(loaded.text).map(c => c.residueCount), [121, 121, 121, 121]);
+});
+
+test('live: the entry with both problems at once comes back usable', { skip: !LIVE }, async () => {
+    const client = await liveClient();
+    // 1A4G needs both repairs: its site is reported in label numbering (so it used to resolve to
+    // nothing), and its assembly chains are A2/B2 (so the resulting motif was unaddressable).
+    const loaded = await client.loadAccession(LABEL_NUMBERED_PDB_ID, { source: 'PDB' });
+
+    assert.equal(loaded.motifRenumbered, 3);
+    assert.deepEqual(loaded.chainsRenamed, { A1: 'A', B1: 'B', A2: 'C', B2: 'D' });
+    assert.equal(loaded.motif, 'C110,D108,D109');
+
+    const { checkMotif } = await import('../src/motif.js');
+    assert.equal(checkMotif(loaded.motif, loaded.text).valid, true);
+});
+
+test('live: renaming can be turned off', { skip: !LIVE }, async () => {
+    const client = await liveClient();
+    const loaded = await client.loadAccession(QBIOLIP_PDB_ID, { source: 'PDB', normalizeChains: false });
+    assert.equal(loaded.chainsRenamed, undefined);
+    assert.match(loaded.motifWarnings.join(' '), /only by concatenation/);
+});

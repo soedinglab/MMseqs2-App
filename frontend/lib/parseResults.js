@@ -1,14 +1,7 @@
 // Result parsing shared by the mounted frontend and the headless agent layer under headless/.
-//
-// These functions were extracted from ../Utilities.js, which cannot be loaded outside a browser:
-// its first two lines import ngl and pako, and ngl throws `window is not defined` under Node even
-// with a window shim. Nothing moved here ever touched either import, so the split is a pure code
-// move — Utilities.js re-exports the public names and every existing import site is unchanged.
+// Extracted from Utilities.js
 
-// __APP__ is a webpack DefinePlugin compile-time substitution and does not exist under Node.
-// `typeof` on an undeclared identifier is the one construct that yields 'undefined' instead of
-// throwing, so this resolves in both environments. Headless callers should still pass `app`
-// explicitly rather than lean on the fallback — see claude-plan/headless-agent-layer/context.md.
+// Needed for support on both frontend and headless layer
 const APP = typeof __APP__ !== 'undefined' ? __APP__ : (globalThis.__MMSEQS_APP__ ?? 'foldseek');
 
 function tryLinkTargetToDB(target, db) {

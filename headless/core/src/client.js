@@ -30,7 +30,7 @@
 import { parseResults, parseResultsFoldDisco } from '../../../frontend/lib/parseResults.js';
 import { Store, defaultStateDir, summarizeRequest } from './store.js';
 import { ResultTable } from './results.js';
-import { assertMotif } from './motif.js';
+import { assertMotif, computeDefaultMotif, validateMotif, normalizeChainNames } from './motif.js';
 import {
     foldMasonColumns, foldMasonColumnSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
     MsaColumnSelection,
@@ -41,6 +41,8 @@ import {
 } from './structures.js';
 import { SubmittableQuery } from './submit.js';
 import { getChainName } from '../../../frontend/lib/targetName.js';
+import { listChains } from '../../../frontend/lib/structureText.js';
+import { mockPDB, encodeMultimer } from '../../../frontend/lib/pdbAssembly.js';
 import { pathForTicket } from '../../../frontend/lib/ticketRoute.js';
 
 export const TERMINAL_STATUSES = new Set(['COMPLETE', 'ERROR', 'UNKNOWN']);
@@ -48,19 +50,8 @@ export const TERMINAL_STATUSES = new Set(['COMPLETE', 'ERROR', 'UNKNOWN']);
 /** FoldMason aligns structures against each other; one input has nothing to align to. */
 export const FOLDMASON_MIN_FILES = 2;
 
-/**
- * Taxon filter grammar, copied from backend/searchjob.go:69 — numeric taxon ids, comma separated,
- * every entry after the first optionally negated with "!", empty meaning no filter. A malformed one
- * is rejected by the job constructor as a bare "invalid taxon filter" after submission, so the same
- * rule is applied here to fail with something readable instead.
- */
 const VALID_TAX_FILTER = /^[0-9]+(,!?[0-9]+)*$|^$/;
 
-/**
- * Which cache file a ticket's results belong in, from the backend's JobType (see the JobType
- * constants in backend/jobsystem.go). Needed for tickets this client did not submit itself — a
- * ticket id pasted in from a browser session has no local record until it is asked about.
- */
 export function kindForJobType(jobType) {
     switch (jobType) {
         case 'foldmasoneasymsa': return 'foldmason';
@@ -175,17 +166,6 @@ export function createClient({
         return params;
     }
 
-    /**
-     * Which databases each job type may use, mirroring Databases.vue's own filters rather than the
-     * backend's looser check.
-     *
-     * The backend only rejects what its job constructor rejects: NewComplexSearchJobRequest requires
-     * Params.Complex and NewFoldDiscoJobRequest requires Params.Motif, but NewStructureSearchJobRequest
-     * accepts any complete database at all — including the `*_folddisco` motif indexes, which are not
-     * a meaningful target for a structure search and which the search page never offers. Matching the
-     * page keeps "what the client accepts" the same as "what a user could have picked", at the cost
-     * of being deliberately stricter than the server for plain search.
-     */
     const USABLE_FOR = {
         search: d => !d.interface && !d.motif,
         complexsearch: d => d.complex && !d.interface && !d.motif,
@@ -199,8 +179,6 @@ export function createClient({
         }
         const all = await client.getDatabases();
         const predicate = USABLE_FOR[kind] ?? USABLE_FOR.search;
-        // /databases already returns only complete ones; re-checking costs nothing and keeps this
-        // correct if a caller points it at /databases/all.
         const usable = all.filter(d => d.status === undefined || d.status === 'COMPLETE').filter(predicate);
         const paths = new Set(usable.map(d => d.path));
 
@@ -219,14 +197,6 @@ export function createClient({
         }
     }
 
-    /**
-     * Note the submission locally, and hand back the ticket either way.
-     *
-     * The cache write is deliberately not allowed to fail the call. By the time it runs the job is
-     * already queued on the server, so throwing would report a failure that did not happen and invite
-     * the caller to submit it again — and the reasons it can fail are all environmental (an
-     * unwritable state directory, a full disk) rather than anything about the job.
-     */
     async function recordSubmission(result, kind, submitted) {
         const now = new Date().toISOString();
         try {
@@ -249,16 +219,9 @@ export function createClient({
         app,
         cg2allUrl,
         store,
-        // The send-to path reaches third-party services (cg2all, the structure databases) that are
-        // not behind `request`, so it needs the same fetch this client was given — a test that
-        // substitutes one would otherwise find half the calls escaping to the network.
         fetchImpl,
-        // Things worth saying that are not failures: a database URL that did not answer and was
-        // reconstructed instead, rows a batch could not build. Nothing here writes to the console
-        // on its own.
         onWarning,
 
-        /** Complete databases and their capability flags. Fetched once per client. */
         getDatabases({ refresh = false } = {}) {
             if (refresh || !databasesPromise) {
                 databasesPromise = request('/databases')
@@ -268,21 +231,12 @@ export function createClient({
             return databasesPromise;
         },
 
-        /**
-         * Monomer and multimer search are the same endpoint. The handler splits `mode` on "-" and
-         * looks for a "complex" (multimer) or "interface" segment, so multimer search is
-         * mode "complex-3diaa" rather than a separate route — which is exactly how
-         * MultimerSearch.vue builds it ('complex-' + MODE_KEY).
-         */
         async submitFoldseekSearch({
             query, databases, mode = '3diaa', multimer = false,
             email = '', iterativeSearch = false, taxFilter = '',
         }) {
             if (!query) throw new Error('submitFoldseekSearch({ query }) is required');
             const isComplex = multimer || mode.split('-').includes('complex');
-            // NewComplexSearchJobRequest takes no iterative-search flag: the handler reads the field
-            // but the complex job never receives it. Sending it would be silently ignored, which
-            // reads as support that isn't there.
             if (isComplex && iterativeSearch) {
                 throw new Error('multimer (complex) search does not support iterative search');
             }
@@ -307,14 +261,6 @@ export function createClient({
             return client.submitFoldseekSearch({ ...opts, multimer: true });
         },
 
-        /**
-         * FoldMason takes one multipart part per structure, and needs at least two: it builds a
-         * multiple structure alignment, so a single input has nothing to align against. The backend
-         * does not reject a one-file job — it would queue and fail later — so the check is here,
-         * matching FoldMasonSearch.vue's own guard.
-         *
-         * The entry name rides on the part's filename, not a sibling field.
-         */
         async submitFoldMason({ files, email = '' }) {
             if (!Array.isArray(files) || files.length < FOLDMASON_MIN_FILES) {
                 throw new Error(`FoldMason needs at least ${FOLDMASON_MIN_FILES} structures; ` +
@@ -327,16 +273,6 @@ export function createClient({
             return recordSubmission(result, 'foldmason', { files, email });
         },
 
-        /**
-         * A FoldDisco search is defined by its motif, so the motif is validated against the query
-         * structure before submitting — every token has to name a residue the query actually
-         * contains, the same rule FoldDiscoSearch.vue enforces before enabling its search button.
-         * The backend checks neither (NewFoldDiscoJobRequest validates the database list and
-         * nothing else), so an empty or unresolvable motif would otherwise queue a job that cannot
-         * mean anything.
-         *
-         * No taxon filter: the handler and the job constructor both have it commented out.
-         */
         async submitFoldDisco({ query, databases, motif, email = '' }) {
             if (!query) throw new Error('submitFoldDisco({ query }) is required');
             assertMotif(motif, query);
@@ -359,10 +295,6 @@ export function createClient({
             return res;
         },
 
-        /**
-         * The page a human would open for this ticket. Built from `baseUrl`, the **site origin** —
-         * not from `apiRoot`, which carries the /api prefix that belongs to the endpoints.
-         */
         async resultUrl(ticket, { entry = 0 } = {}) {
             const { type } = await client.getTicketType(ticket).catch(() => ({ type: null }));
             return `${client.baseUrl}${pathForTicket(ticket, type, { entry })}`;
@@ -372,17 +304,10 @@ export function createClient({
             const cached = await store.readTicket(ticket);
             if (cached?.jobType) return { type: cached.jobType };
             const res = await request(`/ticket/type/${encodeURIComponent(ticket)}`);
-            // Record `kind` alongside it: a ticket that arrived from elsewhere (pasted from a
-            // browser session, say) has no submission record, and every later cache read needs to
-            // know which result file it is looking for.
             await store.writeTicket(ticket, { jobType: res.type, kind: kindForJobType(res.type) });
             return res;
         },
 
-        /**
-         * Poll until terminal. A cached COMPLETE skips the network entirely — the backend has no
-         * result expiry, so a completed ticket cannot revert to running.
-         */
         async waitForCompletion(ticket, { intervalMs = 2000, timeoutMs = 0, onStatus = null } = {}) {
             const cached = await store.readTicket(ticket);
             if (cached?.lastStatus === 'COMPLETE') {
@@ -414,7 +339,6 @@ export function createClient({
             }
         },
 
-        /** Foldseek/plain search results, parsed with the frontend's own parseResults. */
         async getResult(ticket, entry = 0) {
             const cached = await store.readResult(ticket, 'search', entry);
             if (cached) return new ResultTable(cached, { ticket, entry, app, client });
@@ -425,7 +349,6 @@ export function createClient({
             return new ResultTable(parsed, { ticket, entry, app, client });
         },
 
-        /** The backend parses FoldMason results itself; there is nothing to run parseResults on. */
         async getFoldMasonResult(ticket) {
             const cached = await store.readResult(ticket, 'foldmason');
             if (cached) return cached;
@@ -434,11 +357,6 @@ export function createClient({
             return res;
         },
 
-        /**
-         * Per-column metrics for an alignment — occupancy, entropy, quality, conservation. The page
-         * computes these on the GPU; these come from the CPU port in msaTracks.js, which reproduces
-         * that output column for column.
-         */
         async getFoldMasonColumns(ticket, opts = {}) {
             return foldMasonColumns(await client.getFoldMasonResult(ticket), opts);
         },
@@ -459,16 +377,11 @@ export function createClient({
             return foldMasonEntries(await client.getFoldMasonResult(ticket));
         },
 
-        /**
-         * Columns of one alignment entry, as something submittable: the residues they cover become a
-         * FoldDisco motif on the entry's own structure.
-         */
         async selectMsaColumns(ticket, { entry = 0, columns = [], name = 'default' } = {}) {
             return new MsaColumnSelection(
                 client, await client.getFoldMasonResult(ticket), { entry, columns, ticket, name });
         },
 
-        /** A column selection saved earlier against this alignment. Null if there is none. */
         async loadMsaSelection(ticket, name = 'default') {
             const record = await store.readSelection(ticket, name);
             if (!record) return null;
@@ -488,10 +401,6 @@ export function createClient({
         listSelections(ticket) { return store.listSelections(ticket); },
         deleteSelection(ticket, name = 'default') { return store.deleteSelection(ticket, name); },
 
-        /**
-         * Which table a ticket has, without the caller having to know its job type. Foldseek and
-         * FoldDisco results live behind different endpoints and only one of them takes an entry index.
-         */
         async getResultTable(ticket, { entry = 0 } = {}) {
             const { type } = await client.getTicketType(ticket);
             return type === 'folddisco'
@@ -504,12 +413,6 @@ export function createClient({
             return table.getTaxonomy(db, opts);
         },
 
-        /**
-         * The whole FoldDisco result table. No entry index exists on this route, unlike Foldseek's
-         * /result/{ticket}/{entry}, and no query string is sent: `database` there narrows the table
-         * per-database, which this client has no use for, and `id` changes what the route returns
-         * entirely.
-         */
         async getFoldDiscoResult(ticket) {
             const cached = await store.readResult(ticket, 'folddisco');
             if (cached) return new ResultTable(cached, { ticket, entry: 0, app, tool: 'folddisco', client });
@@ -520,18 +423,6 @@ export function createClient({
             return new ResultTable(parsed, { ticket, entry: 0, app, tool: 'folddisco', client });
         },
 
-        /**
-         * A hit's own PDB text — the same route with `id` set. This is the structure source for
-         * forwarding a FoldDisco hit onwards, and is why that path needs no reconstruction step.
-         *
-         * The id is not one field: ResultFoldDisco.vue's getTargetPdb sends `item.target` for pdb*
-         * databases and `item.dbkey` for every other one, and both come from the *parsed* result
-         * (raw `target` for pdb100 is an absolute server path, which the handler would join again
-         * into a nonexistent one). idForHit() below applies that rule so callers do not have to.
-         *
-         * Retried because the server may have to decompress the structure with foldcomp on first
-         * request; the page retries this same call for the same reason.
-         */
         getFoldDiscoTargetStructure(ticket, opts) {
             return fetchFoldDiscoStructure(request, ticket, opts);
         },
@@ -542,10 +433,6 @@ export function createClient({
 
         /**
          * One hit's chains, with the CA coordinates the full result omits.
-         *
-         * The result table carries alignment statistics but no coordinates — for a thousand hits it
-         * would be enormous — so forwarding a hit means asking for that one hit's `brief` record,
-         * exactly as ResultView.vue's getMockPdb does. A complex hit answers with one entry per chain.
          *
          * @returns {Promise<{ca: string, seq: string, chain: string, target: string}[]>}
          */
@@ -566,23 +453,22 @@ export function createClient({
 
         /**
          * The ticket's own query structure, as a submittable file.
-         *
-         * The route serves the original upload (job.pdb or job.cif) whole — there is no per-entry
-         * form of it, so a multi-query ticket returns everything that was submitted. The name is
-         * given the extension matching the content, without which FoldMason drops a mmCIF entry.
          */
-        async getQueryStructure(ticket, { signal } = {}) {
+        async getQueryStructure(ticket, { signal, encodeComplex = true } = {}) {
             const text = await request(`/result/${encodeURIComponent(ticket)}/query`,
                 { as: 'text', signal });
+
+            if (encodeComplex) {
+                const chains = listChains(text);
+                if (chains.length > 1) {
+                    const parts = chains.map(c => ({ pdb: mockPDB(c.ca, c.seq, c.chain), chain: c.chain }));
+                    const { pdb, suffix } = encodeMultimer(parts);
+                    return { name: `query${suffix}`, content: pdb, chains: chains.length };
+                }
+            }
             return { name: ensureStructureExtension('query', text), content: text };
         },
 
-        /**
-         * Wrap a query spec so it can be sent to a tool — the one construction path, so everything
-         * that can be forwarded (a row, an accession, a column selection) goes through here. See
-         * submit.js for the origin shapes; `spec` may be a resolver function for the ones that cost
-         * a request to produce.
-         */
         query(spec, opts) { return new SubmittableQuery(client, spec, opts); },
 
         reconstructFullAtom(pdbText, opts = {}) {
@@ -596,12 +482,17 @@ export function createClient({
         loadAccession(id, opts) { return loadAccession(client, id, opts); },
         loadAccessions(ids, opts) { return loadAccessions(client, ids, opts); },
 
+        computeDefaultMotif(structureText, opts) { return computeDefaultMotif(structureText, opts); },
+        validateMotif(motif, structureText) { return validateMotif(motif, structureText); },
+
+        /**
+         * Give a structure single-character chain names and rewrite a motif to match — the repair for
+         * a chain a motif token cannot address, e.g., A1…A4.
+         */
+        normalizeChainNames(structureText, opts) { return normalizeChainNames(structureText, opts); },
+
         /**
          * Run every pre-submission check and report what *would* be sent, without queueing anything.
-         *
-         * The validation already runs inside each submit call; what did not exist was a way to ask
-         * for it on its own. A caller assembling a job — resolving databases, building a motif — could
-         * otherwise only find out by submitting, which occupies a queue slot to answer a question.
          */
         async validateSubmission({ tool, query, databases, motif, mode = '3diaa', files, iterativeSearch = false, taxFilter = '' }) {
             const problems = [];
@@ -659,6 +550,4 @@ export function createClient({
     return client;
 }
 
-// Moved to results.js, where it reads a parsed row alongside everything else that does; re-exported
-// here because that is where callers found it.
 export { idForHit } from './results.js';

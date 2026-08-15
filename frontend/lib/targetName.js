@@ -1,10 +1,4 @@
-// Reading an accession and a chain out of a target name.
-//
-// Target names arrive in whatever shape the source database uses — `AF-P12345-F1-model_v4`,
-// `6iuf.ent_A`, `foo_unrelaxed_rank_001...`, and FoldMason entry names with an encodeMultimer suffix
-// appended. These two extract the parts the rest of the app addresses structures by.
-//
-// Moved out of Utilities.js so Node can load them without ngl; re-exported there unchanged.
+// Reading an accession and a chain out of a target name. Extracted from Utilities.js
 
 export const getChainName = (name) => {
   if (/_v[0-9]+$/.test(name) || /^AF-\W+-/.test(name)) {

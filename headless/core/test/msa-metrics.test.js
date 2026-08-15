@@ -285,3 +285,55 @@ test('the GPU fixture exercises the interesting branches, not just zeros', () =>
     assert.ok(scores.size >= 8, `expected a spread of scores, got ${[...scores].sort((a, b) => a - b).join(',')}`);
     assert.ok(fixture.expected.quality.some(q => q > 0 && q < 1), 'should include partially conserved columns');
 });
+
+// -------------------------------------------------------------------------------------------------
+// Bucket order — which symbol each count belongs to
+// -------------------------------------------------------------------------------------------------
+
+test('the amino-acid bucket order is the alphabet\'s, and is not alphabetical', () => {
+    // AMAS_PROPERTY_BITS and the substitution matrix are both indexed by bucket number, so the symbol
+    // list that produces those counts has to be this one. Pinned because the two orders look
+    // interchangeable at a glance and are not: the alphabetical list is the *3Di* core order, which
+    // is how it came to be labelled as the shader's.
+    assert.equal(AA.symbols.slice(0, 20).join(''), 'ARNDCQEGHILKMFPSTWYV');
+    assert.equal(threeDIAlphabet.symbols.slice(0, 20).join(''), 'ACDEFGHIKLMNPQRSTVWY');
+    assert.notEqual(AA.symbols.slice(0, 20).join(''), threeDIAlphabet.symbols.slice(0, 20).join(''));
+});
+
+test('an alphabet alone is enough — the symbols come from it', () => {
+    const seqs = ['WWWW', 'YYYY', 'AAAA'];
+    const derived = computeMetricsCpu(seqs, { alphabet: aminoAcidAlphabet });
+
+    assert.equal(derived.symbols.join(''), 'ARNDCQEGHILKMFPSTWYV');
+    // W and Y share hydrophobic, polar and aromatic; A shares only hydrophobic with them. All three
+    // lack proline, aliphatic, positive, negative and charged — 1 shared plus 5 shared absences.
+    assert.deepEqual(derived.conservationScore, [6, 6, 6, 6]);
+
+    const explicit = computeMetricsCpu(seqs, {
+        alphabet: aminoAcidAlphabet, symbols: aminoAcidAlphabet.symbols.slice(0, 20),
+    });
+    assert.deepEqual(derived.quality, explicit.quality);
+    assert.deepEqual(derived.conservationScore, explicit.conservationScore);
+});
+
+test('a symbol list that disagrees with the alphabet loses to the alphabet', () => {
+    // The failure this prevents is silent rather than loud: bucketing alphabetically while indexing
+    // the matrix and the property table in the alphabet's order yields confident wrong numbers.
+    const seqs = ['WWWW', 'YYYY', 'AAAA'];
+    const alphabetical = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L',
+        'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y'];
+
+    const mismatched = computeMetricsCpu(seqs, { alphabet: aminoAcidAlphabet, symbols: alphabetical });
+    assert.equal(mismatched.symbols.join(''), 'ARNDCQEGHILKMFPSTWYV');
+    assert.deepEqual(mismatched.conservationScore, [6, 6, 6, 6]);
+});
+
+test('without an alphabet the symbols are the caller\'s, and the matrix metrics stay null', () => {
+    // The page's own fallback path: counts, consensus and entropy are self-consistent under any
+    // bucket order, and the two metrics that are not are simply not computed.
+    const m = computeMetricsCpu(['AC', 'AC'], { symbols: ['A', 'C'] });
+    assert.deepEqual(m.symbols, ['A', 'C']);
+    assert.equal(m.quality, null);
+    assert.equal(m.conservationScore, null);
+    assert.deepEqual(m.occupancy, [1, 1]);
+});

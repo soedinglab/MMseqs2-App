@@ -1,11 +1,5 @@
 // The tools themselves: name, schema, and handler, with no MCP SDK involved.
 //
-// Split out from server.js on purpose. The SDK is a transport — it reads stdio, matches a tool name
-// and serializes a result — and none of that is what can be wrong here. What can be wrong is which
-// endpoint a tool calls, what it validates before submitting, and what shape it returns. Keeping
-// those in a plain module means they can be exercised against a real backend without a client
-// process, an SDK install, or a stdio pipe.
-//
 // Handlers return plain objects; server.js does the JSON-and-content-block wrapping.
 
 import {
@@ -70,15 +64,6 @@ function brief(selection, maxEntries) {
 }
 
 export function createTools(client) {
-    /**
-     * Turn send_to's `from` into something with a sendTo() — a row, a saved selection, a saved column
-     * selection, or a freshly loaded accession.
-     *
-     * These are references rather than opaque handles on purpose. A row is already addressed by the
-     * `id` get_result_table prints, and a selection by the ticket and name it was saved under; both
-     * survive a restart and can be read back with the tool that made them. An encoded blob would be a
-     * second addressing scheme that says nothing about what it points at.
-     */
     const resolveSource = async (from) => {
         const type = from?.type;
         if (type === 'row') {
@@ -109,18 +94,6 @@ export function createTools(client) {
                         'not something a previous job produced.');
     };
 
-    /**
-     * Resolve an `accession` argument into the query a search tool submits.
-     *
-     * This belongs on the *submit* side rather than in send_to, which the first draft had wrong.
-     * send_to forwards something a previous job produced and is addressed by that job's ticket; an
-     * accession is a public identifier that depends on no ticket at all, so putting it there made two
-     * unrelated things look like one. The page draws the same line — Load Accession is a control on
-     * the search pages, not on a result page.
-     *
-     * For a PDB id with a Q-BioLiP binding site this also fills in the motif, so a FoldDisco search on
-     * a known binding site is one call with no motif argument.
-     */
     const queryFromAccession = async (spec) => {
         const id = typeof spec === 'string' ? spec : spec?.id ?? spec?.accession;
         if (!id) throw new Error('accession must be an id, or {id, source?, autoMotif?}');
@@ -131,11 +104,6 @@ export function createTools(client) {
         return loaded;
     };
 
-    /**
-     * A search tool's query, from either `query` text or an `accession`. Returns the arguments to
-     * submit with, plus what was loaded, so a caller can see which entry an accession resolved to —
-     * AlphaFoldDB is a fuzzy search and can answer with a different one.
-     */
     const resolveQuery = async ({ query, accession, motif }) => {
         if (query && accession) {
             throw new Error('pass either query or accession, not both');
@@ -331,11 +299,6 @@ export function createTools(client) {
                     client.getTicketType(ticketId).catch(() => null),
                 ]);
                 const resultUrl = await client.resultUrl(ticketId).catch(() => null);
-                // Where this job came from, when it came from another one — the ticket, the row or
-                // columns, and how the structure was assembled. Absent for a job submitted directly.
-                // Wrapped rather than awaited directly: readTicket throws synchronously on an id the
-                // cache will not build a path from, and a ticket whose record cannot be read still has
-                // a status worth reporting.
                 const record = await Promise.resolve()
                     .then(() => client.store.readTicket(ticketId))
                     .catch(() => null);

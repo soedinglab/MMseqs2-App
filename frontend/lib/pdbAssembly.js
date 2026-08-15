@@ -1,17 +1,4 @@
-// Building and re-combining CA-only PDB text.
-//
-// Moved out of Utilities.js so Node can load it: that file imports ngl and pako at module scope and
-// cannot be evaluated outside a browser, while everything here is plain string arithmetic. Same
-// reason lib/parseResults.js exists, and Utilities.js re-exports these names, so no existing import
-// site changes.
-//
-// Two families live here, and mixing them up produces a query the destination cannot read:
-//   mergePdbs      -> a genuine multi-chain PDB, chain ids preserved, TER between chains. What
-//                     Foldseek (including Multimer) wants.
-//   encodeMultimer -> one chain plus a name suffix recording the original boundaries, and
-//   decodeMultimer -> its inverse. This pseudo-monomer form exists because FoldMason's MSA engine
-//                     aligns one linear sequence per entry; it is FoldMason's storage format, not a
-//                     general representation of a complex.
+// Building and re-combining CA-only PDB text. Extracted from Utilities.js
 
 export const oneToThree = {
   A: "ALA",
@@ -194,10 +181,6 @@ export function encodeMultimer(chainPdbs /* [{pdb, chain}] */) {
   out.push("TER");
   out.push("END");
 
-  // A single chain has no boundaries to record, and a suffix for one is worse than useless: it is
-  // appended to the entry name, so every downstream reader — MSA.vue's parseSuffix, decodeMultimer,
-  // getAccession — has to carry a marker that says "this is a complex" about something that is not.
-  // Callers can therefore encode unconditionally and let the suffix decide.
   let suffix =
     chainInfoArr.length < 2
       ? ""

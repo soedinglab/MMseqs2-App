@@ -8,13 +8,6 @@
 //     result-<entry>.json  parsed search result, one file per query entry
 //     foldmason.json       one payload per ticket — the endpoint has no entry index
 //     folddisco.json       same reasoning
-//
-// Only terminal results are cached. The backend has no result TTL, so a cached COMPLETE payload is
-// valid forever; anything non-terminal is always re-fetched.
-//
-// Writes go to a temp file and are renamed into place, which is atomic on POSIX — a reader never
-// observes a torn file. Two processes writing the same ticket produce identical bytes (a pure
-// function of the same immutable server response), so last-writer-wins needs no locking.
 
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -86,11 +79,6 @@ export class Store {
         return this.#readJson(path.join(this.ticketDir(id), 'ticket.json'));
     }
 
-    /**
-     * Merge-write: a poll updates lastStatus/lastPolledAt in place without dropping what submit
-     * recorded. The key set is fixed, so repeated polling rewrites the same ~300 byte file rather
-     * than growing it — a ticket polled a thousand times costs exactly as much as one polled once.
-     */
     async writeTicket(id, patch) {
         const existing = (await this.readTicket(id)) || { id };
         const merged = { ...existing, ...patch, id };
@@ -111,19 +99,6 @@ export class Store {
     writeResult(id, kind, entry, value) {
         return this.#writeJson(this.#resultFile(id, kind, entry), value);
     }
-
-    // -----------------------------------------------------------------------------------------
-    // Selections — which hits of a ticket someone picked out, kept across processes.
-    //
-    // A selection is worth persisting for the same reason it is worth having: choosing fifty hits out
-    // of a thousand is the expensive part, and forwarding them to FoldMason ends the session that
-    // made the choice. Coming back to adjust it — drop three, add another database — should not mean
-    // making it again, and an agent has no page state to hold it in between calls.
-    //
-    // Ticket-scoped, and in their own file rather than inside ticket.json: polling merges into that
-    // record constantly, and a selection write racing a status write would cost one or the other.
-    // Ids only (~8 bytes each, capped at the selection limit), never the structures behind them.
-    // -----------------------------------------------------------------------------------------
 
     #selectionFile(id) {
         return path.join(this.ticketDir(id), 'selections.json');

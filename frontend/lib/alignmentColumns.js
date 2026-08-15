@@ -1,12 +1,4 @@
 // Mapping alignment columns to residues, and residues to (chain, resno).
-//
-// getResidueIndices/getResnoWithChain moved out of Utilities.js so Node can load them without ngl;
-// re-exported there unchanged.
-//
-// entryChainMap is new here, but its body is not: it is MSA.vue's beforeMount trio (parseSuffix,
-// chainToOffset, indexToChainAndOrigResn) lifted verbatim into one function. MSA.vue now imports it,
-// so a FoldMason entry's chain bookkeeping has one definition — the motif built from a column
-// selection depends on it, and a second copy could disagree about which chain a residue is in.
 
 export function getResidueIndices(
   seq,
@@ -70,11 +62,6 @@ export function getResnoWithChain(
 
 /**
  * A FoldMason entry's suffix, as `[{chain, end, offset}]`.
- *
- * `end` is the last residue number of that chain in the encoded (single-chain) numbering and
- * `offset` is what to subtract to recover the original number — exactly what encodeMultimer wrote.
- * Takes the suffix with the `-_-_-_` delimiter already stripped, which is the form both MSA.vue and
- * decodeMultimer expect.
  */
 export function parseSuffix(suffix) {
   if (!suffix) return [];
@@ -94,12 +81,6 @@ export function parseSuffix(suffix) {
 
 /**
  * Chain bookkeeping for one aligned entry.
- *
- * `chains` and `resns` are indexed by **1-based residue number** — index 0 is a filler so that
- * `chains[resno]` reads directly — and cover the ungapped sequence, not the alignment columns. A
- * monomer (no suffix) is chain 'A' throughout with offset 0, which is what the multimer branches
- * collapse to anyway.
- *
  * @param {string} aa      the gapped alignment string
  * @param {string} suffix  encodeMultimer's suffix, delimiter stripped; falsy for a monomer
  * @returns {{chainInfo: object[], offsets: Record<string, number>, chains: string[], resns: number[]}}

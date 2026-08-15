@@ -1,14 +1,5 @@
 // Programmatic access to whatever page is currently mounted.
-//
-// The result and search pages hold sort order, filtering, clustering, selection, and the whole
-// search form inside Vue component instances that are otherwise unreachable. This registry
-// exposes the mounted page on a global so that derived state can be read and driven without
-// scraping the DOM.
-//
-// One page of a given kind is mounted at a time, but the router swaps them without a reload and
-// teardown order is not guaranteed (an outgoing page's beforeDestroy can run after the incoming
-// page's mounted). Keying by kind + page and republishing on every change keeps the globals honest
-// instead of letting a dying page clobber a live one.
+// *Deprecated: soon to be removed*
 
 import { routeForTicket } from './ticketRoute.js';
 import { getJobType } from './HistoryMixin.js';

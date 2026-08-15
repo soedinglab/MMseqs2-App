@@ -1,43 +1,32 @@
-// Motif validation for FoldDisco.
-//
-// A motif is a comma-separated list of residue tokens: `A123` (chain + residue number), `123` (bare
-// residue number), or `A123:W` (with a substitution). This is a port of FoldDiscoSearch.vue's
-// isMotifValid, and follows it on both halves of the check:
-//
-//   1. token syntax — at most one ':', a letter after it, a chain+number identifier before it
-//   2. existence  — every token must name a residue that is actually in the query structure
-//
-// The second half is the point. A syntactically perfect token for a residue the query does not
-// contain produces a job that searches for nothing, and the backend accepts it without complaint
-// (NewFoldDiscoJobRequest validates the database list and nothing else), so it has to be caught
-// before submission.
-//
-// Where the page walks NGL's `eachResidue`, this walks lib/structureText.js's listResidues, which
-// produces the same (chainname, resno) identifiers without needing a browser.
+// Motif validation for FoldDisco, and the default motif a query starts from.
 
-import { residueTokenSet } from '../../../frontend/lib/structureText.js';
+import {
+    residueTokenSet, listResidues, listChains, planChainRenames, renameChains, isNameableChain,
+} from '../../../frontend/lib/structureText.js';
+import { splitAlphaNum } from '../../../frontend/lib/parseResults.js';
 
-/** The page treats a motif of more than 32 distinct residues as invalid. */
 export const MOTIF_MAX_RESIDUES = 32;
 
 const SUBSTITUTION = /[A-Za-z]/;
-// Matches splitAlphaNum(), which is what MotifSelection.vue parses these tokens with: a run of
-// letters (chain, possibly multi-character — splitAlphaNum('AA12') is ['AA','12','']) then digits.
-//
-// Negative residue numbers are rejected on purpose, and this is a real (if narrow) divergence from
-// the page worth knowing about. Structures do contain them — PDB 6iuf, reachable as a hit in the
-// FoldDisco validation ticket, starts chain A at residue -3 — and isMotifValid would accept "A-3",
-// because NGL reports chainname 'A' + resno -3 and the token matches by string concatenation. But
-// splitAlphaNum('A-3') returns ['A-','3',''], reading the minus as part of the chain name, so the
-// same token is misread wherever a motif is parsed back into residues. Submitting it would produce
-// a job built on a residue nobody named; refusing is the safer half of an inconsistency that
-// predates this code.
 const RESIDUE_TOKEN = /^[A-Za-z]*\d+$/;
+
+function residueIndex(structureText) {
+    const byChain = new Set();
+    const anyChain = new Set();
+    const chains = new Set();
+    for (const r of listResidues(structureText)) {
+        byChain.add(`${r.chain}|${r.resno}`);
+        anyChain.add(String(r.resno));
+        chains.add(r.chain);
+    }
+    return { byChain, anyChain, chains };
+}
 
 /**
  * @param {string} motif
  * @param {string} [structureText] query PDB/mmCIF; without it only syntax is checked
- * @returns {{valid: boolean, reason?: string, residues: string[], missing: string[]}}
+ * @returns {{valid: boolean, reason?: string, residues: string[], missing: string[],
+ *            warnings?: string[], unnameableChains?: string[]}}
  */
 export function checkMotif(motif, structureText) {
     if (typeof motif !== 'string' || motif.trim() === '') {
@@ -84,33 +73,93 @@ export function checkMotif(motif, structureText) {
 
     if (structureText === undefined) return { valid: true, residues: distinct, missing: [] };
 
-    const present = residueTokenSet(structureText);
-    if (present.size === 0) {
+    const { byChain, anyChain, chains } = residueIndex(structureText);
+    if (byChain.size === 0) {
         return {
             valid: false,
             reason: 'no residues could be read from the query structure',
             residues: distinct, missing: distinct,
         };
     }
-    const missing = distinct.filter(t => !present.has(t));
+
+    const unnameable = [...chains].filter(c => c && !isNameableChain(c));
+    const byConcatenation = residueTokenSet(structureText);
+    const missing = [];
+    const ambiguous = [];
+    for (const token of distinct) {
+        const [chain, resno] = splitAlphaNum(token);
+        if (chain ? byChain.has(`${chain}|${resno}`) : anyChain.has(resno)) continue;
+        if (byConcatenation.has(token)) ambiguous.push(token);
+        else missing.push(token);
+    }
+
     if (missing.length) {
         return {
             valid: false,
             reason: `${missing.length} residue(s) are not in the query structure: ` +
                     `${missing.slice(0, 8).join(', ')}${missing.length > 8 ? ', …' : ''}`,
             residues: distinct, missing,
+            ...(ambiguous.length ? { ambiguous } : {}),
+            ...(unnameable.length ? { unnameableChains: unnameable } : {}),
         };
     }
-    return { valid: true, residues: distinct, missing: [] };
+
+    const result = { valid: true, residues: distinct, missing: [] };
+    const warnings = [];
+    if (ambiguous.length) {
+        warnings.push(
+            `${ambiguous.length} token(s) name a residue only by concatenation: `
+            + `${ambiguous.slice(0, 8).join(', ')}${ambiguous.length > 8 ? ', …' : ''}. `
+            + 'Splitting letters from digits reads them as a different residue, which does not exist '
+            + 'here — the search may return nothing.');
+        result.ambiguous = ambiguous;
+    }
+    if (unnameable.length) {
+        warnings.push(
+            `chain(s) ${unnameable.join(', ')} in this structure have names that are not purely `
+            + 'alphabetic, so a motif token cannot separate chain from residue number unambiguously');
+        result.unnameableChains = unnameable;
+    }
+    if (warnings.length) result.warnings = warnings;
+    return result;
+}
+
+export function assertMotif(motif, structureText) {
+    const { valid, reason } = checkMotif(motif, structureText);
+    if (!valid) throw new Error(`invalid FoldDisco motif: ${reason}`);
+}
+
+export const validateMotif = checkMotif;
+
+/**
+ * The motif a FoldDisco query starts from — every residue, as `chain+resno`.
+ * @returns {{motif: string, residueCount: number, chains: string[], exceedsLimit: boolean,
+ *            unnameableChains?: string[]}}
+ */
+export function computeDefaultMotif(structureText, { includeHetero = false, chains: only = null } = {}) {
+    const wanted = only ? new Set(Array.isArray(only) ? only : [only]) : null;
+    const tokens = new Set();
+    const chains = new Set();
+
+    for (const r of listResidues(structureText)) {
+        if (!includeHetero && r.hetero) continue;
+        if (wanted && !wanted.has(r.chain)) continue;
+        tokens.add(`${r.chain}${r.resno}`);
+        chains.add(r.chain);
+    }
+
+    const unnameable = [...chains].filter(c => c && !isNameableChain(c));
+    return {
+        motif: [...tokens].join(','),
+        residueCount: tokens.size,
+        chains: [...chains],
+        exceedsLimit: tokens.size > MOTIF_MAX_RESIDUES,
+        ...(unnameable.length ? { unnameableChains: unnameable } : {}),
+    };
 }
 
 /**
  * A FoldDisco hit's matched residues, as a motif.
- *
- * The backend reports `targetresidues` with an `_` wherever a query residue had no match, so the raw
- * string is a positional record rather than a residue list. These are SelectToSendPanel.vue's two
- * substitutions, which drop the placeholders at either end and collapse runs of them in the middle —
- * leaving the residues that actually matched, in order.
  */
 export function motifFromTargetResidues(targetResidues) {
     return String(targetResidues ?? '')
@@ -118,7 +167,52 @@ export function motifFromTargetResidues(targetResidues) {
         .replace(/,_,(_,)*/g, ',');
 }
 
-export function assertMotif(motif, structureText) {
-    const { valid, reason } = checkMotif(motif, structureText);
-    if (!valid) throw new Error(`invalid FoldDisco motif: ${reason}`);
+/**
+ * Give a structure interpretable chain names, and rewrite a motif to match.
+ * @param {string} structureText
+ * @param {{motif?: string}} [opts]
+ * @returns {{text: string, motif: string|null, renames: Record<string,string>, changed: boolean}}
+ */
+export function normalizeChainNames(structureText, { motif = null } = {}) {
+    const chains = listChains(structureText).map(c => c.chain);
+    const renames = planChainRenames(chains);
+    if (renames.size === 0) {
+        return { text: structureText, motif, renames: {}, changed: false };
+    }
+
+    // Longest first: with chains A1 and A11 present, a token starting "A11" belongs to the latter.
+    const originals = [...renames.keys()].sort((a, b) => b.length - a.length);
+    const rewriteToken = (token) => {
+        const [identifier, substitution] = token.split(':');
+        const original = originals.find(c => identifier.startsWith(c)
+            && /^\d+$/.test(identifier.slice(c.length)));
+        if (!original) return token;
+        const renamed = `${renames.get(original)}${identifier.slice(original.length)}`;
+        return substitution === undefined ? renamed : `${renamed}:${substitution}`;
+    };
+
+    const text = renameChains(structureText, renames);
+
+    const after = new Set(listChains(text).map(c => c.chain));
+    const unapplied = [...renames.entries()].filter(([, alias]) => !after.has(alias));
+    if (unapplied.length) {
+        return {
+            text: structureText,
+            motif,
+            renames: {},
+            changed: false,
+            reason: `chain(s) ${unapplied.map(([from]) => from).join(', ')} could not be renamed in `
+                + 'this file, so the structure and the motif were left alone rather than made to '
+                + 'disagree',
+        };
+    }
+
+    return {
+        text,
+        motif: typeof motif === 'string' && motif.trim() !== ''
+            ? motif.split(',').map(t => rewriteToken(t.trim())).filter(Boolean).join(',')
+            : motif,
+        renames: Object.fromEntries(renames),
+        changed: true,
+    };
 }

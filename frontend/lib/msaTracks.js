@@ -1,28 +1,11 @@
 // Read per-column track values out of the msa-webgpu viewer.
-//
-// The library's public API exposes getTracks(), but that returns the track *catalog* — ids,
-// labels and which variants are enabled — not the computed values. The values are produced by a
-// WGSL compute shader and cached on the representation:
-//
-//   viewer.representationStore.get(id).columnMetrics
-//     { quality, occupancy, entropy, modalFractionNonGap, informationContentRaw,
-//       consensusIndex, consensusTie, conservationScore, conservationMask, counts }
-//   viewer.representationStore.get(id).trackState
-//     { alphabet, metrics: {...}, consensus: { columns: [...] } }
-//
-// `representationStore` is an ordinary property, so it is readable; the methods that *populate*
-// it are ECMAScript-private, which is the real constraint — see readRepresentation().
-//
-// Everything here is read-only and feature-detected. If the internal shape ever changes (this is
-// msa-webgpu 0.0.10 and the bundle is minified), the CPU fallback keeps the same output shape.
 
 const CONSERVATION_GROUPS = [
     'hydrophobic', 'polar', 'small', 'proline', 'tiny',
     'aliphatic', 'aromatic', 'positive', 'negative', 'charged',
 ];
 
-// Residue order the shader buckets into (residue_to_index): the 20 standard amino acids,
-// alphabetical. Used only by the CPU fallback.
+// A plain alphabetical fallback for callers with no alphabet to hand
 const AA_CORE = ['A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y'];
 
 let warnedOnce = false;
@@ -66,21 +49,6 @@ function readStore(viewer, repId) {
 
 /**
  * Read a representation's cached metrics, if it has any.
- *
- * Only the *active* representation is guaranteed to be populated: the library computes
- * trackState during activation, and its internal ensure-pass covers other representations only
- * when a track variant names them concretely. FoldMason's tracks are all bound to the
- * pseudo-representation "active", so nothing ever names "structure".
- *
- * Two documented ways to force it were tried and neither works:
- *   setTrackEnabled({trackId:'occupancy', representation:'structure'}, true)
- *     -> the catalog matches the existing "active" variant instead of creating a concrete one
- *   setConfig({trackDisplay:{variants:[..., {trackId:'occupancy', representation:'structure'}]}})
- *     -> same outcome; the store stays empty
- * Verified in a browser against a live FoldMason result.
- *
- * So: no trick. A caller that wants GPU-quality numbers for the non-active representation should
- * switch to it (the API exposes setRepresentation); otherwise the CPU fallback runs and says so.
  */
 export function readRepresentation(viewer, repId) {
     return readStore(viewer, repId);
@@ -102,19 +70,11 @@ function resolveRepId(viewer, repId) {
     return viewer?.getActiveRepresentation?.()?.id ?? null;
 }
 
-// ---------------------------------------------------------------------------------------------
 // Quality and conservation
 //
 // Ports of the WGSL `calculate_quality` and `calculate_conservation` in msa-webgpu's compute
 // shader, so the same two numbers can be produced without a GPU. Both are plain arithmetic over a
 // column's residue counts; nothing about them needed the GPU in the first place.
-//
-// The substitution matrix is never copied here — it is passed in from the alphabet's own
-// `qualityMatrix`, so a library update to BLOSUM62 or the 3Di matrix is picked up automatically.
-// The AMAS property table below is the one thing that must be transcribed, since the library keeps
-// it only inside the shader string with no data export. A test re-parses that string from the
-// installed package on every run and fails if this table drifts from it.
-// ---------------------------------------------------------------------------------------------
 
 /** Livingstone & Barton (1993) physicochemical property groups, bits 0-9. */
 export const AMAS_PROP = {
@@ -185,7 +145,7 @@ export function columnQuality(counts, { qualityMatrix, qualityMatrixSize, rows }
         for (let j = 0; j < core; j++) {
             const countJ = counts[j];
             if (countJ === 0) continue;
-            const pairCount = countI * countJ;          // includes i === j, as the shader does
+            const pairCount = countI * countJ;
             const selfJ = qualityMatrix[j * qualityMatrixSize + j];
             const denom = Math.max(selfI, selfJ);
             const ratio = denom > 0 ? qualityMatrix[i * qualityMatrixSize + j] / denom : 0;
@@ -200,9 +160,6 @@ export function columnQuality(counts, { qualityMatrix, qualityMatrixSize, rows }
 /**
  * One column's conservation: the AMAS score, i.e. how many physicochemical properties every
  * sufficiently common residue in the column shares (or all lack).
- *
- * Amino acids only. The shader stubs this to zero for the 3Di and nucleotide alphabets, so this is
- * the existing in-browser contract rather than a headless shortcut.
  *
  * @param {number[]} counts   per-core-bucket counts for the column
  * @param {{rows: number, gapCount: number}} opts
@@ -252,21 +209,22 @@ export function columnConservation(counts, { rows, gapCount }) {
     return { score, mask };
 }
 
-// ---------------------------------------------------------------------------------------------
 // CPU fallback
-// ---------------------------------------------------------------------------------------------
-
 /**
- * Recompute the column metrics from the alignment strings. Mirrors the shader's definitions:
- * lowercase is treated as an insertion and skipped; entropy is normalised by log2(coreSize) and
- * is 0 when fewer than two non-gap residues; informationContentRaw is max(0, 1 - entropy).
- *
- * `alphabet` is opt-in and is what unlocks quality/conservation: they need the substitution matrix
- * and bucket layout, which only the alphabet carries. Without it the two stay null, which is what
- * the page's own fallback still does — see claude-plan/headless-agent-layer/checklist.md 2.6.
- * Pass msa-webgpu's `aminoAcidAlphabet` (or `threeDIAlphabet`, quality only) to enable them.
+ * Recompute the column metrics from the alignment strings. Mirrors the shader's definitions
  */
-export function computeMetricsCpu(sequences, { symbols = AA_CORE, alphabet = null } = {}) {
+export function computeMetricsCpu(sequences, { symbols = null, alphabet = null } = {}) {
+    const core = alphabet?.metricConfig?.coreSize ?? null;
+    const fromAlphabet = alphabet && Array.isArray(alphabet.symbols)
+        ? alphabet.symbols.slice(0, core ?? alphabet.symbols.length)
+        : null;
+    if (fromAlphabet && symbols && symbols.join('') !== fromAlphabet.join('')) {
+        warnFallback(`symbols do not match alphabet "${alphabet.id}" — using the alphabet's own order`);
+    }
+    return computeMetrics(sequences, fromAlphabet ?? symbols ?? AA_CORE, alphabet);
+}
+
+function computeMetrics(sequences, symbols, alphabet) {
     const rows = sequences.length;
     const cols = rows ? sequences[0].length : 0;
     const core = symbols.length;
@@ -294,9 +252,6 @@ export function computeMetricsCpu(sequences, { symbols = AA_CORE, alphabet = nul
     for (let c = 0; c < cols; c++) {
         const counts = new Array(core).fill(0);
         let nonGap = 0;
-        // Insertions are skipped rather than counted as gaps, so gaps are counted directly instead
-        // of inferred from rows - nonGap. Unknown residues share the gap bucket in the shader
-        // (unknownBucketIndex === gapBucketIndex), so they belong here too.
         let gapCount = 0;
         for (let r = 0; r < rows; r++) {
             const ch = sequences[r][c];
@@ -340,8 +295,6 @@ export function computeMetricsCpu(sequences, { symbols = AA_CORE, alphabet = nul
     return {
         occupancy, entropy, modalFractionNonGap, informationContentRaw,
         consensusIndex, consensusTie,
-        // Null unless an alphabet was supplied: these need its substitution matrix and bucket
-        // layout, and reporting a number computed without them would be inventing one.
         quality, conservationScore, conservationMask,
         counts: countsPerCol, symbols,
     };
@@ -367,18 +320,11 @@ function consensusFromCpu(m, symbols) {
     });
 }
 
-// ---------------------------------------------------------------------------------------------
 // Public surface
-// ---------------------------------------------------------------------------------------------
-
 export function getTrackCatalog(viewer) {
     return viewer?.getTracks?.() ?? [];
 }
 
-/**
- * Column metrics as plain arrays. `source` is 'viewer' or 'cpu-fallback' so callers can tell
- * which numbers they are looking at — the fallback cannot produce quality/conservation.
- */
 export async function getColumnMetrics(viewer, { representationId = null, sequences = null, symbols = null } = {}) {
     const repId = resolveRepId(viewer, representationId);
     const rep = repId ? readRepresentation(viewer, repId) : null;
@@ -443,12 +389,9 @@ export function getColumnVisibility(viewer, opts = {}) {
     };
 }
 
-/** Values for one track id. Dispatches on the track definition's source type. */
 export async function getTrackValues(viewer, trackId, { representationId = null, sequences = null, symbols = null } = {}) {
     const cfg = viewer?.getConfig?.();
     const userTrack = (cfg?.tracks || []).find(t => t.id === trackId);
-    // `values` tracks carry their data inline — this is how the app's own LDDT track works, and
-    // it generalises to any future per-column track the app registers.
     if (userTrack?.source?.type === 'values') {
         return { source: 'definition', trackId, values: toPlainArray(userTrack.source.values) };
     }
@@ -465,11 +408,6 @@ export async function getTrackValues(viewer, trackId, { representationId = null,
     return { source: 'unavailable', trackId, values: null };
 }
 
-/**
- * One row per alignment column, joining every track. This is the method worth calling: the
- * individual getters return heterogeneous TypedArrays that a caller would otherwise have to zip
- * by index, and which do not survive JSON.stringify as arrays.
- */
 export async function getColumnTable(viewer, {
     representationId = null,
     sequences = null,

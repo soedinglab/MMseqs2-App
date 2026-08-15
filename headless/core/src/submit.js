@@ -12,13 +12,13 @@
 //                result endpoint returns them. Real data, nothing encoded.
 //   fm-entry   — a FoldMason entry's native pseudo-monomer form: {pdb, suffix}. FoldMason's MSA engine
 //                aligns one linear sequence per entry, so that is genuinely how it stores a complex;
-//                there is no per-chain data sitting beside it to use instead (context.md §10).
+//                there is no per-chain data sitting beside it to use instead.
 //   structure  — an actual structure file. A **FoldDisco hit** arrives this way: the backend serves
-//                the original full-atom model for a hit, not CA coordinates (context.md §9), so it is
+//                the original full-atom model for a hit, not CA coordinates, so it is
 //                not a `chains` origin at all. A loaded accession is the same shape.
 //
 // What varies by destination is how a multi-chain input is combined, and whether a full-atom
-// reconstruction is needed — see the dispatch table in plan.md §3. Three rules worth stating because
+// reconstruction is needed. Three rules worth stating because
 // getting them backwards produces a query the destination silently misreads:
 //   * Foldseek takes a real multi-chain PDB. Never encode for it.
 //   * Only FoldDisco needs full atoms. Foldseek and FoldMason both work on CA coordinates.
@@ -48,9 +48,6 @@ function isCif(text) {
 /**
  * The provenance header the page writes onto a forwarded structure, from SelectToSendPanel.vue's
  * prependRemark: which entry it was and which ticket it came from.
- *
- * Worth keeping rather than dropping as decoration — a forwarded query is otherwise an anonymous
- * structure, and this is the only record of where it came from once it is a new job's input.
  */
 export function provenanceRemark(text, { accession, db = null, ticket = null }) {
     const prefix = isCif(text) ? '# ' : 'REMARK  99 ';
@@ -75,9 +72,6 @@ export class SubmittableQuery {
     /**
      * @param {object} client
      * @param {object|(() => Promise<object>)} spec  the origin data, or a function producing it.
-     *   A hit's coordinates and a FoldDisco hit's structure are both a separate HTTP request, and a
-     *   selection of five hundred rows would fire five hundred of them the moment it was constructed.
-     *   Passing a resolver defers that to build time, where QuerySet batches it.
      * @param {{label?: string}} [opts]  a name for diagnostics before the spec is resolved
      */
     constructor(client, spec, { label = null } = {}) {
@@ -131,9 +125,6 @@ export class SubmittableQuery {
         const motif = spec.motif ? { motif: spec.motif } : {};
 
         if (spec.kind === 'structure') {
-            // Already a real file. Every destination takes it unchanged: FoldDisco because it is
-            // full-atom already, Foldseek because it accepts multi-chain PDB, FoldMason because a
-            // structure file is exactly what it wants as an entry.
             return {
                 pdb: spec.text,
                 name: spec.name ?? 'query',
@@ -147,21 +138,12 @@ export class SubmittableQuery {
             const { pdb, suffix } = spec;
             const name = spec.name ?? 'query';
             if (tool === 'foldmason') {
-                // Native form; the suffix rides on the entry name, which is how MSA.vue reads the
-                // chain boundaries back out.
                 return { pdb, suffix, name, isMultimer: !!suffix };
             }
-            // Foldseek and FoldMason both read CA coordinates, so the decoded text goes straight in.
-            // The page's pulchra call on this path predates cg2all and buys nothing (context.md §8).
             const real = suffix ? decodeMultimer(pdb, suffix) : pdb;
             if (tool !== 'folddisco') {
                 return { pdb: real, name, isMultimer: !!suffix, ...motif };
             }
-            // decodeMultimer has already restored the original chain labels, so the text handed to
-            // cg2all carries them. The page follows its reconstruction with revertChainInfo; that is a
-            // PULCHRA-era repair — losing chain assignment is PULCHRA's behaviour, not cg2all's — and
-            // re-stamping labels from TER positions can only differ from what came back by being
-            // wrong. Deliberate divergence from checklist 3.1.6.
             return {
                 pdb: await this._reconstruct(real, signal, name),
                 name, isMultimer: !!suffix, reconstructed: true, ...motif,
@@ -178,14 +160,10 @@ export class SubmittableQuery {
         if (tool === 'foldmason') {
             if (!multi) return { pdb: parts[0].pdb, name: base, isMultimer: false };
             const { pdb, suffix } = encodeMultimer(parts);
-            // The suffix is part of the *name*: that is where FoldMason carries it through the job and
-            // where MSA.vue looks for it. Dropping it loses the chain boundaries entirely.
             return { pdb, suffix, name: `${base}${this._chainset(spec)}${suffix}`, isMultimer: true };
         }
 
         if (tool === 'folddisco') {
-            // A complex has no single accession to look up, so only a single-chain hit can be resolved
-            // to its original file; everything else is reconstructed from the merged text.
             if (!multi) {
                 const accession = spec.accession ?? base;
                 try {
@@ -193,9 +171,6 @@ export class SubmittableQuery {
                         { signal, fetchImpl: this.client.fetchImpl });
                     return { pdb: found.text, name: base, isMultimer: false, resolvedFrom: found.url, ...motif };
                 } catch (err) {
-                    // Not resolvable is the ordinary case for most databases; a failed fetch of a URL
-                    // that should have worked is worth surfacing, but reconstruction still gets the
-                    // caller a usable query either way.
                     if (!(err instanceof DatabaseNotResolvableError)) {
                         this.client.onWarning?.(`${base}: falling back to reconstruction (${err.message})`);
                     }
@@ -245,12 +220,6 @@ export class SubmittableQuery {
     /**
      * Build for the destination and submit.
      *
-     * `tool: 'foldseek'` submits a plain search even when the query has several chains — Foldseek
-     * treats each chain as its own query and the ticket comes back with one entry per chain, which is
-     * a perfectly good way to search a complex. `tool: 'multimer'` asks for the complex search
-     * instead, where the chains are scored together. The choice is the caller's; nothing is promoted
-     * automatically.
-     *
      * @param {object} opts
      * @param {'foldseek'|'multimer'|'folddisco'} opts.tool
      * @param {string[]} opts.databases
@@ -284,12 +253,6 @@ export class SubmittableQuery {
 
     /**
      * Record which ticket this job came out of.
-     *
-     * The provenance remark inside the structure says it too, but that is only readable by opening
-     * the query file of a job someone already found. A forwarded job is otherwise indistinguishable
-     * from one submitted from scratch, and the question an agent comes back with — "which search did
-     * this alignment come from, and which hits went into it?" — has no other answer once the
-     * conversation that made it is over.
      */
     async _recordLineage(ticket, tool, built) {
         const source = this.spec?.ticket;
@@ -298,20 +261,12 @@ export class SubmittableQuery {
             ticket: source,
             origin: this.spec.kind,
             tool,
-            // Whatever the producer knows about where this came from — a row id, the columns a motif
-            // was read off. Only Row/MsaColumnSelection can say that; this module cannot infer it.
             ...(this.spec.lineage ?? {}),
             ...(this.label ? { from: this.label } : {}),
             ...(built?.name ? { name: built.name } : {}),
             ...(built?.resolvedFrom ? { resolvedFrom: built.resolvedFrom } : {}),
             ...(built?.reconstructed ? { reconstructed: true } : {}),
         };
-        // A merge-write onto the record submission just made, rather than a field threaded through
-        // every submit signature: lineage is a property of *forwarding*, not of submitting, and only
-        // this module knows it.
-        //
-        // A failure here must not fail the call: the job is already queued, and reporting an error
-        // would invite the caller to submit it again. Bookkeeping lost, work kept.
         try {
             await this.client.store.writeTicket(ticket.id, { derivedFrom });
         } catch (err) {
@@ -323,11 +278,7 @@ export class SubmittableQuery {
 }
 
 /**
- * Several queries, submitted together.
- *
- * FoldMason is the reason this exists — it is the only destination that takes more than one structure
- * — but a one-query set is allowed through to the single-query destinations so that "act on what I
- * selected" does not need a different call depending on how many things matched.
+ * Several queries, submitted together - for FoldMason job.
  */
 export class QuerySet {
     constructor(client, queries, { ticket = null, entry = 0, description = null } = {}) {
@@ -360,10 +311,6 @@ export class QuerySet {
         const seen = new Set();
 
         const add = (file, index) => {
-            // The same structure can be a hit in several databases at once — the afdb siblings share
-            // entries, so selecting the best hit from each is a normal thing to do and lands two
-            // identically named files in one submission. That is not an error worth refusing a job
-            // over: the second copy carries nothing the first does not, so it is dropped and noted.
             if (seen.has(file.name)) {
                 skipped.push({ index, name: file.name, reason: 'duplicate entry name' });
                 return;
@@ -372,10 +319,6 @@ export class QuerySet {
             files.push(file);
         };
 
-        // Built in bounded batches rather than all at once: each structure can mean an HTTP request,
-        // and a thousand-row selection would otherwise open a thousand of them. The page batches for
-        // the same reason. One structure that cannot be built does not fail the batch — it is reported
-        // and the rest go on, matching what the page does with its settled results.
         for (let i = 0; i < this.queries.length; i += concurrency) {
             const batch = this.queries.slice(i, i + concurrency);
             const settled = await Promise.allSettled(batch.map(q => q.buildFile({ signal })));
@@ -405,8 +348,6 @@ export class QuerySet {
         ticket.submittedFiles = files.length;
 
         if (this.ticket) {
-            // Which hits went in, not just which ticket they came from: the selection can be changed
-            // or deleted afterwards, so naming it would not be enough to reconstruct this job.
             const derivedFrom = {
                 ticket: this.ticket,
                 entry: this.entry,

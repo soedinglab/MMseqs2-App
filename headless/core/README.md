@@ -1,0 +1,179 @@
+# `mmseqs2-agent-core`
+
+A headless client for this repo's Go backend: submit Foldseek, FoldMason and FoldDisco jobs, poll
+them, decode the results with the frontend's own parsing code, and forward a hit or an alignment
+region into the next search.
+
+Node 18+. No dependencies outside the repo except `msa-webgpu` (for the substitution matrices).
+
+## Creating a client
+
+```js
+import { createClient } from 'mmseqs2-agent-core';
+
+const client = createClient({
+    baseUrl: 'https://search.foldseek.com',   // required — the site origin, not the /api path
+    app: 'foldseek',                          // affects cross-reference links in parsed results
+    apiPath: '/api',                          // for a deployment using config.Server.PathPrefix
+    stateDir: '~/.mmseqs2-agent',             // ticket cache; MMSEQS2_AGENT_STATE_DIR overrides
+    basicAuth: null,                          // { user, pass }
+    cg2allUrl: 'https://3di.foldseek.com/cg2all/predict',
+    onWarning: msg => console.warn(msg),      // non-fatal notes: a DB lookup that fell back, rows skipped
+});
+```
+
+`baseUrl` has **no default**. A plausible one would send someone's structures to a public production
+server without them choosing it.
+
+## Submitting
+
+```js
+const ticket = await client.submitFoldseekSearch({ query, databases: ['pdb100'], mode: '3diaa' });
+await client.submitMultimerSearch({ query, databases });          // complex search
+await client.submitFoldMason({ files: [{ name, content }, …] });  // two or more
+await client.submitFoldDisco({ query, databases, motif });        // motif checked against the query
+
+await client.validateSubmission({ tool, query, databases, … });   // every check, nothing queued
+```
+
+Each returns a `Ticket` — `{ id, status }` plus `.wait()` and `.getResult()`. Submission validates
+before it sends: databases against `list_databases`' capability flags (the same filter `Databases.vue`
+applies, which is stricter than the backend's), the taxon filter against the backend's grammar, the
+motif against the query structure, and FoldMason's two-file minimum. A failure here costs nothing; the
+same mistake sent to the server costs a queue slot and comes back as "invalid taxon filter".
+
+Multimer search rejects `iterativeSearch`: the complex job never receives it, so accepting it would
+read as support that is not there.
+
+## Polling
+
+```js
+const done = await client.waitForCompletion(id, { intervalMs: 2000, timeoutMs: 0, onStatus });
+await client.pollTicket(id);          // one poll
+await client.getTicketType(id);       // structuresearch | complexsearch | foldmasoneasymsa | folddisco
+await client.resultUrl(id);           // the page a human would open
+```
+
+A cached `COMPLETE` skips the network: results never expire server-side, so a completed ticket cannot
+revert to running.
+
+## Reading results
+
+```js
+const table = await client.getResult(id, entry);        // Foldseek / Multimer
+const table = await client.getFoldDiscoResult(id);      // FoldDisco (no entry index on that route)
+const table = await client.getResultTable(id);          // whichever this ticket is
+
+table.getTableSummary({ merged: true });                 // survey every database, no rows
+table.getTable({ db: 'afdb50', sortKey: 'eval', limit: 20, fields: ['target', 'eval'] });
+table.getTaxonomy('afdb50');
+```
+
+Start with `getTableSummary()`. Surveying nine databases that way costs about 1,000 tokens against
+73,000 for the equivalent `getTable({db:'*'})`, and it tells you which database is worth reading.
+`merged: true` adds one ranking across all of them (100 hits per database enter the pool regardless
+of how many you ask back).
+
+`getTable` takes `taxonFilter` (by taxon id *or* name, descendants included by default) and, for
+FoldDisco, `motifFilter` — which selects on the matched-query-residue pattern the parser calls `gaps`.
+Both are applied before sorting and paging, so `total` describes the filtered set.
+
+## Selecting and forwarding
+
+```js
+const selection = table.select({ db: 'afdb50', limit: 20 });   // or table.select(['0#1', '0#7'])
+selection.remove({ taxonFilter: { taxon: 'Homo sapiens' }, limit: 50 });
+selection.describe();                                          // what is in it; flags duplicate names
+await selection.save('shortlist');                             // survives the process
+await table.loadSelection('shortlist');
+
+const ticket = await selection.sendTo({ tool: 'foldmason' });  // includeQuery: true by default
+const ticket = await table.row('0#1').sendTo({ tool: 'folddisco', databases: ['pdb_folddisco'] });
+```
+
+Selections hold row ids only, and the structures behind them are fetched when `sendTo` runs — so a
+thousand-row selection costs nothing until it is submitted. They are saved per ticket because
+forwarding produces a *new* ticket, and coming back to adjust the original choice is the normal next
+step.
+
+What `sendTo` builds depends on **both** where the query came from and where it is going:
+
+| origin | → foldseek / multimer | → foldmason | → folddisco |
+|---|---|---|---|
+| a Foldseek hit (per-chain CA) | `mergePdbs` if multi-chain, else `mockPDB` | `encodeMultimer` if multi-chain | the original file from the source database if there is one, else cg2all reconstruction |
+| a FoldMason entry | `decodeMultimer`, used directly | as-is | `decodeMultimer` → one cg2all call |
+| a structure file (FoldDisco hit, loaded accession) | as-is | as-is | as-is |
+
+Two rules behind that table: Foldseek reads a real multi-chain PDB, so it must never be handed the
+FoldMason encoding; and only FoldDisco needs full atoms, so reconstruction never happens for the
+others. `tool: 'foldseek'` on a multi-chain query stays a plain search — Foldseek treats each chain as
+its own query, which is a legitimate way to search a complex, so nothing is promoted automatically.
+
+Every forwarded job records `derivedFrom` in its cache entry: the source ticket, the row or columns it
+came from, and how the structure was assembled.
+
+## Alignments
+
+```js
+const res = await client.getFoldMasonResult(id);
+await client.getFoldMasonColumnSummary(id, { primary: 'lddt' });
+await client.getFoldMasonColumns(id, { metrics: ['lddt', 'conservation'], offset: 40, limit: 20 });
+await client.getFoldMasonFasta(id, { representation: 'aa' });
+await client.getFoldMasonCoordinates(id, { entries: [0] });
+
+const columns = await client.selectMsaColumns(id, { entry: 0, columns: [12, 13, 14] });
+columns.motif;                                    // 'A31, A32, A33' — chain + original residue number
+await columns.sendTo({ tool: 'folddisco', databases: ['pdb_folddisco'] });
+```
+
+Quality and conservation come from a CPU port of the page's WGSL compute shader, checked column for
+column against real GPU output (`test/fixtures/msa-gpu-metrics.json`). LDDT does not come from the
+shader at all — the backend ships it per column, and `-1` means *absent*, reported as `null`.
+
+The column summary is the cheap way in: each metric's spread, the notable columns as compressed
+ranges, and the contiguous regions where the ranking metric runs high, best region first. Its
+threshold defaults to this alignment's own median rather than a fixed bar, because a fixed bar returns
+nothing on plenty of real alignments.
+
+## Structures and motifs
+
+```js
+await client.loadAccession('1STP', { source: 'PDB' });    // + Q-BioLiP binding site as a motif
+await client.loadAccessions(['1STP', '3ERK']);
+await client.resolveStructureFromDb('afdb50', 'AF-P00001-F1-model_v4');
+await client.reconstructFullAtom(caOnlyPdb);              // cg2all
+
+client.computeDefaultMotif(text);                          // every residue; a palette to narrow
+client.validateMotif(motif, text);                         // syntax, existence, nameability
+client.normalizeChainNames(text, { motif });               // single-character chain names
+```
+
+`loadAccession` on a PDB id also asks Q-BioLiP for binding sites and, if one exists, comes back with
+`.motif` already set — so a motif search on a known binding site is one call. Two things it repairs on
+the way, both found by measuring real responses rather than reading code:
+
+- Q-BioLiP reports its sites in *auth* numbering for some entries and *label* numbering for others
+  (1A4G is the latter). A residue that resolves only under label numbering is translated to auth
+  rather than dropped, and anything that resolves under neither is reported.
+- Its receptor assemblies name chains `A1`…`A4`, and a motif token concatenates chain and residue
+  number, so `A1120` reads as chain `A` residue `1120`. Chains whose names contain a digit are renamed
+  and the motif is rewritten with them, with the mapping in `.chainsRenamed`. Length is not the test:
+  `AA187` has only one reading, so a chain called `AA` is left alone.
+
+`validateMotif` distinguishes three outcomes: a token naming nothing is refused, a token that resolves
+only by string concatenation is flagged (`ambiguous`) but allowed, and everything else passes.
+
+## The cache
+
+`stateDir` holds one directory per ticket, sharded like the backend's own job directories:
+`ticket.json` (kind, status, submission summary, `derivedFrom`), `result-<entry>.json`,
+`foldmason.json`, `folddisco.json`, `selections.json`. Only terminal results are cached, and the query
+itself never is — 1CRN is 69 KB as mmCIF, and storing it would turn a 300-byte record into a 70 KB
+one for something the server already has. Its length and a hash prefix are kept instead.
+
+`client.listCachedTickets({ limit })` reads it without touching the network.
+
+## Testing
+
+`npm test` runs 193 tests and touches nothing outside the process. The live tests are described in
+[`../README.md`](../README.md).

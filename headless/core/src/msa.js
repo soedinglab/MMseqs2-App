@@ -1,16 +1,4 @@
 // Per-column metrics for a FoldMason alignment, without a browser.
-//
-// The page gets quality/conservation from a WGSL compute shader and reads them off the viewer. Here
-// they come from msaTracks.js's CPU path, which — with an alphabet supplied — computes the same
-// numbers, verified against real GPU output column for column (test/fixtures/msa-gpu-metrics.json).
-//
-// LDDT is the primary metric and does not come from the shader at all: the backend ships it as
-// `scores`, one value per column, which MSA.vue feeds through as `extraValues: { lddt }`. A value of
-// -1 means the column has no LDDT rather than an LDDT of -1, so it is reported as null and counted
-// as missing — the same treatment the page's own summary gives it.
-//
-// Field names follow getColumnTable()'s so the two APIs share a vocabulary. Its `visible` and
-// `selected` are absent here: both read mounted-component state and have no headless meaning.
 
 import { computeMetricsCpu, decodeConservation } from '../../../frontend/lib/msaTracks.js';
 import { getResidueIndices, entryChainMap } from '../../../frontend/lib/alignmentColumns.js';
@@ -18,30 +6,19 @@ import { mockPDB } from '../../../frontend/lib/pdbAssembly.js';
 import { getAccession } from '../../../frontend/lib/targetName.js';
 import { aminoAcidAlphabet, threeDIAlphabet } from 'msa-webgpu';
 
-/**
- * FoldMason entries carry both an amino-acid alignment (`aa`) and a 3Di one (`ss`); which one is
- * being measured decides both the sequences and the substitution matrix, so they travel together.
- * Conservation is amino-acid only — the shader stubs it to zero for 3Di, and this follows.
- */
 const REPRESENTATIONS = {
     aa: { alphabet: aminoAcidAlphabet, field: 'aa' },
     '3di': { alphabet: threeDIAlphabet, field: 'ss' },
 };
 
-/** Every metric a column row can carry. LDDT first: it is the one that measures the structures. */
 export const COLUMN_METRICS = [
     'lddt', 'quality', 'conservation', 'consensus', 'occupancy', 'entropy', 'informationContent',
 ];
 
-/** Metrics that are a plain number per column, and can therefore be ranked or thresholded. */
 const SCALAR_METRICS = ['lddt', 'quality', 'conservation', 'occupancy', 'entropy', 'informationContent'];
 
 const MISSING_LDDT = -1;
 
-/**
- * Values that mean something specific rather than just "high", so a mean hides them. Conservation's
- * come from the shader: 11 identity, 10 every property shared, 0 nothing shared.
- */
 const CATEGORIES = {
     conservation: [
         ['identity', v => v === 11],
@@ -148,10 +125,6 @@ export function expandRanges(ranges) {
     return [...new Set(out)].sort((a, b) => a - b);
 }
 
-/**
- * Counts *and positions* for a metric's notable values: a count says such a column exists, not
- * which one to look at. `count` is always exact; the range list is capped and says when cut.
- */
 function categorize(metric, values, maxRanges) {
     const defs = CATEGORIES[metric];
     if (!defs) return null;
@@ -255,10 +228,6 @@ export function foldMasonColumns(foldMasonResult, {
     };
 }
 
-/**
- * FASTA for the alignment. Records keep their gap characters, so each is `totalColumns` long — the
- * page's getFasta does the same, and column masking deliberately does not apply here.
- */
 export function foldMasonFasta(foldMasonResult, {
     representation = 'aa', entries: wantedEntries = null, offset = 0, limit = 500,
 } = {}) {
@@ -294,14 +263,6 @@ export function foldMasonFasta(foldMasonResult, {
 
 /**
  * CA coordinates per entry.
- *
- * Opt-in and never returned by default: coordinates dominate the response, which is why the page's
- * own getCoordinates() hands back only the viewer's reference row unless asked for more. `ca` stays a
- * string of comma-separated x,y,z triplets rather than being parsed into arrays — parsing it would
- * roughly triple the payload for no added information.
- *
- * `residueCount` and `alignedLength` are deliberately separate: the first counts triplets (ungapped
- * residues), the second is the column count, and they differ.
  */
 export function foldMasonCoordinates(foldMasonResult, { entries: wantedEntries = null } = {}) {
     const all = foldMasonResult?.entries ?? [];
@@ -370,12 +331,6 @@ function findRegions(total, valueAt, threshold, minLength) {
 
 /**
  * Pick a threshold that actually yields regions.
- *
- * A fixed high cut-off is the wrong instrument here: conservation reaches 10 only where every
- * residue shares all ten properties, and plenty of real alignments have no such run, so a "top
- * regions" call would come back empty and say nothing about an alignment that does have a clear
- * best-aligned core. Taking a quantile of the values actually present makes the answer relative to
- * the alignment in hand — always the best regions *of this alignment*, whatever its absolute range.
  */
 function quantileThreshold(values, quantile) {
     const real = values.filter(v => typeof v === 'number' && Number.isFinite(v)).sort((a, b) => a - b);
@@ -476,17 +431,6 @@ export function foldMasonColumnSummary(foldMasonResult, {
     return out;
 }
 
-// -------------------------------------------------------------------------------------------------
-// Selecting columns of one entry, and forwarding what they cover.
-//
-// The interesting part of an alignment is usually a few columns of it — the conserved core, the run
-// where LDDT is high. Selecting those and asking "what is this region, structurally?" is a FoldDisco
-// search over the residues they map to, and the mapping already exists: getResidueIndices turns
-// alignment columns into ungapped sequence positions, and entryChainMap turns those into (chain,
-// resno) for a multimer. Both are the page's, unchanged.
-// -------------------------------------------------------------------------------------------------
-
-/** Entry names carry an encodeMultimer suffix after this delimiter, as MSA.vue reads it back. */
 const SUFFIX_DELIMITER = '-_-_-_';
 
 function suffixOf(name) {
@@ -495,16 +439,6 @@ function suffixOf(name) {
 
 /**
  * A set of alignment columns within one FoldMason entry, and the query they describe.
- *
- * Column indices are alignment columns, not residue numbers — the two differ by every gap before
- * them, which is what getResidueIndices exists to resolve. Columns that are gaps in this entry
- * contribute no residue and are reported as such rather than silently dropped.
- *
- * Mutable and savable, for the same reason a row selection is: picking a region and picking the entry
- * to read it off are two decisions that get revised. Going to FoldDisco and coming back to widen the
- * region by three columns, or to take the same columns from a different entry, should not mean
- * finding them again — so `save()` puts the choice in the ticket's cache entry, where a later process
- * can `loadMsaSelection` it.
  */
 export class MsaColumnSelection {
     constructor(client, foldMasonResult, {
@@ -525,11 +459,6 @@ export class MsaColumnSelection {
             .sort((a, b) => a - b);
     }
 
-    /**
-     * Read the columns off a different entry. The columns themselves are alignment coordinates and
-     * mean the same thing in every entry, so the region survives the switch; which residues it covers
-     * does not, and that is usually the point.
-     */
     setEntry(entry) {
         const entries = this.result?.entries ?? [];
         const data = entries[entry];
@@ -558,23 +487,15 @@ export class MsaColumnSelection {
 
     /**
      * Use this motif instead of the one the columns produce.
-     *
-     * The derived motif is right for "these columns", but a caller may want to drop a residue the
-     * region happens to include, or reuse a motif from elsewhere. Passing null goes back to deriving
-     * it from the columns.
      */
     setMotif(motif) { this._motif = motif || null; return this; }
 
-    /** 1-based residue positions in the ungapped sequence, as the page's `resnoStr` computes them. */
     get residues() {
         return getResidueIndices(this.entry.aa, this.columns).map(i => i + 1);
     }
 
     /**
      * The motif these columns describe: `chain + original residue number` per residue.
-     *
-     * Joined with ", " like SelectToSendPanelFoldMason.vue's motifStr — the same string the page
-     * hands to the FoldDisco search page. An override set with setMotif() wins.
      */
     get motif() {
         if (this._motif) return this._motif;
@@ -612,8 +533,6 @@ export class MsaColumnSelection {
             chains: [...new Set(this.map.chains.slice(1))],
             totalColumns: this.entry.aa?.length ?? 0,
             selectedColumns: compressRanges(this.columns),
-            // Columns that are gaps in this entry map to no residue at all. Saying how many were
-            // dropped is the difference between "you selected a gap" and a motif quietly one short.
             residueCount: residues.length,
             gapColumns: this.columns.length - residues.length,
             ...(this.savedAt ? { savedAt: this.savedAt } : { saved: false }),

@@ -1,27 +1,13 @@
 // Fetch a structure by accession from a third-party service.
-//
-// Extracted from LoadAcessionButton.vue so the search-page API and the button share one
-// definition — the same reason resultSort.js exists. The button imports from here.
-//
-// Note these are cross-origin fetches to services unrelated to the MMseqs2 server
-// (files.rcsb.org, alphafold.ebi.ac.uk, bfvd.steineggerlab.workers.dev, yanglab.qd.sdu.edu.cn),
-// so they fail independently of it.
-
-// Default import, then destructure: axios is CommonJS, and while webpack resolves
-// `import { create } from 'axios'` fine, Node's ESM loader cannot detect that named export and
-// throws `SyntaxError: Named export 'create' not found`. This form works under both, which is what
-// lets the headless layer reuse fetchAccession instead of reimplementing it.
 import axios from 'axios';
 const { create } = axios;
 
-/** Always available. */
 export const BASE_SOURCES = [
     { text: 'PDB (rcsb.org)', value: 'PDB' },
     { text: 'AlphaFoldDB (ebi.ac.uk)', value: 'AlphaFoldDB' },
     { text: 'BFVD (bfvd.foldseek.com)', value: 'BFVD' },
 ];
 
-/** Opt-in per page via the button's `extraEnabled` prop. */
 export const EXTRA_SOURCES = {
     AlphaFill: { text: 'AlphaFill (alphafill.eu)', value: 'AlphaFill' },
     QBioLip: { text: 'Q-BioLiP (yanglab.qd.sdu.edu.cn)', value: 'QBioLip' },
@@ -37,10 +23,6 @@ export function sourcesFor(extraEnabled = []) {
 
 /**
  * Resolve one accession to `{ name, text }`, or reject with the accession.
- *
- * `AlphaFoldDB` is a *fuzzy search*, not a lookup: it queries `text:*ACC OR text:ACC*` and takes
- * the first hit, so the entry returned can differ from the one asked for. Callers that care should
- * compare the returned `name` against what they requested.
  */
 export function fetchAccession(accession, source) {
     return new Promise((resolve, reject) => {
@@ -78,11 +60,12 @@ export function fetchAccession(accession, source) {
     });
 }
 
-// ---------------------------------------------------------------------------------------------
-// Q-BioLiP — binding sites for a PDB id. Two-step: search, then load a chosen site.
-// ---------------------------------------------------------------------------------------------
-
-/** map label_asym_id to auth_asym_id */
+/**
+ * Index a receptor mmCIF so a Q-BioLiP binding-site residue can be resolved to this file's own
+ * chain and residue number.
+ *
+ * @returns {Map<string, {chain: string, seq: string}>} keyed `chain|seq` under both schemes
+ */
 export function parseCifResidueChainMap(cifText) {
     const map = new Map();
     const lines = cifText.split('\n');
@@ -100,10 +83,11 @@ export function parseCifResidueChainMap(cifText) {
         if (headers.length === 0 || !headers[0].startsWith('_atom_site.')) continue;
 
         const labelIdx = headers.indexOf('_atom_site.label_asym_id');
+        const labelSeqIdx = headers.indexOf('_atom_site.label_seq_id');
         const authIdx = headers.indexOf('_atom_site.auth_asym_id');
         const seqIdx = headers.indexOf('_atom_site.auth_seq_id');
         if (labelIdx < 0 || authIdx < 0 || seqIdx < 0) return map;
-        const maxIdx = Math.max(labelIdx, authIdx, seqIdx);
+        const maxIdx = Math.max(labelIdx, authIdx, seqIdx, labelSeqIdx);
 
         for (; i < lines.length; i++) {
             const t = lines[i].trim();
@@ -115,34 +99,80 @@ export function parseCifResidueChainMap(cifText) {
             if (cols.length <= maxIdx) continue;
             const auth = cols[authIdx];
             const seq = cols[seqIdx];
-            const keyLabel = `${cols[labelIdx]}|${seq}`;
+            const here = { chain: auth, seq };
+
+            // Auth keys are written first and never overwritten, so an auth match always wins over a
+            // label match on the same key.
             const keyAuth = `${auth}|${seq}`;
-            if (!map.has(keyLabel)) map.set(keyLabel, auth);
-            if (!map.has(keyAuth)) map.set(keyAuth, auth);
+            if (!map.has(keyAuth)) map.set(keyAuth, here);
+            const keyAuthChainLabelSeq = `${cols[labelIdx]}|${seq}`;
+            if (!map.has(keyAuthChainLabelSeq)) map.set(keyAuthChainLabelSeq, here);
         }
         break;
     }
+
+    // Label-scheme keys in a second pass, so they can never displace an auth-scheme key.
+    labelSeqPass(cifText, map);
     return map;
 }
 
+/** The label_asym_id|label_seq_id keys, added only where nothing auth-keyed already claims them. */
+function labelSeqPass(cifText, map) {
+    const lines = cifText.split('\n');
+    let i = 0;
+    while (i < lines.length) {
+        if (lines[i].trim() !== 'loop_') { i++; continue; }
+        i++;
+        const headers = [];
+        while (i < lines.length && lines[i].trim().startsWith('_')) {
+            headers.push(lines[i].trim().split(/\s+/)[0]);
+            i++;
+        }
+        if (headers.length === 0 || !headers[0].startsWith('_atom_site.')) continue;
+
+        const labelIdx = headers.indexOf('_atom_site.label_asym_id');
+        const labelSeqIdx = headers.indexOf('_atom_site.label_seq_id');
+        const authIdx = headers.indexOf('_atom_site.auth_asym_id');
+        const seqIdx = headers.indexOf('_atom_site.auth_seq_id');
+        if (labelSeqIdx < 0 || labelIdx < 0 || authIdx < 0 || seqIdx < 0) return;
+        const maxIdx = Math.max(labelIdx, labelSeqIdx, authIdx, seqIdx);
+
+        for (; i < lines.length; i++) {
+            const t = lines[i].trim();
+            if (t === '' || t === 'loop_' || t.startsWith('_') || t.startsWith('#')
+                || t.startsWith('data_')) {
+                break;
+            }
+            const cols = t.split(/\s+/);
+            if (cols.length <= maxIdx) continue;
+            if (cols[labelSeqIdx] === '.' || cols[labelSeqIdx] === '?') continue;
+            for (const key of [`${cols[labelIdx]}|${cols[labelSeqIdx]}`,
+                `${cols[authIdx]}|${cols[labelSeqIdx]}`]) {
+                if (!map.has(key)) map.set(key, { chain: cols[authIdx], seq: cols[seqIdx] });
+            }
+        }
+        break;
+    }
+}
+
 /**
- * Convert Q-BioLiP binding-site notation to the internal motif format.
- * With a residueMap each residue's chain is resolved to the structure's auth chain and residues
- * absent from the structure are dropped. Without a map the reported chain letters are kept as-is.
+ * Resolve Q-BioLiP binding-site notation against a receptor, residue by residue.
+ *
+ * @returns {{residues: string[], dropped: {chain: string, resno: string}[], translated: number}}
  */
-export function qbiolipBsToMotif(bs, residueMap) {
-    if (!bs) return '';
-    const parts = bs.trim().split(/\s+/);
-    let currentChain = '';
+export function qbiolipBsResidues(bs, residueMap) {
     const residues = [];
-    for (const part of parts) {
-        let resToken;
+    const dropped = [];
+    let translated = 0;
+    if (!bs) return { residues, dropped, translated };
+
+    let currentChain = '';
+    for (const part of bs.trim().split(/\s+/)) {
+        let resToken = part;
         if (part.includes(':')) {
             const colonIdx = part.indexOf(':');
             currentChain = part.slice(0, colonIdx);
             resToken = part.slice(colonIdx + 1);
-        } else {
-            resToken = part;
         }
         if (!resToken) continue;
         // strip leading one-letter amino acid code, keep residue number
@@ -151,11 +181,19 @@ export function qbiolipBsToMotif(bs, residueMap) {
 
         if (!residueMap) { residues.push(`${currentChain}${resno}`); continue; }
         const seqMatch = resno.match(/-?\d+/);
-        const authChain = seqMatch ? residueMap.get(`${currentChain}|${seqMatch[0]}`) : undefined;
-        if (authChain === undefined) continue;   // not present in the loaded structure
-        residues.push(`${authChain}${resno}`);
+        const found = seqMatch ? residueMap.get(`${currentChain}|${seqMatch[0]}`) : undefined;
+        if (found === undefined) { dropped.push({ chain: currentChain, resno }); continue; }
+        if (found.seq !== seqMatch[0]) translated++;
+        residues.push(`${found.chain}${found.seq}`);
     }
-    return residues.join(',');
+    return { residues, dropped, translated };
+}
+
+/**
+ * Convert Q-BioLiP binding-site notation to the internal motif format.
+ */
+export function qbiolipBsToMotif(bs, residueMap) {
+    return qbiolipBsResidues(bs, residueMap).residues.join(',');
 }
 
 export async function searchBindingSites(pdbId) {
@@ -168,15 +206,23 @@ export async function searchBindingSites(pdbId) {
     return Array.isArray(response.data) ? response.data : [];
 }
 
-/** Load a chosen binding site's structure and derive its auth-chain-mapped motif. */
+/**
+ * Load a chosen binding site's structure and express its residues in that file's own numbering.
+ */
 export async function fetchBindingSite(item) {
     const axios = create();
     const assembly = item.Receptor.assembly;
     const response = await axios.get(
         `https://yanglab.qd.sdu.edu.cn/Q-BioLiP/DATA/rec_cif/${assembly}.cif`);
     const cifText = response.data;
-    // Q-BioLiP reports label_asym_id chains; the app uses auth_asym_id.
+    // Q-BioLiP reports label_asym_id chains, and — depending on the entry — either numbering scheme.
     const residueMap = parseCifResidueChainMap(cifText);
-    return { name: `${assembly}.cif`, text: cifText,
-        motif: qbiolipBsToMotif(item.Complex && item.Complex.bs, residueMap) };
+    const resolved = qbiolipBsResidues(item.Complex && item.Complex.bs, residueMap);
+    return {
+        name: `${assembly}.cif`,
+        text: cifText,
+        motif: resolved.residues.join(','),
+        dropped: resolved.dropped,
+        translated: resolved.translated,
+    };
 }
