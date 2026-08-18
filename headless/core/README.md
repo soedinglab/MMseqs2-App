@@ -74,6 +74,12 @@ Start with `getTableSummary()`. Surveying nine databases that way costs about 1,
 `merged: true` adds one ranking across all of them (100 hits per database enter the pool regardless
 of how many you ask back).
 
+Metrics arrive from the parser **rounded**, and the artifact and summary carry the rounded value as a
+number: an E-value keeps 3 significant digits (`toExponential(2)`), a TM-score 3 decimals
+(`toFixed(3)`), IDF-score and RMSD 3 decimals. Under `lolalign` the parser also multiplies `eval` by
+100 before rounding, so a LOL-score reads the way the page shows it and not the way an upstream LoL
+score would. `numericMetric` recovers the number; the precision that was dropped is gone for good.
+
 `getTable` takes `taxonFilter` (by taxon id *or* name, descendants included by default) and, for
 FoldDisco, `motifFilter` — which selects on the matched-query-residue pattern the parser calls `gaps`.
 Both are applied before sorting and paging, so `total` describes the filtered set.

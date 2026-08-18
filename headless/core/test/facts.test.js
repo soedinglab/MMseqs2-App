@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import {
     normalizeEntry, resultCounts, resultRowCap, completenessOf, databaseProvenance,
     taxonomyExport, serializeRow, motifPatternExport, isComplexResult,
-    msaResidueMap, MsaColumnSelection,
+    msaResidueMap, residueTokens, MsaColumnSelection,
 } from '../src/index.js';
 import { parseResults, parseResultsFoldDisco } from '../../../frontend/lib/parseResults.js';
 
@@ -33,7 +33,7 @@ function complexResult() {
     });
     return parseResults({
         type: 'complexsearch',
-        mode: 'complex-3diaa',
+        mode: '3diaa',      // the backend strips the submitted "complex-" prefix before storing the job
         queries: [{ header: 'q', sequence: 'AAAA' }],
         results: [{
             db: 'pdb100',
@@ -292,8 +292,8 @@ test('the residue map states gaps and matches the multimer chain frame', () => {
     assert.equal(dimer.totalColumns, 7);
     assert.equal(dimer.residueCount, 6);
     assert.deepEqual(dimer.gaps, ['3'], 'the gap column is stated, not inferred from absence');
-    assert.deepEqual(dimer.columns.map(c => c.column), [0, 1, 2, 4, 5, 6]);
-    assert.deepEqual(dimer.columns.map(c => c.token), ['A1', 'A2', 'A3', 'B1', 'B2', 'B3']);
+    assert.deepEqual(dimer.occupiedColumns, ['0-2', '4-6']);
+    assert.deepEqual(dimer.tokens, ['A1', 'A2', 'A3', 'B1', 'B2', 'B3']);
     assert.deepEqual(dimer.chains, ['A', 'B']);
     assert.equal(dimer.chainBoundaries.length, 2, 'chain boundaries come from the name suffix');
 
@@ -302,7 +302,8 @@ test('the residue map states gaps and matches the multimer chain frame', () => {
     assert.equal(monomer.residueCount, 7);
     assert.deepEqual(monomer.gaps, []);
     assert.deepEqual(monomer.chains, ['A']);
-    assert.deepEqual(monomer.columns.map(c => c.token), ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7']);
+    assert.deepEqual(monomer.tokens, ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7']);
+    assert.deepEqual(monomer.occupiedColumns, ['0-6']);
 
     assert.throws(() => msaResidueMap(alignment, 9), /no entry 9/);
 });
@@ -319,11 +320,7 @@ test('the residue map is the same convention MsaColumnSelection derives its moti
         const map = msaResidueMap(alignment, entry);
         for (const columns of [[0], [0, 1, 2], [2, 3, 4], [0, 3, 6], [3], [0, 1, 2, 3, 4, 5, 6]]) {
             const selection = new MsaColumnSelection(null, alignment, { entry, columns });
-            const expected = map.columns
-                .filter(c => columns.includes(c.column))
-                .map(c => c.token)
-                .join(', ');
-            assert.equal(selection.motif, expected,
+            assert.equal(selection.motif, residueTokens(map, columns).join(', '),
                 `entry ${entry}, columns ${columns.join('/')} must agree with the exported map`);
         }
     }
@@ -332,7 +329,8 @@ test('the residue map is the same convention MsaColumnSelection derives its moti
     const dimer = msaResidueMap(alignment, 0);
     const selection = new MsaColumnSelection(null, alignment, { entry: 0, columns: [2, 4] });
     assert.equal(selection.motif, 'A3, B1');
-    assert.deepEqual(
-        dimer.columns.filter(c => [2, 4].includes(c.column)).map(c => `${c.chain}${c.resno}`),
-        ['A3', 'B1']);
+    assert.deepEqual(residueTokens(dimer, [2, 4]), ['A3', 'B1']);
+    // tokens[i] is also residue i's offset into the entry's ca triplets, so a consumer needs no
+    // arithmetic to go from a column to a coordinate.
+    assert.equal(dimer.tokens.length, dimer.residueCount);
 });

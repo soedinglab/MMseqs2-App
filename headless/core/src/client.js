@@ -39,14 +39,21 @@ import {
     loadAccession, loadAccessions, ensureStructureExtension,
 } from './structures.js';
 import { SubmittableQuery } from './submit.js';
-import { TERMINAL_STATUSES, kindForJobType } from './facts.js';
+import { TERMINAL_STATUSES, kindForJobType, normalizeEntry } from './facts.js';
+import { resultSummary, notReadySummary } from './summary.js';
+import { createArtifactStore, artifactCacheKey, artifactWriter, serverNamespaceFor } from './artifacts.js';
 import { getChainName } from '../../../frontend/lib/targetName.js';
 import { listChains } from '../../../frontend/lib/structureText.js';
 import { mockPDB, encodeMultimer } from '../../../frontend/lib/pdbAssembly.js';
 import { pathForTicket } from '../../../frontend/lib/ticketRoute.js';
+import path from 'node:path';
+import fsp from 'node:fs/promises';
 
 /** FoldMason aligns structures against each other; one input has nothing to align to. */
 export const FOLDMASON_MIN_FILES = 2;
+
+/** How many parsed results to keep in memory at once. Each can be several MB. */
+const PARSED_CACHE_SIZE = 16;
 
 const VALID_TAX_FILTER = /^[0-9]+(,!?[0-9]+)*$|^$/;
 
@@ -104,6 +111,8 @@ export function createClient({
     basicAuth = null,
     fetchImpl = globalThis.fetch,
     onWarning = null,
+    resultRowCap = null,
+    artifacts = {},
 } = {}) {
     // Never default this. A wrong-but-plausible default would send someone's structures to a public
     // production server without them choosing it.
@@ -117,6 +126,22 @@ export function createClient({
 
     const root = baseUrl.replace(/\/+$/, '') + apiPath.replace(/\/+$/, '');
     const store = new Store(stateDir);
+
+    const parsedResults = new Map();
+    const memo = async (key, load) => {
+        if (parsedResults.has(key)) return parsedResults.get(key);
+        const value = await load();
+        if (parsedResults.size >= PARSED_CACHE_SIZE) {
+            parsedResults.delete(parsedResults.keys().next().value);
+        }
+        parsedResults.set(key, value);
+        return value;
+    };
+    const serverNamespace = serverNamespaceFor({ baseUrl, apiPath });
+    const artifactStore = createArtifactStore({
+        root: path.join(stateDir, 'artifacts'),
+        ...artifacts,
+    });
     let databasesPromise = null;
 
     function headers(extra = {}) {
@@ -331,21 +356,25 @@ export function createClient({
         },
 
         async getResult(ticket, entry = 0) {
-            const cached = await store.readResult(ticket, 'search', entry);
-            if (cached) return new ResultTable(cached, { ticket, entry, app, client });
-
-            const raw = await request(`/result/${encodeURIComponent(ticket)}/${encodeURIComponent(entry)}`);
-            const parsed = parseResults(raw);
-            await store.writeResult(ticket, 'search', entry, parsed);
-            return new ResultTable(parsed, { ticket, entry, app, client });
+            const data = await memo(`search:${ticket}:${entry}`, async () => {
+                const cached = await store.readResult(ticket, 'search', entry);
+                if (cached) return cached;
+                const value = parseResults(
+                    await request(`/result/${encodeURIComponent(ticket)}/${encodeURIComponent(entry)}`));
+                await store.writeResult(ticket, 'search', entry, value);
+                return value;
+            });
+            return new ResultTable(data, { ticket, entry, app, client });
         },
 
-        async getFoldMasonResult(ticket) {
-            const cached = await store.readResult(ticket, 'foldmason');
-            if (cached) return cached;
-            const res = await request(`/result/foldmason/${encodeURIComponent(ticket)}`);
-            await store.writeResult(ticket, 'foldmason', 0, res);
-            return res;
+        getFoldMasonResult(ticket) {
+            return memo(`foldmason:${ticket}`, async () => {
+                const cached = await store.readResult(ticket, 'foldmason');
+                if (cached) return cached;
+                const res = await request(`/result/foldmason/${encodeURIComponent(ticket)}`);
+                await store.writeResult(ticket, 'foldmason', 0, res);
+                return res;
+            });
         },
 
         async getFoldMasonColumns(ticket, opts = {}) {
@@ -401,13 +430,15 @@ export function createClient({
         },
 
         async getFoldDiscoResult(ticket) {
-            const cached = await store.readResult(ticket, 'folddisco');
-            if (cached) return new ResultTable(cached, { ticket, entry: 0, app, tool: 'folddisco', client });
-
-            const raw = await request(`/result/folddisco/${encodeURIComponent(ticket)}`);
-            const parsed = parseResultsFoldDisco(raw);
-            await store.writeResult(ticket, 'folddisco', 0, parsed);
-            return new ResultTable(parsed, { ticket, entry: 0, app, tool: 'folddisco', client });
+            const data = await memo(`folddisco:${ticket}`, async () => {
+                const cached = await store.readResult(ticket, 'folddisco');
+                if (cached) return cached;
+                const value = parseResultsFoldDisco(
+                    await request(`/result/folddisco/${encodeURIComponent(ticket)}`));
+                await store.writeResult(ticket, 'folddisco', 0, value);
+                return value;
+            });
+            return new ResultTable(data, { ticket, entry: 0, app, tool: 'folddisco', client });
         },
 
         getFoldDiscoTargetStructure(ticket, opts) {
@@ -529,6 +560,102 @@ export function createClient({
                     queryBytes: query ? Buffer.byteLength(query) : 0,
                 },
             };
+        },
+
+        /**
+         * Resolve a ticket to one result unit, without waiting for it.
+         *
+         * Status comes from the cache when it is already terminal, and otherwise from exactly one
+         * poll: a caller asking what a result holds has not asked to wait for it.
+         */
+        async resolveUnit(ticket, entry = 0) {
+            const { type: jobType } = await client.getTicketType(ticket);
+            const normalized = normalizeEntry(jobType, entry);
+            const kind = kindForJobType(jobType);
+
+            const cached = await store.readTicket(ticket).catch(() => null);
+            const status = TERMINAL_STATUSES.has(cached?.lastStatus)
+                ? cached.lastStatus
+                : (await client.pollTicket(ticket)).status;
+
+            const unit = {
+                ticket, jobType, kind, status,
+                entry: normalized.entry,
+                entryNormalized: normalized.normalized,
+                record: cached,
+            };
+            if (status !== 'COMPLETE') return unit;
+
+            if (kind === 'foldmason') {
+                unit.foldMasonResult = await client.getFoldMasonResult(ticket);
+            } else if (kind === 'folddisco') {
+                unit.table = await client.getFoldDiscoResult(ticket);
+            } else {
+                unit.table = await client.getResult(ticket, normalized.entry);
+            }
+            unit.record = await store.readTicket(ticket).catch(() => cached);
+            return unit;
+        },
+
+        /** Bounded orientation for one result unit. Takes a ticket and an entry, and nothing else. */
+        async getResultSummary(ticket, entry = 0) {
+            const unit = await client.resolveUnit(ticket, entry);
+            if (unit.status !== 'COMPLETE') return notReadySummary(unit);
+
+            const [catalog, selections] = await Promise.all([
+                client.getDatabases().catch(() => null),
+                store.listSelections(ticket).catch(() => []),
+            ]);
+            return resultSummary({ ...unit, catalog, selections, configuredCap: resultRowCap });
+        },
+
+        artifacts: artifactStore,
+        serverNamespace,
+
+        /**
+         * The complete factual export for one result unit, as files. Returns a descriptor — the
+         * resource URI and what is in the bundle — never the data.
+         */
+        async exportResult(ticket, entry = 0) {
+            const unit = await client.resolveUnit(ticket, entry);
+            if (unit.status !== 'COMPLETE') {
+                const err = new Error(`ticket ${ticket} is ${unit.status}; nothing to export yet`);
+                err.code = unit.status === 'COMPLETE' ? 'EXPORT_FAILED' : 'RESULT_NOT_READY';
+                err.status = unit.status;
+                throw err;
+            }
+
+            const artifactId = artifactCacheKey({
+                serverNamespace, ticketId: ticket, normalizedEntry: unit.entry,
+            });
+
+            const hit = await artifactStore.read(artifactId);
+            if (hit.ok) {
+                await artifactStore.touch(artifactId);
+                return artifactStore.descriptor(hit.manifest, { cacheHit: true });
+            }
+            if (hit.reason !== 'ABSENT') {
+                // Anything present that did not read back is a failed build or a damaged artifact:
+                // it has to go before the rename, or the rename is what fails.
+                onWarning?.(`rebuilding artifact ${artifactId.slice(0, 12)}: ${hit.reason}`);
+                await fsp.rm(artifactStore.dirFor(artifactId), { recursive: true, force: true });
+            }
+
+            const catalog = await client.getDatabases().catch(() => null);
+            const { manifest, cacheHit } = await artifactStore.build(artifactId, artifactWriter({
+                artifactId,
+                serverNamespace,
+                ticket,
+                entry: unit.entry,
+                jobType: unit.jobType,
+                table: unit.table ?? null,
+                foldMasonResult: unit.foldMasonResult ?? null,
+                record: unit.record,
+                catalog,
+                configuredCap: resultRowCap,
+                clock: artifactStore.now,
+            }));
+            return artifactStore.descriptor(manifest, { cacheHit });
         },
 
         listCachedTickets(opts) { return store.listTickets(opts); },

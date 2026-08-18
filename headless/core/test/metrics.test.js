@@ -24,8 +24,25 @@ test('every registry entry carries a label, a direction, and a cross-database ve
         assert.deepEqual(Object.keys(entry).sort(), ['crossDatabaseComparable', 'direction', 'label'],
             `${key} should carry nothing else`);
     }
-    // parserTransform is computed from the raw mode rather than stored per key.
-    assert.equal(metricSemantics({ mode: '3diaa', field: 'eval' }).parserTransform, 'toExponential(2) -> String');
+});
+
+test('the returned semantics are facts only — no parser prose, no echoed inputs', () => {
+    const s = metricSemantics({ mode: 'lolalign', field: 'eval' });
+    assert.deepEqual(Object.keys(s).sort(),
+        ['crossDatabaseComparable', 'direction', 'known', 'label', 'sortOrder']);
+    for (const echoed of ['field', 'mode', 'tool', 'key', 'parserTransform']) {
+        assert.equal(s[echoed], undefined, `${echoed} is something the caller already has`);
+    }
+});
+
+test('the default ranking is flat, and repeats nothing', () => {
+    const r = defaultRankingSemantics({ mode: '3diaa' });
+    assert.deepEqual(r, {
+        sortKey: 'score', field: 'score', label: 'Score',
+        direction: 'higher', crossDatabaseComparable: true, sortOrder: -1,
+    });
+    assert.equal(r.semantics, undefined, 'the facts are the ranking, not a nested object');
+    assert.equal(r.known, undefined, 'a default ranking key is registered by construction');
 });
 
 test('only the metrics whose value depends on the database are refused across databases', () => {
@@ -53,14 +70,20 @@ test('SORT_KEY_FOR_FIELD is the exact inverse of rowFieldForSortKey', () => {
     }
 });
 
-test('direction agrees with the sorter for every plain mode', () => {
-    for (const mode of MODES) {
-        for (const field of ['eval', 'score']) {
-            const s = metricSemantics({ mode, field });
-            assert.equal(s.known, true, `${mode}.${field} must be registered`);
-            assert.equal(s.sortOrderMatchesDirection, true,
-                `${mode}.${field}: direction ${s.direction} vs default sort order ${s.defaultSortOrder}`);
-        }
+test('direction agrees with the sorter for every mode and metric', () => {
+    const cases = [
+        ...MODES.flatMap(mode => ['eval', 'score', 'prob', 'seqId'].map(field => ({ mode, field }))),
+        ...MODES.map(mode => ({ mode, field: 'complexqtm' })),
+        ...MODES.map(mode => ({ mode, field: 'complexttm' })),
+        ...['idfscore', 'rmsd', 'nodecount'].map(field => ({ tool: 'folddisco', field })),
+    ];
+    // The invariant lives here rather than as a field in every payload: "better" must be the way the
+    // table already sorts, or one of the two is wrong.
+    for (const { tool = 'foldseek', mode = '', field } of cases) {
+        const s = metricSemantics({ tool, mode, field });
+        assert.equal(s.known, true, `${mode || tool}.${field} must be registered`);
+        assert.equal(s.sortOrder, s.direction === 'higher' ? -1 : 1,
+            `${mode || tool}.${field}: ${s.direction} is better but the table sorts ${s.sortOrder}`);
     }
     // The sorter's own rule, restated here so a change on either side fails this test.
     assert.equal(defaultSortOrder('eval', { mode: 'tmalign' }), -1);
@@ -76,28 +99,22 @@ test('the sort cache reduces eval the same way the direction claims', () => {
     assert.equal(buildSortCache(alignments, { mode: '3diaa' }).eval[0], 1, 'lower is better');
 });
 
-test('a complex- prefixed mode keeps its meaning but is flagged where the sorter disagrees', () => {
-    const complexTm = metricSemantics({ mode: 'complex-tmalign', field: 'eval' });
-    assert.equal(complexTm.key, 'tmalign.eval');
-    assert.equal(complexTm.direction, 'higher', 'it is still a TM-score');
-    assert.equal(complexTm.defaultSortOrder, 1, 'but resultSort tests the raw mode string');
-    assert.equal(complexTm.sortOrderMatchesDirection, false);
-    assert.match(complexTm.note, /raw mode string/);
-    assert.equal(complexTm.parserTransform, 'toExponential(2) -> String',
-        'the parser takes the E-value branch for a complex- prefixed mode');
-
-    const complex3di = metricSemantics({ mode: 'complex-3diaa', field: 'eval' });
-    assert.equal(complex3di.sortOrderMatchesDirection, true);
-    assert.equal(complex3di.note, undefined);
+test('the submission spelling of a complex mode resolves to the mode the result will carry', () => {
+    // backend/server.go:388-389 strips "complex-" before building the job, and the result handler
+    // returns job.Mode — so a complex tmalign search comes back as plain "tmalign".
+    for (const mode of MODES) {
+        const submitted = metricSemantics({ mode: `complex-${mode}`, field: 'eval' });
+        const returned = metricSemantics({ mode, field: 'eval' });
+        assert.deepEqual(submitted, returned, `complex-${mode} must resolve to ${mode}`);
+    }
 });
 
-test('lolalign eval documents the parser chain rather than inverting it', () => {
+test('lolalign eval is scaled and rounded by the parser, and the coercion recovers it', () => {
     const s = metricSemantics({ mode: 'lolalign', field: 'eval' });
-    assert.match(s.parserTransform, /x100/);
-    assert.equal(s.label, 'LOL-score', "the page calls it that, so it is not mistaken for an E-value");
+    assert.equal(s.label, 'LOL-score', 'the page calls it that, so it is not mistaken for an E-value');
     assert.equal(s.crossDatabaseComparable, true);
 
-    // What the parser really produces, so the documented chain is measured and not assumed.
+    // Measured, not described: this is the only place the scaling is pinned down.
     const parsed = parseResults({
         mode: 'lolalign',
         results: [{ db: 'pdb100', alignments: [[{ target: 'X', eval: 0.8765, prob: 0.5, score: 10 }]] }],
@@ -118,51 +135,49 @@ test('tmalign eval is fixed-point, 3diaa eval is exponential', () => {
         results: [{ db: 'pdb100', alignments: [[{ target: 'X', eval: 0.87654, prob: 0.5, score: 10 }]] }],
     });
     assert.equal(tm.results[0].alignments['0'][0].eval, '0.877');
-    assert.equal(metricSemantics({ mode: 'tmalign', field: 'eval' }).parserTransform, 'toFixed(3) -> String');
 
     const aa = parseResults({
         mode: '3diaa',
         results: [{ db: 'pdb100', alignments: [[{ target: 'X', eval: 0.0000123, prob: 0.5, score: 10 }]] }],
     });
     assert.equal(aa.results[0].alignments['0'][0].eval, '1.23e-5');
+
+    // A result never carries a "complex-" prefix, so the parser is never asked to. If one ever did,
+    // this is what would happen — the exact-match test fails and a TM-score is formatted as an E-value.
+    const hypothetical = parseResults({
+        mode: 'complex-tmalign',
+        results: [{ db: 'pdb100', alignments: [[{ target: 'X', eval: 0.87654, prob: 0.5, score: 10 }]] }],
+    });
+    assert.equal(hypothetical.results[0].alignments['0'][0].eval, '8.77e-1');
 });
 
 test('folddisco metrics keep their own direction and labels', () => {
     const idf = metricSemantics({ tool: 'folddisco', field: 'idfscore' });
     assert.equal(idf.direction, 'higher');
     assert.equal(idf.label, 'IDF-score');
-    assert.equal(idf.parserTransform, 'toFixed(3) -> String');
 
     const rmsd = metricSemantics({ tool: 'folddisco', field: 'rmsd' });
     assert.equal(rmsd.direction, 'lower');
     assert.equal(rmsd.label, 'RMSD');
-    assert.equal(rmsd.defaultSortOrder, 1);
-    assert.equal(rmsd.sortOrderMatchesDirection, true);
+    assert.equal(rmsd.sortOrder, 1, 'lower is better, so the table sorts ascending');
 });
 
 test('an unregistered field says so instead of inventing semantics', () => {
     const s = metricSemantics({ mode: '3diaa', field: 'bogus' });
     assert.equal(s.known, false);
-    assert.equal(s.key, 'shared.bogus');
     assert.equal(s.label, 'bogus');
     assert.equal(s.crossDatabaseComparable, null);
-    assert.equal(s.sortOrderMatchesDirection, null);
+    assert.equal(s.sortOrder, null, 'an unknown field has no sort key to ask about');
 });
 
 test('default ranking mirrors what the result table would choose', () => {
-    assert.deepEqual(
-        (({ sortKey, sortOrder, field }) => ({ sortKey, sortOrder, field }))(
-            defaultRankingSemantics({ mode: '3diaa' })),
-        { sortKey: 'score', sortOrder: -1, field: 'score' });
-    assert.deepEqual(
-        (({ sortKey, field }) => ({ sortKey, field }))(
-            defaultRankingSemantics({ mode: 'complex-3diaa', isComplex: true })),
+    const pick = r => ({ sortKey: r.sortKey, field: r.field });
+    assert.deepEqual(pick(defaultRankingSemantics({ mode: '3diaa' })), { sortKey: 'score', field: 'score' });
+    assert.deepEqual(pick(defaultRankingSemantics({ mode: 'complex-3diaa', isComplex: true })),
         { sortKey: 'qtm', field: 'complexqtm' });
-    assert.deepEqual(
-        (({ sortKey, field }) => ({ sortKey, field }))(
-            defaultRankingSemantics({ tool: 'folddisco' })),
+    assert.deepEqual(pick(defaultRankingSemantics({ tool: 'folddisco' })),
         { sortKey: 'idf', field: 'idfscore' });
-    assert.equal(defaultRankingSemantics({ tool: 'folddisco' }).semantics.known, true);
+    assert.equal(defaultRankingSemantics({ tool: 'folddisco' }).label, 'IDF-score');
 });
 
 test('numericMetric recovers numbers from display strings and refuses junk', () => {

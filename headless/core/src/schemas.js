@@ -92,31 +92,17 @@ function run(value, shape) {
     return { ok: errors.length === 0, errors };
 }
 
-const SEMANTICS = {
-    allowExtra: false,
-    fields: {
-        key: { type: 'string', required: true },
-        field: { type: 'string', required: true },
-        tool: { type: 'string', required: true },
-        mode: { type: 'string' },
-        known: { type: 'boolean', required: true },
-        label: { type: 'string', required: true },
-        direction: { type: 'string', required: true, enum: ['higher', 'lower'] },
-        crossDatabaseComparable: { type: 'boolean', required: true, nullable: true },
-        parserTransform: { type: 'string', required: true },
-        defaultSortOrder: { type: 'int', nullable: true, enum: [1, -1] },
-        sortOrderMatchesDirection: { type: 'boolean', nullable: true },
-        note: { type: 'string' },
-    },
-};
-
+// Flat: a nested "semantics" object repeated the sort order and echoed the mode, tool and field that
+// the enclosing payload already carries.
 const RANKING = {
     allowExtra: false,
     fields: {
         sortKey: { type: 'string', required: true },
-        sortOrder: { type: 'int', required: true, enum: [1, -1] },
         field: { type: 'string', required: true },
-        semantics: { type: 'object', required: true, shape: SEMANTICS },
+        label: { type: 'string', required: true },
+        direction: { type: 'string', required: true, enum: ['higher', 'lower'] },
+        crossDatabaseComparable: { type: 'boolean', required: true, nullable: true },
+        sortOrder: { type: 'int', required: true, enum: [1, -1] },
     },
 };
 
@@ -142,7 +128,7 @@ function counts({ exportedRows = false } = {}) {
     };
 }
 
-const DATABASE = {
+const ARTIFACT_DATABASE = {
     allowExtra: false,
     fields: {
         dbIndex: { type: 'int', required: true, min: 0 },
@@ -155,6 +141,18 @@ const DATABASE = {
         hasTaxonomy: { type: 'boolean', required: true },
         hasDescription: { type: 'boolean', required: true },
         serverAlignments: { type: 'int', required: true, min: 0 },
+        parsedRows: { type: 'int', required: true, min: 0 },
+    },
+};
+
+const SUMMARY_DATABASE = {
+    allowExtra: false,
+    fields: {
+        dbIndex: { type: 'int', required: true, min: 0 },
+        id: { type: 'string', required: true },
+        display: { type: 'string', nullable: true },
+        version: { type: 'string', nullable: true },
+        hasTaxonomy: { type: 'boolean', required: true },
         parsedRows: { type: 'int', required: true, min: 0 },
         topHit: {
             type: 'object',
@@ -172,14 +170,6 @@ const DATABASE = {
     },
 };
 
-const AVAILABILITY = {
-    allowExtra: false,
-    fields: Object.fromEntries(
-        ['taxonomy', 'motifPatterns', 'msa', 'columns', 'coordinates', 'tree', 'queryStructure']
-            .map(key => [key, { type: 'boolean', required: true }]),
-    ),
-};
-
 const SELECTION = {
     allowExtra: false,
     fields: {
@@ -187,8 +177,8 @@ const SELECTION = {
         kind: { type: 'string', required: true, enum: SELECTION_KINDS },
         size: { type: 'int', required: true, min: 0 },
         entry: { type: 'int', nullable: true, min: 0 },
-        createdAt: { type: 'string', required: true },
-        updatedAt: { type: 'string', required: true },
+        createdAt: { type: 'string', required: true, nullable: true },
+        updatedAt: { type: 'string', required: true, nullable: true },
     },
 };
 
@@ -207,7 +197,7 @@ const SUMMARY_NOT_READY = {
     allowExtra: false,
     fields: {
         ...SUMMARY_HEAD,
-        code: { type: 'string', required: true, enum: ['RESULT_NOT_READY'] },
+        code: { type: 'string', required: true, enum: ['RESULT_NOT_READY', 'RESULT_FAILED'] },
         next: { type: 'string', required: true },
     },
 };
@@ -220,11 +210,10 @@ const SUMMARY_READY = {
         resultKind: { type: 'string', required: true, enum: RESULT_KINDS },
         submission: { type: 'object', required: true, nullable: true },
         derivedFrom: { type: 'object', required: true, nullable: true },
-        databases: { type: 'array', required: true, items: { type: 'object', shape: DATABASE } },
+        databases: { type: 'array', required: true, items: { type: 'object', shape: SUMMARY_DATABASE } },
         counts: { type: 'object', required: true, shape: counts() },
         completeness: { type: 'object', required: true, shape: COMPLETENESS },
         ranking: { type: 'object', required: true, nullable: true, shape: RANKING },
-        availability: { type: 'object', required: true, shape: AVAILABILITY },
         motifPatterns: {
             type: 'object',
             nullable: true,
@@ -233,6 +222,7 @@ const SUMMARY_READY = {
                 fields: {
                     distinct: { type: 'int', required: true, min: 0 },
                     top: { type: 'array', required: true },
+                    queryResidues: { type: 'object', nullable: true },
                 },
             },
         },
@@ -279,7 +269,7 @@ const MANIFEST = {
         completeness: { type: 'object', required: true, shape: COMPLETENESS },
         ranking: { type: 'object', required: true, nullable: true, shape: RANKING },
         metricSemantics: { type: 'object', required: true },
-        databases: { type: 'array', required: true, items: { type: 'object', shape: DATABASE } },
+        databases: { type: 'array', required: true, items: { type: 'object', shape: ARTIFACT_DATABASE } },
         files: {
             type: 'array',
             required: true,

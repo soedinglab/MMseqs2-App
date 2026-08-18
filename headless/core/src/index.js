@@ -13,7 +13,7 @@ export {
 export { ResultTable, Row, Selection, SELECT_MAX } from './results.js';
 export {
     foldMasonColumns, foldMasonSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
-    msaResidueMap,
+    msaResidueMap, residueTokens,
     compressRanges, expandRanges, COLUMN_METRICS, MsaColumnSelection,
 } from './msa.js';
 export {
@@ -24,6 +24,11 @@ export {
     METRIC_SEMANTICS, SORT_KEY_FOR_FIELD, NUMERIC_METRIC_FIELDS,
     metricSemantics, defaultRankingSemantics, numericMetric,
 } from './metrics.js';
+export { resultSummary, notReadySummary } from './summary.js';
+export {
+    createArtifactStore, artifactCacheKey, artifactWriter, serverNamespaceFor,
+    ARTIFACT_ID, URI_SCHEME,
+} from './artifacts.js';
 export {
     normalizeEntry, resultCounts, resultRowCap, completenessOf, databaseProvenance,
     taxonomyExport, serializeRow, motifPatternExport, isComplexResult,

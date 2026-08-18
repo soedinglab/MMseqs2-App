@@ -291,13 +291,15 @@ export function foldMasonSummary(foldMasonResult, { representation = 'aa' } = {}
     if (prepared.error) return prepared;
     const { spec, sequences, metrics, value, available } = prepared;
 
+    const entries = foldMasonResult?.entries ?? [];
     const total = metrics.occupancy.length;
     const columnsOf = metric => Array.from({ length: total }, (_, c) => value[metric](c));
     return {
         representation,
-        alphabetId: spec.alphabet.id,
         entryCount: sequences.length,
         totalColumns: total,
+        hasCoordinates: entries.some(e => typeof e.ca === 'string' && e.ca.length > 0),
+        hasTree: typeof foldMasonResult?.tree === 'string' && foldMasonResult.tree.length > 0,
         metrics: available,
         stats: Object.fromEntries(
             available.filter(m => SCALAR_METRICS.includes(m)).map(m => [m, statOf(columnsOf(m))]),
@@ -314,8 +316,11 @@ function suffixOf(name) {
 
 /**
  * Alignment column -> the entry's own residue and chain frame, with gaps stated rather than implied.
- * `token` is the motif form (chain + original residue number); MsaColumnSelection reads its motif
- * from here, so a consumer of an exported map cannot end up with a different convention.
+ *
+ * Stored as two parallel lists rather than an object per column: `tokens[i]` is the motif form of the
+ * i-th occupied column, and i is also that residue's 0-based offset into the entry's `ca` triplets.
+ * The object-per-column form cost ~70 bytes a column, which on a 100x2000 alignment was 12 MB of the
+ * 14 MB artifact; this is the same information in about a twelfth of the space.
  */
 export function msaResidueMap(foldMasonResult, entryIndex = 0) {
     const entries = foldMasonResult?.entries ?? [];
@@ -327,15 +332,16 @@ export function msaResidueMap(foldMasonResult, entryIndex = 0) {
     const suffix = data.suffix ?? suffixOf(data.name);
     const map = entryChainMap(aligned, suffix);
 
-    const columns = [];
+    const occupied = [];
+    const tokens = [];
     const gaps = [];
     let residueIndex = 0;
     for (let c = 0; c < aligned.length; c++) {
         if (aligned[c] === '-') { gaps.push(c); continue; }
         residueIndex += 1;
         const chain = map.chains[residueIndex] ?? 'A';
-        const resno = residueIndex - (map.offsets[chain] ?? 0);
-        columns.push({ column: c, residueIndex, chain, resno, token: `${chain}${resno}` });
+        occupied.push(c);
+        tokens.push(`${chain}${residueIndex - (map.offsets[chain] ?? 0)}`);
     }
 
     return {
@@ -345,11 +351,23 @@ export function msaResidueMap(foldMasonResult, entryIndex = 0) {
         isMultimer: !!suffix,
         totalColumns: aligned.length,
         residueCount: residueIndex,
-        chains: [...new Set(columns.map(c => c.chain))],
+        chains: [...new Set(tokens.map(t => t.replace(/[0-9]+$/, '')))],
         chainBoundaries: map.chainInfo,
-        columns,
+        occupiedColumns: compressRanges(occupied),
+        tokens,
         gaps: compressRanges(gaps),
     };
+}
+
+/** The motif tokens for a set of columns, read off a residue map. One convention, one implementation. */
+export function residueTokens(residueMap, columns) {
+    const wanted = new Set(columns ?? []);
+    const occupied = expandRanges(residueMap?.occupiedColumns ?? []);
+    const out = [];
+    for (let i = 0; i < occupied.length; i++) {
+        if (wanted.has(occupied[i])) out.push(residueMap.tokens[i]);
+    }
+    return out;
 }
 
 /**
@@ -414,11 +432,7 @@ export class MsaColumnSelection {
      */
     get motif() {
         if (this._motif) return this._motif;
-        const selected = new Set(this.columns);
-        return this.residueMap.columns
-            .filter(c => selected.has(c.column))
-            .map(c => c.token)
-            .join(', ');
+        return residueTokens(this.residueMap, this.columns).join(', ');
     }
 
     /** Persist under `name`, scoped to this alignment's ticket. */

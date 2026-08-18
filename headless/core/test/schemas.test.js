@@ -21,21 +21,15 @@ function summary(patch = {}) {
         jobType: 'structuresearch',
         mode: '3diaa',
         resultKind: 'search',
-        submission: { databases: ['pdb100'], mode: '3diaa' },
+        submission: { queryHash: 'abc123', queryBytes: 70123 },
         derivedFrom: null,
         databases: [{
-            dbIndex: 0, id: 'pdb100', safeName: 'db-0', display: 'PDB', version: '2024', status: 'COMPLETE',
-            taxonomy: true, hasTaxonomy: true, hasDescription: true,
-            serverAlignments: 3, parsedRows: 3,
+            dbIndex: 0, id: 'pdb100', display: 'PDB', version: '2024', hasTaxonomy: true, parsedRows: 3,
             topHit: { id: '0#1', target: '1STP', value: 512, taxName: 'Streptomyces avidinii' },
         }],
         counts: { serverAlignments: 3, parsedRows: 3, grouping: 'none' },
         completeness: { complete: null, saturated: false, capSource: 'deployment-default', rowCap: 1000 },
         ranking: RANKING,
-        availability: {
-            taxonomy: true, motifPatterns: false, msa: false, columns: false,
-            coordinates: false, tree: false, queryStructure: true,
-        },
         selections: [{
             name: 'draft', kind: 'rows', size: 2, entry: 0,
             createdAt: '2026-08-18T00:00:00.000Z', updatedAt: '2026-08-18T00:00:01.000Z',
@@ -59,11 +53,10 @@ function manifest(patch = {}) {
         counts: { serverAlignments: 3, parsedRows: 3, exportedRows: 3, grouping: 'none' },
         completeness: { complete: null, saturated: false, capSource: 'deployment-default', rowCap: 1000 },
         ranking: RANKING,
-        metricSemantics: { score: RANKING.semantics },
+        metricSemantics: { score: { label: 'Score', direction: 'higher', crossDatabaseComparable: true, sortOrder: -1 } },
         databases: [{
             dbIndex: 0, id: 'pdb100', safeName: 'db-0', display: 'PDB', version: null, status: 'COMPLETE',
-            taxonomy: true, hasTaxonomy: true, hasDescription: false,
-            serverAlignments: 3, parsedRows: 3,
+            taxonomy: true, hasTaxonomy: true, hasDescription: false, serverAlignments: 3, parsedRows: 3,
         }],
         files: [
             { role: 'manifest', path: 'manifest.json', mime: 'application/json', bytes: 800, rows: null },
@@ -100,7 +93,7 @@ test('a not-ready summary is its own shape, and cannot smuggle result data', () 
 test('a complete summary cannot omit a required field, one at a time', () => {
     const required = [
         'schema', 'ticket', 'entry', 'status', 'resultKind', 'submission', 'derivedFrom',
-        'databases', 'counts', 'completeness', 'ranking', 'availability', 'selections', 'exportAvailable',
+        'databases', 'counts', 'completeness', 'ranking', 'selections', 'exportAvailable',
     ];
     for (const field of required) {
         const broken = summary();
@@ -130,6 +123,8 @@ test('wrong types, bad enums and unexpected keys are all refused', () => {
     assert.deepEqual(paths(validateResultSummary(summary({ entry: -1 }))), ['entry']);
     assert.deepEqual(paths(validateResultSummary(summary({ entry: 1.5 }))), ['entry']);
     assert.deepEqual(paths(validateResultSummary(summary({ resultKind: 'msa' }))), ['resultKind']);
+    assert.deepEqual(paths(validateResultSummary(summary({ ranking: { ...RANKING, label: undefined } }))),
+        ['ranking.label']);
     assert.deepEqual(paths(validateResultSummary(summary({ schema: 'mmseqs2-agent/result-summary@2' }))), ['schema']);
     assert.deepEqual(paths(validateResultSummary(summary({ surprise: 1 }))), ['surprise']);
     assert.equal(validateResultSummary('not an object').ok, false);

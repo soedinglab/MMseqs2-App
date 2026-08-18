@@ -1,5 +1,5 @@
-// What each result metric is called, which way is better, whether it survives a comparison across
-// databases, and what the parser did to it on the way here.
+// What each result metric is called, which way is better, and whether it survives a comparison across
+// databases.
 //
 // Direction is a property of the number and comes from the table. Default sort order is whatever the
 // frontend's sorter does, imported rather than restated — the two can disagree, and where they do,
@@ -54,84 +54,55 @@ export const METRIC_SEMANTICS = Object.freeze({
     'folddisco.nodecount': { label: 'Nodes', direction: HIGHER, crossDatabaseComparable: true },
 });
 
-/** parseResults branches on the raw mode string, so "complex-tmalign" takes the E-value path. */
-function parserTransform(field, rawMode) {
-    if (field === 'eval') {
-        if (rawMode === 'tmalign') return 'toFixed(3) -> String';
-        if (rawMode === 'lolalign') {
-            return 'toExponential(2) -> x100 -> toFixed(2) -> String (3 significant digits kept)';
-        }
-        return 'toExponential(2) -> String';
-    }
-    if (field === 'prob') return 'toFixed(2) -> String (foldseek app only)';
-    if (field === 'idfscore' || field === 'rmsd') return 'toFixed(3) -> String';
-    return 'none';
-}
-
 function baseMode(rawMode) {
     return rawMode.startsWith('complex-') ? rawMode.slice('complex-'.length) : rawMode;
 }
 
-function registryKey(tool, rawMode, field) {
+function registryKey(tool, mode, field) {
     if (tool === 'folddisco') return `folddisco.${field}`;
-    const byMode = `${baseMode(rawMode)}.${field}`;
+    const byMode = `${mode}.${field}`;
     if (byMode in METRIC_SEMANTICS) return byMode;
     if (`complex.${field}` in METRIC_SEMANTICS) return `complex.${field}`;
     return `shared.${field}`;
 }
 
+/**
+ * What a caller needs to act on one metric. Deliberately does not echo `tool`, `mode` or `field` back:
+ * the caller passed them, and repeating them in every summary and manifest is payload nobody reads.
+ */
 export function metricSemantics({ tool = 'foldseek', mode = '', field } = {}) {
-    const rawMode = String(mode ?? '');
-    const key = registryKey(tool, rawMode, field);
-    const entry = METRIC_SEMANTICS[key];
+    // Submission spells a complex search "complex-tmalign"; the backend strips that before storing the
+    // job, so the result — and therefore the parser and the sorter — only ever sees "tmalign".
+    const resolved = baseMode(String(mode ?? ''));
+    const entry = METRIC_SEMANTICS[registryKey(tool, resolved, field)];
     const sortKey = SORT_KEY_FOR_FIELD[field] ?? null;
-    const order = sortKey ? defaultSortOrder(sortKey, { mode: rawMode }) : null;
+    const sortOrder = sortKey ? defaultSortOrder(sortKey, { mode: resolved }) : null;
 
     if (!entry) {
-        return {
-            key, field, tool, mode: rawMode, known: false,
-            label: field,
-            direction: HIGHER,
-            crossDatabaseComparable: null,
-            parserTransform: parserTransform(field, rawMode),
-            defaultSortOrder: order,
-            sortOrderMatchesDirection: null,
-        };
+        return { known: false, label: field, direction: HIGHER, crossDatabaseComparable: null, sortOrder };
     }
-
-    const matches = order === null ? null : (entry.direction === HIGHER ? order === -1 : order === 1);
-    const out = {
-        key, field, tool, mode: rawMode, known: true,
+    return {
+        known: true,
         label: entry.label,
         direction: entry.direction,
         crossDatabaseComparable: entry.crossDatabaseComparable,
-        // Kept because it is a correctness fact, not prose: it says the value arrives as a display
-        // string, and that a lolalign eval was already multiplied by 100.
-        parserTransform: parserTransform(field, rawMode),
-        defaultSortOrder: order,
-        sortOrderMatchesDirection: matches,
+        sortOrder,
     };
-    if (matches === false) {
-        out.note = `mode "${rawMode}" is still a ${baseMode(rawMode)} value, but the parser and the `
-            + 'table both branch on the raw mode string, so this value is formatted and sorted as if '
-            + 'it were an E-value';
-    }
-    return out;
 }
 
 /** The ranking a result table uses when nothing is asked for — mirrors ResultTable.getTable. */
 export function defaultRankingSemantics({ tool = 'foldseek', mode = '', isComplex = false } = {}) {
     const sortKey = tool === 'folddisco' ? 'idf' : (isComplex ? 'qtm' : 'score');
     const field = rowFieldForSortKey(sortKey, tool);
-    return {
-        sortKey,
-        sortOrder: defaultSortOrder(sortKey, { mode }),
-        field,
-        semantics: metricSemantics({ tool, mode, field }),
-    };
+    const { known, ...facts } = metricSemantics({ tool, mode, field });
+    return { sortKey, field, ...facts };
 }
 
-/** Recovers a number from the parser's display strings; null where there is no value. */
+/**
+ * Recovers a number from the parser's display strings; null where there is no value. Needed because
+ * parseResults rewrites eval/prob/idfscore/rmsd in place as formatted strings, and under lolalign
+ * multiplies eval by 100 first.
+ */
 export function numericMetric(row, field) {
     const raw = row?.[field];
     if (raw === null || raw === undefined || raw === '') return null;
