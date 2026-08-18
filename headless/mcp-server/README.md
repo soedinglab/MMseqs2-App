@@ -1,7 +1,7 @@
 # `mmseqs2-agent-mcp`
 
 An MCP server that exposes Foldseek, FoldMason and FoldDisco to an agent: submit a search, read the
-hits, pick some, forward them into the next tool. Seventeen tools over
+hits, pick some, forward them into the next tool. Sixteen tools over
 [`mmseqs2-agent-core`](../core/README.md), which does the actual work.
 
 ## Configuration
@@ -69,8 +69,6 @@ call.
 - `get_taxonomy` — the taxa in one database's hits, with clade read counts
 - `get_queries` — the queries inside a ticket and the entry index each is reached by
 - `get_foldmason_result` — `include: ['statistics','entries','fasta','coordinates','tree']`
-- `get_foldmason_column_summary` — where to look in an alignment: metric spreads, notable columns as
-  ranges, and the best-scoring regions
 - `get_foldmason_columns` — per-column LDDT, quality, conservation, consensus, occupancy, entropy
 - `list_cached_tickets` — what this agent has seen before, from the local cache;
   `derivedFromTicket` filters to the jobs one ticket produced
@@ -96,7 +94,7 @@ get_result_table { ticketId, db: "afdb50", limit: 10 }                    -> row
 select_hits      { ticketId, ids: ["1#0","1#3","1#7"], name: "core" }     -> saved
 send_to          { from: {type:"selection", ticketId, name:"core"},
                    tool: "foldmason" }                                    -> a new ticketId
-get_foldmason_column_summary { ticketId: msaTicket }                      -> regions, e.g. "12-28"
+get_foldmason_columns { ticketId: msaTicket, metrics: ["lddt"], limit: 0 } -> every column's LDDT
 select_msa_columns { ticketId: msaTicket, ranges: ["12-28"] }             -> motif "A31, A32, …"
 send_to          { from: {type:"msaColumns", ticketId: msaTicket},
                    tool: "folddisco", databases: ["pdb_folddisco"] }      -> a third ticketId

@@ -12,9 +12,22 @@ export {
 
 export { ResultTable, Row, Selection, SELECT_MAX } from './results.js';
 export {
-    foldMasonColumns, foldMasonColumnSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
+    foldMasonColumns, foldMasonSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
+    msaResidueMap,
     compressRanges, expandRanges, COLUMN_METRICS, MsaColumnSelection,
 } from './msa.js';
+export {
+    SUMMARY_SCHEMA, ARTIFACT_SCHEMA, RESULT_KINDS, STATUSES, CAP_SOURCES, INTEGRITY_CODES,
+    SELECTION_KINDS, validateResultSummary, validateArtifactManifest, unsafeRelativePath,
+} from './schemas.js';
+export {
+    METRIC_SEMANTICS, SORT_KEY_FOR_FIELD, NUMERIC_METRIC_FIELDS,
+    metricSemantics, defaultRankingSemantics, numericMetric,
+} from './metrics.js';
+export {
+    normalizeEntry, resultCounts, resultRowCap, completenessOf, databaseProvenance,
+    taxonomyExport, serializeRow, motifPatternExport, isComplexResult,
+} from './facts.js';
 export { Store, defaultStateDir, summarizeRequest } from './store.js';
 export {
     checkMotif, validateMotif, assertMotif, computeDefaultMotif, motifFromTargetResidues,

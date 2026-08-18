@@ -233,18 +233,11 @@ test('an unknown tool name is a result, not a crash', async () => {
     assert.match(out.error, /unknown tool: no_such_tool/);
 });
 
-test('the FoldMason column tools are advertised and route to the client', async () => {
+test('the FoldMason column tool is advertised and routes to the client', async () => {
     const client = stubClient({
         async getFoldMasonColumns(t, opts) { return { called: 'columns', ticket: t, opts }; },
-        async getFoldMasonColumnSummary(t, opts) { return { called: 'summary', ticket: t, opts }; },
     });
     const tools = createTools(client);
-
-    const summary = await runTool(tools, 'get_foldmason_column_summary',
-        { ticketId: 'FM1', metrics: ['lddt', 'conservation'], primary: 'lddt' });
-    assert.equal(summary.called, 'summary');
-    assert.deepEqual(summary.opts.metrics, ['lddt', 'conservation']);
-    assert.equal(summary.opts.ticketId, undefined, 'the ticket is an argument, not an option');
 
     const columns = await runTool(tools, 'get_foldmason_columns',
         { ticketId: 'FM1', columns: [1, 2], metrics: ['quality'] });
@@ -256,9 +249,9 @@ test('the FoldMason column tools are advertised and route to the client', async 
         'limit:0 must stay 0 — that is how a caller asks for everything');
 });
 
-test('the column tools describe the metrics they accept', () => {
+test('the column tool describes the metrics it accepts', () => {
     const tools = createTools(stubClient());
-    for (const name of ['get_foldmason_columns', 'get_foldmason_column_summary']) {
+    for (const name of ['get_foldmason_columns']) {
         const tool = tools.find(t => t.name === name);
         const metrics = tool.inputSchema.properties.metrics;
         assert.ok(metrics.items.enum.includes('lddt'), `${name} should offer lddt`);

@@ -444,45 +444,6 @@ export function createTools(client) {
         },
 
         {
-            name: 'get_foldmason_column_summary',
-            description:
-                'Where to look in a FoldMason alignment. Gives each metric\'s spread, the notable ' +
-                'columns (identity, fully conserved, unconserved) as compressed ranges, the ' +
-                'best-scoring columns, and the contiguous ranges where the ranking metric runs high, ' +
-                'best region first. Ranked on LDDT by default, since that measures how well the ' +
-                'structures superpose; the cut-off defaults to this alignment\'s own median rather ' +
-                'than a fixed bar, which would return nothing on many real alignments. Cheap at any ' +
-                'length — call this before get_foldmason_columns.',
-            inputSchema: {
-                type: 'object',
-                required: ['ticketId'],
-                properties: {
-                    ticketId: { type: 'string' },
-                    representation: {
-                        type: 'string', enum: ['aa', '3di'],
-                        description: 'Amino acid (default) or 3Di. 3Di has no conservation.',
-                    },
-                    metrics: {
-                        type: 'array', items: { type: 'string', enum: COLUMN_METRICS },
-                        description: `Any of ${COLUMN_METRICS.join(', ')}. Default: all available.`,
-                    },
-                    primary: {
-                        type: 'string', enum: COLUMN_METRICS.filter(m => m !== 'consensus'),
-                        description: 'Metric the regions and top columns are ranked on. Default lddt.',
-                    },
-                    threshold: { description: 'A number, or "auto" (default) for a quantile.' },
-                    quantile: { type: 'number', description: 'Used when threshold is "auto"; default 0.5.' },
-                    minLength: { type: 'number', description: 'Shortest run to report; default 3.' },
-                    maxRegions: { type: 'number', description: 'Regions returned, best first; default 10.' },
-                    topColumns: { type: 'number', description: 'Columns returned, best first; default 10.' },
-                },
-            },
-            handler({ ticketId, ...opts }) {
-                return client.getFoldMasonColumnSummary(ticketId, opts);
-            },
-        },
-
-        {
             name: 'get_foldmason_columns',
             description:
                 'Per-column metrics for a completed FoldMason alignment: LDDT, quality ' +
@@ -611,8 +572,7 @@ export function createTools(client) {
                 'Pick columns of one FoldMason entry and see the motif they map to — the residues those ' +
                 'columns cover, as chain+number. Saved against the ticket like select_hits, so the ' +
                 'region can be widened, narrowed, read off a different entry, or given an explicit ' +
-                'motif before being sent to FoldDisco with send_to. Take the ranges straight from ' +
-                'get_foldmason_column_summary.',
+                'motif before being sent to FoldDisco with send_to.',
             inputSchema: {
                 type: 'object',
                 required: ['ticketId'],

@@ -32,34 +32,25 @@ import { Store, defaultStateDir, summarizeRequest } from './store.js';
 import { ResultTable } from './results.js';
 import { assertMotif, computeDefaultMotif, validateMotif, normalizeChainNames } from './motif.js';
 import {
-    foldMasonColumns, foldMasonColumnSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
-    MsaColumnSelection,
+    foldMasonColumns, foldMasonFasta, foldMasonCoordinates, foldMasonEntries, MsaColumnSelection,
 } from './msa.js';
 import {
     fetchFoldDiscoStructure, reconstructFullAtom, resolveStructureFromDb,
     loadAccession, loadAccessions, ensureStructureExtension,
 } from './structures.js';
 import { SubmittableQuery } from './submit.js';
+import { TERMINAL_STATUSES, kindForJobType } from './facts.js';
 import { getChainName } from '../../../frontend/lib/targetName.js';
 import { listChains } from '../../../frontend/lib/structureText.js';
 import { mockPDB, encodeMultimer } from '../../../frontend/lib/pdbAssembly.js';
 import { pathForTicket } from '../../../frontend/lib/ticketRoute.js';
-
-export const TERMINAL_STATUSES = new Set(['COMPLETE', 'ERROR', 'UNKNOWN']);
 
 /** FoldMason aligns structures against each other; one input has nothing to align to. */
 export const FOLDMASON_MIN_FILES = 2;
 
 const VALID_TAX_FILTER = /^[0-9]+(,!?[0-9]+)*$|^$/;
 
-export function kindForJobType(jobType) {
-    switch (jobType) {
-        case 'foldmasoneasymsa': return 'foldmason';
-        case 'folddisco': return 'folddisco';
-        case 'complexsearch': return 'complexsearch';
-        default: return 'search';       // search, structuresearch, interfacesearch, msa, pair, …
-    }
-}
+export { TERMINAL_STATUSES, kindForJobType };
 
 /** A 404 on a job type this deployment does not serve, told apart from a genuinely missing ticket. */
 export class UnsupportedOnDeploymentError extends Error {
@@ -359,10 +350,6 @@ export function createClient({
 
         async getFoldMasonColumns(ticket, opts = {}) {
             return foldMasonColumns(await client.getFoldMasonResult(ticket), opts);
-        },
-
-        async getFoldMasonColumnSummary(ticket, opts = {}) {
-            return foldMasonColumnSummary(await client.getFoldMasonResult(ticket), opts);
         },
 
         async getFoldMasonFasta(ticket, opts = {}) {

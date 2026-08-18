@@ -1,4 +1,4 @@
-// The headless MSA column surface: metric selection, range compression, and the region finder.
+// The headless MSA column surface: metric selection, range compression, and the column-to-residue map.
 //
 // Built on the same GPU-captured fixture the port itself is checked against, so these exercise the
 // real alignment rather than a synthetic one, and the numbers they assert are GPU numbers.
@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { foldMasonColumns, foldMasonColumnSummary, compressRanges, COLUMN_METRICS } from '../src/msa.js';
+import { foldMasonColumns, foldMasonSummary, compressRanges, COLUMN_METRICS } from '../src/msa.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GPU = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', 'msa-gpu-metrics.json'), 'utf8'));
@@ -20,7 +20,7 @@ function result({ withScores = true, withSs = false } = {}) {
         name: `entry${i}`, aa, ...(withSs ? { ss: aa } : {}),
     }));
     // Synthetic but shaped like the real thing: a high-LDDT run, a -1 (absent) stretch, then a
-    // low-LDDT tail, so the region finder has something with structure to find.
+    // low-LDDT tail.
     const scores = withScores
         ? GPU.expected.quality.map((_, c) => (c >= 40 && c < 60 ? 0.9 : c >= 60 && c < 65 ? -1 : 0.2))
         : undefined;
@@ -104,80 +104,42 @@ test('an unknown representation is refused', () => {
     assert.deepEqual(out.available, ['aa', '3di']);
 });
 
-test('the summary ranks regions on LDDT, best first', () => {
-    // An explicit cut-off isolates the synthetic high-LDDT run at 40-59. With the default median
-    // (0.2 for this fixture) columns 0-59 are all above the bar and form one region instead, which
-    // is correct but says nothing about ordering.
-    const isolated = foldMasonColumnSummary(result(), { threshold: 0.5 });
-    assert.equal(isolated.rankedOn, 'lddt');
-    assert.equal(isolated.regions.length, 1);
-    assert.equal(isolated.regions[0].start, 40);
-    assert.equal(isolated.regions[0].end, 59);
-    assert.equal(isolated.regions[0].length, 20);
-
-    const auto = foldMasonColumnSummary(result());
-    assert.ok(auto.regions.length > 0, 'the median cut-off should always yield regions');
-    assert.equal(auto.threshold.quantile, 0.5);
-    for (let i = 1; i < auto.regions.length; i++) {
-        assert.ok(auto.regions[i - 1].lddt >= auto.regions[i].lddt,
-            'regions must be ordered by the ranking metric, not by position');
+test('the summary reports size, available metrics and each metric spread', () => {
+    const summary = foldMasonSummary(result());
+    assert.equal(summary.entryCount, GPU.sequences.length);
+    assert.equal(summary.totalColumns, GPU.expected.quality.length);
+    assert.deepEqual(summary.metrics, COLUMN_METRICS);
+    assert.deepEqual(Object.keys(summary.stats).sort(),
+        ['conservation', 'entropy', 'informationContent', 'lddt', 'occupancy', 'quality']);
+    for (const [metric, stat] of Object.entries(summary.stats)) {
+        assert.ok(stat.min <= stat.mean && stat.mean <= stat.max, `${metric} spread`);
     }
 });
 
-test('the summary reports notable columns as ranges, with exact counts', () => {
-    const summary = foldMasonColumnSummary(result());
-    const { identity, fullyConserved, unconserved } = summary.notable.conservation;
+test('summary stats treat absent LDDT as missing rather than as a value', () => {
+    const stats = foldMasonSummary(result()).stats;
+    assert.equal(stats.lddt.missing, 5, 'columns 60-64 are -1');
+    assert.equal(stats.lddt.min, 0.2, 'the -1 values must not become the minimum');
+    assert.equal(stats.lddt.max, 0.9);
+});
 
-    const identityColumns = GPU.expected.conservationScore.filter(s => s === 11).length;
-    assert.equal(identity.count, identityColumns);
-    for (const entry of [...identity.columns, ...fullyConserved.columns, ...unconserved.columns]) {
-        assert.equal(typeof entry, 'string', 'ranges are strings so callers need not branch on type');
-        assert.match(entry, /^\d+(-\d+)?$/);
+test('the summary carries no per-column data, whatever the alignment length', () => {
+    const summary = foldMasonSummary(result());
+    for (const key of ['rows', 'regions', 'topColumns', 'notable', 'consensus', 'threshold']) {
+        assert.equal(summary[key], undefined, `${key} would grow with the alignment`);
     }
-    // Ranges are shorter than the raw list they describe, which is the point.
-    assert.ok(unconserved.columns.length < unconserved.count);
+    // Four numbers per metric and a handful of scalars: the size cannot follow the column count.
+    assert.ok(JSON.stringify(summary).length < 800, 'a summary must stay small enough to always send');
 });
 
-test('stats treat absent LDDT as missing rather than as a value', () => {
-    const summary = foldMasonColumnSummary(result());
-    assert.equal(summary.stats.lddt.missing, 5, 'columns 60-64 are -1');
-    assert.equal(summary.stats.lddt.min, 0.2, 'the -1 values must not become the minimum');
-    assert.equal(summary.stats.lddt.max, 0.9);
+test('a summary of an alignment without scores simply reports no lddt', () => {
+    const summary = foldMasonSummary(result({ withScores: false }));
+    assert.ok(!summary.metrics.includes('lddt'));
+    assert.equal(summary.stats.lddt, undefined);
+    assert.ok(summary.stats.quality);
 });
 
-test('an absolute threshold is honoured, and an unreachable one yields no regions', () => {
-    const reachable = foldMasonColumnSummary(result(), { threshold: 0.5 });
-    assert.equal(reachable.threshold.value, 0.5);
-    assert.ok(reachable.regions.length > 0);
-
-    const unreachable = foldMasonColumnSummary(result(), { threshold: 0.99 });
-    assert.deepEqual(unreachable.regions, [], 'an honest empty answer, not a relaxed threshold');
-});
-
-test('the summary falls back to another metric when the primary is unavailable', () => {
-    const summary = foldMasonColumnSummary(result({ withScores: false }));
-    assert.notEqual(summary.rankedOn, 'lddt');
-    assert.match(summary.rankedOnNote, /lddt is not available/);
-    assert.ok(summary.regions.length >= 0);
-});
-
-test('metrics selection narrows the summary too', () => {
-    const summary = foldMasonColumnSummary(result(), { metrics: ['lddt', 'conservation'] });
-    assert.deepEqual(Object.keys(summary.stats).sort(), ['conservation', 'lddt']);
-    assert.deepEqual(Object.keys(summary.notable), ['conservation']);
-    assert.equal(summary.quality, undefined);
-});
-
-test('topColumns are the best ones, descending', () => {
-    const summary = foldMasonColumnSummary(result(), { topColumns: 5 });
-    assert.equal(summary.topColumns.length, 5);
-    for (let i = 1; i < summary.topColumns.length; i++) {
-        assert.ok(summary.topColumns[i - 1].value >= summary.topColumns[i].value);
-    }
-    assert.ok(summary.topColumns.every(c => c.value !== null), 'absent values are not ranked');
-});
-
-test('the consensus string spans the whole alignment', () => {
-    const summary = foldMasonColumnSummary(result());
-    assert.equal(summary.consensus.length, GPU.expected.quality.length);
+test('an unusable representation is refused by the summary too', () => {
+    assert.match(foldMasonSummary(result(), { representation: 'dna' }).error, /unknown representation/);
+    assert.match(foldMasonSummary(result({ withSs: false }), { representation: '3di' }).error, /no "ss"/);
 });

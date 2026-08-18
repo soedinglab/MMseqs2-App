@@ -116,10 +116,12 @@ came from, and how the structure was assembled.
 
 ```js
 const res = await client.getFoldMasonResult(id);
-await client.getFoldMasonColumnSummary(id, { primary: 'lddt' });
+foldMasonSummary(res);                            // counts, available metrics, each metric's spread
 await client.getFoldMasonColumns(id, { metrics: ['lddt', 'conservation'], offset: 40, limit: 20 });
 await client.getFoldMasonFasta(id, { representation: 'aa' });
 await client.getFoldMasonCoordinates(id, { entries: [0] });
+
+msaResidueMap(res, 0);                            // column -> { residueIndex, chain, resno, token }
 
 const columns = await client.selectMsaColumns(id, { entry: 0, columns: [12, 13, 14] });
 columns.motif;                                    // 'A31, A32, A33' — chain + original residue number
@@ -130,10 +132,12 @@ Quality and conservation come from a CPU port of the page's WGSL compute shader,
 column against real GPU output (`test/fixtures/msa-gpu-metrics.json`). LDDT does not come from the
 shader at all — the backend ships it per column, and `-1` means *absent*, reported as `null`.
 
-The column summary is the cheap way in: each metric's spread, the notable columns as compressed
-ranges, and the contiguous regions where the ranking metric runs high, best region first. Its
-threshold defaults to this alignment's own median rather than a fixed bar, because a fixed bar returns
-nothing on plenty of real alignments.
+`foldMasonSummary` is the cheap way in — entry and column counts, which metrics exist, and the spread
+of each — and it is bounded, so it costs the same on a 149-column alignment and a 5,000-column one.
+There is deliberately no server-side "interesting columns" pick beyond it: `foldMasonColumns` reports
+every column with every available metric, and which columns matter is the caller's analysis. `msaResidueMap`
+turns a column into the residue and chain frame of one entry — the same convention
+`MsaColumnSelection` derives its motif from, so a consumer of an exported map cannot drift from it.
 
 ## Structures and motifs
 
