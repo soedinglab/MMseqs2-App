@@ -17,6 +17,29 @@ import crypto from 'node:crypto';
 /** Ticket ids are base64url from the backend. Reject anything else rather than build a path from it. */
 const SAFE_ID = /^[A-Za-z0-9_-]{4,}$/;
 
+/** Selection names are object keys in a file that is read back and spread. */
+const SAFE_SELECTION_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+const RESERVED_SELECTION_NAMES = new Set(['__proto__', 'prototype', 'constructor']);
+
+export function assertSelectionName(name) {
+    if (typeof name !== 'string' || !SAFE_SELECTION_NAME.test(name)
+        || RESERVED_SELECTION_NAMES.has(name)) {
+        const err = new Error(
+            `invalid selection name: ${JSON.stringify(name)} — expected 1-64 characters of ` +
+            'letters, digits, dot, dash or underscore, starting alphanumeric ' +
+            `(and not one of ${[...RESERVED_SELECTION_NAMES].join(', ')})`);
+        err.code = 'SELECTION_NAME_INVALID';
+        throw err;
+    }
+    return name;
+}
+
+function coded(code, message) {
+    const err = new Error(message);
+    err.code = code;
+    return err;
+}
+
 export function defaultStateDir() {
     return process.env.MMSEQS2_AGENT_STATE_DIR || path.join(os.homedir(), '.mmseqs2-agent');
 }
@@ -104,35 +127,71 @@ export class Store {
         return path.join(this.ticketDir(id), 'selections.json');
     }
 
+    /** Null-prototype: these keys come from a file, and one of them could be spelled __proto__. */
     async readSelections(id) {
-        return (await this.#readJson(this.#selectionFile(id))) ?? {};
+        const stored = await this.#readJson(this.#selectionFile(id));
+        const all = Object.create(null);
+        for (const [name, record] of Object.entries(stored ?? {})) {
+            if (RESERVED_SELECTION_NAMES.has(name)) continue;
+            all[name] = record;
+        }
+        return all;
     }
 
     async readSelection(id, name = 'default') {
-        return (await this.readSelections(id))[name] ?? null;
+        const all = await this.readSelections(id);
+        return Object.hasOwn(all, name) ? all[name] : null;
     }
 
     /** Merge-write, so saving one selection never drops another. */
     async writeSelection(id, name, payload) {
+        assertSelectionName(name);
         const all = await this.readSelections(id);
         const now = new Date().toISOString();
         const record = {
             ...payload,
             name,
-            createdAt: all[name]?.createdAt ?? now,
+            createdAt: Object.hasOwn(all, name) ? all[name].createdAt ?? now : now,
             updatedAt: now,
         };
         all[name] = record;
-        await this.#writeJson(this.#selectionFile(id), all);
+        await this.#writeJson(this.#selectionFile(id), { ...all });
         return record;
     }
 
     async deleteSelection(id, name) {
+        assertSelectionName(name);
         const all = await this.readSelections(id);
-        if (!(name in all)) return false;
+        if (!Object.hasOwn(all, name)) return false;
         delete all[name];
-        await this.#writeJson(this.#selectionFile(id), all);
+        await this.#writeJson(this.#selectionFile(id), { ...all });
         return true;
+    }
+
+    /**
+     * Copy a selection under a new name, so the original can be left exactly as a forwarded job
+     * recorded it. A deep copy: later edits to either name must not reach the other.
+     */
+    async copySelection(id, fromName, toName) {
+        assertSelectionName(fromName);
+        assertSelectionName(toName);
+        if (fromName === toName) {
+            throw coded('SELECTION_COLLISION', `"${toName}" is already the source of the copy`);
+        }
+        const all = await this.readSelections(id);
+        if (!Object.hasOwn(all, fromName)) {
+            throw coded('SELECTION_NOT_FOUND', `no saved selection named "${fromName}" on ${id}`);
+        }
+        if (Object.hasOwn(all, toName)) {
+            throw coded('SELECTION_COLLISION',
+                `a selection named "${toName}" already exists on ${id} — copying never overwrites`);
+        }
+        const source = all[fromName];
+        const now = new Date().toISOString();
+        const record = { ...structuredClone(source), name: toName, createdAt: now, updatedAt: now };
+        all[toName] = record;
+        await this.#writeJson(this.#selectionFile(id), { ...all });
+        return record;
     }
 
     /**
@@ -148,6 +207,11 @@ export class Store {
             ...rest,
             size: (ids ?? columns)?.length ?? 0,
         }));
+    }
+
+    /** Whether a name exists, without reading its membership. */
+    async hasSelection(id, name) {
+        return Object.hasOwn(await this.readSelections(id), name);
     }
 
     /**

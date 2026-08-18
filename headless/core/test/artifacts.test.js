@@ -338,3 +338,30 @@ test('the same unit exports the same bytes regardless of selections made in betw
     const manifest = fs.readFileSync(second.localManifestPath, 'utf8');
     assert.equal(manifest.includes('draft'), false, 'an artifact holds no selection state');
 });
+
+test('the export-triggered sweep is throttled, and the marker survives a new client', async () => {
+    const stateDir = await tmpDir();
+    const sweeps = [];
+    const audit = async (entry) => { sweeps.push(entry); };
+
+    const first = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir });
+    await first.client.exportResult('T1abcd');
+    const marker = path.join(stateDir, 'artifact-gc-state.json');
+    assert.equal(fs.existsSync(marker), true, 'the sweep time is recorded outside the artifact root');
+    const recorded = JSON.parse(fs.readFileSync(marker, 'utf8')).lastSweepAt;
+
+    // A second export moments later must not walk the directory again.
+    const throttled = await first.client.collectArtifacts({ minIntervalSeconds: 600, audit });
+    assert.equal(throttled.throttled, true);
+    assert.equal(throttled.lastSweepAt, recorded);
+    assert.equal(sweeps.length, 0, 'nothing was examined, so nothing was audited');
+
+    // A brand new client — a restarted server — reads the same marker rather than sweeping again.
+    const second = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir });
+    assert.equal((await second.client.collectArtifacts({ minIntervalSeconds: 600 })).throttled, true);
+
+    // An explicit call always sweeps: that is what the operator mode and the startup sweep use.
+    const forced = await second.client.collectArtifacts();
+    assert.equal(forced.throttled, undefined);
+    assert.equal(forced.examined, 1);
+});

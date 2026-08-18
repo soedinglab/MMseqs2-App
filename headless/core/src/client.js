@@ -42,6 +42,7 @@ import { SubmittableQuery } from './submit.js';
 import { TERMINAL_STATUSES, kindForJobType, normalizeEntry } from './facts.js';
 import { resultSummary, notReadySummary } from './summary.js';
 import { createArtifactStore, artifactCacheKey, artifactWriter, serverNamespaceFor } from './artifacts.js';
+import { collectArtifacts as sweepArtifacts, fileAudit } from './artifact-gc.js';
 import { getChainName } from '../../../frontend/lib/targetName.js';
 import { listChains } from '../../../frontend/lib/structureText.js';
 import { mockPDB, encodeMultimer } from '../../../frontend/lib/pdbAssembly.js';
@@ -54,6 +55,7 @@ export const FOLDMASON_MIN_FILES = 2;
 
 /** How many parsed results to keep in memory at once. Each can be several MB. */
 const PARSED_CACHE_SIZE = 16;
+const DEFAULT_GC_MIN_INTERVAL_SECONDS = 600;
 
 const VALID_TAX_FILTER = /^[0-9]+(,!?[0-9]+)*$|^$/;
 
@@ -142,6 +144,15 @@ export function createClient({
         root: path.join(stateDir, 'artifacts'),
         ...artifacts,
     });
+    // Outside the artifact root on purpose: the GC never has to decide whether its own log is an
+    // artifact.
+    const gcOptions = {
+        staleBuildSeconds: artifacts.staleBuildSeconds,
+        maxDeletions: artifacts.maxDeletions,
+        audit: artifacts.audit ?? fileAudit(path.join(stateDir, 'artifact-gc-audit.jsonl')),
+    };
+    const gcMinIntervalSeconds = artifacts.gcMinIntervalSeconds ?? DEFAULT_GC_MIN_INTERVAL_SECONDS;
+    const gcStateFile = path.join(stateDir, 'artifact-gc-state.json');
     let databasesPromise = null;
 
     function headers(extra = {}) {
@@ -416,6 +427,7 @@ export function createClient({
 
         listSelections(ticket) { return store.listSelections(ticket); },
         deleteSelection(ticket, name = 'default') { return store.deleteSelection(ticket, name); },
+        copySelection(ticket, fromName, toName) { return store.copySelection(ticket, fromName, toName); },
 
         async getResultTable(ticket, { entry = 0 } = {}) {
             const { type } = await client.getTicketType(ticket);
@@ -655,7 +667,37 @@ export function createClient({
                 configuredCap: resultRowCap,
                 clock: artifactStore.now,
             }));
+            await client.collectArtifacts({ minIntervalSeconds: gcMinIntervalSeconds })
+                .catch(err => onWarning?.(`artifact GC failed: ${err.message}`));
             return artifactStore.descriptor(manifest, { cacheHit });
+        },
+
+        /**
+         * Delete expired public artifacts. Touches nothing under tickets/.
+         *
+         * `minIntervalSeconds` skips the walk entirely when the last sweep is recent; the marker lives
+         * outside the artifact root and survives a restart. An explicit call (operator, startup, tests)
+         * passes 0 and always sweeps.
+         */
+        async collectArtifacts({ minIntervalSeconds = 0, ...opts } = {}) {
+            const now = artifactStore.now();
+            if (minIntervalSeconds > 0) {
+                const last = await fsp.readFile(gcStateFile, 'utf8')
+                    .then(text => Date.parse(JSON.parse(text).lastSweepAt))
+                    .catch(() => NaN);
+                if (Number.isFinite(last) && (now.getTime() - last) / 1000 < minIntervalSeconds) {
+                    // Not "skipped": the report already uses that for how many entries were skipped.
+                    return {
+                        throttled: true,
+                        lastSweepAt: new Date(last).toISOString(),
+                        nextDueAt: new Date(last + minIntervalSeconds * 1000).toISOString(),
+                    };
+                }
+            }
+            const report = await sweepArtifacts(artifactStore, { ...gcOptions, ...opts, now });
+            await fsp.writeFile(gcStateFile, JSON.stringify({ lastSweepAt: now.toISOString() }))
+                .catch(err => onWarning?.(`could not record the GC sweep time: ${err.message}`));
+            return report;
         },
 
         listCachedTickets(opts) { return store.listTickets(opts); },

@@ -11,7 +11,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { createClient, provenanceRemark, ensureStructureExtension, ResultTable } from '../src/index.js';
+import {
+    createClient, provenanceRemark, ensureStructureExtension, ResultTable, MsaColumnSelection,
+} from '../src/index.js';
 
 /** A one-hit, one-database parsed result, for the rows that lineage is recorded against. */
 const PARSED = {
@@ -535,4 +537,72 @@ test('a lineage write that fails does not fail the submission', async () => {
     assert.equal(warnings.length, 2);
     assert.match(warnings[0], /could not write its cache record/);
     assert.match(warnings[1], /could not record lineage/);
+});
+
+test('every forwarding origin records the facts a lineage walk needs', async () => {
+    const fetchImpl = stubFetch({
+        'format=brief': briefRoute([{ target: '1abc_A', tCa: CA_A, tSeq: 'MAC' }]),
+        '/result/folddisco/': () => ({ ok: true, status: 200, text: async () => ORIGINAL_FILE, json: async () => ({}) }),
+        '/query': () => ({ ok: true, status: 200, text: async () => ORIGINAL_FILE, json: async () => ({}) }),
+        'cg2all': () => ({ ok: true, status: 200, text: async () => ORIGINAL_FILE, json: async () => ({}) }),
+    });
+    const client = createClient({
+        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
+    });
+
+    // origin: chains — a Foldseek hit
+    const table = new ResultTable(PARSED, { ticket: 'SRCTICKET', entry: 3, app: 'foldseek', client });
+    const fromRow = await table.row('0#0').sendTo({ tool: 'foldseek', databases: ['afdb50'] });
+    for (const key of ['ticket', 'entry', 'origin', 'tool', 'rowId', 'db']) {
+        assert.ok(fromRow.derivedFrom[key] !== undefined, `a row origin needs ${key}`);
+    }
+    assert.equal(fromRow.derivedFrom.origin, 'chains');
+    assert.equal(fromRow.derivedFrom.tool, 'foldseek', 'tool is the destination — there is no alias');
+    assert.equal(fromRow.derivedFrom.entry, 3, 'the source entry, not the destination');
+
+    // origin: fm-entry — an MSA column selection, reconstructed for FoldDisco
+    const alignment = {
+        entries: [{ name: '1abc_AB-_-_-_A_3_0-B_6_3', aa: 'MAC-MAC', ca: CA_A + ',' + CA_A }],
+    };
+    const columns = new MsaColumnSelection(client, alignment, {
+        ticket: 'MSASRC', entry: 0, columns: [0, 1], name: 'to-folddisco__001',
+    });
+    const fromColumns = await columns.sendTo({ tool: 'folddisco', databases: ['pdb_folddisco'] });
+    assert.equal(fromColumns.derivedFrom.ticket, 'MSASRC');
+    assert.equal(fromColumns.derivedFrom.origin, 'fm-entry');
+    assert.equal(fromColumns.derivedFrom.tool, 'folddisco');
+    assert.equal(fromColumns.derivedFrom.selection, 'to-folddisco__001',
+        'the historical reference: which named selection this job was submitted from');
+    assert.deepEqual(fromColumns.derivedFrom.columns, ['0-1']);
+    assert.equal(fromColumns.derivedFrom.entryName, '1abc_AB-_-_-_A_3_0-B_6_3');
+    assert.equal(fromColumns.derivedFrom.reconstructed, true, 'FoldDisco needed full atoms');
+});
+
+test('derivedFrom.selection still names the source after the client moves to the next serial', async () => {
+    const fetchImpl = stubFetch({
+        'format=brief': briefRoute([{ target: '1abc_A', tCa: CA_A, tSeq: 'MAC' }]),
+        '/query': () => ({ ok: true, status: 200, text: async () => ORIGINAL_FILE, json: async () => ({}) }),
+    });
+    const client = createClient({
+        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
+    });
+    const table = new ResultTable(PARSED, { ticket: 'SRCTICKET', entry: 0, app: 'foldseek', client });
+
+    // Build a draft, copy it to the serial name the job will use, forward that.
+    await table.select(['0#0'], { name: 'draft' }).save('draft');
+    await client.copySelection('SRCTICKET', 'draft', 'to-foldmason__001');
+    const loaded = await table.loadSelection('to-foldmason__001');
+    const ticket = await loaded.sendTo({ tool: 'foldmason' });
+    assert.equal(ticket.derivedFrom.selection, 'to-foldmason__001');
+
+    // The client then edits the draft and copies again — the used name must be untouched.
+    await table.select([], { name: 'draft' }).add(['0#0']).save('draft');
+    await client.copySelection('SRCTICKET', 'draft', 'to-foldmason__002');
+
+    const recorded = (await client.store.readTicket(ticket.id)).derivedFrom;
+    assert.equal(recorded.selection, 'to-foldmason__001');
+    const stillThere = await client.store.readSelection('SRCTICKET', recorded.selection);
+    assert.deepEqual(stillThere.ids, ['0#0'], 'the job\'s own selection is still readable, unchanged');
+    assert.deepEqual((await client.listSelections('SRCTICKET')).map(s => s.name).sort(),
+        ['draft', 'to-foldmason__001', 'to-foldmason__002']);
 });

@@ -63,6 +63,25 @@ function brief(selection, maxEntries) {
     };
 }
 
+/** A refusal a caller can act on, rather than a silently ignored argument. */
+function invalidInput(message) {
+    const err = new Error(message);
+    err.code = 'INVALID_INPUT';
+    return err;
+}
+
+/**
+ * Arguments that belong to the other selection tool are refused, not dropped: a caller who passes
+ * `columns` to select_hits and gets a success back believes something that is not true.
+ */
+function refuseForeignFields(args, foreign, tool) {
+    const present = foreign.filter(field => args[field] !== undefined);
+    if (present.length) {
+        throw invalidInput(`${present.join(', ')} ${present.length > 1 ? 'are' : 'is'} not a ` +
+                           `${tool} argument`);
+    }
+}
+
 export function createTools(client) {
     const resolveSource = async (from) => {
         const type = from?.type;
@@ -520,9 +539,16 @@ export function createTools(client) {
                     name: { type: 'string', description: 'Selection name; default "default".' },
                     action: {
                         type: 'string',
-                        enum: ['set', 'add', 'remove', 'clear', 'describe', 'list', 'delete'],
+                        enum: ['set', 'add', 'remove', 'clear', 'describe', 'list', 'delete', 'copy'],
                         description: '"set" replaces the selection (the default), "describe" reads it ' +
-                                     'back, "list" names every saved selection for this ticket.',
+                                     'back, "list" names every saved selection for this ticket, ' +
+                                     '"copy" duplicates fromName under a new name so the original can ' +
+                                     'be left exactly as a forwarded job recorded it.',
+                    },
+                    fromName: {
+                        type: 'string',
+                        description: 'copy: the selection to copy from. The copy is independent — ' +
+                                     'editing it never touches the original.',
                     },
                     ids: {
                         type: 'array', items: { type: 'string' },
@@ -533,11 +559,23 @@ export function createTools(client) {
                     maxEntries: { type: 'number', description: 'Entries listed back, default 25.' },
                 },
             },
-            async handler({ ticketId, entry = 0, name = 'default', action = 'set', ids = [], maxEntries = 25 }) {
+            async handler(args) {
+                const { ticketId, entry = 0, name = 'default', action = 'set', ids = [], fromName,
+                    maxEntries = 25 } = args;
+                refuseForeignFields(args, ['columns', 'ranges', 'motif'], 'select_hits');
+
                 const table = await client.getResultTable(ticketId, { entry });
                 if (action === 'list') return { ticketId, selections: await table.listSelections() };
                 if (action === 'delete') {
                     return { ticketId, name, deleted: await table.deleteSelection(name) };
+                }
+                if (action === 'copy') {
+                    if (!fromName) throw invalidInput('copy needs fromName and name');
+                    const record = await client.copySelection(ticketId, fromName, name);
+                    return { ticketId, name, copiedFrom: fromName, size: record.ids?.length ?? 0 };
+                }
+                if (['set', 'add', 'remove'].includes(action) && ids.length === 0) {
+                    throw invalidInput(`${action} needs ids; use action "clear" to empty a selection`);
                 }
 
                 const existing = await table.loadSelection(name);
@@ -581,8 +619,11 @@ export function createTools(client) {
                     name: { type: 'string', description: 'Selection name; default "default".' },
                     action: {
                         type: 'string',
-                        enum: ['set', 'add', 'remove', 'describe', 'list', 'delete'],
+                        enum: ['set', 'add', 'remove', 'clear', 'describe', 'list', 'delete', 'copy'],
+                        description: '"copy" duplicates fromName under a new name, leaving the ' +
+                                     'original exactly as a forwarded job recorded it.',
                     },
+                    fromName: { type: 'string', description: 'copy: the selection to copy from.' },
                     entry: { type: 'number', description: 'Which entry the residues are read off. Default 0.' },
                     columns: { type: 'array', items: { type: 'number' }, description: 'Column indices.' },
                     ranges: {
@@ -596,10 +637,19 @@ export function createTools(client) {
                     },
                 },
             },
-            async handler({ ticketId, name = 'default', action = 'set', entry, columns, ranges, motif }) {
+            async handler(args) {
+                const { ticketId, name = 'default', action = 'set', entry, columns, ranges, motif,
+                    fromName } = args;
+                refuseForeignFields(args, ['ids'], 'select_msa_columns');
+
                 if (action === 'list') return { ticketId, selections: await client.listSelections(ticketId) };
                 if (action === 'delete') {
                     return { ticketId, name, deleted: await client.deleteSelection(ticketId, name) };
+                }
+                if (action === 'copy') {
+                    if (!fromName) throw invalidInput('copy needs fromName and name');
+                    const record = await client.copySelection(ticketId, fromName, name);
+                    return { ticketId, name, copiedFrom: fromName, size: record.columns?.length ?? 0 };
                 }
 
                 const existing = await client.loadMsaSelection(ticketId, name);
@@ -613,9 +663,17 @@ export function createTools(client) {
                 if (entry !== undefined) selection.setEntry(entry);
 
                 const picked = [...(columns ?? []), ...expandRanges(ranges ?? [])];
+                // An empty column list is fine when the entry or the motif is what is being changed;
+                // it is only a mistake when the call would do nothing at all.
+                if (['set', 'add', 'remove'].includes(action) && picked.length === 0
+                    && entry === undefined && motif === undefined) {
+                    throw invalidInput(`${action} needs columns or ranges; use action "clear" to empty ` +
+                                       'a selection');
+                }
                 if (action === 'set') selection.setColumns(picked);
                 else if (action === 'add') selection.addColumns(picked);
                 else if (action === 'remove') selection.removeColumns(picked);
+                else if (action === 'clear') selection.setColumns([]);
 
                 if (motif !== undefined) selection.setMotif(motif);
                 await selection.save(name);
@@ -765,8 +823,11 @@ export async function runTool(tools, name, args = {}) {
         return await tool.handler(args ?? {});
     } catch (err) {
         if (err instanceof UnsupportedOnDeploymentError) {
-            return { isError: true, error: err.message, unsupportedTool: err.tool };
+            return {
+                isError: true, code: 'UNSUPPORTED_ON_DEPLOYMENT',
+                error: err.message, unsupportedTool: err.tool,
+            };
         }
-        return { isError: true, error: err.message };
+        return { isError: true, ...(err.code ? { code: err.code } : {}), error: err.message };
     }
 }

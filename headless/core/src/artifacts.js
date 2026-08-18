@@ -89,6 +89,8 @@ export function createArtifactStore({
 } = {}) {
     if (!root) throw new Error('createArtifactStore({ root }) is required');
 
+    const building = new Set();
+
     const dirFor = (id) => {
         if (!ARTIFACT_ID.test(id)) throw new Error(`not an artifact id: ${JSON.stringify(id)}`);
         return path.join(root, id);
@@ -101,6 +103,7 @@ export function createArtifactStore({
         now: () => clock(),
 
         dirFor,
+        isActive: id => building.has(id),
 
         /**
          * A hit only when READY is present, the manifest validates, and every file measures up.
@@ -172,6 +175,7 @@ export function createArtifactStore({
             const dir = dirFor(id);
             await fs.mkdir(root, { recursive: true });
             const scratch = await fs.mkdtemp(path.join(root, BUILD_PREFIX));
+            building.add(id);
 
             try {
                 const manifest = await write(scratch);
@@ -193,6 +197,8 @@ export function createArtifactStore({
                     if (winner.ok) return { manifest: winner.manifest, cacheHit: true };
                 }
                 throw err;
+            } finally {
+                building.delete(id);
             }
         },
 

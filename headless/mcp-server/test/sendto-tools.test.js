@@ -89,6 +89,7 @@ async function stubClient(overrides = {}) {
         },
         listSelections(t) { return store.listSelections(t); },
         deleteSelection(t, n) { return store.deleteSelection(t, n); },
+        copySelection(t, from, to) { return store.copySelection(t, from, to); },
 
         async getHitChains(ticket, { db, idx }) {
             record('getHitChains', ticket, db, idx);
@@ -392,4 +393,67 @@ test('select_hits caps the entries it lists back but reports the true size', asy
     assert.equal(out.size, 3);
     assert.equal(out.entries.length, 2);
     assert.equal(out.entriesTruncated, 3);
+});
+
+// --- copy-on-write and incompatible input at the tool layer --------------------------------------
+
+test('select_hits copies a selection, and never overwrites one', async () => {
+    const { tools } = await toolsFor();
+    await runTool(tools, 'select_hits', { ticketId: 'TICKET1', ids: ['0#0'], name: 'draft' });
+
+    const copied = await runTool(tools, 'select_hits',
+        { ticketId: 'TICKET1', action: 'copy', fromName: 'draft', name: 'to-foldmason__001' });
+    assert.equal(copied.copiedFrom, 'draft');
+    assert.equal(copied.size, 1);
+
+    const collision = await runTool(tools, 'select_hits',
+        { ticketId: 'TICKET1', action: 'copy', fromName: 'draft', name: 'to-foldmason__001' });
+    assert.equal(collision.isError, true);
+    assert.equal(collision.code, 'SELECTION_COLLISION');
+
+    const noSource = await runTool(tools, 'select_hits',
+        { ticketId: 'TICKET1', action: 'copy', name: 'x' });
+    assert.equal(noSource.code, 'INVALID_INPUT');
+    assert.match(noSource.error, /fromName/);
+});
+
+test('select_msa_columns copies, clears, and reports a bad name with its code', async () => {
+    const { tools } = await toolsFor();
+    await runTool(tools, 'select_msa_columns', { ticketId: 'FMTICKET1', columns: [0, 1], name: 'draft' });
+
+    const copied = await runTool(tools, 'select_msa_columns',
+        { ticketId: 'FMTICKET1', action: 'copy', fromName: 'draft', name: 'to-folddisco__001' });
+    assert.equal(copied.copiedFrom, 'draft');
+    assert.equal(copied.size, 2);
+
+    const cleared = await runTool(tools, 'select_msa_columns',
+        { ticketId: 'FMTICKET1', action: 'clear', name: 'draft' });
+    assert.deepEqual(cleared.selectedColumns, []);
+    assert.equal(cleared.residueCount, 0);
+
+    const stillThere = await runTool(tools, 'select_msa_columns',
+        { ticketId: 'FMTICKET1', action: 'describe', name: 'to-folddisco__001' });
+    assert.deepEqual(stillThere.selectedColumns, ['0-1'], 'clearing the source left the copy alone');
+
+    const badName = await runTool(tools, 'select_msa_columns',
+        { ticketId: 'FMTICKET1', columns: [0], name: '__proto__' });
+    assert.equal(badName.code, 'SELECTION_NAME_INVALID');
+});
+
+test('an argument belonging to the other selection tool is refused, not ignored', async () => {
+    const { tools } = await toolsFor();
+
+    const hits = await runTool(tools, 'select_hits',
+        { ticketId: 'TICKET1', ids: ['0#0'], columns: [1, 2] });
+    assert.equal(hits.code, 'INVALID_INPUT');
+    assert.match(hits.error, /columns is not a select_hits argument/);
+
+    const columns = await runTool(tools, 'select_msa_columns',
+        { ticketId: 'FMTICKET1', columns: [0], ids: ['0#0'] });
+    assert.equal(columns.code, 'INVALID_INPUT');
+    assert.match(columns.error, /ids is not a select_msa_columns argument/);
+
+    const empty = await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'add' });
+    assert.equal(empty.code, 'INVALID_INPUT');
+    assert.match(empty.error, /use action "clear"/);
 });

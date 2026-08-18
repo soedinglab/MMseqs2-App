@@ -30,10 +30,14 @@ export {
     ARTIFACT_ID, URI_SCHEME,
 } from './artifacts.js';
 export {
+    collectArtifacts, fileAudit,
+    DEFAULT_TTL_SECONDS, DEFAULT_STALE_BUILD_SECONDS, DEFAULT_MAX_DELETIONS,
+} from './artifact-gc.js';
+export {
     normalizeEntry, resultCounts, resultRowCap, completenessOf, databaseProvenance,
     taxonomyExport, serializeRow, motifPatternExport, isComplexResult,
 } from './facts.js';
-export { Store, defaultStateDir, summarizeRequest } from './store.js';
+export { Store, defaultStateDir, summarizeRequest, assertSelectionName } from './store.js';
 export {
     checkMotif, validateMotif, assertMotif, computeDefaultMotif, motifFromTargetResidues,
     normalizeChainNames, MOTIF_MAX_RESIDUES,

@@ -20,6 +20,8 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
+import { readConfigFromEnv } from '../src/server.js';
+
 const LIVE = process.env.MMSEQS2_AGENT_LIVE_TESTS === '1';
 const BASE_URL = process.env.MMSEQS2_AGENT_BASE_URL || 'http://localhost:3000';
 const TICKET = process.env.MMSEQS2_AGENT_LIVE_TICKET || 'zXdtIy4ZBaW9CmHXTKyfeMdLSDBOlvftku3N5g';
@@ -158,4 +160,49 @@ test('e2e: the server refuses to start without a base URL', { skip: !LIVE }, asy
 
     assert.notEqual(code, 0, 'a missing base URL must be a startup failure');
     assert.match(stderr, /MMSEQS2_AGENT_BASE_URL is required/);
+});
+
+// --- artifact configuration: range-checked at startup, never silently clamped -------------------
+
+test('artifact settings default, and are refused outside their range', () => {
+    const base = { MMSEQS2_AGENT_BASE_URL: 'https://example.test' };
+
+    const defaults = readConfigFromEnv(base);
+    assert.deepEqual(defaults.artifacts, {
+        ttlSeconds: 7200, staleBuildSeconds: 3600, maxDeletions: 200,
+        gcMinIntervalSeconds: 600, exposeLocalPaths: true,
+    });
+    assert.equal(defaults.resultRowCap, null, 'the row cap is only set deliberately');
+
+    const tuned = readConfigFromEnv({
+        ...base,
+        MMSEQS2_AGENT_ARTIFACT_TTL_SECONDS: '600',
+        MMSEQS2_AGENT_ARTIFACT_STALE_BUILD_SECONDS: '120',
+        MMSEQS2_AGENT_ARTIFACT_GC_MAX_DELETIONS: '10',
+        MMSEQS2_AGENT_ARTIFACT_GC_MIN_INTERVAL_SECONDS: '0',
+        MMSEQS2_AGENT_ARTIFACT_LOCAL_PATHS: '0',
+        MMSEQS2_AGENT_RESULT_ROW_CAP: '500',
+    });
+    assert.deepEqual(tuned.artifacts, {
+        ttlSeconds: 600, staleBuildSeconds: 120, maxDeletions: 10,
+        gcMinIntervalSeconds: 0, exposeLocalPaths: false,
+    });
+    assert.equal(tuned.resultRowCap, 500);
+
+    const outOfRange = {
+        MMSEQS2_AGENT_ARTIFACT_TTL_SECONDS: ['299', '604801', '0', '-1', 'soon', '7200.5'],
+        MMSEQS2_AGENT_ARTIFACT_STALE_BUILD_SECONDS: ['59', '86401'],
+        MMSEQS2_AGENT_ARTIFACT_GC_MAX_DELETIONS: ['0', '10001'],
+        MMSEQS2_AGENT_RESULT_ROW_CAP: ['0', '-5'],
+        MMSEQS2_AGENT_ARTIFACT_GC_MIN_INTERVAL_SECONDS: ['-1', '86401'],
+    };
+    for (const [name, values] of Object.entries(outOfRange)) {
+        for (const value of values) {
+            assert.throws(() => readConfigFromEnv({ ...base, [name]: value }),
+                err => err.message.includes(name) && /between \d+ and \d+/.test(err.message),
+                `${name}=${value} should name the variable and its range`);
+        }
+    }
+    assert.throws(() => readConfigFromEnv({ ...base, MMSEQS2_AGENT_ARTIFACT_LOCAL_PATHS: 'maybe' }),
+        /MMSEQS2_AGENT_ARTIFACT_LOCAL_PATHS/);
 });
