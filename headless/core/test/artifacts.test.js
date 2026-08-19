@@ -365,3 +365,33 @@ test('the export-triggered sweep is throttled, and the marker survives a new cli
     assert.equal(forced.throttled, undefined);
     assert.equal(forced.examined, 1);
 });
+
+test('a search that found nothing still exports, and says so', async () => {
+    const { client } = await makeClient({
+        result: { type: 'structuresearch', mode: '3diaa', queries: [], results: [] },
+    });
+    // Recording that a search found nothing is a real answer, so the export succeeds and the manifest
+    // carries the zero. `exportAvailable` on the summary is what says there are no data files to fetch.
+    const out = await client.exportResult('T9abcd');
+    assert.equal(out.counts.parsedRows, 0);
+    assert.equal(out.counts.exportedRows, 0);
+    assert.deepEqual(out.files.map(f => f.role), ['databases']);
+    assert.deepEqual(out.integrityIssues, []);
+
+    const summary = await client.getResultSummary('T9abcd');
+    assert.equal(summary.exportAvailable, false, 'nothing worth fetching beyond the manifest');
+});
+
+test('a manifest that fails its own schema is never published', async () => {
+    const stateDir = await tmpDir();
+    const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir });
+    const store = client.artifacts;
+    const id = 'b'.repeat(64);
+
+    await assert.rejects(
+        () => store.build(id, async () => ({ schema: 'mmseqs2-agent/result-artifact@1' })),
+        e => e.code === 'EXPORT_FAILED');
+    assert.equal(fs.existsSync(store.dirFor(id)), false);
+    assert.deepEqual(fs.readdirSync(store.root).filter(n => n.startsWith('.build-')), [],
+        'the scratch directory is removed too');
+});

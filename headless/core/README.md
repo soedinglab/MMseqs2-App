@@ -57,6 +57,55 @@ await client.resultUrl(id);           // the page a human would open
 A cached `COMPLETE` skips the network: results never expire server-side, so a completed ticket cannot
 revert to running.
 
+## Orientation and export
+
+```js
+await client.getResultSummary(id, entry);   // bounded: counts, ranking, one top hit per database
+await client.exportResult(id, entry);       // the complete result as files; returns a descriptor
+```
+
+`getResultSummary` takes a ticket and an entry and nothing else — no fields, sorting, filtering or
+limits. It is bounded by construction (~1.7 KB on a nine-database search, 1.2 KB on a 1000-hit
+FoldDisco result) and validated against `mmseqs2-agent/result-summary@1` before it is returned. An
+unfinished ticket comes back as `RESULT_NOT_READY` after a single status read — never a wait loop.
+
+`exportResult` writes one reproducible bundle per result unit and returns roles, byte counts and row
+counts, never contents:
+
+```text
+manifest.json  databases.json  READY
+search/db-<i>.rows.jsonl        every parsed row, one JSON object per line
+search/db-<i>.taxonomy.json     every node, with parentTaxId derived from the depth ladder
+search/db-<i>.motif-patterns.json
+msa/entries.json  msa/aa.fasta  msa/3di.fasta
+msa/columns.jsonl               every column, every available metric
+msa/residue-map.jsonl           column -> residue and chain, one line per entry
+msa/coordinates.json.gz  msa/tree.json
+```
+
+Filenames are index-based, so no database id reaches a path; the manifest maps index to id. The cache
+key is `sha256(serverNamespace ␀ ticketId ␀ normalizedEntry ␀ artifactSchemaVersion)` — the four
+components joined with NUL rather than concatenated, so no two component tuples can collide. Artifacts
+expire two hours after last access.
+
+`msa/residue-map.jsonl` carries `occupiedColumns` (compressed ranges) and `tokens` in parallel:
+`tokens[i]` is the motif form of the i-th occupied column and also that residue's offset into the
+entry's `ca` triplets. It is the same convention `MsaColumnSelection` derives its motif from, so a
+consumer of an exported map cannot drift from the mounted page.
+
+### The four kinds of state
+
+| state | where | lifetime |
+|---|---|---|
+| ticket metadata and `derivedFrom` | `<stateDir>/tickets/…/ticket.json` | kept |
+| source result cache | `<stateDir>/tickets/…/result-*.json` | kept |
+| named selections | `<stateDir>/tickets/…/selections.json` | kept, explicit operations only |
+| public artifacts | `<stateDir>/artifacts/<id>/` | 2 h from last access, garbage collected |
+
+The artifact root is a *sibling* of the ticket cache, not its parent, so the collector cannot reach
+source results or selections — a property of the layout rather than a guard to remember.
+`client.collectArtifacts({ dryRun })` runs a bounded, audited sweep.
+
 ## Reading results
 
 ```js
@@ -185,5 +234,5 @@ one for something the server already has. Its length and a hash prefix are kept 
 
 ## Testing
 
-`npm test` runs 193 tests and touches nothing outside the process. The live tests are described in
+`npm test` runs 307 tests and touches nothing outside the process. The live tests are described in
 [`../README.md`](../README.md).

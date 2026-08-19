@@ -52,13 +52,11 @@ test('e2e: the server completes the MCP handshake and advertises its tools', { s
         const { tools } = await client.listTools();
         const names = tools.map(t => t.name);
 
-        for (const expected of [
-            'list_databases', 'foldseek_search', 'foldmason_msa', 'folddisco_search',
-            'submit_ticket', 'get_ticket_status', 'get_result_table', 'get_foldmason_result',
-            'get_queries', 'list_cached_tickets',
-        ]) {
-            assert.ok(names.includes(expected), `${expected} should be advertised`);
-        }
+        assert.deepEqual(names.sort(), [
+            'export_result', 'folddisco_search', 'foldmason_msa', 'foldseek_search',
+            'get_result_summary', 'get_ticket_status', 'list_databases', 'multimer_search',
+            'select_hits', 'select_msa_columns', 'send_to',
+        ]);
         for (const tool of tools) {
             assert.ok(tool.description?.length > 20, `${tool.name} needs a description`);
             assert.equal(tool.inputSchema.type, 'object', `${tool.name} schema must survive the wire`);
@@ -79,7 +77,7 @@ test('e2e: list_databases returns real databases through the transport', { skip:
     }
 });
 
-test('e2e: get_ticket_status and get_result_table work on a real ticket', { skip: !LIVE }, async () => {
+test('e2e: status, summary and export work on a real ticket', { skip: !LIVE }, async () => {
     const { client } = await connect();
     try {
         const status = payload(await client.callTool({
@@ -88,16 +86,28 @@ test('e2e: get_ticket_status and get_result_table work on a real ticket', { skip
         assert.equal(status.ticketId, TICKET);
         assert.ok(['PENDING', 'RUNNING', 'COMPLETE', 'ERROR', 'UNKNOWN'].includes(status.status));
         if (status.status !== 'COMPLETE') return;
+        assert.equal(status.resultKind, 'search');
 
-        const table = payload(await client.callTool({
-            name: 'get_result_table', arguments: { ticketId: TICKET, db: '*', limit: 2 },
+        const summary = payload(await client.callTool({
+            name: 'get_result_summary', arguments: { ticketId: TICKET },
         }));
-        assert.equal(table.ok, true);
-        assert.ok(table.databases.length > 0);
-        for (const db of table.databases) {
-            assert.ok(db.total >= db.returned);
-            for (const row of db.rows ?? []) assert.ok(row.target);
-        }
+        assert.equal(summary.schema, 'mmseqs2-agent/result-summary@1');
+        assert.ok(summary.counts.parsedRows > 0);
+        assert.ok(summary.databases.some(d => d.topHit?.target));
+        assert.ok(JSON.stringify(summary).length < 8000, 'a summary stays small on real data');
+
+        const artifact = payload(await client.callTool({
+            name: 'export_result', arguments: { ticketId: TICKET },
+        }));
+        assert.match(artifact.artifactId, /^[0-9a-f]{64}$/);
+        assert.equal(artifact.counts.parsedRows, summary.counts.parsedRows,
+            'the summary and the manifest agree on real data');
+
+        // Every file the descriptor names must read back through the resource layer.
+        const rows = artifact.files.find(f => f.role === 'rows');
+        const read = await client.readResource({ uri: `${artifact.uri}${rows.path}` });
+        assert.equal(read.contents[0].mimeType, 'application/x-ndjson');
+        assert.equal(read.contents[0].text.trim().split('\n').length, rows.rows);
     } finally {
         await client.close();
     }
@@ -107,14 +117,14 @@ test('e2e: a tool failure comes back as an error result, not a broken connection
     const { client } = await connect();
     try {
         const result = await client.callTool({
-            name: 'get_result_table', arguments: { ticketId: 'NOSUCHTICKETATALL' },
+            name: 'get_result_summary', arguments: { ticketId: 'NOSUCHTICKETATALL' },
         });
         assert.equal(result.isError, true);
         assert.ok(payload(result).error, 'the reason should survive to the caller');
 
         // The connection must still be usable afterwards.
-        const after = payload(await client.callTool({ name: 'list_cached_tickets', arguments: { limit: 1 } }));
-        assert.ok(Array.isArray(after.tickets));
+        const after = payload(await client.callTool({ name: 'list_databases', arguments: {} }));
+        assert.ok(after.databases.length > 0);
     } finally {
         await client.close();
     }
@@ -135,10 +145,8 @@ test('e2e: a ticket read through the transport lands in the local cache', { skip
     const { client, stateDir } = await connect();
     try {
         await client.callTool({ name: 'get_ticket_status', arguments: { ticketId: TICKET } });
-        const listed = payload(await client.callTool({ name: 'list_cached_tickets', arguments: { limit: 10 } }));
-        assert.ok(listed.tickets.some(t => t.ticketId === TICKET), 'the ticket should now be cached');
 
-        // And on disk, under the sharded layout, in the state dir this server was given.
+        // On disk, under the sharded layout, in the state dir this server was given.
         const dir = path.join(stateDir, 'tickets', TICKET.slice(0, 2), TICKET.slice(2, 4), TICKET);
         assert.ok((await fs.readdir(dir)).includes('ticket.json'));
     } finally {
@@ -205,4 +213,49 @@ test('artifact settings default, and are refused outside their range', () => {
     }
     assert.throws(() => readConfigFromEnv({ ...base, MMSEQS2_AGENT_ARTIFACT_LOCAL_PATHS: 'maybe' }),
         /MMSEQS2_AGENT_ARTIFACT_LOCAL_PATHS/);
+});
+
+test('the eleven tools and the resource capability survive a real handshake, and stdout stays clean', async () => {
+    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-e2e-'));
+    const transport = new StdioClientTransport({
+        command: process.execPath,
+        args: [BIN],
+        env: {
+            ...process.env,
+            MMSEQS2_AGENT_BASE_URL: 'http://127.0.0.1:9',      // discard port: nothing will connect
+            MMSEQS2_AGENT_STATE_DIR: stateDir,
+        },
+        stderr: 'pipe',
+    });
+    const client = new Client({ name: 'surface-test', version: '0' }, { capabilities: {} });
+
+    try {
+        await client.connect(transport);
+
+        const { tools } = await client.listTools();
+        assert.equal(tools.length, 11);
+        assert.deepEqual(tools.map(t => t.name).sort(), [
+            'export_result', 'folddisco_search', 'foldmason_msa', 'foldseek_search',
+            'get_result_summary', 'get_ticket_status', 'list_databases', 'multimer_search',
+            'select_hits', 'select_msa_columns', 'send_to',
+        ]);
+
+        // Resources are advertised even before anything has been exported.
+        const { resources } = await client.listResources();
+        assert.deepEqual(resources, []);
+        const { resourceTemplates } = await client.listResourceTemplates();
+        assert.equal(resourceTemplates[0].uriTemplate, 'mmseqs2-artifact://{artifactId}/{path}');
+
+        // A tool that fails, and an unreadable resource: neither may break the stream.
+        const failed = await client.callTool({ name: 'get_result_summary', arguments: { ticketId: 'T1abcd' } });
+        assert.equal(failed.isError, true);
+        await assert.rejects(() => client.readResource({ uri: 'mmseqs2-artifact://nope/manifest.json' }));
+
+        // The connection is still usable, which is what "stdout stayed clean" means in practice: any
+        // stray write would have desynchronised the framing by now.
+        assert.equal((await client.listTools()).tools.length, 11);
+    } finally {
+        await client.close().catch(() => {});
+        await fs.rm(stateDir, { recursive: true, force: true });
+    }
 });

@@ -4,11 +4,14 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
-    CallToolRequestSchema, ListToolsRequestSchema, ErrorCode, McpError,
+    CallToolRequestSchema, ListToolsRequestSchema,
+    ListResourcesRequestSchema, ListResourceTemplatesRequestSchema, ReadResourceRequestSchema,
+    ErrorCode, McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { createClient } from 'mmseqs2-agent-core';
 
 import { createTools, runTool } from './tools.js';
+import { createResources } from './resources.js';
 
 /**
  * A range-checked integer from the environment. Out of range fails at startup naming the variable and
@@ -39,8 +42,7 @@ export function readConfigFromEnv(env = process.env) {
     if (!baseUrl) {
         throw new Error(
             'MMSEQS2_AGENT_BASE_URL is required — set it to the site origin, e.g. ' +
-            'http://localhost:3000 or https://search.foldseek.com. It has no default on purpose: ' +
-            'a default would send structures to whichever server was compiled in.',
+            'http://localhost:3000 or https://search.foldseek.com.'
         );
     }
     const user = env.MMSEQS2_AGENT_BASIC_AUTH_USER;
@@ -70,15 +72,34 @@ export function readConfigFromEnv(env = process.env) {
 export function createServer(config) {
     const client = createClient(config);
     const tools = createTools(client);
+    const resources = createResources(client);
 
     const server = new Server(
         { name: 'mmseqs2-agent', version: '0.1.0' },
-        { capabilities: { tools: {} } },
+        { capabilities: { tools: {}, resources: {} } },
     );
 
     server.setRequestHandler(ListToolsRequestSchema, () => ({
         tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
     }));
+
+    server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+        resources: await resources.list(),
+    }));
+
+    server.setRequestHandler(ListResourceTemplatesRequestSchema, () => ({
+        resourceTemplates: [resources.template],
+    }));
+
+    // A resource read has no structured error channel, so a refusal is a protocol error carrying the
+    // stable code in its message.
+    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+        try {
+            return { contents: [await resources.read(request.params.uri)] };
+        } catch (err) {
+            throw new McpError(ErrorCode.InvalidParams, err.message);
+        }
+    });
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { name, arguments: args } = request.params;
@@ -98,7 +119,7 @@ export function createServer(config) {
         };
     });
 
-    return { server, client, tools };
+    return { server, client, tools, resources };
 }
 
 export async function main(env = process.env) {

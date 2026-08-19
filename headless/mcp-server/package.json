@@ -2,7 +2,7 @@
   "name": "mmseqs2-agent-mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "MCP server exposing Foldseek/FoldMason/FoldDisco search to an agent, over the MMseqs2-App backend API.",
+  "description": "MCP server exposing Foldseek/FoldMason/FoldDisco to an agent over the MMseqs2-App backend: eleven tools, with complete results delivered as artifact resources.",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "bin": {

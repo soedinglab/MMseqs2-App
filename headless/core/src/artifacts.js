@@ -204,6 +204,20 @@ export function createArtifactStore({
 
         uriFor(id, relPath = '') { return `${URI_SCHEME}://${id}/${relPath}`; },
 
+        /** READY artifacts, newest first. Bounded: a listing is for choosing one, not for auditing. */
+        async list({ limit = 50 } = {}) {
+            let names;
+            try { names = await fs.readdir(root); } catch { return []; }
+            const found = [];
+            for (const name of names) {
+                if (!ARTIFACT_ID.test(name)) continue;
+                const hit = await store.read(name);
+                if (hit.ok) found.push({ artifactId: name, manifest: hit.manifest });
+            }
+            found.sort((a, b) => String(b.manifest.createdAt).localeCompare(String(a.manifest.createdAt)));
+            return found.slice(0, limit);
+        },
+
         /** Small by construction: roles, sizes and counts, never file contents. */
         descriptor(manifest, { cacheHit = false } = {}) {
             const id = manifest.artifactId;
@@ -450,10 +464,6 @@ export function artifactWriter({
             await collector.write('databases.json', 'databases',
                 JSON.stringify({ catalogAvailable: provenance.catalogAvailable, databases }),
                 { rows: databases.length });
-        }
-
-        if (collector.files.length === 0) {
-            throw Object.assign(new Error('nothing to export for this result'), { code: 'EXPORT_FAILED' });
         }
 
         const exportedRows = collector.files

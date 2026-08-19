@@ -132,6 +132,8 @@ export function resultSummary({
             },
             completeness: completenessOf({ jobType, parsedRows: entries.length }),
             ranking: null,
+            // Whether an export carries data files beyond the manifest. An empty result still exports
+            // — recording that a search found nothing is a real answer.
             exportAvailable: entries.length > 0,
             msa,
         };

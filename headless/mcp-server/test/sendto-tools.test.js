@@ -148,15 +148,25 @@ test('select_hits add and remove adjust a saved selection', async () => {
     const { tools } = await toolsFor();
     await runTool(tools, 'select_hits', { ticketId: 'TICKET1', ids: ['0#0'] });
 
+    // A write confirms the size; describe is what lists members.
     const widened = await runTool(tools, 'select_hits', {
         ticketId: 'TICKET1', action: 'add', ids: ['0#2'],
     });
-    assert.deepEqual(widened.entries.map(e => e.id), ['0#0', '0#2']);
+    assert.equal(widened.size, 2);
+    assert.equal(widened.entries, undefined, 'a write does not echo what was just supplied');
+    assert.deepEqual(
+        (await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'describe' }))
+            .entries.map(e => e.id),
+        ['0#0', '0#2']);
 
     const narrowed = await runTool(tools, 'select_hits', {
         ticketId: 'TICKET1', action: 'remove', ids: ['0#0'],
     });
-    assert.deepEqual(narrowed.entries.map(e => e.id), ['0#2']);
+    assert.equal(narrowed.size, 1);
+    assert.deepEqual(
+        (await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'describe' }))
+            .entries.map(e => e.id),
+        ['0#2']);
 });
 
 test('select_hits keeps several named selections per ticket, and deletes them', async () => {
@@ -176,7 +186,7 @@ test('select_hits keeps several named selections per ticket, and deletes them', 
 test('describing a selection that was never made says so rather than returning an empty one', async () => {
     const { tools } = await toolsFor();
     const out = await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'describe' });
-    assert.match(out.error, /no saved selection named "default"/);
+    assert.match(out.error, /no selection "default"/);
 });
 
 // -------------------------------------------------------------------------------------------------
@@ -256,18 +266,6 @@ test('send_to forwards a column selection to FoldDisco with the motif it derived
     assert.equal(submitted.args[0].motif, 'A1, A2, B1');
 });
 
-test('an accession is a search argument, not something send_to forwards', async () => {
-    const { tools } = await toolsFor();
-
-    // It used to be a send_to source, which put two unrelated things behind one door: everything else
-    // send_to takes is addressed by the ticket that produced it, and an accession depends on no ticket.
-    const out = await runTool(tools, 'send_to', {
-        from: { type: 'accession', accession: '1ABC' }, tool: 'folddisco', databases: ['pdb_folddisco'],
-    });
-    assert.equal(out.isError, true);
-    assert.match(out.error, /pass `accession` to the search tool itself/);
-});
-
 test('foldseek_search loads an accession instead of taking query text', async () => {
     const { client, tools } = await toolsFor();
     const out = await runTool(tools, 'foldseek_search', {
@@ -313,7 +311,7 @@ test('send_to explains a source that has not been made yet', async () => {
         tool: 'foldmason',
     });
     assert.equal(missing.isError, true);
-    assert.match(missing.error, /no saved selection named "nope".*select_hits/s);
+    assert.match(missing.error, /no selection "nope".*select_hits/s);
 
     const wrong = await runTool(tools, 'send_to', { from: { type: 'wat' }, tool: 'foldseek' });
     assert.equal(wrong.isError, true);
@@ -336,23 +334,6 @@ test('send_to refuses to send several rows to a single-query destination', async
 // load_accession
 // -------------------------------------------------------------------------------------------------
 
-test('load_accession reports what was loaded, and any motif that came with it', async () => {
-    const { client, tools } = await toolsFor();
-    const one = await runTool(tools, 'load_accession', { accession: '1ABC' });
-
-    assert.equal(one.name, '1ABC.cif');
-    assert.equal(one.motif, 'A10, A12');
-    assert.deepEqual(client.calls.find(c => c.name === 'loadAccession').args[1],
-        { source: 'PDB', autoMotif: true });
-
-    const many = await runTool(tools, 'load_accession', { accession: ['1ABC', '2DEF'], source: 'BFVD' });
-    assert.deepEqual(many.loaded.map(l => l.id), ['1ABC', '2DEF']);
-});
-
-// -------------------------------------------------------------------------------------------------
-// Lineage through the tools
-// -------------------------------------------------------------------------------------------------
-
 test('a forwarded job reports which ticket it came out of, and can be found from that ticket', async () => {
     const { client, tools } = await toolsFor();
     await runTool(tools, 'select_hits', { ticketId: 'TICKET1', ids: ['0#0', '0#1'], name: 'shortlist' });
@@ -365,9 +346,6 @@ test('a forwarded job reports which ticket it came out of, and can be found from
     assert.equal(status.derivedFrom.selection, 'shortlist');
     assert.deepEqual(status.derivedFrom.entries, ['afdb50-hit0.pdb', 'afdb50-hit1.pdb', 'query.pdb']);
 
-    // And the other direction: what did this search lead to?
-    const { tickets } = await runTool(tools, 'list_cached_tickets', { derivedFromTicket: 'TICKET1' });
-    assert.deepEqual(tickets.map(t => t.ticketId), ['FMTICKET2']);
     assert.equal(client.calls.some(c => c.name === 'submitFoldMason'), true);
 });
 
@@ -379,16 +357,26 @@ test('select_hits rejects unresolvable ids one by one instead of failing the cal
 
     // Two good ids survive; the two bad ones are named with a reason. A synthesised id is the
     // likeliest mistake here — on a multimer result the entry index is a sparse group id.
-    assert.deepEqual(out.entries.map(e => e.id), ['0#0', '0#2']);
+    assert.equal(out.size, 2);
     assert.deepEqual(out.rejected.map(r => r.id), ['0#99', 'nosuchdb#1']);
     assert.match(out.rejected[0].reason, /no hit 99/);
     assert.match(out.rejected[1].reason, /unknown database/);
+    assert.deepEqual(
+        (await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'describe' }))
+            .entries.map(e => e.id),
+        ['0#0', '0#2']);
 });
 
-test('select_hits caps the entries it lists back but reports the true size', async () => {
+test('describe caps the entries it lists back but reports the true size', async () => {
     const { tools } = await toolsFor();
+    const saved = await runTool(tools, 'select_hits', {
+        ticketId: 'TICKET1', ids: ['0#0', '0#1', '0#2'],
+    });
+    assert.equal(saved.size, 3);
+    assert.equal(JSON.stringify(saved).length < 250, true, `a write reply is ${JSON.stringify(saved).length} bytes`);
+
     const out = await runTool(tools, 'select_hits', {
-        ticketId: 'TICKET1', ids: ['0#0', '0#1', '0#2'], maxEntries: 2,
+        ticketId: 'TICKET1', action: 'describe', maxEntries: 2,
     });
     assert.equal(out.size, 3);
     assert.equal(out.entries.length, 2);
@@ -455,5 +443,5 @@ test('an argument belonging to the other selection tool is refused, not ignored'
 
     const empty = await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'add' });
     assert.equal(empty.code, 'INVALID_INPUT');
-    assert.match(empty.error, /use action "clear"/);
+    assert.match(empty.error, /use "clear"/);
 });

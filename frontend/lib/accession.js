@@ -1,6 +1,20 @@
 // Fetch a structure by accession from a third-party service.
-import axios from 'axios';
-const { create } = axios;
+//
+// Uses the platform fetch rather than a HTTP library: every browser this app supports has it, Node 18
+// has it, and it was the one import that stopped `headless/` from being publishable without a runtime
+// dependency. The two helpers restore what was relied on — a rejection on a non-2xx status, and a
+// parsed body — with the difference that the call site states which body it expects.
+
+async function request(url, { method = 'GET', body = null, headers = {} } = {}) {
+    const response = await fetch(url, { method, body, headers });
+    if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText || 'error'} from ${url}`);
+    }
+    return response;
+}
+
+const getText = (url, opts) => request(url, opts).then(r => r.text());
+const getJson = (url, opts) => request(url, opts).then(r => r.json());
 
 export const BASE_SOURCES = [
     { text: 'PDB (rcsb.org)', value: 'PDB' },
@@ -26,31 +40,30 @@ export function sourcesFor(extraEnabled = []) {
  */
 export function fetchAccession(accession, source) {
     return new Promise((resolve, reject) => {
-        const axios = create();
         const upper = String(accession).toUpperCase();
         const fail = () => reject(accession);
 
         if (source === 'PDB') {
-            axios.get('https://files.rcsb.org/download/' + upper + '.cif')
-                .then(r => resolve({ name: upper + '.cif', text: r.data }))
+            getText('https://files.rcsb.org/download/' + upper + '.cif')
+                .then(text => resolve({ name: upper + '.cif', text }))
                 .catch(fail);
         } else if (source === 'BFVD') {
-            axios.get('https://bfvd.steineggerlab.workers.dev/pdb/' + upper + '.pdb')
-                .then(r => resolve({ name: upper + '.pdb', text: r.data }))
+            getText('https://bfvd.steineggerlab.workers.dev/pdb/' + upper + '.pdb')
+                .then(text => resolve({ name: upper + '.pdb', text }))
                 .catch(fail);
         } else if (source === 'AlphaFill') {
-            axios.get('https://alphafill.eu/v1/aff/' + upper)
-                .then(r => resolve({ name: upper + '.cif', text: r.data }))
+            getText('https://alphafill.eu/v1/aff/' + upper)
+                .then(text => resolve({ name: upper + '.cif', text }))
                 .catch(fail);
         } else if (source === 'AlphaFoldDB') {
-            axios.get('https://alphafold.ebi.ac.uk/api/search?q=(text:*' + accession
+            getJson('https://alphafold.ebi.ac.uk/api/search?q=(text:*' + accession
                     + ' OR text:' + accession + '*)&type=main&start=0&rows=1')
-                .then(resp => {
-                    const docs = resp.data.docs;
+                .then(data => {
+                    const docs = data.docs;
                     if (!docs || docs.length === 0) { fail(); return; }
                     const cif = docs[0].entryId + '-model_v' + docs[0].latestVersion + '.pdb';
-                    axios.get('https://alphafold.ebi.ac.uk/files/' + cif)
-                        .then(r => resolve({ name: cif, text: r.data }))
+                    getText('https://alphafold.ebi.ac.uk/files/' + cif)
+                        .then(text => resolve({ name: cif, text }))
                         .catch(fail);
                 })
                 .catch(fail);
@@ -197,24 +210,22 @@ export function qbiolipBsToMotif(bs, residueMap) {
 }
 
 export async function searchBindingSites(pdbId) {
-    const axios = create();
-    const response = await axios.post(
-        'https://yanglab.qd.sdu.edu.cn/cgi-bin/Q-BioLiP/qbio1.cgi',
-        new URLSearchParams({ PDB_ID: String(pdbId).trim().toUpperCase() }),
-        { headers: { Accept: 'application/json' } },
-    );
-    return Array.isArray(response.data) ? response.data : [];
+    // A URLSearchParams body sets the form content type by itself, as the previous client did.
+    const data = await getJson('https://yanglab.qd.sdu.edu.cn/cgi-bin/Q-BioLiP/qbio1.cgi', {
+        method: 'POST',
+        body: new URLSearchParams({ PDB_ID: String(pdbId).trim().toUpperCase() }),
+        headers: { Accept: 'application/json' },
+    });
+    return Array.isArray(data) ? data : [];
 }
 
 /**
  * Load a chosen binding site's structure and express its residues in that file's own numbering.
  */
 export async function fetchBindingSite(item) {
-    const axios = create();
     const assembly = item.Receptor.assembly;
-    const response = await axios.get(
+    const cifText = await getText(
         `https://yanglab.qd.sdu.edu.cn/Q-BioLiP/DATA/rec_cif/${assembly}.cif`);
-    const cifText = response.data;
     // Q-BioLiP reports label_asym_id chains, and — depending on the entry — either numbering scheme.
     const residueMap = parseCifResidueChainMap(cifText);
     const resolved = qbiolipBsResidues(item.Complex && item.Complex.bs, residueMap);

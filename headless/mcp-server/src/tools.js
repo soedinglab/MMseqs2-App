@@ -1,59 +1,50 @@
-// The tools themselves: name, schema, and handler, with no MCP SDK involved.
-//
-// Handlers return plain objects; server.js does the JSON-and-content-block wrapping.
+// The eleven tools: name, schema, handler. No MCP SDK here — server.js does the wrapping.
 
 import {
-    UnsupportedOnDeploymentError, COLUMN_METRICS, DESTINATIONS,
-    foldMasonEntries, foldMasonFasta, foldMasonCoordinates, expandRanges,
+    UnsupportedOnDeploymentError, DESTINATIONS, expandRanges, kindForJobType,
 } from 'mmseqs2-agent-core';
 
-/**
- * Submit, then optionally wait. A wait that runs out is not a failure: the ticket exists and the
- * caller can poll it, so the timeout is reported as a status rather than thrown. Anything else —
- * a rejected motif, an unusable database, a job that finished in ERROR — is a real failure and
- * surfaces as one.
- */
-async function submitAndMaybeWait(client, submit, { waitTimeoutMs = 0 } = {}) {
-    const ticket = await submit();
-    const out = { ticketId: ticket.id, status: ticket.status ?? 'PENDING' };
-    if (!waitTimeoutMs) return out;
-
-    try {
-        const done = await client.waitForCompletion(ticket.id, { timeoutMs: waitTimeoutMs });
-        out.status = done.status;
-    } catch (err) {
-        if (err.timedOut) return { ...out, status: err.status ?? 'RUNNING', timedOut: true };
-        throw err;
-    }
-    return out;
-}
-
-const QUERY = { type: 'string', description: 'Query structure as PDB or mmCIF text.' };
+const TICKET = { type: 'string', description: 'Ticket id.' };
+const ENTRY = { type: 'number', description: 'Query index. Foldseek and multimer only; default 0.' };
+const QUERY = { type: 'string', description: 'Structure as PDB or mmCIF text.' };
+const DATABASES = { type: 'array', items: { type: 'string' }, description: 'Paths from list_databases.' };
+const EMAIL = { type: 'string', description: 'Optional notification address.' };
+const VALIDATE_ONLY = { type: 'boolean', description: 'Run every check and report; submit nothing.' };
+const NAME = { type: 'string', description: 'Selection name; default "default".' };
 const ACCESSION = {
     type: ['string', 'object'],
-    description: 'Load the query from a public database instead of passing its text: an id, or ' +
-                 '{id, source: "PDB"|"AlphaFoldDB"|"BFVD", autoMotif}. For a PDB id, a Q-BioLiP ' +
-                 'binding site is looked up and used as the motif unless one is given.',
+    description: 'An id, or {id, source, autoMotif}, fetched instead of passing text. ' +
+                 'A PDB id brings its Q-BioLiP motif.',
     properties: {
         id: { type: 'string' },
         source: { type: 'string', enum: ['PDB', 'AlphaFoldDB', 'BFVD'] },
         autoMotif: { type: 'boolean' },
     },
 };
-const DATABASES = {
-    type: 'array', items: { type: 'string' },
-    description: 'Database paths, as returned by list_databases (e.g. "pdb100", "afdb50").',
-};
-const WAIT = {
-    type: 'number',
-    description: 'Milliseconds to wait for completion. Omit or 0 to return as soon as it is queued.',
-};
 
-/**
- * A selection, short enough to read. `size` is always exact; the entry list is capped, because the
- * point of a selection is that it can hold a thousand rows without transporting them.
- */
-function brief(selection, maxEntries) {
+const SUBMIT_TOOLS = ['foldseek_search', 'multimer_search', 'foldmason_msa', 'folddisco_search'];
+
+function coded(code, message) {
+    const err = new Error(message);
+    err.code = code;
+    return err;
+}
+
+/** Arguments meant for the other selection tool are refused, not dropped. */
+function refuseForeign(args, foreign, tool) {
+    const present = foreign.filter(field => args[field] !== undefined);
+    if (present.length) {
+        throw coded('INVALID_INPUT', `${present.join(', ')} is not a ${tool} argument`);
+    }
+}
+
+function confirm(selection, rejected = []) {
+    const { entries, ...rest } = selection.describe();
+    return { ...rest, ...(rejected.length ? { rejected } : {}) };
+}
+
+/** A selection read back: `size` is exact, the entry list is capped. */
+function describe(selection, maxEntries) {
     const full = selection.describe();
     const entries = full.entries.slice(0, Math.max(0, maxEntries));
     return {
@@ -63,112 +54,95 @@ function brief(selection, maxEntries) {
     };
 }
 
-/** A refusal a caller can act on, rather than a silently ignored argument. */
-function invalidInput(message) {
-    const err = new Error(message);
-    err.code = 'INVALID_INPUT';
-    return err;
-}
-
-/**
- * Arguments that belong to the other selection tool are refused, not dropped: a caller who passes
- * `columns` to select_hits and gets a success back believes something that is not true.
- */
-function refuseForeignFields(args, foreign, tool) {
-    const present = foreign.filter(field => args[field] !== undefined);
-    if (present.length) {
-        throw invalidInput(`${present.join(', ')} ${present.length > 1 ? 'are' : 'is'} not a ` +
-                           `${tool} argument`);
-    }
-}
-
 export function createTools(client) {
+    const resolveQuery = async ({ query, accession, motif }) => {
+        if (query && accession) throw coded('INVALID_INPUT', 'pass either query or accession, not both');
+        if (!accession) return { query, motif };
+        const spec = typeof accession === 'string' ? { id: accession } : accession;
+        const id = spec?.id ?? spec?.accession;
+        if (!id) throw coded('INVALID_INPUT', 'accession must be an id, or {id, source?, autoMotif?}');
+        const loaded = await client.loadAccession(id, {
+            source: spec.source || 'PDB',
+            autoMotif: spec.autoMotif !== undefined ? spec.autoMotif : true,
+        });
+        // An explicit motif wins; a loaded one is a default.
+        return { query: loaded.text, motif: motif ?? loaded.motif, loaded: loaded.describe() };
+    };
+
+    const submit = async (tool, args, run) => {
+        const resolved = await resolveQuery(args);
+        const full = { ...args, query: resolved.query, ...(resolved.motif ? { motif: resolved.motif } : {}) };
+        if (args.validateOnly) {
+            const report = await client.validateSubmission({ tool, ...full });
+            return resolved.loaded ? { ...report, loaded: resolved.loaded } : report;
+        }
+        const ticket = await run(full);
+        const out = {
+            ticketId: ticket.id,
+            status: ticket.status ?? 'PENDING',
+            // Which motif was searched, when the caller did not supply it themselves.
+            ...(full.motif ? { motif: full.motif } : {}),
+        };
+        return resolved.loaded ? { ...out, loaded: resolved.loaded } : out;
+    };
+
     const resolveSource = async (from) => {
-        const type = from?.type;
+        const { type, ticketId, entry = 0, rowId, name = 'default' } = from ?? {};
         if (type === 'row') {
-            const table = await client.getResultTable(from.ticketId, { entry: from.entry ?? 0 });
-            return table.row(from.rowId);
+            return (await client.getResultTable(ticketId, { entry })).row(rowId);
         }
         if (type === 'selection') {
-            const table = await client.getResultTable(from.ticketId, { entry: from.entry ?? 0 });
-            const selection = await table.loadSelection(from.name ?? 'default');
+            const table = await client.getResultTable(ticketId, { entry });
+            const selection = await table.loadSelection(name);
             if (!selection) {
-                throw new Error(`no saved selection named "${from.name ?? 'default'}" on ${from.ticketId}` +
-                                ' — make one with select_hits first');
+                throw coded('SELECTION_NOT_FOUND',
+                    `no selection "${name}" on ${ticketId} — make one with select_hits`);
             }
-            if (selection.size === 0) throw new Error('that selection is empty');
+            if (selection.size === 0) throw coded('INVALID_INPUT', `selection "${name}" is empty`);
             return selection;
         }
         if (type === 'msaColumns') {
-            const selection = await client.loadMsaSelection(from.ticketId, from.name ?? 'default');
+            const selection = await client.loadMsaSelection(ticketId, name);
             if (!selection) {
-                throw new Error(`no saved column selection named "${from.name ?? 'default'}" on ` +
-                                `${from.ticketId} — make one with select_msa_columns first`);
+                throw coded('SELECTION_NOT_FOUND',
+                    `no column selection "${name}" on ${ticketId} — make one with select_msa_columns`);
             }
             return selection;
         }
-        throw new Error(`unknown source type: ${JSON.stringify(type)} ` +
-                        '(expected row, selection or msaColumns). To search with a structure loaded ' +
-                        'by accession, pass `accession` to the search tool itself — an accession is ' +
-                        'not something a previous job produced.');
+        throw coded('INVALID_INPUT', `unknown source type ${JSON.stringify(type)} ` +
+                    '(row, selection, msaColumns). To search with a public structure, pass ' +
+                    '`accession` to a search tool instead.');
     };
 
-    const queryFromAccession = async (spec) => {
-        const id = typeof spec === 'string' ? spec : spec?.id ?? spec?.accession;
-        if (!id) throw new Error('accession must be an id, or {id, source?, autoMotif?}');
-        const loaded = await client.loadAccession(id, {
-            source: (typeof spec === 'object' && spec.source) || 'PDB',
-            autoMotif: typeof spec === 'object' && spec.autoMotif !== undefined ? spec.autoMotif : true,
-        });
-        return loaded;
-    };
-
-    const resolveQuery = async ({ query, accession, motif }) => {
-        if (query && accession) {
-            throw new Error('pass either query or accession, not both');
-        }
-        if (!accession) return { query, motif };
-        const loaded = await queryFromAccession(accession);
-        return {
-            query: loaded.text,
-            // An explicit motif wins; the loaded one is a default, not an override.
-            motif: motif ?? loaded.motif,
-            loaded: loaded.describe(),
-        };
-    };
-
-    /** The four submit paths, shared by the search tools and submit_ticket. */
-    const submitByTool = async (tool, args) => {
-        const submit = {
-            foldseek: () => client.submitFoldseekSearch(args),
-            multimer: () => client.submitMultimerSearch(args),
-            foldmason: () => client.submitFoldMason(args),
-            folddisco: () => client.submitFoldDisco(args),
-        }[tool];
-        if (!submit) throw new Error(`unknown tool: ${tool}`);
-        const ticket = await submit();
-        return { ticketId: ticket.id, status: ticket.status ?? 'PENDING' };
-    };
-
-    const tools = [
+    return [
         {
             name: 'list_databases',
-            description:
-                'Databases this server offers, with the capability flags that decide which job ' +
-                'types can use each one. Call this before searching: a database name that is valid ' +
-                'for one tool is often not valid for another.',
-            inputSchema: { type: 'object', properties: {} },
-            async handler() {
-                const dbs = await client.getDatabases();
+            description: 'Databases this server offers. Pass jobType for only the ones that tool accepts.',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    jobType: { type: 'string', enum: SUBMIT_TOOLS.filter(t => t !== 'foldmason_msa') },
+                },
+            },
+            async handler({ jobType = null }) {
+                const usable = {
+                    foldseek_search: d => !d.interface && !d.motif,
+                    multimer_search: d => d.complex && !d.interface && !d.motif,
+                    folddisco_search: d => d.motif && !d.interface,
+                };
+                const all = await client.getDatabases();
+                const listed = jobType ? all.filter(usable[jobType]) : all;
                 return {
-                    databases: dbs.map(d => ({
-                        path: d.path, name: d.name, version: d.version, status: d.status,
-                        default: !!d.default, taxonomy: !!d.taxonomy,
-                        usableFor: [
-                            !d.interface && !d.motif ? 'foldseek_search' : null,
-                            d.complex && !d.interface && !d.motif ? 'foldseek_search (multimer)' : null,
-                            d.motif && !d.interface ? 'folddisco_search' : null,
-                        ].filter(Boolean),
+                    ...(jobType ? { jobType } : {}),
+                    databases: listed.map(d => ({
+                        path: d.path,
+                        name: d.name,
+                        version: d.version,
+                        status: d.status,
+                        taxonomy: !!d.taxonomy,
+                        ...(jobType ? {} : {
+                            usableFor: Object.keys(usable).filter(tool => usable[tool](d)),
+                        }),
                     })),
                 };
             },
@@ -176,10 +150,8 @@ export function createTools(client) {
 
         {
             name: 'foldseek_search',
-            description:
-                'Search a query structure against structure databases. Set multimer:true for a ' +
-                'complex (FS-MM) search, which uses a different set of databases and does not ' +
-                'support iterativeSearch.',
+            description: 'Search one monomer structure against structure databases. ' +
+                         'For a complex, use multimer_search.',
             inputSchema: {
                 type: 'object',
                 required: ['databases'],
@@ -187,31 +159,48 @@ export function createTools(client) {
                     query: QUERY,
                     accession: ACCESSION,
                     databases: DATABASES,
-                    mode: { type: 'string', description: 'Alignment mode, default "3diaa".' },
-                    multimer: { type: 'boolean', description: 'Complex (FS-MM) search.' },
+                    mode: { type: 'string', enum: ['3diaa', '3di', 'tmalign', 'lolalign'], description: 'Default 3diaa.' },
                     iterativeSearch: { type: 'boolean' },
-                    taxFilter: {
-                        type: 'string',
-                        description: 'Numeric taxon ids, comma separated; entries after the first ' +
-                                     'may be negated with "!" (e.g. "9606,!10090").',
-                    },
-                    email: { type: 'string' },
-                    waitTimeoutMs: WAIT,
+                    taxFilter: { type: 'string', description: 'Taxon ids, comma separated; "!" negates after the first.' },
+                    email: EMAIL,
+                    validateOnly: VALIDATE_ONLY,
                 },
             },
-            async handler({ accession, ...args }) {
-                const resolved = await resolveQuery({ ...args, accession });
-                const out = await submitAndMaybeWait(
-                    client, () => client.submitFoldseekSearch({ ...args, query: resolved.query }), args);
-                return resolved.loaded ? { ...out, loaded: resolved.loaded } : out;
+            handler(args) {
+                if (String(args.mode ?? '').includes('complex')) {
+                    throw coded('INVALID_INPUT', 'foldseek_search is monomer only — use multimer_search');
+                }
+                return submit('foldseek', args, a => client.submitFoldseekSearch(a));
+            },
+        },
+
+        {
+            name: 'multimer_search',
+            description: 'Search a complex against complex-capable databases. ' +
+                         'Iterative search and taxon filtering do not apply.',
+            inputSchema: {
+                type: 'object',
+                required: ['databases'],
+                properties: {
+                    query: QUERY,
+                    accession: ACCESSION,
+                    databases: DATABASES,
+                    mode: { type: 'string', enum: ['3diaa', '3di', 'tmalign', 'lolalign'], description: 'Default 3diaa.' },
+                    email: EMAIL,
+                    validateOnly: VALIDATE_ONLY,
+                },
+            },
+            async handler(args) {
+                const ignored = ['iterativeSearch', 'taxFilter'].filter(k => args[k] !== undefined);
+                const out = await submit('multimer', { ...args, iterativeSearch: false, taxFilter: '' },
+                    a => client.submitMultimerSearch(a));
+                return ignored.length ? { ...out, ignored } : out;
             },
         },
 
         {
             name: 'foldmason_msa',
-            description:
-                'Build a multiple structure alignment from at least two structures. Each file needs ' +
-                'a name — it becomes the entry name in the alignment.',
+            description: 'Align two or more structures. Each file name becomes an entry name.',
             inputSchema: {
                 type: 'object',
                 required: ['files'],
@@ -219,373 +208,138 @@ export function createTools(client) {
                     files: {
                         type: 'array',
                         minItems: 2,
+                        description: 'Structures to align.',
                         items: {
                             type: 'object',
                             required: ['name', 'content'],
-                            properties: {
-                                name: { type: 'string' },
-                                content: { type: 'string', description: 'PDB or mmCIF text.' },
-                            },
+                            properties: { name: { type: 'string' }, content: QUERY },
                         },
                     },
-                    email: { type: 'string' },
-                    waitTimeoutMs: WAIT,
+                    email: EMAIL,
+                    validateOnly: VALIDATE_ONLY,
                 },
             },
             handler(args) {
-                return submitAndMaybeWait(client, () => client.submitFoldMason(args), args);
+                return submit('foldmason', args, a => client.submitFoldMason(a));
             },
         },
 
         {
             name: 'folddisco_search',
-            description:
-                'Search for a structural motif. The motif is a comma-separated residue list — ' +
-                '"A123", bare "123", or "A123:W" for a substitution — and every residue must exist ' +
-                'in the query structure.',
+            description: 'Search for a structural motif — a residue list like "A123, A156, W201". ' +
+                         'Every residue must exist in the query.',
             inputSchema: {
                 type: 'object',
                 required: ['databases'],
                 properties: {
                     query: QUERY,
                     accession: ACCESSION,
-                    databases: { ...DATABASES, description: 'Motif-capable databases (see list_databases).' },
-                    motif: {
-                        type: 'string',
-                        description: 'Required, unless an `accession` supplies one from Q-BioLiP.',
-                    },
-                    email: { type: 'string' },
-                    waitTimeoutMs: WAIT,
+                    databases: { ...DATABASES, description: 'Motif-capable paths from list_databases.' },
+                    motif: { type: 'string', description: 'Required unless an accession supplies one.' },
+                    email: EMAIL,
+                    validateOnly: VALIDATE_ONLY,
                 },
             },
-            async handler({ accession, ...args }) {
-                const resolved = await resolveQuery({ ...args, accession });
-                const out = await submitAndMaybeWait(client, () => client.submitFoldDisco({
-                    ...args, query: resolved.query, motif: resolved.motif,
-                }), args);
-                return resolved.loaded
-                    ? { ...out, motif: resolved.motif, loaded: resolved.loaded }
-                    : out;
-            },
-        },
-
-        {
-            name: 'submit_ticket',
-            description:
-                'Submit any of the above without waiting. Returns as soon as the job is queued. Pass ' +
-                'validateOnly:true to run every check — databases, motif against the query, taxon ' +
-                'filter — and see what would be sent, without queueing anything.',
-            inputSchema: {
-                type: 'object',
-                required: ['tool'],
-                properties: {
-                    tool: { type: 'string', enum: ['foldseek', 'multimer', 'foldmason', 'folddisco'] },
-                    query: QUERY,
-                    accession: ACCESSION,
-                    databases: DATABASES,
-                    files: { type: 'array', items: { type: 'object' } },
-                    motif: { type: 'string' },
-                    mode: { type: 'string' },
-                    iterativeSearch: { type: 'boolean' },
-                    taxFilter: { type: 'string' },
-                    email: { type: 'string' },
-                    validateOnly: { type: 'boolean', description: 'Check without submitting.' },
-                },
-            },
-            async handler({ tool, validateOnly = false, accession, ...rest }) {
-                const resolved = await resolveQuery({ ...rest, accession });
-                const args = { ...rest, query: resolved.query, ...(resolved.motif ? { motif: resolved.motif } : {}) };
-                const out = validateOnly
-                    ? await client.validateSubmission({ tool, ...args })
-                    : await submitByTool(tool, args);
-                return resolved.loaded ? { ...out, loaded: resolved.loaded } : out;
+            async handler(args) {
+                const out = await submit('folddisco', args, a => client.submitFoldDisco(a));
+                return out;
             },
         },
 
         {
             name: 'get_ticket_status',
-            description:
-                'Current status of a ticket, what kind of job it is, and the page URL where a human ' +
-                'would read it.',
-            inputSchema: {
-                type: 'object',
-                required: ['ticketId'],
-                properties: { ticketId: { type: 'string' } },
-            },
+            description: 'Status of a ticket, what kind of job it is, and what it was derived from.',
+            inputSchema: { type: 'object', required: ['ticketId'], properties: { ticketId: TICKET } },
             async handler({ ticketId }) {
                 const [{ status }, type] = await Promise.all([
                     client.pollTicket(ticketId),
                     client.getTicketType(ticketId).catch(() => null),
                 ]);
-                const resultUrl = await client.resultUrl(ticketId).catch(() => null);
-                const record = await Promise.resolve()
-                    .then(() => client.store.readTicket(ticketId))
-                    .catch(() => null);
+                const record = await client.store.readTicket(ticketId).catch(() => null);
                 return {
-                    ticketId, status, jobType: type?.type ?? null, resultUrl,
+                    ticketId,
+                    status,
+                    jobType: type?.type ?? null,
+                    resultKind: type?.type ? kindForJobType(type.type) : null,
+                    resultUrl: await client.resultUrl(ticketId).catch(() => null),
                     ...(record?.derivedFrom ? { derivedFrom: record.derivedFrom } : {}),
                 };
             },
         },
 
         {
-            name: 'get_result_table',
-            description:
-                'Sorted, paginated hits for a completed ticket. Works for Foldseek and FoldDisco ' +
-                'tickets alike — the job type decides which is fetched. `db` takes a database name, ' +
-                'an index, an array of either, or "*" for all of them; with several databases the ' +
-                'per-database default limit drops to 5.',
+            name: 'get_result_summary',
+            description: 'What a finished result holds: databases, row counts, the ranking metric and ' +
+                         'one top hit each. Start here, then export_result for the whole thing.',
             inputSchema: {
                 type: 'object',
                 required: ['ticketId'],
-                properties: {
-                    ticketId: { type: 'string' },
-                    entry: { type: 'number', description: 'Query index for a multi-query ticket. Foldseek only.' },
-                    view: {
-                        type: 'string', enum: ['rows', 'summary'],
-                        description: '"rows" (default) returns hits. "summary" surveys every database ' +
-                                     'without transporting rows — totals, the sort key\'s ' +
-                                     'best/median/worst, and a small top sample. Start there.',
-                    },
-                    db: { description: 'Database name, index, array of either, or "*".' },
-                    sortKey: { type: 'string' },
-                    sortOrder: { type: 'number' },
-                    offset: { type: 'number' },
-                    limit: { type: 'number' },
-                    includeChains: { type: 'boolean' },
-                    fields: { type: 'array', items: { type: 'string' } },
-                    topN: { type: 'number', description: 'summary view: sample per database, default 3; 0 for stats only.' },
-                    merged: {
-                        type: 'boolean',
-                        description: 'summary view: add one ranking across every database. Up to 100 ' +
-                                     'hits per database enter the pool regardless of topN.',
-                    },
-                    mergedLimit: { type: 'number', description: 'summary view: merged rows to return; defaults to topN.' },
-                    taxonFilter: {
-                        type: 'object',
-                        properties: {
-                            taxon: {
-                                type: ['string', 'number', 'array'],
-                                description: 'A taxId, a taxon name, or an array of either. Names are ' +
-                                             'resolved within this database\'s own tree.',
-                            },
-                            taxId: { type: ['string', 'number'], description: 'Alias for taxon.' },
-                            includeDescendants: {
-                                type: 'boolean',
-                                description: 'Default true. Hits carry leaf taxIds, so an internal ' +
-                                             'node without its subtree matches nothing.',
-                            },
-                        },
-                        description: 'Keep only hits under this taxon. Applied before sorting and ' +
-                                     'paging, so total/returned describe the filtered set.',
-                    },
-                    motifFilter: {
-                        type: ['string', 'array'],
-                        description: 'FoldDisco only: keep hits whose matched-query-residue pattern ' +
-                                     'equals this ("1" matched, "0" missing). See the summary view ' +
-                                     'for which patterns exist.',
-                    },
-                },
+                properties: { ticketId: TICKET, entry: ENTRY },
             },
-            async handler({ ticketId, entry = 0, view = 'rows', ...opts }) {
-                const table = await client.getResultTable(ticketId, { entry });
-                return view === 'summary' ? table.getTableSummary(opts) : table.getTable(opts);
+            handler({ ticketId, entry = 0 }) {
+                return client.getResultSummary(ticketId, entry);
             },
         },
 
         {
-            name: 'get_taxonomy',
-            description:
-                'The taxa present in one database\'s hits, depth-ordered with clade read counts — ' +
-                'what to filter on. Names from here can be passed straight to get_result_table\'s ' +
-                'taxonFilter. A database without taxonomy says so rather than erroring.',
+            name: 'export_result',
+            description: 'Write the complete result — every row, taxonomy node, column — to files and ' +
+                         'return their URIs. Read them as resources; nothing is inlined.',
             inputSchema: {
                 type: 'object',
                 required: ['ticketId'],
-                properties: {
-                    ticketId: { type: 'string' },
-                    entry: { type: 'number' },
-                    db: { description: 'Database name or index. Required unless the ticket has one.' },
-                    minCladeReads: { type: 'number', description: 'Drop taxa below this count.' },
-                    maxRows: { type: 'number', description: 'Default 200.' },
-                },
+                properties: { ticketId: TICKET, entry: ENTRY },
             },
-            handler({ ticketId, ...opts }) {
-                return client.getTaxonomy(ticketId, opts);
-            },
-        },
-
-        {
-            name: 'get_foldmason_result',
-            description:
-                'The alignment for a completed FoldMason ticket. `include` picks what comes back: ' +
-                'statistics (always), entries (the roster), fasta (aligned sequences), coordinates ' +
-                '(CA traces), tree (the guide tree). Coordinates are never included unless asked for ' +
-                '— they dominate the response — and default to one entry unless you name others.',
-            inputSchema: {
-                type: 'object',
-                required: ['ticketId'],
-                properties: {
-                    ticketId: { type: 'string' },
-                    include: {
-                        type: 'array',
-                        items: { type: 'string', enum: ['statistics', 'entries', 'fasta', 'coordinates', 'tree'] },
-                        description: 'Default ["statistics","entries"].',
-                    },
-                    representation: {
-                        type: 'string', enum: ['aa', '3di'],
-                        description: 'Which alignment fasta returns. Default aa.',
-                    },
-                    entries: {
-                        type: 'array', items: { type: 'number' },
-                        description: 'Entry indices for fasta/coordinates. Omit for a range (fasta) ' +
-                                     'or the first entry (coordinates).',
-                    },
-                    offset: { type: 'number' },
-                    limit: { type: 'number', description: 'fasta only; default 500.' },
-                },
-            },
-            async handler({ ticketId, include = ['statistics', 'entries'], representation = 'aa', entries = null, offset = 0, limit = 500 }) {
-                const res = await client.getFoldMasonResult(ticketId);
-                const out = {
-                    ticketId,
-                    entryCount: res.entries?.length ?? 0,
-                    columns: res.entries?.[0]?.aa?.length ?? 0,
-                };
-                const want = new Set(include);
-                if (want.has('statistics')) out.statistics = res.statistics;
-                if (want.has('entries')) out.entries = foldMasonEntries(res).entries;
-                if (want.has('fasta')) out.fasta = foldMasonFasta(res, { representation, entries, offset, limit });
-                if (want.has('coordinates')) out.coordinates = foldMasonCoordinates(res, { entries });
-                if (want.has('tree')) out.tree = res.tree;
-                return out;
-            },
-        },
-
-        {
-            name: 'get_foldmason_columns',
-            description:
-                'Per-column metrics for a completed FoldMason alignment: LDDT, quality ' +
-                '(substitution-matrix agreement), conservation (which physicochemical properties ' +
-                'every residue in the column shares), consensus, occupancy, entropy. Pass `metrics` ' +
-                'for just the ones you need and `columns`/`offset`/`limit` to scope the range. ' +
-                'Conservation is amino-acid only.',
-            inputSchema: {
-                type: 'object',
-                required: ['ticketId'],
-                properties: {
-                    ticketId: { type: 'string' },
-                    representation: { type: 'string', enum: ['aa', '3di'] },
-                    metrics: {
-                        type: 'array', items: { type: 'string', enum: COLUMN_METRICS },
-                        description: `Any of ${COLUMN_METRICS.join(', ')}. Default: all available.`,
-                    },
-                    columns: {
-                        type: 'array', items: { type: 'number' },
-                        description: 'Specific column indices. Omit for a contiguous range.',
-                    },
-                    offset: { type: 'number' },
-                    limit: { type: 'number', description: 'Default 50; 0 means every column.' },
-                    precision: { type: 'number', description: 'Decimal places for floats, default 4.' },
-                    minOccupancy: {
-                        type: 'number',
-                        description: 'Drop columns whose occupancy is below this (0-1) — the gap ' +
-                                     'masking the page applies with a threshold slider.',
-                    },
-                    includeLetters: {
-                        type: 'boolean',
-                        description: 'Add each column\'s residue composition with logo fractions.',
-                    },
-                    maxLetters: { type: 'number', description: 'Letters per column, default 5.' },
-                },
-            },
-            handler({ ticketId, limit = 50, ...opts }) {
-                return client.getFoldMasonColumns(ticketId, { limit, ...opts });
-            },
-        },
-
-        {
-            name: 'get_queries',
-            description: 'The queries inside a ticket, and the entry index each one is reached by.',
-            inputSchema: {
-                type: 'object',
-                required: ['ticketId'],
-                properties: {
-                    ticketId: { type: 'string' },
-                    limit: { type: 'number' },
-                    page: { type: 'number' },
-                },
-            },
-            handler({ ticketId, ...opts }) {
-                return client.getQueries(ticketId, opts);
+            handler({ ticketId, entry = 0 }) {
+                return client.exportResult(ticketId, entry);
             },
         },
 
         {
             name: 'select_hits',
-            description:
-                'Mark hits as selected, so send_to can forward them. Takes the row ids ' +
-                'get_result_table prints ("dbIndex#entryIndex") — the id carries the database, so ' +
-                'nothing else needs naming. The selection is saved against the ticket under a name ' +
-                'and survives between calls, so "add" and "remove" adjust the one already there. ' +
-                'Ids that do not resolve are rejected individually and reported, never silently ' +
-                'dropped and never fatal. Nothing is fetched by selecting.',
+            description: 'Name a set of hits so send_to can forward them. Saved against the ticket. ' +
+                         'Ids are the "dbIndex#rowIndex" form the exported rows carry.',
             inputSchema: {
                 type: 'object',
                 required: ['ticketId'],
                 properties: {
-                    ticketId: { type: 'string' },
-                    entry: { type: 'number', description: 'Query index for a multi-query ticket.' },
-                    name: { type: 'string', description: 'Selection name; default "default".' },
+                    ticketId: TICKET,
+                    entry: ENTRY,
+                    name: NAME,
                     action: {
                         type: 'string',
-                        enum: ['set', 'add', 'remove', 'clear', 'describe', 'list', 'delete', 'copy'],
-                        description: '"set" replaces the selection (the default), "describe" reads it ' +
-                                     'back, "list" names every saved selection for this ticket, ' +
-                                     '"copy" duplicates fromName under a new name so the original can ' +
-                                     'be left exactly as a forwarded job recorded it.',
+                        enum: ['set', 'add', 'remove', 'clear', 'copy', 'describe', 'list', 'delete'],
+                        description: 'Default "set". "copy" duplicates fromName, leaving it untouched.',
                     },
-                    fromName: {
-                        type: 'string',
-                        description: 'copy: the selection to copy from. The copy is independent — ' +
-                                     'editing it never touches the original.',
-                    },
-                    ids: {
-                        type: 'array', items: { type: 'string' },
-                        description: 'Row ids from get_result_table, e.g. ["8#0","8#5"]. Read them ' +
-                                     'from a table — on a multimer result the entry index is a sparse, ' +
-                                     'opaque group id, so a synthesised one is unlikely to exist.',
-                    },
-                    maxEntries: { type: 'number', description: 'Entries listed back, default 25.' },
+                    ids: { type: 'array', items: { type: 'string' }, description: 'e.g. ["8#0","8#5"].' },
+                    fromName: { type: 'string', description: 'copy: the selection to copy.' },
+                    maxEntries: { type: 'number', description: 'describe: entries listed back; default 25.' },
                 },
             },
             async handler(args) {
                 const { ticketId, entry = 0, name = 'default', action = 'set', ids = [], fromName,
                     maxEntries = 25 } = args;
-                refuseForeignFields(args, ['columns', 'ranges', 'motif'], 'select_hits');
+                refuseForeign(args, ['columns', 'ranges', 'motif'], 'select_hits');
 
                 const table = await client.getResultTable(ticketId, { entry });
                 if (action === 'list') return { ticketId, selections: await table.listSelections() };
-                if (action === 'delete') {
-                    return { ticketId, name, deleted: await table.deleteSelection(name) };
-                }
+                if (action === 'delete') return { ticketId, name, deleted: await table.deleteSelection(name) };
                 if (action === 'copy') {
-                    if (!fromName) throw invalidInput('copy needs fromName and name');
+                    if (!fromName) throw coded('INVALID_INPUT', 'copy needs fromName and name');
                     const record = await client.copySelection(ticketId, fromName, name);
                     return { ticketId, name, copiedFrom: fromName, size: record.ids?.length ?? 0 };
-                }
-                if (['set', 'add', 'remove'].includes(action) && ids.length === 0) {
-                    throw invalidInput(`${action} needs ids; use action "clear" to empty a selection`);
                 }
 
                 const existing = await table.loadSelection(name);
                 if (action === 'describe') {
-                    if (!existing) return { ticketId, name, error: `no saved selection named "${name}"` };
-                    return brief(existing, maxEntries);
+                    if (!existing) throw coded('SELECTION_NOT_FOUND', `no selection "${name}" on ${ticketId}`);
+                    return describe(existing, maxEntries);
+                }
+                if (['set', 'add', 'remove'].includes(action) && ids.length === 0) {
+                    throw coded('INVALID_INPUT', `${action} needs ids; use "clear" to empty a selection`);
                 }
 
-                // One bad id in a list of fifty should not lose the other forty-nine, and a caller
-                // deserves to know which one it was.
+                // One bad id must not lose the others, and the caller deserves to know which.
                 const accepted = [];
                 const rejected = [];
                 for (const id of ids) {
@@ -600,61 +354,50 @@ export function createTools(client) {
                 else if (action === 'clear') selection.clear();
 
                 await selection.save(name);
-                return { ...brief(selection, maxEntries), ...(rejected.length ? { rejected } : {}) };
+                return confirm(selection, rejected);
             },
         },
 
         {
             name: 'select_msa_columns',
-            description:
-                'Pick columns of one FoldMason entry and see the motif they map to — the residues those ' +
-                'columns cover, as chain+number. Saved against the ticket like select_hits, so the ' +
-                'region can be widened, narrowed, read off a different entry, or given an explicit ' +
-                'motif before being sent to FoldDisco with send_to.',
+            description: 'Name a set of alignment columns and see the motif they map to. ' +
+                         'Saved against the ticket, ready for send_to.',
             inputSchema: {
                 type: 'object',
                 required: ['ticketId'],
                 properties: {
-                    ticketId: { type: 'string' },
-                    name: { type: 'string', description: 'Selection name; default "default".' },
+                    ticketId: TICKET,
+                    name: NAME,
                     action: {
                         type: 'string',
-                        enum: ['set', 'add', 'remove', 'clear', 'describe', 'list', 'delete', 'copy'],
-                        description: '"copy" duplicates fromName under a new name, leaving the ' +
-                                     'original exactly as a forwarded job recorded it.',
+                        enum: ['set', 'add', 'remove', 'clear', 'copy', 'describe', 'list', 'delete'],
+                        description: 'Default "set". "copy" duplicates fromName, leaving it untouched.',
                     },
-                    fromName: { type: 'string', description: 'copy: the selection to copy from.' },
-                    entry: { type: 'number', description: 'Which entry the residues are read off. Default 0.' },
+                    entry: { type: 'number', description: 'Which entry the residues are read off; default 0.' },
                     columns: { type: 'array', items: { type: 'number' }, description: 'Column indices.' },
-                    ranges: {
-                        type: 'array', items: { type: 'string' },
-                        description: 'Columns as ranges ("12-28"), the form the summary reports them in.',
-                    },
-                    motif: {
-                        type: 'string',
-                        description: 'Use this motif instead of the one the columns produce. Empty string ' +
-                                     'goes back to deriving it.',
-                    },
+                    ranges: { type: 'array', items: { type: 'string' }, description: 'Columns as ranges, e.g. ["12-28"].' },
+                    motif: { type: 'string', description: 'Use this motif instead of the derived one; "" to derive again.' },
+                    fromName: { type: 'string', description: 'copy: the selection to copy.' },
                 },
             },
             async handler(args) {
                 const { ticketId, name = 'default', action = 'set', entry, columns, ranges, motif,
                     fromName } = args;
-                refuseForeignFields(args, ['ids'], 'select_msa_columns');
+                refuseForeign(args, ['ids'], 'select_msa_columns');
 
                 if (action === 'list') return { ticketId, selections: await client.listSelections(ticketId) };
                 if (action === 'delete') {
                     return { ticketId, name, deleted: await client.deleteSelection(ticketId, name) };
                 }
                 if (action === 'copy') {
-                    if (!fromName) throw invalidInput('copy needs fromName and name');
+                    if (!fromName) throw coded('INVALID_INPUT', 'copy needs fromName and name');
                     const record = await client.copySelection(ticketId, fromName, name);
                     return { ticketId, name, copiedFrom: fromName, size: record.columns?.length ?? 0 };
                 }
 
                 const existing = await client.loadMsaSelection(ticketId, name);
                 if (action === 'describe') {
-                    if (!existing) return { ticketId, name, error: `no saved selection named "${name}"` };
+                    if (!existing) throw coded('SELECTION_NOT_FOUND', `no selection "${name}" on ${ticketId}`);
                     return existing.describe();
                 }
 
@@ -663,12 +406,12 @@ export function createTools(client) {
                 if (entry !== undefined) selection.setEntry(entry);
 
                 const picked = [...(columns ?? []), ...expandRanges(ranges ?? [])];
-                // An empty column list is fine when the entry or the motif is what is being changed;
-                // it is only a mistake when the call would do nothing at all.
+                // An empty list is fine when the entry or motif is what changes; only a call that would
+                // do nothing at all is a mistake.
                 if (['set', 'add', 'remove'].includes(action) && picked.length === 0
                     && entry === undefined && motif === undefined) {
-                    throw invalidInput(`${action} needs columns or ranges; use action "clear" to empty ` +
-                                       'a selection');
+                    throw coded('INVALID_INPUT',
+                        `${action} needs columns or ranges; use "clear" to empty a selection`);
                 }
                 if (action === 'set') selection.setColumns(picked);
                 else if (action === 'add') selection.addColumns(picked);
@@ -682,50 +425,9 @@ export function createTools(client) {
         },
 
         {
-            name: 'load_accession',
-            description:
-                'Look up a structure by accession from PDB, AlphaFoldDB or BFVD without submitting ' +
-                'anything: what it resolved to, how large it is, and — for a PDB id — the Q-BioLiP ' +
-                'binding sites, with the first already expressed as a motif. Use it to check an ' +
-                'accession before searching; to actually search with it, pass `accession` to ' +
-                'foldseek_search / folddisco_search / submit_ticket, which loads it the same way.',
-            inputSchema: {
-                type: 'object',
-                required: ['accession'],
-                properties: {
-                    accession: { type: ['string', 'array'], description: 'One id, or several.' },
-                    source: {
-                        type: 'string', enum: ['PDB', 'AlphaFoldDB', 'BFVD'],
-                        description: 'Default PDB. AlphaFoldDB is a fuzzy search, so the entry returned ' +
-                                     'can differ from the one asked for — check the name.',
-                    },
-                    autoMotif: {
-                        type: 'boolean',
-                        description: 'Q-BioLiP lookup for PDB ids. Default true; the other sources skip it.',
-                    },
-                },
-            },
-            async handler({ accession, source = 'PDB', autoMotif = true }) {
-                if (Array.isArray(accession)) {
-                    const list = await client.loadAccessions(accession, { source, autoMotif });
-                    return list.describe();
-                }
-                const loaded = await client.loadAccession(accession, { source, autoMotif });
-                return loaded.describe();
-            },
-        },
-
-        {
             name: 'send_to',
-            description:
-                'Forward something a previous job produced into a new one: a hit row, a saved ' +
-                'selection, or a saved MSA column selection. The structure is assembled for the ' +
-                'destination — chains merged for Foldseek, encoded for FoldMason, reconstructed to ' +
-                'full atoms for FoldDisco when the original file is not available — so the caller does ' +
-                'not decide any of that, and the new ticket records which ticket it came out of. ' +
-                'FoldMason needs two or more structures, so only a selection can reach it. To search ' +
-                'with a structure from PDB/AlphaFoldDB/BFVD, pass `accession` to the search tool ' +
-                'instead — that depends on no ticket.',
+            description: 'Forward a hit, a saved selection, or saved MSA columns into a new job. ' +
+                         'The structure is assembled for the destination and the new ticket records its source.',
             inputSchema: {
                 type: 'object',
                 required: ['from', 'tool'],
@@ -735,90 +437,50 @@ export function createTools(client) {
                         required: ['type'],
                         description: 'What to send.',
                         properties: {
-                            type: {
-                                type: 'string',
-                                enum: ['row', 'selection', 'msaColumns'],
-                            },
-                            ticketId: { type: 'string' },
-                            entry: { type: 'number' },
-                            rowId: { type: 'string', description: 'row: "dbIndex#entryIndex".' },
-                            name: { type: 'string', description: 'selection/msaColumns: default "default".' },
+                            type: { type: 'string', enum: ['row', 'selection', 'msaColumns'] },
+                            ticketId: TICKET,
+                            entry: ENTRY,
+                            rowId: { type: 'string', description: 'row: "dbIndex#rowIndex".' },
+                            name: NAME,
                         },
                     },
-                    tool: { type: 'string', enum: DESTINATIONS },
+                    tool: { type: 'string', enum: DESTINATIONS, description: 'Destination.' },
                     databases: DATABASES,
                     mode: { type: 'string' },
-                    motif: {
-                        type: 'string',
-                        description: 'FoldDisco. Defaults to whatever motif the source carries — a ' +
-                                     'FoldDisco hit\'s matched residues, an MSA column selection\'s ' +
-                                     'residues, a Q-BioLiP binding site.',
-                    },
+                    motif: { type: 'string', description: 'FoldDisco; defaults to the motif the source carries.' },
                     taxFilter: { type: 'string' },
                     iterativeSearch: { type: 'boolean' },
                     includeQuery: {
                         type: 'boolean',
-                        description: 'FoldMason from a selection: also forward the original query ' +
-                                     'structure as an entry. Default true.',
+                        description: 'FoldMason from a selection: also send the original query. Default true.',
                     },
-                    email: { type: 'string' },
-                    waitTimeoutMs: WAIT,
+                    email: EMAIL,
                 },
             },
-            async handler({ from, tool, waitTimeoutMs = 0, ...opts }) {
+            async handler({ from, tool, ...opts }) {
+                if (!DESTINATIONS.includes(tool)) {
+                    throw coded('INVALID_INPUT', `unknown destination ${JSON.stringify(tool)}`);
+                }
                 const sender = await resolveSource(from);
-                return submitAndMaybeWait(client, () => sender.sendTo({ tool, ...opts }), { waitTimeoutMs });
-            },
-        },
-
-        {
-            name: 'list_cached_tickets',
-            description:
-                'Tickets this agent has already seen, newest first, read from the local cache — no ' +
-                'network, and it survives restarts. Each carries `derivedFrom` when it was forwarded ' +
-                'out of another ticket, so a chain of searches can be walked back; `derivedFromTicket` ' +
-                'filters to the jobs one ticket produced.',
-            inputSchema: {
-                type: 'object',
-                properties: {
-                    limit: { type: 'number' },
-                    derivedFromTicket: {
-                        type: 'string',
-                        description: 'Only jobs forwarded out of this ticket.',
-                    },
-                },
-            },
-            async handler({ limit = 100, derivedFromTicket = null } = {}) {
-                const tickets = await client.listCachedTickets({ limit: derivedFromTicket ? 10000 : limit });
-                const matching = derivedFromTicket
-                    ? tickets.filter(t => t.derivedFrom?.ticket === derivedFromTicket).slice(0, limit)
-                    : tickets;
+                const ticket = await sender.sendTo({ tool, ...opts });
                 return {
-                    tickets: matching.map(t => ({
-                        ticketId: t.id, kind: t.kind, jobType: t.jobType,
-                        submittedAt: t.submittedAt, lastStatus: t.lastStatus,
-                        lastPolledAt: t.lastPolledAt, request: t.request,
-                        ...(t.derivedFrom ? { derivedFrom: t.derivedFrom } : {}),
-                    })),
+                    ticketId: ticket.id,
+                    status: ticket.status ?? 'PENDING',
+                    ...(ticket.derivedFrom ? { derivedFrom: ticket.derivedFrom } : {}),
+                    ...(ticket.skipped?.length ? { skipped: ticket.skipped } : {}),
                 };
             },
         },
     ];
-
-    return tools;
 }
 
 /**
- * Run a tool by name and normalise failure.
- *
- * A tool that throws should say what went wrong, not just that something did — the reason is
- * usually actionable (a database this deployment cannot use, a motif residue absent from the
- * query). UnsupportedOnDeploymentError is called out separately because it means "this server is
- * not built for that job type", which no amount of fixing the arguments will change.
+ * Run a tool by name and normalise failure. A tool that ran and failed is a result the caller can act
+ * on; the code says which kind so it can act without parsing prose.
  */
 export async function runTool(tools, name, args = {}) {
     const tool = tools.find(t => t.name === name);
-    if (!tool) return { isError: true, error: `unknown tool: ${name}` };
+    if (!tool) return { isError: true, code: 'UNKNOWN_TOOL', error: `unknown tool: ${name}` };
     try {
         return await tool.handler(args ?? {});
     } catch (err) {
@@ -828,6 +490,7 @@ export async function runTool(tools, name, args = {}) {
                 error: err.message, unsupportedTool: err.tool,
             };
         }
-        return { isError: true, ...(err.code ? { code: err.code } : {}), error: err.message };
+        const code = err.code ?? (err.status === 404 ? 'UNKNOWN_TICKET' : undefined);
+        return { isError: true, ...(code ? { code } : {}), error: err.message };
     }
 }

@@ -1,123 +1,129 @@
 # `mmseqs2-agent-mcp`
 
-An MCP server that exposes Foldseek, FoldMason and FoldDisco to an agent: submit a search, read the
-hits, pick some, forward them into the next tool. Sixteen tools over
-[`mmseqs2-agent-core`](../core/README.md), which does the actual work.
+An MCP server exposing Foldseek, FoldMason and FoldDisco to an agent: submit a search, see what came
+back, export the whole thing to files, pick some hits, forward them. Eleven tools over
+[`mmseqs2-agent-core`](../core/README.md), which does the work.
 
 ## Configuration
 
 Environment only, no config file. Startup errors go to stderr — stdout is the protocol stream.
 
-| variable | |
-|---|---|
-| `MMSEQS2_AGENT_BASE_URL` | **required**, the site origin, e.g. `https://search.foldseek.com` |
-| `MMSEQS2_AGENT_APP` | `foldseek` (default), `mmseqs`, `foldmason` |
-| `MMSEQS2_AGENT_STATE_DIR` | ticket cache; default `~/.mmseqs2-agent` |
-| `MMSEQS2_AGENT_API_PATH` | `/api` by default |
-| `MMSEQS2_AGENT_BASIC_AUTH_USER` / `_PASS` | for a protected deployment |
+| variable | default | notes |
+|---|---|---|
+| `MMSEQS2_AGENT_BASE_URL` | **required** | the site origin. e.g. `https://search.foldseek.com` |
+| `MMSEQS2_AGENT_APP` | `foldseek` | affects cross-reference links in parsed results |
+| `MMSEQS2_AGENT_STATE_DIR` | `~/.mmseqs2-agent` | ticket cache, selections, artifacts |
+| `MMSEQS2_AGENT_API_PATH` | `/api` | for a deployment using `config.Server.PathPrefix` |
+| `MMSEQS2_AGENT_BASIC_AUTH_USER` / `_PASS` | — | |
+| `MMSEQS2_AGENT_ARTIFACT_TTL_SECONDS` | `7200` | 300 … 604800 |
+| `MMSEQS2_AGENT_ARTIFACT_STALE_BUILD_SECONDS` | `3600` | 60 … 86400 |
+| `MMSEQS2_AGENT_ARTIFACT_GC_MAX_DELETIONS` | `200` | 1 … 10000 |
+| `MMSEQS2_AGENT_ARTIFACT_GC_MIN_INTERVAL_SECONDS` | `600` | 0 … 86400; 0 sweeps on every export |
+| `MMSEQS2_AGENT_ARTIFACT_LOCAL_PATHS` | `1` | `0` withholds local paths from descriptors |
+| `MMSEQS2_AGENT_RESULT_ROW_CAP` | unset | 1 … 1000000; overrides the search saturation cap |
 
-There is no default base URL: one would send structures to whichever server was compiled in.
-
-## Registering it
-
-```bash
-claude mcp add mmseqs2-agent \
-  --env MMSEQS2_AGENT_BASE_URL=https://search.foldseek.com \
-  -- node /path/to/MMseqs2-App/headless/mcp-server/bin/mmseqs2-agent-mcp.js
-```
-
-Any MCP host works the same way — the server speaks stdio. For a JSON config:
-
-```json
-{
-  "mcpServers": {
-    "mmseqs2-agent": {
-      "command": "node",
-      "args": ["/path/to/MMseqs2-App/headless/mcp-server/bin/mmseqs2-agent-mcp.js"],
-      "env": { "MMSEQS2_AGENT_BASE_URL": "https://search.foldseek.com" }
-    }
-  }
-}
-```
-
-## The tools
-
-**Finding out what is available**
-
-- `list_databases` — every database with the capability flags that decide which tool can use it. A
-  name valid for one tool is often invalid for another, so call this before searching.
-
-**Submitting**
-
-- `foldseek_search` — structure search; `multimer: true` for a complex search
-- `foldmason_msa` — multiple structure alignment, two or more files
-- `folddisco_search` — structural motif search
-- `submit_ticket` — any of the above without waiting; `validateOnly: true` runs every check and shows
-  what *would* be sent, queueing nothing
-
-The three search tools take either `query` (structure text) or `accession` — an id, or
-`{id, source: 'PDB'|'AlphaFoldDB'|'BFVD'}` — which is loaded for you. For a PDB id, `folddisco_search`
-also takes the Q-BioLiP binding site as the motif when you give none, so a binding-site search is one
-call.
-
-**Reading**
-
-- `get_ticket_status` — status, job type, the page URL a human would open, and `derivedFrom` if this
-  job was forwarded out of another
-- `get_result_table` — `view: 'summary'` surveys every database without transporting rows; `'rows'`
-  returns hits, with `db`, `sortKey`, `offset`/`limit`, `fields`, `taxonFilter`, `motifFilter`
-- `get_taxonomy` — the taxa in one database's hits, with clade read counts
-- `get_queries` — the queries inside a ticket and the entry index each is reached by
-- `get_foldmason_result` — `include: ['statistics','entries','fasta','coordinates','tree']`
-- `get_foldmason_columns` — per-column LDDT, quality, conservation, consensus, occupancy, entropy
-- `list_cached_tickets` — what this agent has seen before, from the local cache;
-  `derivedFromTicket` filters to the jobs one ticket produced
-
-**Selecting and forwarding**
-
-- `select_hits` — mark rows selected by the ids `get_result_table` prints, saved against the ticket
-  under a name so later calls can adjust it
-- `select_msa_columns` — pick alignment columns and see the motif the residues they cover make;
-  takes `ranges: ["12-28"]`, the form the column summary prints
-- `send_to` — forward a row, a saved selection, or a saved column selection into a new job
-- `load_accession` — look up a structure without submitting anything
-
-## A worked sequence
-
-Nothing but ids passes between calls; no structure text ever enters the conversation.
-
-```
-foldseek_search  { accession: "1STP", databases: ["pdb100", "afdb50"] }   -> ticketId
-get_ticket_status { ticketId }                                            -> COMPLETE
-get_result_table { ticketId, view: "summary", merged: true }              -> which database has the signal
-get_result_table { ticketId, db: "afdb50", limit: 10 }                    -> rows, each with an id
-select_hits      { ticketId, ids: ["1#0","1#3","1#7"], name: "core" }     -> saved
-send_to          { from: {type:"selection", ticketId, name:"core"},
-                   tool: "foldmason" }                                    -> a new ticketId
-get_foldmason_columns { ticketId: msaTicket, metrics: ["lddt"], limit: 0 } -> every column's LDDT
-select_msa_columns { ticketId: msaTicket, ranges: ["12-28"] }             -> motif "A31, A32, …"
-send_to          { from: {type:"msaColumns", ticketId: msaTicket},
-                   tool: "folddisco", databases: ["pdb_folddisco"] }      -> a third ticketId
-```
-
-Selections and column selections are stored on disk against the ticket, so this survives a restart,
-a new conversation, or a different process — every call is stateless.
-
-## What a result looks like
-
-Every tool returns JSON as a text block. Two kinds of failure, reported two different ways:
-
-- **`isError: true` with an `error` string** — the tool ran and failed for a reason worth acting on:
-  a database this deployment cannot use for that job type, a motif residue absent from the query, a
-  selection that was never saved. Read it and try something else.
-- **A protocol error** — the tool does not exist. Nothing ran, and no change of arguments helps.
-
-## Testing
+Out-of-range values fail at startup naming the variable and its range, rather than being clamped.
 
 ```bash
-npm test    # 42 tests, no network, nothing submitted
+claude mcp add mmseqs2-agent -- node /path/to/headless/mcp-server/bin/mmseqs2-agent-mcp.js
+```
+
+## The flow
+
+```text
+list_databases     { jobType: "foldseek_search" }                     -> what this server can search
+foldseek_search    { accession: "1STP", databases: ["pdb100"] }       -> ticketId
+get_ticket_status  { ticketId }                                        -> COMPLETE
+get_result_summary { ticketId }                                        -> counts, ranking, a top hit per db
+export_result      { ticketId }                                        -> file URIs; read them as resources
+select_hits        { ticketId, ids: ["1#0","1#3"], name: "draft" }     -> saved against the ticket
+select_hits        { ticketId, action: "copy",
+                     fromName: "draft", name: "to-foldmason__001" }    -> the name this job will use
+send_to            { from: {type:"selection", ticketId,
+                            name:"to-foldmason__001"},
+                     tool: "foldmason" }                               -> a new ticketId
+select_msa_columns { ticketId: msaTicket, ranges: ["12-28"] }          -> motif "A31, A32, …"
+send_to            { from: {type:"msaColumns", ticketId: msaTicket},
+                     tool: "folddisco",
+                     databases: ["pdb_folddisco"] }                    -> a third ticketId
+```
+
+`get_result_summary` first, always: it is bounded (about 1.7 KB on a nine-database search) and says what
+exists. `export_result` when the whole result is wanted — it writes files and returns their URIs.
+
+## The eleven tools
+
+**Submitting** — `foldseek_search` (monomer), `multimer_search` (complex), `foldmason_msa` (two or more
+structures), `folddisco_search` (a motif). Each takes `query` text or an `accession`, returns a ticket
+immediately, and accepts `validateOnly` to run every check without queueing anything. None of them can
+be asked to wait; polling lives in `get_ticket_status` alone.
+
+**Reading** — `list_databases`, `get_ticket_status`, `get_result_summary`, `export_result`.
+
+**Moving on** — `select_hits`, `select_msa_columns`, `send_to`.
+
+Not advertised, deliberately: paginated table readers, taxonomy and column readers, a generic
+`submit_ticket`, `load_accession` (it is the `accession` argument on the submit tools), and
+`list_cached_tickets`. Everything they returned is in the export, complete rather than projected.
+Artifact deletion is not a tool either — see `--gc` below.
+
+## Result artifacts as resources
+
+`export_result` returns a descriptor: an artifact id, the file list with roles, byte and row counts,
+and URIs. No file contents.
+
+```text
+mmseqs2-artifact://<artifactId>/manifest.json
+mmseqs2-artifact://<artifactId>/search/db-4.rows.jsonl
+mmseqs2-artifact://<artifactId>/msa/residue-map.jsonl
+```
+
+A read resolves through the artifact's own manifest: the id must be a full sha256 hex digest and the
+path must appear verbatim in the manifest's file table, so a file sitting in the directory but absent
+from the manifest is not readable and traversal has nothing to work on. JSON, JSONL and FASTA come back
+as text; `coordinates.json.gz` comes back as a blob.
+
+`localManifestPath` is included when the client shares the filesystem — an optimisation, not the
+contract. The URI is authoritative.
+
+## Selections
+
+Named, saved against the ticket, and durable across restarts. The convention:
+
+- edit `draft` (or `default`) freely;
+- `action: "copy"` it to `to-<destination>__NNN` for each forwarding job;
+- leave that name alone afterwards — it is what the job's `derivedFrom.selection` points at.
+
+Copying never overwrites, and the copy is independent in both directions. Revise by copying again.
+
+## Errors
+
+Two kinds, reported two ways.
+
+- **`isError: true` with a `code`** — the tool ran and failed for a reason worth acting on:
+  `RESULT_NOT_READY`, `RESULT_FAILED`, `INVALID_ENTRY`, `UNKNOWN_TICKET`, `INVALID_INPUT`,
+  `SELECTION_NOT_FOUND`, `SELECTION_COLLISION`, `SELECTION_NAME_INVALID`, `EXPORT_FAILED`,
+  `UNSUPPORTED_ON_DEPLOYMENT`.
+- **A protocol error** — the tool or resource does not exist, or a resource URI is not readable
+  (`ARTIFACT_NOT_FOUND`, `INVALID_ARTIFACT_PATH`). Nothing ran and no argument change helps.
+
+## Operator maintenance
+
+```bash
+mmseqs2-agent-mcp --gc --dry-run     # what would be collected, and why
+mmseqs2-agent-mcp --gc               # collect it
+```
+
+Both print a report to stderr and exit without starting a server. Artifacts expire two hours after
+last access; the sweep is bounded, audited to `<stateDir>/artifact-gc-audit.jsonl` (rotated at 4 MB),
+and cannot reach the ticket cache or selections, which live outside the directory it walks.
+
+## Tests
+
+```bash
+npm test                                                        # no network
+MMSEQS2_AGENT_LIVE_TESTS=1 MMSEQS2_AGENT_BASE_URL=… npm test    # + read-only live checks
 ```
 
 The tools are defined in `src/tools.js` with no MCP SDK involved, so they can be exercised against a
-real backend without a client process or a stdio pipe; `src/server.js` only moves JSON between the
-SDK and those handlers.
+stubbed client without a transport — which is what most of the suite does.
