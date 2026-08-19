@@ -232,11 +232,16 @@ export class SubmittableQuery {
         iterativeSearch = false, remark = true, signal = undefined,
     } = {}) {
         if (MULTI_INPUT_DESTINATIONS.has(tool)) {
-            throw new Error('FoldMason aligns two or more structures, so a single query cannot be ' +
-                            'sent to it on its own — select several rows and use the selection\'s ' +
-                            'sendTo, which can also forward the original query alongside them');
+            throw new Error('FoldMason requires two or more structures');
         }
         const built = await this.build(tool, { signal });
+        if (tool === 'folddisco' && motif && built.motif) {
+            const err = new Error(
+                'this source already carries a motif, so supplying one would let the two disagree - ' +
+                'change the source selection instead');
+            err.code = 'INVALID_INPUT';
+            throw err;
+        }
         const query = remark
             ? provenanceRemark(built.pdb, {
                 accession: built.name, db: this.spec.db ?? null, ticket: this.spec.ticket ?? null,
@@ -248,13 +253,17 @@ export class SubmittableQuery {
             : await this.client.submitFoldseekSearch({
                 query, databases, mode, multimer: tool === 'multimer', email, iterativeSearch, taxFilter,
             });
-        return this._recordLineage(ticket, tool, built);
+        const motifSource = tool !== 'folddisco' ? null
+            : motif ? 'caller'
+            : built.motif ? (this.spec.motifSource ?? 'hit')
+            : null;
+        return this._recordLineage(ticket, tool, built, { motifSource });
     }
 
     /**
      * Record which ticket this job came out of.
      */
-    async _recordLineage(ticket, tool, built) {
+    async _recordLineage(ticket, tool, built, { motifSource = null } = {}) {
         const source = this.spec?.ticket;
         if (!source) return ticket;
         const derivedFrom = {
@@ -262,6 +271,7 @@ export class SubmittableQuery {
             origin: this.spec.kind,
             tool,
             ...(this.spec.lineage ?? {}),
+            ...(motifSource ? { motifSource } : {}),
             ...(this.label ? { from: this.label } : {}),
             ...(built?.name ? { name: built.name } : {}),
             ...(built?.resolvedFrom ? { resolvedFrom: built.resolvedFrom } : {}),

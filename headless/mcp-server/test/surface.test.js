@@ -75,11 +75,18 @@ test('every tool is fully declared, and declared briefly', () => {
         assert.ok(tool.description.length > 40, `${tool.name} needs a description`);
         assert.ok(tool.description.length <= 220,
             `${tool.name} description is ${tool.description.length} chars — keep it to two lines`);
-        for (const [field, spec] of Object.entries(tool.inputSchema.properties)) {
-            if (!spec.description) continue;
-            assert.ok(spec.description.length <= 130,
-                `${tool.name}.${field} description is ${spec.description.length} chars`);
-        }
+        // Nested too: a description moved into `items` still costs the same tokens to read.
+        const walk = (properties, prefix) => {
+            for (const [field, spec] of Object.entries(properties ?? {})) {
+                if (spec.description) {
+                    assert.ok(spec.description.length <= 130,
+                        `${prefix}${field} description is ${spec.description.length} chars`);
+                }
+                walk(spec.properties, `${prefix}${field}.`);
+                walk(spec.items?.properties, `${prefix}${field}[].`);
+            }
+        };
+        walk(tool.inputSchema.properties, `${tool.name}.`);
     }
 });
 

@@ -98,13 +98,19 @@ consumer of an exported map cannot drift from the mounted page.
 | state | where | lifetime |
 |---|---|---|
 | ticket metadata and `derivedFrom` | `<stateDir>/tickets/…/ticket.json` | kept |
-| source result cache | `<stateDir>/tickets/…/result-*.json` | kept |
+| source result cache | `<stateDir>/tickets/…/result-*.json` | 24 h from last **use**, collected |
 | named selections | `<stateDir>/tickets/…/selections.json` | kept, explicit operations only |
-| public artifacts | `<stateDir>/artifacts/<id>/` | 2 h from last access, garbage collected |
+| public artifacts | `<stateDir>/artifacts/<id>/` | 30 min from last access, collected |
 
-The artifact root is a *sibling* of the ticket cache, not its parent, so the collector cannot reach
-source results or selections — a property of the layout rather than a guard to remember.
-`client.collectArtifacts({ dryRun })` runs a bounded, audited sweep.
+Derived data expires fast, fetched data slowly: rebuilding an artifact re-reads the cached parse, so
+thirty minutes costs milliseconds rather than a request. `readResult` touches the file it read, so the
+result TTL runs from last use and an active ticket cannot expire mid-workflow.
+
+`client.collectGarbage({ dryRun })` runs both sweeps and returns `{ artifacts, results }`, bounded and
+audited. The artifact root is a *sibling* of the ticket cache, so that collector cannot reach source
+results or selections at all. The result collector does walk `tickets/**`, and is constrained instead
+by an allowlist: only `result-<entry>.json`, `foldmason.json` and `folddisco.json`, never a directory,
+and never `ticket.json` or `selections.json`.
 
 ## Reading results
 

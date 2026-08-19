@@ -5,6 +5,7 @@ import { getResidueIndices, entryChainMap } from '../../../frontend/lib/alignmen
 import { mockPDB } from '../../../frontend/lib/pdbAssembly.js';
 import { getAccession } from '../../../frontend/lib/targetName.js';
 import { aminoAcidAlphabet, threeDIAlphabet } from 'msa-webgpu';
+import { MOTIF_MAX_RESIDUES } from './motif.js';
 
 const REPRESENTATIONS = {
     aa: { alphabet: aminoAcidAlphabet, field: 'aa' },
@@ -359,15 +360,45 @@ export function msaResidueMap(foldMasonResult, entryIndex = 0) {
     };
 }
 
-/** The motif tokens for a set of columns, read off a residue map. One convention, one implementation. */
-export function residueTokens(residueMap, columns) {
+/** Column -> motif token for a set of columns. One convention, one implementation. */
+export function residueTokenPairs(residueMap, columns) {
     const wanted = new Set(columns ?? []);
     const occupied = expandRanges(residueMap?.occupiedColumns ?? []);
     const out = [];
     for (let i = 0; i < occupied.length; i++) {
-        if (wanted.has(occupied[i])) out.push(residueMap.tokens[i]);
+        if (wanted.has(occupied[i])) out.push({ column: occupied[i], token: residueMap.tokens[i] });
     }
     return out;
+}
+
+/** The motif tokens for a set of columns, read off a residue map. */
+export function residueTokens(residueMap, columns) {
+    return residueTokenPairs(residueMap, columns).map(pair => pair.token);
+}
+
+export const AMINO_ACIDS = 'ACDEFGHIKLMNPQRSTVWY';
+export const SUBSTITUTION_CLASSES = {
+    X: 'any amino acid',
+    p: 'positively charged', n: 'negatively charged',
+    h: 'hydrophilic', b: 'hydrophobic', a: 'aromatic',
+};
+
+export function substitutionKind(aa) {
+    if (typeof aa !== 'string' || aa.length !== 1) return null;
+    if (aa === 'X') return 'wildcard';
+    if (Object.hasOwn(SUBSTITUTION_CLASSES, aa)) return 'group';
+    return AMINO_ACIDS.includes(aa) ? 'amino-acid' : null;
+}
+
+function acceptedSubstitutions() {
+    const groups = Object.entries(SUBSTITUTION_CLASSES).map(([code, meaning]) => `${code} = ${meaning}`);
+    return `one letter of ${AMINO_ACIDS}, or ${groups.join(', ')}`;
+}
+
+function coded(code, message) {
+    const err = new Error(message);
+    err.code = code;
+    return err;
 }
 
 /**
@@ -375,16 +406,17 @@ export function residueTokens(residueMap, columns) {
  */
 export class MsaColumnSelection {
     constructor(client, foldMasonResult, {
-        entry = 0, columns = [], ticket = null, name = 'default', motif = null, savedAt = null,
+        entry = 0, columns = [], ticket = null, name = 'default', residueAa = [], savedAt = null,
     } = {}) {
         this.client = client;
         this.result = foldMasonResult;
         this.ticket = ticket;
         this.name = name;
         this.savedAt = savedAt;
-        this._motif = motif;
         this.columns = MsaColumnSelection._normalize(columns);
+        this.residueAa = [];
         this.setEntry(entry);
+        this.setResidueAa(residueAa);
     }
 
     static _normalize(columns) {
@@ -405,7 +437,10 @@ export class MsaColumnSelection {
         return this;
     }
 
-    setColumns(columns) { this.columns = MsaColumnSelection._normalize(columns); return this; }
+    setColumns(columns) {
+        this.columns = MsaColumnSelection._normalize(columns);
+        return this.#pruneResidueAa();
+    }
 
     addColumns(columns) {
         this.columns = MsaColumnSelection._normalize([...this.columns, ...(columns ?? [])]);
@@ -415,24 +450,84 @@ export class MsaColumnSelection {
     removeColumns(columns) {
         const drop = new Set((columns ?? []).map(Number));
         this.columns = this.columns.filter(c => !drop.has(c));
+        return this.#pruneResidueAa();
+    }
+
+    /** A deselected column cannot carry a substitution: the anchor is what was removed. */
+    #pruneResidueAa() {
+        const selected = new Set(this.columns);
+        this.residueAa = this.residueAa.filter(r => selected.has(r.column));
         return this;
     }
 
-    /**
-     * Use this motif instead of the one the columns produce.
-     */
-    setMotif(motif) { this._motif = motif || null; return this; }
+    setResidueAa(entries) {
+        const selected = new Set(this.columns);
+        const next = new Map(this.residueAa.map(r => [r.column, r.aa]));
+        for (const entry of entries ?? []) {
+            const column = Number(entry?.column);
+            if (!Number.isInteger(column)) {
+                throw coded('INVALID_INPUT',
+                    `a substitution needs an integer column, got ${JSON.stringify(entry?.column)}`);
+            }
+            if (!selected.has(column)) {
+                throw coded('INVALID_INPUT',
+                    `column ${column} is not in this selection, so it cannot carry a substitution; ` +
+                    'add the column first');
+            }
+            const { aa } = entry;
+            if (aa === undefined) {
+                throw coded('INVALID_INPUT', `column ${column} needs an aa; pass null to clear it`);
+            }
+            if (aa === null || aa === '') { next.delete(column); continue; }
+            if (!substitutionKind(aa)) {
+                throw coded('INVALID_INPUT',
+                    `${JSON.stringify(aa)} is not a substitution code for column ${column}; expected ` +
+                    `${acceptedSubstitutions()}.`);
+            }
+            next.set(column, aa);
+        }
+        if (next.size > MOTIF_MAX_RESIDUES) {
+            throw coded('INVALID_INPUT',
+                `${next.size} substitutions, but a motif holds at most ${MOTIF_MAX_RESIDUES} residues`);
+        }
+        this.residueAa = [...next.entries()]
+            .sort((a, b) => a[0] - b[0])
+            .map(([column, aa]) => ({ column, aa }));
+        return this;
+    }
 
     get residues() {
         return getResidueIndices(this.entry.aa, this.columns).map(i => i + 1);
     }
 
     /**
-     * The motif these columns describe: `chain + original residue number` per residue.
+     * The motif these columns describe: `chain + original residue number` per residue, with `:aa`
+     * appended where a column carries a substitution.
      */
     get motif() {
-        if (this._motif) return this._motif;
-        return residueTokens(this.residueMap, this.columns).join(', ');
+        const substitution = new Map(this.residueAa.map(r => [r.column, r.aa]));
+        return residueTokenPairs(this.residueMap, this.columns)
+            .map(({ column, token }) => (substitution.has(column)
+                ? `${token}:${substitution.get(column)}`
+                : token))
+            .join(', ');
+    }
+
+    /**
+     * Which column resolved to which residue, in one line: `20->A17, 29->A26(G):b, 23->gap:Y`.
+     */
+    residueMapping({ limit = MOTIF_MAX_RESIDUES } = {}) {
+        const tokens = new Map(
+            residueTokenPairs(this.residueMap, this.columns).map(p => [p.column, p.token]));
+        const substitution = new Map(this.residueAa.map(r => [r.column, r.aa]));
+        const shown = this.columns.slice(0, limit).map((column) => {
+            const token = tokens.get(column) ?? 'gap';
+            if (!substitution.has(column)) return `${column}->${token}`;
+            const actual = token === 'gap' ? '' : `(${this.entry.aa?.[column] ?? '?'})`;
+            return `${column}->${token}${actual}:${substitution.get(column)}`;
+        });
+        const more = this.columns.length - shown.length;
+        return shown.join(', ') + (more > 0 ? `, +${more} more` : '');
     }
 
     /** Persist under `name`, scoped to this alignment's ticket. */
@@ -443,7 +538,7 @@ export class MsaColumnSelection {
             page: 'foldmason',
             entry: this.entryIndex,
             columns: this.columns,
-            ...(this._motif ? { motif: this._motif } : {}),
+            ...(this.residueAa.length ? { residueAa: this.residueAa } : {}),
         });
         this.savedAt = record.updatedAt;
         return record;
@@ -463,8 +558,8 @@ export class MsaColumnSelection {
             selectedColumns: compressRanges(this.columns),
             residueCount: residues.length,
             gapColumns: this.columns.length - residues.length,
+            residueMapping: this.residueMapping(),
             ...(this.savedAt ? { savedAt: this.savedAt } : { saved: false }),
-            ...(this._motif ? { motifSource: 'override' } : {}),
             motif: this.motif,
         };
     }
@@ -480,11 +575,13 @@ export class MsaColumnSelection {
             suffix: this.suffix,
             name: this.entry.name,
             motif: this.motif || undefined,
+            motifSource: 'columns',
             ticket: this.ticket ?? undefined,
             lineage: {
                 entry: this.entryIndex,
                 entryName: this.entry.name,
                 columns: compressRanges(this.columns),
+                ...(this.residueAa.length ? { residueAa: this.residueAa } : {}),
                 ...(this.name ? { selection: this.name } : {}),
             },
         });

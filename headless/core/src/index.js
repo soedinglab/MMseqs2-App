@@ -13,7 +13,8 @@ export {
 export { ResultTable, Row, Selection, SELECT_MAX } from './results.js';
 export {
     foldMasonColumns, foldMasonSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
-    msaResidueMap, residueTokens,
+    msaResidueMap, residueTokens, residueTokenPairs,
+    AMINO_ACIDS, SUBSTITUTION_CLASSES, substitutionKind,
     compressRanges, expandRanges, COLUMN_METRICS, MsaColumnSelection,
 } from './msa.js';
 export {
@@ -30,9 +31,9 @@ export {
     ARTIFACT_ID, URI_SCHEME,
 } from './artifacts.js';
 export {
-    collectArtifacts, fileAudit,
-    DEFAULT_TTL_SECONDS, DEFAULT_STALE_BUILD_SECONDS, DEFAULT_MAX_DELETIONS,
-} from './artifact-gc.js';
+    collectArtifacts, collectResultCache, fileAudit,
+    DEFAULT_TTL_SECONDS, DEFAULT_RESULT_TTL_SECONDS,
+} from './gc.js';
 export {
     normalizeEntry, resultCounts, resultRowCap, completenessOf, databaseProvenance,
     taxonomyExport, serializeRow, motifPatternExport, isComplexResult,

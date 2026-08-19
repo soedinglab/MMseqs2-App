@@ -360,7 +360,7 @@ export function createTools(client) {
 
         {
             name: 'select_msa_columns',
-            description: 'Name a set of alignment columns and see the motif they map to. ' +
+            description: 'Name a set of alignment columns and see the motif they derive. ' +
                          'Saved against the ticket, ready for send_to.',
             inputSchema: {
                 type: 'object',
@@ -376,14 +376,28 @@ export function createTools(client) {
                     entry: { type: 'number', description: 'Which entry the residues are read off; default 0.' },
                     columns: { type: 'array', items: { type: 'number' }, description: 'Column indices.' },
                     ranges: { type: 'array', items: { type: 'string' }, description: 'Columns as ranges, e.g. ["12-28"].' },
-                    motif: { type: 'string', description: 'Use this motif instead of the derived one; "" to derive again.' },
+                    residues: {
+                        type: 'array',
+                        description: 'Substitutions on selected columns: [{column, aa}]; aa null clears one.',
+                        items: {
+                            type: 'object',
+                            required: ['column'],
+                            properties: {
+                                column: { type: 'number' },
+                                aa: {
+                                    type: ['string', 'null'],
+                                    description: 'One of ACDEFGHIKLMNPQRSTVWYXpnhba',
+                                },
+                            },
+                        },
+                    },
                     fromName: { type: 'string', description: 'copy: the selection to copy.' },
                 },
             },
             async handler(args) {
-                const { ticketId, name = 'default', action = 'set', entry, columns, ranges, motif,
+                const { ticketId, name = 'default', action = 'set', entry, columns, ranges, residues,
                     fromName } = args;
-                refuseForeign(args, ['ids'], 'select_msa_columns');
+                refuseForeign(args, ['ids', 'motif'], 'select_msa_columns');
 
                 if (action === 'list') return { ticketId, selections: await client.listSelections(ticketId) };
                 if (action === 'delete') {
@@ -406,21 +420,28 @@ export function createTools(client) {
                 if (entry !== undefined) selection.setEntry(entry);
 
                 const picked = [...(columns ?? []), ...expandRanges(ranges ?? [])];
-                // An empty list is fine when the entry or motif is what changes; only a call that would
-                // do nothing at all is a mistake.
+                // An empty list is fine when the entry or a substitution is what changes; only a call
+                // that would do nothing at all is a mistake.
                 if (['set', 'add', 'remove'].includes(action) && picked.length === 0
-                    && entry === undefined && motif === undefined) {
+                    && entry === undefined && residues === undefined) {
                     throw coded('INVALID_INPUT',
                         `${action} needs columns or ranges; use "clear" to empty a selection`);
                 }
+                const annotated = selection.residueAa.map(r => r.column);
                 if (action === 'set') selection.setColumns(picked);
                 else if (action === 'add') selection.addColumns(picked);
                 else if (action === 'remove') selection.removeColumns(picked);
                 else if (action === 'clear') selection.setColumns([]);
 
-                if (motif !== undefined) selection.setMotif(motif);
+                const kept = new Set(selection.residueAa.map(r => r.column));
+                const orphaned = annotated.filter(c => !kept.has(c));
+
+                if (residues !== undefined) selection.setResidueAa(residues);
                 await selection.save(name);
-                return selection.describe();
+                return {
+                    ...selection.describe(),
+                    ...(orphaned.length ? { droppedSubstitutions: orphaned } : {}),
+                };
             },
         },
 
@@ -447,7 +468,7 @@ export function createTools(client) {
                     tool: { type: 'string', enum: DESTINATIONS, description: 'Destination.' },
                     databases: DATABASES,
                     mode: { type: 'string' },
-                    motif: { type: 'string', description: 'FoldDisco; defaults to the motif the source carries.' },
+                    motif: { type: 'string', description: 'FoldDisco, only when the source carries none.' },
                     taxFilter: { type: 'string' },
                     iterativeSearch: { type: 'boolean' },
                     includeQuery: {

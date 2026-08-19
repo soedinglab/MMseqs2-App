@@ -1,21 +1,20 @@
-// Deleting public artifacts, and nothing else.
-//
-// The only reachable root is the artifact directory, which is a sibling of the ticket cache rather
-// than its parent — so source results, ticket metadata and selections are not merely spared, they are
-// out of reach. Every candidate is re-validated immediately before the unlink, and every attempt is
-// audited whether it succeeded, was skipped, or failed.
+// Deleting derived state: public artifacts, and cached result payloads.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { ARTIFACT_ID } from './artifacts.js';
+import { ARTIFACT_ID, DEFAULT_ARTIFACT_TTL_SECONDS } from './artifacts.js';
 
 const BUILD_PREFIX = '.build-';
 const READY = 'READY';
 
-export const DEFAULT_TTL_SECONDS = 7200;
-export const DEFAULT_STALE_BUILD_SECONDS = 3600;
-export const DEFAULT_MAX_DELETIONS = 200;
+export const DEFAULT_TTL_SECONDS = DEFAULT_ARTIFACT_TTL_SECONDS;
+
+/** The expensive thing: a network round trip and a multi-MB parse, so it is kept for a day. */
+export const DEFAULT_RESULT_TTL_SECONDS = 86400;
+
+const DEFAULT_STALE_BUILD_SECONDS = 3600;
+const DEFAULT_MAX_DELETIONS = 200;
 
 export const DEFAULT_AUDIT_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -36,13 +35,6 @@ export function fileAudit(file, { maxBytes = DEFAULT_AUDIT_MAX_BYTES } = {}) {
 const ROUTINE_RESULTS = new Set(['kept']);
 const ROUTINE_REASONS = new Set(['WITHIN_TTL', 'BUILD_IN_PROGRESS', 'INCOMPLETE_RECENT']);
 
-/**
- * The newest timestamp anywhere in a build directory.
- *
- * A directory's own mtime only moves when an entry is added or removed — appending to an existing file
- * leaves it alone (measured). A build streaming one large row file for an hour would therefore look
- * abandoned if the directory alone were consulted.
- */
 async function newestMtimeMs(dir, depth = 2) {
     let newest = await fs.lstat(dir).then(s => s.mtimeMs).catch(() => 0);
     if (depth === 0) return newest;
@@ -56,6 +48,10 @@ async function newestMtimeMs(dir, depth = 2) {
         if (at > newest) newest = at;
     }
     return newest;
+}
+
+async function readdirSafe(dir, withFileTypes = false) {
+    try { return await fs.readdir(dir, { withFileTypes }); } catch { return []; }
 }
 
 async function directoryBytes(dir) {
@@ -72,10 +68,6 @@ async function directoryBytes(dir) {
     return total;
 }
 
-/**
- * Re-checked immediately before deletion rather than when the candidate was listed: the gap between
- * the two is where a swapped symlink would land.
- */
 async function refuseUnsafe(root, name) {
     if (!ARTIFACT_ID.test(name) && !name.startsWith(BUILD_PREFIX)) return 'UNRECOGNIZED_NAME';
     if (name.includes('/') || name.includes('\\') || name.includes('..') || path.isAbsolute(name)) {
@@ -142,7 +134,7 @@ export async function collectArtifacts(store, {
         if (!audit) return;
         const routine = ROUTINE_RESULTS.has(entry.result) && ROUTINE_REASONS.has(entry.reason);
         if (routine && !auditKeeps) return;
-        await audit({ ts: now.toISOString(), ...entry }).catch?.(() => {});
+        await audit({ ts: now.toISOString(), scope: 'artifacts', ...entry }).catch?.(() => {});
     };
 
     const candidates = [];
@@ -227,6 +219,140 @@ export async function collectArtifacts(store, {
             await fs.rm(candidate.dir, { recursive: true, force: true });
             report.deleted += 1;
             report.bytesReclaimed += bytes;
+            await record({ ...entry, result: 'deleted' });
+        } catch (err) {
+            report.errors += 1;
+            await record({ ...entry, result: 'error', error: err.message });
+        }
+    }
+
+    report.finishedAt = new Date(now.getTime()).toISOString();
+    return report;
+}
+
+const RESULT_PAYLOAD = /^(?:result-\d+|foldmason|folddisco)\.json$/;
+
+/** Re-checked immediately before the unlink, for the same reason the artifact sweep re-checks. */
+async function refuseUnsafePayload(root, relative) {
+    if (!RESULT_PAYLOAD.test(path.basename(relative))) return 'UNRECOGNIZED_NAME';
+    if (relative.includes('..')) return 'UNSAFE_NAME';
+    const full = path.join(root, relative);
+    let stat;
+    try { stat = await fs.lstat(full); } catch { return 'VANISHED'; }
+    if (stat.isSymbolicLink()) return 'SYMLINK';
+    if (!stat.isFile()) return 'NOT_A_FILE';
+    const realRoot = await fs.realpath(root);
+    if ((await fs.realpath(full)) !== path.join(realRoot, relative)) return 'ESCAPES_ROOT';
+    return null;
+}
+
+/**
+ * Expire cached result payloads under `<stateDir>/tickets/**`.
+ *
+ * @param {object} store  a Store
+ * @returns {Promise<object>} a report; never throws for a single unusable entry
+ */
+export async function collectResultCache(store, {
+    ttlSeconds = DEFAULT_RESULT_TTL_SECONDS,
+    maxDeletions = DEFAULT_MAX_DELETIONS,
+    dryRun = false,
+    audit = null,
+    auditKeeps = false,
+    now = new Date(),
+} = {}) {
+    const root = path.join(store.stateDir, 'tickets');
+    const report = {
+        startedAt: now.toISOString(),
+        dryRun,
+        examined: 0,
+        deleted: 0,
+        wouldDelete: 0,
+        kept: 0,
+        preserved: 0,
+        skipped: 0,
+        errors: 0,
+        bytesReclaimed: 0,
+        remaining: 0,
+        maxDeletions,
+    };
+
+    const record = async (entry) => {
+        if (!audit) return;
+        const routine = ROUTINE_RESULTS.has(entry.result) && ROUTINE_REASONS.has(entry.reason);
+        if (routine && !auditKeeps) return;
+        await audit({ ts: now.toISOString(), scope: 'results', ...entry }).catch?.(() => {});
+    };
+
+    const candidates = [];
+    for (const a of await readdirSafe(root)) {
+        for (const b of await readdirSafe(path.join(root, a))) {
+            for (const id of await readdirSafe(path.join(root, a, b))) {
+                for (const entry of await readdirSafe(path.join(root, a, b, id), true)) {
+                    if (!RESULT_PAYLOAD.test(entry.name)) {
+                        report.preserved += 1;
+                        continue;
+                    }
+                    const relative = path.join(a, b, id, entry.name);
+                    // A payload name that is not a plain file is a deliberate shape, so it is audited
+                    // rather than quietly counted as preserved.
+                    if (!entry.isFile()) {
+                        report.skipped += 1;
+                        await record({
+                            file: relative, result: 'skipped',
+                            reason: entry.isSymbolicLink() ? 'SYMLINK' : 'NOT_A_FILE',
+                        });
+                        continue;
+                    }
+                    report.examined += 1;
+                    let stat;
+                    try { stat = await fs.lstat(path.join(root, relative)); } catch { continue; }
+                    const age = (now.getTime() - stat.mtimeMs) / 1000;
+                    if (age <= ttlSeconds) {
+                        report.kept += 1;
+                        await record({
+                            file: relative, reason: 'WITHIN_TTL', result: 'kept',
+                            ageSeconds: Math.round(age),
+                        });
+                        continue;
+                    }
+                    candidates.push({ relative, age, bytes: stat.size, ticket: id });
+                }
+            }
+        }
+    }
+
+    candidates.sort((x, y) => y.age - x.age);
+
+    for (const candidate of candidates) {
+        if (report.deleted + report.wouldDelete >= maxDeletions) {
+            report.remaining += 1;
+            continue;
+        }
+        const unsafe = await refuseUnsafePayload(root, candidate.relative);
+        if (unsafe) {
+            report.skipped += 1;
+            await record({ file: candidate.relative, reason: unsafe, result: 'skipped' });
+            continue;
+        }
+
+        const entry = {
+            file: candidate.relative,
+            ticket: candidate.ticket,
+            reason: 'EXPIRED',
+            ageSeconds: Math.round(candidate.age),
+            bytes: candidate.bytes,
+        };
+        if (dryRun) {
+            report.wouldDelete += 1;
+            report.bytesReclaimed += candidate.bytes;
+            await record({ ...entry, result: 'would-delete' });
+            continue;
+        }
+        try {
+            // A single file, never a directory: the directory is what holds the metadata we keep.
+            await fs.rm(path.join(root, candidate.relative), { force: true });
+            report.deleted += 1;
+            report.bytesReclaimed += candidate.bytes;
             await record({ ...entry, result: 'deleted' });
         } catch (err) {
             report.errors += 1;

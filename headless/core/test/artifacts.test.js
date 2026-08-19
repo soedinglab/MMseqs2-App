@@ -33,7 +33,9 @@ const tmpDir = () => fsp.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-artifact-
 async function makeClient({ type = 'structuresearch', result = null, now = new Date('2026-08-18T00:00:00Z'),
     baseUrl = 'https://example.test', stateDir = null } = {}) {
     const clock = { at: now };
+    const fetched = [];
     const fetchImpl = async (url) => {
+        fetched.push(url);
         const body = url.includes('/ticket/type/') ? { type }
             : url.includes('/databases') ? CATALOG
                 : url.includes('/result/foldmason/') ? FOLDMASON
@@ -47,7 +49,7 @@ async function makeClient({ type = 'structuresearch', result = null, now = new D
         fetchImpl,
         artifacts: { clock: () => clock.at },
     });
-    return { client, clock };
+    return { client, clock, fetched };
 }
 
 const roles = descriptor => descriptor.files.map(f => f.role).sort();
@@ -198,7 +200,7 @@ test('a second export is a hit that rebuilds nothing and moves the access time',
     const after = await client.artifacts.lastAccessedAt(first.artifactId);
     assert.notEqual(after, before);
     assert.equal(after, '2026-08-18T01:30:00.000Z');
-    assert.equal(second.expiresAt, '2026-08-18T03:30:00.000Z', 'two hours from last access');
+    assert.equal(second.expiresAt, '2026-08-18T02:00:00.000Z', 'thirty minutes from last access');
 });
 
 test('an artifact that is not intact is never a hit', async () => {
@@ -351,19 +353,20 @@ test('the export-triggered sweep is throttled, and the marker survives a new cli
     const recorded = JSON.parse(fs.readFileSync(marker, 'utf8')).lastSweepAt;
 
     // A second export moments later must not walk the directory again.
-    const throttled = await first.client.collectArtifacts({ minIntervalSeconds: 600, audit });
+    const throttled = await first.client.collectGarbage({ minIntervalSeconds: 600, audit });
     assert.equal(throttled.throttled, true);
     assert.equal(throttled.lastSweepAt, recorded);
     assert.equal(sweeps.length, 0, 'nothing was examined, so nothing was audited');
 
     // A brand new client — a restarted server — reads the same marker rather than sweeping again.
     const second = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir });
-    assert.equal((await second.client.collectArtifacts({ minIntervalSeconds: 600 })).throttled, true);
+    assert.equal((await second.client.collectGarbage({ minIntervalSeconds: 600 })).throttled, true);
 
     // An explicit call always sweeps: that is what the operator mode and the startup sweep use.
-    const forced = await second.client.collectArtifacts();
+    const forced = await second.client.collectGarbage();
     assert.equal(forced.throttled, undefined);
-    assert.equal(forced.examined, 1);
+    assert.equal(forced.artifacts.examined, 1);
+    assert.equal(forced.results.examined, 1, 'one sweep covers both kinds of derived state');
 });
 
 test('a search that found nothing still exports, and says so', async () => {
@@ -394,4 +397,31 @@ test('a manifest that fails its own schema is never published', async () => {
     assert.equal(fs.existsSync(store.dirFor(id)), false);
     assert.deepEqual(fs.readdirSync(store.root).filter(n => n.startsWith('.build-')), [],
         'the scratch directory is removed too');
+});
+
+test('an expired artifact rebuilds from the cached result, without refetching it', async () => {
+    const stateDir = await tmpDir();
+    const now = new Date('2026-08-18T00:00:00Z');
+    const first = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir, now });
+    const built = await first.client.exportResult('T1abcd');
+    assert.ok(first.fetched.some(u => u.includes('/result/')), 'the first export did fetch the result');
+
+    // Past the 30-minute artifact TTL, well inside the 24-hour result TTL.
+    first.clock.at = new Date(now.getTime() + 45 * 60 * 1000);
+    const swept = await first.client.collectGarbage();
+    assert.equal(swept.artifacts.deleted, 1, 'the artifact expired');
+    assert.equal(swept.results.deleted, 0, 'the payload that produced it did not');
+
+    // A second client over the same state directory, so nothing is answered from memory.
+    const second = await makeClient({
+        result: load('foldseek-bfmd.raw.json'), stateDir, now: first.clock.at,
+    });
+    const rebuilt = await second.client.exportResult('T1abcd');
+
+    assert.equal(rebuilt.artifactId, built.artifactId, 'same inputs, same handle');
+    assert.equal(rebuilt.counts.parsedRows, built.counts.parsedRows);
+    assert.deepEqual(second.fetched.filter(u => u.includes('/result/')), [],
+        'the expensive fetch and parse came off disk — which is what makes a 30-minute TTL cheap');
+    assert.deepEqual(second.fetched.map(u => u.replace('https://example.test', '')), ['/api/databases'],
+        'only the database catalog, which is ~1 KB and memoised for the process');
 });

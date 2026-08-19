@@ -29,6 +29,31 @@ function intFromEnv(env, name, { fallback, min, max }) {
     return value;
 }
 
+const DURATION_UNITS = { s: 1, m: 60, h: 3600, d: 86400 };
+
+/**
+ * A duration from the environment: `90s`, `30m`, `24h`, `7d`, or a bare integer of seconds. Range
+ * given in seconds; a refusal names the variable and the range in the same units the operator wrote.
+ */
+export function parseDuration(raw, { min, max, name = 'duration' }) {
+    const refuse = () => {
+        throw new Error(`${name}=${JSON.stringify(raw)} is not usable — expected a duration like ` +
+                        `30m, 24h, 7d or a plain number of seconds, between ${min} and ${max} seconds`);
+    };
+    if (typeof raw !== 'string') refuse();
+    const match = /^(\d+)([smhd]?)$/.exec(raw.trim());
+    if (!match) refuse();
+    const value = Number(match[1]) * DURATION_UNITS[match[2] || 's'];
+    if (!Number.isSafeInteger(value) || value < min || value > max) refuse();
+    return value;
+}
+
+function durationFromEnv(env, name, { fallback, min, max }) {
+    const raw = env[name];
+    if (raw === undefined || raw === '') return fallback;
+    return parseDuration(raw, { min, max, name });
+}
+
 function boolFromEnv(env, name, fallback) {
     const raw = env[name];
     if (raw === undefined || raw === '') return fallback;
@@ -55,16 +80,12 @@ export function readConfigFromEnv(env = process.env) {
         basicAuth: user ? { user, pass: pass ?? '' } : null,
         resultRowCap: intFromEnv(env, 'MMSEQS2_AGENT_RESULT_ROW_CAP',
             { fallback: null, min: 1, max: 1000000 }),
+        resultTtlSeconds: durationFromEnv(env, 'MMSEQS2_AGENT_RESULT_TTL',
+            { fallback: 86400, min: 60, max: 2592000 }),
         artifacts: {
-            ttlSeconds: intFromEnv(env, 'MMSEQS2_AGENT_ARTIFACT_TTL_SECONDS',
-                { fallback: 7200, min: 300, max: 604800 }),
-            staleBuildSeconds: intFromEnv(env, 'MMSEQS2_AGENT_ARTIFACT_STALE_BUILD_SECONDS',
-                { fallback: 3600, min: 60, max: 86400 }),
-            maxDeletions: intFromEnv(env, 'MMSEQS2_AGENT_ARTIFACT_GC_MAX_DELETIONS',
-                { fallback: 200, min: 1, max: 10000 }),
-            gcMinIntervalSeconds: intFromEnv(env, 'MMSEQS2_AGENT_ARTIFACT_GC_MIN_INTERVAL_SECONDS',
-                { fallback: 600, min: 0, max: 86400 }),
-            exposeLocalPaths: boolFromEnv(env, 'MMSEQS2_AGENT_ARTIFACT_LOCAL_PATHS', true),
+            ttlSeconds: durationFromEnv(env, 'MMSEQS2_AGENT_ARTIFACT_TTL',
+                { fallback: 1800, min: 60, max: 604800 }),
+            exposeLocalPaths: boolFromEnv(env, 'MMSEQS2_AGENT_LOCAL_PATHS', true),
         },
     };
 }
@@ -128,11 +149,13 @@ export async function main(env = process.env) {
 
     // After the transport is up, so a slow sweep never delays the handshake, and to stderr only —
     // stdout is the protocol stream.
-    client.collectArtifacts()
-        .then((report) => {
-            if (report.deleted || report.errors) {
-                process.stderr.write(`mmseqs2-agent: startup GC removed ${report.deleted} artifact(s), ` +
-                                     `${report.errors} error(s)\n`);
+    client.collectGarbage()
+        .then(({ artifacts, results }) => {
+            if (artifacts.deleted || results.deleted || artifacts.errors || results.errors) {
+                process.stderr.write(
+                    `mmseqs2-agent: startup GC removed ${artifacts.deleted} artifact(s) and ` +
+                    `${results.deleted} cached result(s), ` +
+                    `${artifacts.errors + results.errors} error(s)\n`);
             }
         })
         .catch(err => process.stderr.write(`mmseqs2-agent: startup GC failed: ${err.message}\n`));
@@ -142,7 +165,7 @@ export async function main(env = process.env) {
 export async function runGc(env = process.env, { dryRun = false } = {}) {
     const { client } = createServer(readConfigFromEnv(env));
     // An operator asked, so report the routine keeps too — the running server never writes those.
-    const report = await client.collectArtifacts({ dryRun, auditKeeps: true });
+    const report = await client.collectGarbage({ dryRun, auditKeeps: true });
     process.stderr.write(`${JSON.stringify(report, null, 2)}\n`);
     return report;
 }

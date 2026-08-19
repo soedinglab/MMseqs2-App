@@ -84,7 +84,7 @@ async function stubClient(overrides = {}) {
             if (!rec) return null;
             return new MsaColumnSelection(client, ALIGNMENT, {
                 ticket, name, entry: rec.entry ?? 0, columns: rec.columns ?? [],
-                motif: rec.motif ?? null, savedAt: rec.updatedAt,
+                residueAa: rec.residueAa ?? [], savedAt: rec.updatedAt,
             });
         },
         listSelections(t) { return store.listSelections(t); },
@@ -204,7 +204,7 @@ test('select_msa_columns takes ranges in the form the summary prints them', asyn
     assert.ok(out.savedAt);
 });
 
-test('select_msa_columns can move to another entry and override the motif', async () => {
+test('select_msa_columns can move to another entry, and the motif follows the columns', async () => {
     const { tools } = await toolsFor();
     await runTool(tools, 'select_msa_columns', { ticketId: 'FMTICKET1', entry: 1, columns: [0, 1, 4] });
 
@@ -212,9 +212,37 @@ test('select_msa_columns can move to another entry and override the motif', asyn
     assert.equal(moved.entry, 0);
     assert.equal(moved.motif, 'A1, A2, B1', 'the same columns, read off the dimer');
 
-    const overridden = await runTool(tools, 'select_msa_columns', { ticketId: 'FMTICKET1', action: 'add', motif: 'B1' });
-    assert.equal(overridden.motif, 'B1');
-    assert.equal(overridden.motifSource, 'override');
+    // `motif` is not an argument here. It is dropped, not honoured: the columns are the motif.
+    const ignored = await runTool(tools, 'select_msa_columns',
+        { ticketId: 'FMTICKET1', action: 'add', entry: 0, motif: 'B1' });
+    assert.equal(ignored.motif, 'A1, A2, B1', 'a passed motif changes nothing');
+});
+
+test('select_msa_columns designates substitutions per column, and they persist', async () => {
+    const { tools } = await toolsFor();
+    await runTool(tools, 'select_msa_columns', { ticketId: 'FMTICKET1', entry: 0, columns: [0, 1, 4] });
+
+    const set = await runTool(tools, 'select_msa_columns', {
+        ticketId: 'FMTICKET1', action: 'add', residues: [{ column: 4, aa: 'b' }],
+    });
+    assert.equal(set.motif, 'A1, A2, B1:b');
+    assert.equal(set.residueMapping, '0->A1, 1->A2, 4->B1(M):b');
+    assert.equal(set.substitutions, undefined, 'the per-column array is gone; the line replaces it');
+
+    const reread = await runTool(tools, 'select_msa_columns', { ticketId: 'FMTICKET1', action: 'describe' });
+    assert.equal(reread.motif, 'A1, A2, B1:b');
+
+    const bad = await runTool(tools, 'select_msa_columns', {
+        ticketId: 'FMTICKET1', action: 'add', residues: [{ column: 4, aa: 'z' }],
+    });
+    assert.equal(bad.code, 'INVALID_INPUT');
+
+    // Removing the column takes the substitution with it, and says which.
+    const removed = await runTool(tools, 'select_msa_columns', {
+        ticketId: 'FMTICKET1', action: 'remove', columns: [4],
+    });
+    assert.deepEqual(removed.droppedSubstitutions, [4]);
+    assert.equal(removed.motif, 'A1, A2');
 });
 
 // -------------------------------------------------------------------------------------------------
@@ -264,6 +292,28 @@ test('send_to forwards a column selection to FoldDisco with the motif it derived
     const [submitted] = client.submitted();
     assert.equal(submitted.name, 'submitFoldDisco');
     assert.equal(submitted.args[0].motif, 'A1, A2, B1');
+    assert.equal(out.derivedFrom.motifSource, 'columns');
+});
+
+test('send_to takes a motif only from a source that has none', async () => {
+    const { client, tools } = await toolsFor();
+    await runTool(tools, 'select_msa_columns', { ticketId: 'FMTICKET1', entry: 0, columns: [0, 1, 4] });
+
+    const refused = await runTool(tools, 'send_to', {
+        from: { type: 'msaColumns', ticketId: 'FMTICKET1' },
+        tool: 'folddisco', databases: ['pdb_folddisco'], motif: 'A9, A10',
+    });
+    assert.equal(refused.code, 'INVALID_INPUT');
+    assert.match(refused.error, /already carries a motif/);
+
+    // A Foldseek hit has no matched residues, so forwarding one to FoldDisco needs a motif given.
+    const accepted = await runTool(tools, 'send_to', {
+        from: { type: 'row', ticketId: 'TICKET1', rowId: '0#1' },
+        tool: 'folddisco', databases: ['pdb_folddisco'], motif: 'A1',
+    });
+    assert.equal(accepted.ticketId, 'FDTICKET1');
+    assert.equal(accepted.derivedFrom.motifSource, 'caller');
+    assert.equal(client.submitted().at(-1).args[0].motif, 'A1');
 });
 
 test('foldseek_search loads an accession instead of taking query text', async () => {

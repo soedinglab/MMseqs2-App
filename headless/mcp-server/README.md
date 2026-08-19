@@ -15,14 +15,18 @@ Environment only, no config file. Startup errors go to stderr — stdout is the 
 | `MMSEQS2_AGENT_STATE_DIR` | `~/.mmseqs2-agent` | ticket cache, selections, artifacts |
 | `MMSEQS2_AGENT_API_PATH` | `/api` | for a deployment using `config.Server.PathPrefix` |
 | `MMSEQS2_AGENT_BASIC_AUTH_USER` / `_PASS` | — | |
-| `MMSEQS2_AGENT_ARTIFACT_TTL_SECONDS` | `7200` | 300 … 604800 |
-| `MMSEQS2_AGENT_ARTIFACT_STALE_BUILD_SECONDS` | `3600` | 60 … 86400 |
-| `MMSEQS2_AGENT_ARTIFACT_GC_MAX_DELETIONS` | `200` | 1 … 10000 |
-| `MMSEQS2_AGENT_ARTIFACT_GC_MIN_INTERVAL_SECONDS` | `600` | 0 … 86400; 0 sweeps on every export |
-| `MMSEQS2_AGENT_ARTIFACT_LOCAL_PATHS` | `1` | `0` withholds local paths from descriptors |
+| `MMSEQS2_AGENT_ARTIFACT_TTL` | `30m` | how long an exported artifact survives after last access; `1m` … `7d` |
+| `MMSEQS2_AGENT_RESULT_TTL` | `24h` | how long a cached result payload survives after last use; `1m` … `30d` |
+| `MMSEQS2_AGENT_LOCAL_PATHS` | `1` | `0` withholds local paths from descriptors |
 | `MMSEQS2_AGENT_RESULT_ROW_CAP` | unset | 1 … 1000000; overrides the search saturation cap |
 
-Out-of-range values fail at startup naming the variable and its range, rather than being clamped.
+Ten variables, one required. Both TTLs take a duration — `90s`, `30m`, `24h`, `7d` — or a plain number
+of seconds. Out-of-range values fail at startup naming the variable and its range, rather than being
+clamped.
+
+Derived data expires fast, fetched data slowly. An artifact is rebuilt from the cached parse in
+milliseconds, so thirty minutes costs nothing; the cached parse itself is a network round trip and a
+multi-MB parse, so it is kept for a day. `ticket.json` and `selections.json` never expire.
 
 ```bash
 claude mcp add mmseqs2-agent -- node /path/to/headless/mcp-server/bin/mmseqs2-agent-mcp.js
@@ -96,6 +100,47 @@ Named, saved against the ticket, and durable across restarts. The convention:
 
 Copying never overwrites, and the copy is independent in both directions. Revise by copying again.
 
+## Motifs and substitutions
+
+A column selection's motif is always derived from `(entry, columns)`. There is no way to set one
+directly, because an override lets the recorded columns and the searched motif disagree — and the
+point of recording columns is that `msa/residue-map.jsonl` in the artifact reproduces the motif with
+no server involved.
+
+To ask for something other than the residue that is there, annotate the column:
+
+```jsonc
+select_msa_columns { ticketId, ranges: ["20-32"], residues: [{ "column": 23, "aa": "b" }] }
+// -> motif          "A17, A18, A19, A20:b, …"
+// -> residueMapping "20->A17, 21->A18, 22->A19, 23->A20(F):b, …"
+```
+
+`residueMapping` is the whole correspondence on one line: column, the token it resolved to, and — only
+where a substitution asks for something else — the residue actually there in parentheses. `23->A20(F):b`
+reads "column 23 is A20, which is phenylalanine, and hydrophobic was asked for", so a slip is visible
+without a field per annotation. It is capped at 32 entries (`, +N more`); `selectedColumns` always
+carries the complete list, compressed.
+
+| `aa` | meaning |
+|---|---|
+| `A` `C` `D` `E` `F` `G` `H` `I` `K` `L` `M` `N` `P` `Q` `R` `S` `T` `V` `W` `Y` | that amino acid |
+| `X` | any amino acid |
+| `p` `n` `h` `b` `a` | positively charged, negatively charged, hydrophilic, hydrophobic, aromatic |
+| `null` | clear the annotation |
+
+**Case is significant and never normalised.** Four group codes collide with a real amino acid when the
+case flips — `a`/`A` aromatic vs alanine, `n`/`N` negative vs asparagine, `h`/`H` hydrophilic vs
+histidine, `p`/`P` positive vs proline.
+
+The column must already be selected. An annotation on a column that is a gap *in the current entry* is
+kept and simply absent from the motif, shown as `23->gap:Y` — exactly how a selected gap column already
+behaves; switching entry re-resolves both. Deselecting a column drops its annotation and says so, in
+`droppedSubstitutions`.
+
+A whole hand-written motif goes to `folddisco_search` directly. `send_to` accepts `motif` only when the
+source carries none — a Foldseek hit has no matched residues, so forwarding one to FoldDisco needs one
+given. `derivedFrom.motifSource` records which of the three it was: `columns`, `hit` or `caller`.
+
 ## Errors
 
 Two kinds, reported two ways.
@@ -114,9 +159,14 @@ mmseqs2-agent-mcp --gc --dry-run     # what would be collected, and why
 mmseqs2-agent-mcp --gc               # collect it
 ```
 
-Both print a report to stderr and exit without starting a server. Artifacts expire two hours after
-last access; the sweep is bounded, audited to `<stateDir>/artifact-gc-audit.jsonl` (rotated at 4 MB),
-and cannot reach the ticket cache or selections, which live outside the directory it walks.
+Both print one report to stderr — `{ artifacts, results }` — and exit without starting a server. Each
+sweep is bounded and audited to `<stateDir>/artifact-gc-audit.jsonl` (rotated at 4 MB), with a `scope`
+field saying which collector wrote the line.
+
+The artifact sweep cannot reach the ticket cache: its root is a sibling of it, not its parent. The
+result sweep does walk `tickets/**`, and buys the guarantee back differently — it removes only files
+named `result-<entry>.json`, `foldmason.json` or `folddisco.json`, it never removes a directory, and
+`ticket.json` and `selections.json` are not candidates at any age.
 
 ## Tests
 

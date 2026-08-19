@@ -170,49 +170,51 @@ test('e2e: the server refuses to start without a base URL', { skip: !LIVE }, asy
     assert.match(stderr, /MMSEQS2_AGENT_BASE_URL is required/);
 });
 
-// --- artifact configuration: range-checked at startup, never silently clamped -------------------
+// --- configuration: two durations, range-checked at startup, never silently clamped --------------
 
-test('artifact settings default, and are refused outside their range', () => {
+test('the TTLs default, take duration strings, and are refused outside their range', () => {
     const base = { MMSEQS2_AGENT_BASE_URL: 'https://example.test' };
 
     const defaults = readConfigFromEnv(base);
-    assert.deepEqual(defaults.artifacts, {
-        ttlSeconds: 7200, staleBuildSeconds: 3600, maxDeletions: 200,
-        gcMinIntervalSeconds: 600, exposeLocalPaths: true,
-    });
+    assert.deepEqual(defaults.artifacts, { ttlSeconds: 1800, exposeLocalPaths: true });
+    assert.equal(defaults.resultTtlSeconds, 86400);
     assert.equal(defaults.resultRowCap, null, 'the row cap is only set deliberately');
+
+    // Derived data expires fast, fetched data slowly — thirty minutes against a day.
+    assert.ok(defaults.artifacts.ttlSeconds < defaults.resultTtlSeconds);
 
     const tuned = readConfigFromEnv({
         ...base,
-        MMSEQS2_AGENT_ARTIFACT_TTL_SECONDS: '600',
-        MMSEQS2_AGENT_ARTIFACT_STALE_BUILD_SECONDS: '120',
-        MMSEQS2_AGENT_ARTIFACT_GC_MAX_DELETIONS: '10',
-        MMSEQS2_AGENT_ARTIFACT_GC_MIN_INTERVAL_SECONDS: '0',
-        MMSEQS2_AGENT_ARTIFACT_LOCAL_PATHS: '0',
+        MMSEQS2_AGENT_ARTIFACT_TTL: '90s',
+        MMSEQS2_AGENT_RESULT_TTL: '7d',
+        MMSEQS2_AGENT_LOCAL_PATHS: '0',
         MMSEQS2_AGENT_RESULT_ROW_CAP: '500',
     });
-    assert.deepEqual(tuned.artifacts, {
-        ttlSeconds: 600, staleBuildSeconds: 120, maxDeletions: 10,
-        gcMinIntervalSeconds: 0, exposeLocalPaths: false,
-    });
+    assert.deepEqual(tuned.artifacts, { ttlSeconds: 90, exposeLocalPaths: false });
+    assert.equal(tuned.resultTtlSeconds, 7 * 86400);
     assert.equal(tuned.resultRowCap, 500);
 
+    for (const [raw, seconds] of [['600', 600], ['30m', 1800], ['2h', 7200], ['1d', 86400]]) {
+        assert.equal(readConfigFromEnv({ ...base, MMSEQS2_AGENT_ARTIFACT_TTL: raw }).artifacts.ttlSeconds,
+            seconds, `${raw} should parse`);
+    }
+
     const outOfRange = {
-        MMSEQS2_AGENT_ARTIFACT_TTL_SECONDS: ['299', '604801', '0', '-1', 'soon', '7200.5'],
-        MMSEQS2_AGENT_ARTIFACT_STALE_BUILD_SECONDS: ['59', '86401'],
-        MMSEQS2_AGENT_ARTIFACT_GC_MAX_DELETIONS: ['0', '10001'],
+        MMSEQS2_AGENT_ARTIFACT_TTL: ['59', '8d', '0', '-1', 'soon', '30.5m', '30 m', '1w', ''],
+        MMSEQS2_AGENT_RESULT_TTL: ['30s', '31d'],
         MMSEQS2_AGENT_RESULT_ROW_CAP: ['0', '-5'],
-        MMSEQS2_AGENT_ARTIFACT_GC_MIN_INTERVAL_SECONDS: ['-1', '86401'],
     };
     for (const [name, values] of Object.entries(outOfRange)) {
         for (const value of values) {
+            if (value === '') continue;                 // empty means unset, which is the default
             assert.throws(() => readConfigFromEnv({ ...base, [name]: value }),
                 err => err.message.includes(name) && /between \d+ and \d+/.test(err.message),
                 `${name}=${value} should name the variable and its range`);
         }
     }
-    assert.throws(() => readConfigFromEnv({ ...base, MMSEQS2_AGENT_ARTIFACT_LOCAL_PATHS: 'maybe' }),
-        /MMSEQS2_AGENT_ARTIFACT_LOCAL_PATHS/);
+    assert.equal(readConfigFromEnv({ ...base, MMSEQS2_AGENT_ARTIFACT_TTL: '' }).artifacts.ttlSeconds, 1800);
+    assert.throws(() => readConfigFromEnv({ ...base, MMSEQS2_AGENT_LOCAL_PATHS: 'maybe' }),
+        /MMSEQS2_AGENT_LOCAL_PATHS/);
 });
 
 test('the eleven tools and the resource capability survive a real handshake, and stdout stays clean', async () => {

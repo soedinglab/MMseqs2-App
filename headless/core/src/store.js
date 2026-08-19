@@ -115,8 +115,14 @@ export class Store {
         return path.join(this.ticketDir(id), `result-${entry}.json`);
     }
 
-    readResult(id, kind, entry = 0) {
-        return this.#readJson(this.#resultFile(id, kind, entry));
+    async readResult(id, kind, entry = 0) {
+        const file = this.#resultFile(id, kind, entry);
+        const value = await this.#readJson(file);
+        if (value !== null) {
+            const at = new Date();
+            await fs.utimes(file, at, at).catch(() => {});
+        }
+        return value;
     }
 
     writeResult(id, kind, entry, value) {

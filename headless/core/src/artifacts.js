@@ -19,6 +19,8 @@ import {
 import { foldMasonColumns, foldMasonEntries, foldMasonFasta, msaResidueMap } from './msa.js';
 
 export const ARTIFACT_ID = /^[0-9a-f]{64}$/;
+export const DEFAULT_ARTIFACT_TTL_SECONDS = 1800;
+
 export const URI_SCHEME = 'mmseqs2-artifact';
 
 const READY = 'READY';
@@ -83,7 +85,7 @@ async function endsWithNewline(file, size) {
 export function createArtifactStore({
     root,
     clock = () => new Date(),
-    ttlSeconds = 7200,
+    ttlSeconds = DEFAULT_ARTIFACT_TTL_SECONDS,
     exposeLocalPaths = true,
     verifyRows = false,
 } = {}) {

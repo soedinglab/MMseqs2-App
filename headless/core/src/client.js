@@ -42,7 +42,10 @@ import { SubmittableQuery } from './submit.js';
 import { TERMINAL_STATUSES, kindForJobType, normalizeEntry } from './facts.js';
 import { resultSummary, notReadySummary } from './summary.js';
 import { createArtifactStore, artifactCacheKey, artifactWriter, serverNamespaceFor } from './artifacts.js';
-import { collectArtifacts as sweepArtifacts, fileAudit } from './artifact-gc.js';
+import {
+    collectArtifacts as sweepArtifacts, collectResultCache as sweepResultCache, fileAudit,
+    DEFAULT_RESULT_TTL_SECONDS,
+} from './gc.js';
 import { getChainName } from '../../../frontend/lib/targetName.js';
 import { listChains } from '../../../frontend/lib/structureText.js';
 import { mockPDB, encodeMultimer } from '../../../frontend/lib/pdbAssembly.js';
@@ -55,7 +58,7 @@ export const FOLDMASON_MIN_FILES = 2;
 
 /** How many parsed results to keep in memory at once. Each can be several MB. */
 const PARSED_CACHE_SIZE = 16;
-const DEFAULT_GC_MIN_INTERVAL_SECONDS = 600;
+const GC_MIN_INTERVAL_SECONDS = 600;
 
 const VALID_TAX_FILTER = /^[0-9]+(,!?[0-9]+)*$|^$/;
 
@@ -114,6 +117,7 @@ export function createClient({
     fetchImpl = globalThis.fetch,
     onWarning = null,
     resultRowCap = null,
+    resultTtlSeconds = DEFAULT_RESULT_TTL_SECONDS,
     artifacts = {},
 } = {}) {
     // Never default this. A wrong-but-plausible default would send someone's structures to a public
@@ -147,11 +151,8 @@ export function createClient({
     // Outside the artifact root on purpose: the GC never has to decide whether its own log is an
     // artifact.
     const gcOptions = {
-        staleBuildSeconds: artifacts.staleBuildSeconds,
-        maxDeletions: artifacts.maxDeletions,
         audit: artifacts.audit ?? fileAudit(path.join(stateDir, 'artifact-gc-audit.jsonl')),
     };
-    const gcMinIntervalSeconds = artifacts.gcMinIntervalSeconds ?? DEFAULT_GC_MIN_INTERVAL_SECONDS;
     const gcStateFile = path.join(stateDir, 'artifact-gc-state.json');
     let databasesPromise = null;
 
@@ -420,7 +421,7 @@ export function createClient({
                 ticket, name,
                 entry: record.entry ?? 0,
                 columns: record.columns ?? [],
-                motif: record.motif ?? null,
+                residueAa: record.residueAa ?? [],
                 savedAt: record.updatedAt,
             });
         },
@@ -667,19 +668,20 @@ export function createClient({
                 configuredCap: resultRowCap,
                 clock: artifactStore.now,
             }));
-            await client.collectArtifacts({ minIntervalSeconds: gcMinIntervalSeconds })
-                .catch(err => onWarning?.(`artifact GC failed: ${err.message}`));
+            await client.collectGarbage({ minIntervalSeconds: GC_MIN_INTERVAL_SECONDS })
+                .catch(err => onWarning?.(`GC failed: ${err.message}`));
             return artifactStore.descriptor(manifest, { cacheHit });
         },
 
         /**
-         * Delete expired public artifacts. Touches nothing under tickets/.
+         * Expire both kinds of derived state on one clock each.
          *
-         * `minIntervalSeconds` skips the walk entirely when the last sweep is recent; the marker lives
-         * outside the artifact root and survives a restart. An explicit call (operator, startup, tests)
-         * passes 0 and always sweeps.
+         * `minIntervalSeconds` skips both walks when the last sweep is recent; the marker lives outside
+         * the artifact root and survives a restart. An explicit call (operator, startup, tests) passes
+         * 0 and always sweeps.
          */
-        async collectArtifacts({ minIntervalSeconds = 0, ...opts } = {}) {
+        async collectGarbage({ minIntervalSeconds = 0, dryRun = false, auditKeeps = false,
+            audit = undefined } = {}) {
             const now = artifactStore.now();
             if (minIntervalSeconds > 0) {
                 const last = await fsp.readFile(gcStateFile, 'utf8')
@@ -694,7 +696,11 @@ export function createClient({
                     };
                 }
             }
-            const report = await sweepArtifacts(artifactStore, { ...gcOptions, ...opts, now });
+            const shared = { ...gcOptions, ...(audit ? { audit } : {}), dryRun, auditKeeps, now };
+            const report = {
+                artifacts: await sweepArtifacts(artifactStore, shared),
+                results: await sweepResultCache(store, { ...shared, ttlSeconds: resultTtlSeconds }),
+            };
             await fsp.writeFile(gcStateFile, JSON.stringify({ lastSweepAt: now.toISOString() }))
                 .catch(err => onWarning?.(`could not record the GC sweep time: ${err.message}`));
             return report;

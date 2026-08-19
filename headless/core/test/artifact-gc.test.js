@@ -7,7 +7,7 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { createArtifactStore, collectArtifacts, fileAudit } from '../src/index.js';
+import { createArtifactStore, collectArtifacts, collectResultCache, fileAudit, Store } from '../src/index.js';
 
 const HOUR = 3600 * 1000;
 const id = n => String(n).repeat(64).slice(0, 64);
@@ -294,4 +294,157 @@ test('a build streaming into one file is not mistaken for an abandoned one', asy
     await fsp.utimes(rows, old, old);
     assert.equal((await collectArtifacts(store)).deleted, 1);
     assert.equal(fs.existsSync(scratch), false);
+});
+
+// -------------------------------------------------------------------------------------------------
+// The result cache, which is walked rather than structurally out of reach — so every test here
+// asserts what stayed as well as what went.
+// -------------------------------------------------------------------------------------------------
+
+/** A ticket directory holding the four kinds of file, each with a chosen age. */
+async function ticketCache({ hoursAgo = 0, now = new Date(), id: ticket = 'ABcdEFgh12345678' } = {}) {
+    const stateDir = await tmpDir();
+    const store = new Store(stateDir);
+    const dir = store.ticketDir(ticket);
+    await fsp.mkdir(dir, { recursive: true });
+
+    const at = new Date(now.getTime() - hoursAgo * HOUR);
+    const payloads = ['result-0.json', 'result-12.json', 'foldmason.json', 'folddisco.json'];
+    for (const name of payloads) {
+        await fsp.writeFile(path.join(dir, name), JSON.stringify({ rows: [1, 2, 3] }));
+        await fsp.utimes(path.join(dir, name), at, at);
+    }
+    await fsp.writeFile(path.join(dir, 'ticket.json'), JSON.stringify({ id: ticket, kind: 'search' }));
+    await fsp.writeFile(path.join(dir, 'selections.json'), JSON.stringify({ keep: { ids: ['0#1'] } }));
+    for (const name of ['ticket.json', 'selections.json']) {
+        await fsp.utimes(path.join(dir, name), at, at);
+    }
+
+    const lines = [];
+    return {
+        stateDir, store, dir, ticket, payloads, lines,
+        audit: async e => { lines.push(e); },
+        bytes: name => fs.statSync(path.join(dir, name)).size,
+        read: name => fs.readFileSync(path.join(dir, name), 'utf8'),
+    };
+}
+
+test('an expired result payload goes and a fresh one stays', async () => {
+    const now = new Date();
+    const { store, dir, audit, lines } = await ticketCache({ hoursAgo: 25, now });
+    const fresh = path.join(dir, 'result-1.json');
+    await fsp.writeFile(fresh, '{}');
+
+    const report = await collectResultCache(store, { now, audit });
+
+    assert.equal(report.deleted, 4);
+    assert.equal(report.kept, 1);
+    assert.equal(exists(fresh), true);
+    for (const name of ['result-0.json', 'result-12.json', 'foldmason.json', 'folddisco.json']) {
+        assert.equal(exists(path.join(dir, name)), false, `${name} is 25 hours old, the TTL is 24`);
+    }
+    const deleted = lines.find(l => l.result === 'deleted');
+    assert.equal(deleted.scope, 'results');
+    assert.equal(deleted.reason, 'EXPIRED');
+    assert.ok(deleted.bytes > 0 && deleted.ageSeconds >= 86400 && deleted.file && deleted.ticket);
+});
+
+test('ticket metadata and selections come out of a sweep byte-identical', async () => {
+    const now = new Date();
+    const { store, read } = await ticketCache({ hoursAgo: 400, now });
+    const before = { ticket: read('ticket.json'), selections: read('selections.json') };
+
+    const report = await collectResultCache(store, { now });
+
+    assert.equal(report.deleted, 4, 'the payloads were removed, so the sweep did run');
+    assert.equal(report.preserved, 2, 'and it saw the two files it may not touch');
+    assert.equal(read('ticket.json'), before.ticket);
+    assert.equal(read('selections.json'), before.selections);
+});
+
+test('a sweep never removes a directory, however empty it leaves it', async () => {
+    const now = new Date();
+    const { store, stateDir, dir } = await ticketCache({ hoursAgo: 400, now });
+    for (const name of ['ticket.json', 'selections.json']) await fsp.rm(path.join(dir, name));
+
+    await collectResultCache(store, { now });
+
+    assert.deepEqual(fs.readdirSync(dir), [], 'every payload went');
+    assert.equal(exists(dir), true, 'the directory itself stays: the layout is not ours to prune');
+    assert.equal(exists(path.join(stateDir, 'tickets')), true);
+});
+
+test('a payload read inside the window survives the next sweep', async () => {
+    const now = new Date();
+    const { store, dir, ticket } = await ticketCache({ hoursAgo: 30, now });
+
+    // Reading is what resets the clock: the TTL is since last use, not since fetch.
+    assert.ok(await store.readResult(ticket, 'search', 0));
+
+    const report = await collectResultCache(store, { now });
+    assert.equal(exists(path.join(dir, 'result-0.json')), true, 'it was just used');
+    assert.equal(report.kept, 1);
+    assert.equal(report.deleted, 3, 'the ones nobody read still expired');
+});
+
+test('a dry run reports and deletes nothing', async () => {
+    const now = new Date();
+    const { store, dir, audit, lines } = await ticketCache({ hoursAgo: 400, now });
+
+    const report = await collectResultCache(store, { now, dryRun: true, audit });
+
+    assert.equal(report.deleted, 0);
+    assert.equal(report.wouldDelete, 4);
+    assert.ok(report.bytesReclaimed > 0);
+    assert.equal(fs.readdirSync(dir).length, 6, 'nothing was removed');
+    assert.equal(lines.every(l => l.result === 'would-delete'), true);
+});
+
+test('the result TTL is a threshold, and the sweep is bounded', async () => {
+    // A second either side, rather than exactly on the boundary: an mtime comes from the filesystem,
+    // whose timestamp precision is not ours to assert.
+    const now = new Date();
+    const { store, dir } = await ticketCache({ hoursAgo: 0, now });
+    const at = seconds => new Date(now.getTime() - seconds * 1000);
+    await fsp.utimes(path.join(dir, 'result-0.json'), at(86399), at(86399));
+    await fsp.utimes(path.join(dir, 'result-12.json'), at(86401), at(86401));
+
+    const report = await collectResultCache(store, { now });
+    assert.equal(exists(path.join(dir, 'result-0.json')), true, 'a second inside the TTL stays');
+    assert.equal(exists(path.join(dir, 'result-12.json')), false, 'a second outside it goes');
+    assert.equal(report.deleted, 1);
+
+    const many = await ticketCache({ hoursAgo: 400, now });
+    const bounded = await collectResultCache(many.store, { now, maxDeletions: 2 });
+    assert.equal(bounded.deleted, 2);
+    assert.equal(bounded.remaining, 2);
+});
+
+test('a payload name that is a symlink or a directory is refused, not followed', async () => {
+    const now = new Date();
+    const { store, dir, audit, lines } = await ticketCache({ hoursAgo: 400, now });
+    const outside = path.join(await tmpDir(), 'precious.json');
+    await fsp.writeFile(outside, 'do not delete me');
+
+    await fsp.rm(path.join(dir, 'result-0.json'));
+    await fsp.symlink(outside, path.join(dir, 'result-0.json'));
+    await fsp.rm(path.join(dir, 'foldmason.json'));
+    await fsp.mkdir(path.join(dir, 'foldmason.json'));
+    const old = new Date(now.getTime() - 400 * HOUR);
+    await fsp.lutimes(path.join(dir, 'result-0.json'), old, old);
+    await fsp.utimes(path.join(dir, 'foldmason.json'), old, old);
+
+    const report = await collectResultCache(store, { now, audit });
+
+    assert.equal(exists(outside), true, 'the symlink target is untouched');
+    assert.equal(exists(path.join(dir, 'result-0.json')), true, 'and so is the link itself');
+    assert.equal(exists(path.join(dir, 'foldmason.json')), true);
+    assert.deepEqual(lines.filter(l => l.result === 'skipped').map(l => l.reason).sort(),
+        ['NOT_A_FILE', 'SYMLINK']);
+    assert.equal(report.deleted, 2, 'the two real expired payloads still went');
+});
+
+test('an empty state directory is not an error', async () => {
+    const report = await collectResultCache(new Store(await tmpDir()));
+    assert.deepEqual([report.examined, report.deleted, report.errors], [0, 0, 0]);
 });
