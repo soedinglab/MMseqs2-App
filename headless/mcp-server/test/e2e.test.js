@@ -103,11 +103,23 @@ test('e2e: status, summary and export work on a real ticket', { skip: !LIVE }, a
         assert.equal(artifact.counts.parsedRows, summary.counts.parsedRows,
             'the summary and the manifest agree on real data');
 
-        // Every file the descriptor names must read back through the resource layer.
+        // A real transport carries the links alongside the JSON, contents not included.
+        const exported = await client.callTool({ name: 'export_result', arguments: { ticketId: TICKET } });
+        const links = exported.content.filter(c => c.type === 'resource_link');
+        assert.equal(links.length, artifact.files.length);
+        assert.ok(links.every(l => l.text === undefined && l.blob === undefined));
+
+        // A row file is over the read cap on real data, and the refusal says where to read it instead.
         const rows = artifact.files.find(f => f.role === 'rows');
-        const read = await client.readResource({ uri: `${artifact.uri}${rows.path}` });
-        assert.equal(read.contents[0].mimeType, 'application/x-ndjson');
-        assert.equal(read.contents[0].text.trim().split('\n').length, rows.rows);
+        await assert.rejects(() => client.readResource({ uri: `${artifact.uri}${rows.path}` }),
+            err => /RESOURCE_TOO_LARGE/.test(err.message) && /artifactRoot or localPath/.test(err.message));
+
+        // And the handshake works: one read of localPath, and its id must equal the handle.
+        assert.equal(artifact.localPathVerified, false);
+        const local = JSON.parse(await fs.readFile(artifact.localPath, 'utf8'));
+        assert.equal(local.artifactId, artifact.artifactId);
+        assert.equal(rows.rows,
+            (await fs.readFile(path.join(artifact.artifactRoot, rows.path), 'utf8')).trim().split('\n').length);
     } finally {
         await client.close();
     }
@@ -178,6 +190,7 @@ test('the TTLs default, take duration strings, and are refused outside their ran
     const defaults = readConfigFromEnv(base);
     assert.deepEqual(defaults.artifacts, { ttlSeconds: 1800, exposeLocalPaths: true });
     assert.equal(defaults.resultTtlSeconds, 86400);
+    assert.equal(defaults.resourceMaxBytes, 16 * 1024);
     assert.equal(defaults.resultRowCap, null, 'the row cap is only set deliberately');
 
     // Derived data expires fast, fetched data slowly — thirty minutes against a day.
@@ -188,11 +201,18 @@ test('the TTLs default, take duration strings, and are refused outside their ran
         MMSEQS2_AGENT_ARTIFACT_TTL: '90s',
         MMSEQS2_AGENT_RESULT_TTL: '7d',
         MMSEQS2_AGENT_LOCAL_PATHS: '0',
+        MMSEQS2_AGENT_RESOURCE_MAX_BYTES: '2m',
         MMSEQS2_AGENT_RESULT_ROW_CAP: '500',
     });
     assert.deepEqual(tuned.artifacts, { ttlSeconds: 90, exposeLocalPaths: false });
     assert.equal(tuned.resultTtlSeconds, 7 * 86400);
+    assert.equal(tuned.resourceMaxBytes, 2 * 1024 * 1024);
     assert.equal(tuned.resultRowCap, 500);
+
+    for (const [raw, bytes] of [['4096', 4096], ['16k', 16384], ['1m', 1048576]]) {
+        assert.equal(readConfigFromEnv({ ...base, MMSEQS2_AGENT_RESOURCE_MAX_BYTES: raw }).resourceMaxBytes,
+            bytes, `${raw} should parse`);
+    }
 
     for (const [raw, seconds] of [['600', 600], ['30m', 1800], ['2h', 7200], ['1d', 86400]]) {
         assert.equal(readConfigFromEnv({ ...base, MMSEQS2_AGENT_ARTIFACT_TTL: raw }).artifacts.ttlSeconds,
@@ -203,6 +223,7 @@ test('the TTLs default, take duration strings, and are refused outside their ran
         MMSEQS2_AGENT_ARTIFACT_TTL: ['59', '8d', '0', '-1', 'soon', '30.5m', '30 m', '1w', ''],
         MMSEQS2_AGENT_RESULT_TTL: ['30s', '31d'],
         MMSEQS2_AGENT_RESULT_ROW_CAP: ['0', '-5'],
+        MMSEQS2_AGENT_RESOURCE_MAX_BYTES: ['1023', '33m', '16 k', '2g', 'lots'],
     };
     for (const [name, values] of Object.entries(outOfRange)) {
         for (const value of values) {

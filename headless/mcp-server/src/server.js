@@ -8,7 +8,7 @@ import {
     ListResourcesRequestSchema, ListResourceTemplatesRequestSchema, ReadResourceRequestSchema,
     ErrorCode, McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-import { createClient } from 'mmseqs2-agent-core';
+import { createClient, parseInputDirs } from 'mmseqs2-agent-core';
 
 import { createTools, runTool } from './tools.js';
 import { createResources } from './resources.js';
@@ -31,10 +31,7 @@ function intFromEnv(env, name, { fallback, min, max }) {
 
 const DURATION_UNITS = { s: 1, m: 60, h: 3600, d: 86400 };
 
-/**
- * A duration from the environment: `90s`, `30m`, `24h`, `7d`, or a bare integer of seconds. Range
- * given in seconds; a refusal names the variable and the range in the same units the operator wrote.
- */
+/** `90s`, `30m`, `24h`, `7d`, or a bare integer of seconds. Range in seconds. */
 export function parseDuration(raw, { min, max, name = 'duration' }) {
     const refuse = () => {
         throw new Error(`${name}=${JSON.stringify(raw)} is not usable — expected a duration like ` +
@@ -52,6 +49,28 @@ function durationFromEnv(env, name, { fallback, min, max }) {
     const raw = env[name];
     if (raw === undefined || raw === '') return fallback;
     return parseDuration(raw, { min, max, name });
+}
+
+const SIZE_UNITS = { b: 1, k: 1024, m: 1024 * 1024 };
+
+/** `16k`, `2m`, or a plain integer of bytes. */
+export function parseSize(raw, { min, max, name = 'size' }) {
+    const refuse = () => {
+        throw new Error(`${name}=${JSON.stringify(raw)} is not usable — expected a size like 16k, 2m ` +
+                        `or a plain number of bytes, between ${min} and ${max} bytes`);
+    };
+    if (typeof raw !== 'string') refuse();
+    const match = /^(\d+)([bkm]?)$/i.exec(raw.trim());
+    if (!match) refuse();
+    const value = Number(match[1]) * SIZE_UNITS[(match[2] || 'b').toLowerCase()];
+    if (!Number.isSafeInteger(value) || value < min || value > max) refuse();
+    return value;
+}
+
+function sizeFromEnv(env, name, { fallback, min, max }) {
+    const raw = env[name];
+    if (raw === undefined || raw === '') return fallback;
+    return parseSize(raw, { min, max, name });
 }
 
 function boolFromEnv(env, name, fallback) {
@@ -80,6 +99,11 @@ export function readConfigFromEnv(env = process.env) {
         basicAuth: user ? { user, pass: pass ?? '' } : null,
         resultRowCap: intFromEnv(env, 'MMSEQS2_AGENT_RESULT_ROW_CAP',
             { fallback: null, min: 1, max: 1000000 }),
+        // Small on purpose: manifests fit, row files do not and belong on the file system.
+        resourceMaxBytes: sizeFromEnv(env, 'MMSEQS2_AGENT_RESOURCE_MAX_BYTES',
+            { fallback: 16 * 1024, min: 1024, max: 32 * 1024 * 1024 }),
+        // Empty means queryPath is off. Opt-in, because the alternative is an arbitrary-file reader.
+        inputDirs: parseInputDirs(env.MMSEQS2_AGENT_INPUT_DIRS),
         resultTtlSeconds: durationFromEnv(env, 'MMSEQS2_AGENT_RESULT_TTL',
             { fallback: 86400, min: 60, max: 2592000 }),
         artifacts: {
@@ -90,10 +114,22 @@ export function readConfigFromEnv(env = process.env) {
     };
 }
 
+/** The protocol's own reference type: a pointer per exported file, contents not included. */
+export function resourceLinks(result) {
+    if (result?.isError || !Array.isArray(result?.files) || !result.uri) return [];
+    return result.files.map(file => ({
+        type: 'resource_link',
+        uri: `${result.uri}${file.path}`,
+        name: file.path,
+        mimeType: file.mime,
+        description: `${file.role}, ${file.bytes} bytes${file.rows === null ? '' : `, ${file.rows} rows`}`,
+    }));
+}
+
 export function createServer(config) {
     const client = createClient(config);
-    const tools = createTools(client);
-    const resources = createResources(client);
+    const tools = createTools(client, { inputDirs: config.inputDirs ?? [] });
+    const resources = createResources(client, { maxBytes: config.resourceMaxBytes });
 
     const server = new Server(
         { name: 'mmseqs2-agent', version: '0.1.0' },
@@ -124,18 +160,16 @@ export function createServer(config) {
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { name, arguments: args } = request.params;
-
-        // Two different kinds of wrong, reported two different ways. A tool that ran and failed —
-        // an unusable database, a motif residue that is not in the query — is an isError *result*,
-        // because the caller needs to read the reason and try something else. A tool that does not
-        // exist is a protocol error: nothing ran, and no change of arguments would help.
         if (!tools.some(t => t.name === name)) {
             throw new McpError(ErrorCode.InvalidParams, `unknown tool: ${name}`);
         }
 
         const result = await runTool(tools, name, args);
         return {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+            content: [
+                { type: 'text', text: JSON.stringify(result, null, 2) },
+                ...resourceLinks(result),
+            ],
             isError: !!result?.isError,
         };
     });

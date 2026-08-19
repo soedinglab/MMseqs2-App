@@ -244,8 +244,14 @@ export function createArtifactStore({
                 expiresAt: new Date(accessed.getTime() + ttlSeconds * 1000).toISOString(),
             };
             if (exposeLocalPaths) {
-                const local = path.join(dirFor(id), MANIFEST);
-                if (!path.relative(root, local).startsWith('..')) out.localManifestPath = local;
+                const dir = dirFor(id);
+                if (!path.relative(root, dir).startsWith('..')) {
+                    out.artifactRoot = dir;
+                    out.localPath = path.join(dir, MANIFEST);
+                    // The server cannot know the caller shares this filesystem; the handshake in the
+                    // README is how a caller finds out.
+                    out.localPathVerified = false;
+                }
             }
             return out;
         },

@@ -1,5 +1,8 @@
 .DS_Store
 dist/*
+headless/mcp-server/dist/
+headless/mcp-server/*.tgz
+headless/mcp-server/LICENSE
 build/*
 node_modules/
 npm-debug.log

@@ -55,7 +55,7 @@ async function makeClient({ type = 'structuresearch', result = null, now = new D
 const roles = descriptor => descriptor.files.map(f => f.role).sort();
 const fileOf = (descriptor, role) => descriptor.files.find(f => f.role === role);
 const readFile = (descriptor, role) =>
-    fs.readFileSync(path.join(path.dirname(descriptor.localManifestPath), fileOf(descriptor, role).path), 'utf8');
+    fs.readFileSync(path.join(path.dirname(descriptor.localPath), fileOf(descriptor, role).path), 'utf8');
 
 test('a foldseek export writes rows, taxonomy and a database map, with counts that agree', async () => {
     const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json') });
@@ -127,7 +127,7 @@ test('a foldmason export writes the roster, both fastas, columns, the map, coord
 
     const gz = fileOf(out, 'msa-coordinates');
     const raw = zlib.gunzipSync(fs.readFileSync(
-        path.join(path.dirname(out.localManifestPath), gz.path))).toString('utf8');
+        path.join(path.dirname(out.localPath), gz.path))).toString('utf8');
     assert.equal(Buffer.byteLength(raw), gz.uncompressedBytes);
     assert.equal(JSON.parse(raw).entries.length, 2);
 
@@ -187,7 +187,7 @@ test('a second export is a hit that rebuilds nothing and moves the access time',
 
     const first = await client.exportResult('T1abcd');
     assert.equal(first.cacheHit, false);
-    const built = fs.statSync(path.join(path.dirname(first.localManifestPath), 'manifest.json')).mtimeMs;
+    const built = fs.statSync(path.join(path.dirname(first.localPath), 'manifest.json')).mtimeMs;
     const before = await client.artifacts.lastAccessedAt(first.artifactId);
 
     clock.at = new Date('2026-08-18T01:30:00Z');
@@ -195,7 +195,7 @@ test('a second export is a hit that rebuilds nothing and moves the access time',
 
     assert.equal(second.cacheHit, true);
     assert.equal(second.artifactId, first.artifactId);
-    assert.equal(fs.statSync(path.join(path.dirname(first.localManifestPath), 'manifest.json')).mtimeMs, built,
+    assert.equal(fs.statSync(path.join(path.dirname(first.localPath), 'manifest.json')).mtimeMs, built,
         'a hit must not rewrite the artifact');
     const after = await client.artifacts.lastAccessedAt(first.artifactId);
     assert.notEqual(after, before);
@@ -226,7 +226,7 @@ test('an artifact that is not intact is never a hit', async () => {
         const stateDir = await tmpDir();
         const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir });
         const first = await client.exportResult('T1abcd');
-        const dir = path.dirname(first.localManifestPath);
+        const dir = path.dirname(first.localPath);
 
         damage(dir);
         assert.equal((await client.artifacts.read(first.artifactId)).ok, false, `${name} must not read back`);
@@ -242,7 +242,7 @@ test('row counts are verified on request, not on every hit', async () => {
     const stateDir = await tmpDir();
     const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir });
     const out = await client.exportResult('T1abcd');
-    const dir = path.dirname(out.localManifestPath);
+    const dir = path.dirname(out.localPath);
 
     // A manifest that lies about its row count is still a hit by default: verifying it costs a full
     // read of the artifact, and the failures that actually happen change the byte count.
@@ -260,7 +260,7 @@ test('row counts are verified on request, not on every hit', async () => {
 test('the manifest is valid, self-consistent, and uses safe index-based paths', async () => {
     const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json') });
     const out = await client.exportResult('T1abcd');
-    const manifest = JSON.parse(fs.readFileSync(out.localManifestPath, 'utf8'));
+    const manifest = JSON.parse(fs.readFileSync(out.localPath, 'utf8'));
 
     assert.deepEqual(validateArtifactManifest(manifest), { ok: true, errors: [] });
     assert.equal(manifest.state.serverNamespace, 'https://example.test/api');
@@ -273,7 +273,7 @@ test('the manifest is valid, self-consistent, and uses safe index-based paths', 
     for (const file of manifest.files) {
         assert.ok(!file.path.includes('..') && !file.path.startsWith('/'), file.path);
         assert.ok(!file.path.includes('bfmd'), 'a database id must not reach a filename');
-        assert.equal(fs.statSync(path.join(path.dirname(out.localManifestPath), file.path)).size, file.bytes);
+        assert.equal(fs.statSync(path.join(path.dirname(out.localPath), file.path)).size, file.bytes);
     }
     // The index -> id mapping is what makes db-4 readable.
     const databases = JSON.parse(readFile(out, 'databases')).databases;
@@ -308,7 +308,7 @@ test('local paths can be withheld for a client that cannot use them', async () =
         artifacts: { exposeLocalPaths: false },
     });
     const out = await client.exportResult('T1abcd');
-    assert.equal(out.localManifestPath, undefined);
+    assert.equal(out.localPath, undefined);
     assert.match(out.manifestUri, /^mmseqs2-artifact:/);
 });
 
@@ -332,12 +332,12 @@ test('the same unit exports the same bytes regardless of selections made in betw
     const table = await client.getResult('T1abcd', 0);
     await table.select({ db: 'bfmd', limit: 3 }).save('draft');
 
-    await fsp.rm(path.dirname(first.localManifestPath), { recursive: true, force: true });
+    await fsp.rm(path.dirname(first.localPath), { recursive: true, force: true });
     const second = await client.exportResult('T1abcd');
 
     assert.equal(second.artifactId, first.artifactId, 'workflow state is not part of the identity');
     assert.equal(readFile(second, 'rows'), rowsBefore);
-    const manifest = fs.readFileSync(second.localManifestPath, 'utf8');
+    const manifest = fs.readFileSync(second.localPath, 'utf8');
     assert.equal(manifest.includes('draft'), false, 'an artifact holds no selection state');
 });
 

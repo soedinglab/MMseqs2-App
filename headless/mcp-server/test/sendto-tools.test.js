@@ -212,10 +212,12 @@ test('select_msa_columns can move to another entry, and the motif follows the co
     assert.equal(moved.entry, 0);
     assert.equal(moved.motif, 'A1, A2, B1', 'the same columns, read off the dimer');
 
-    // `motif` is not an argument here. It is dropped, not honoured: the columns are the motif.
-    const ignored = await runTool(tools, 'select_msa_columns',
+    // `motif` is not an argument here, and is refused rather than dropped: an agent that thought it
+    // set one would otherwise believe the search was constrained when it was not.
+    const refused = await runTool(tools, 'select_msa_columns',
         { ticketId: 'FMTICKET1', action: 'add', entry: 0, motif: 'B1' });
-    assert.equal(ignored.motif, 'A1, A2, B1', 'a passed motif changes nothing');
+    assert.equal(refused.code, 'INVALID_INPUT');
+    assert.match(refused.error, /motif is not a select_msa_columns argument/);
 });
 
 test('select_msa_columns designates substitutions per column, and they persist', async () => {
@@ -344,13 +346,20 @@ test('folddisco_search takes the motif the accession came with, and lets one be 
     assert.deepEqual(client.submitted().map(c => c.args[0].motif), ['A10, A12', 'A5, A6']);
 });
 
-test('query text and an accession are not both accepted', async () => {
+test('only one of query, queryPath and accession is accepted', async () => {
     const { tools } = await toolsFor();
-    const out = await runTool(tools, 'foldseek_search', {
-        query: 'ATOM', accession: '1ABC', databases: ['afdb50'],
-    });
-    assert.equal(out.isError, true);
-    assert.match(out.error, /either query or accession/);
+    const pairs = [
+        { query: 'ATOM', accession: '1ABC' },
+        { query: 'ATOM', queryPath: '/tmp/x.pdb' },
+        { queryPath: '/tmp/x.pdb', accession: '1ABC' },
+        { query: 'ATOM', queryPath: '/tmp/x.pdb', accession: '1ABC' },
+    ];
+    for (const given of pairs) {
+        const out = await runTool(tools, 'foldseek_search', { ...given, databases: ['afdb50'] });
+        assert.equal(out.isError, true, JSON.stringify(given));
+        assert.match(out.error, /pass one of query, queryPath or accession/);
+        for (const key of Object.keys(given)) assert.ok(out.error.includes(key), key);
+    }
 });
 
 test('send_to explains a source that has not been made yet', async () => {

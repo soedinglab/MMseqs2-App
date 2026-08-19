@@ -10,6 +10,8 @@
 //   MMSEQS2_AGENT_ARTIFACT_TTL default 30m     duration, 1m .. 7d
 //   MMSEQS2_AGENT_RESULT_TTL   default 24h     duration, 1m .. 30d
 //   MMSEQS2_AGENT_LOCAL_PATHS  default 1       0 withholds local paths from descriptors
+//   MMSEQS2_AGENT_RESOURCE_MAX_BYTES default 16k  cap on one resource read, 1k .. 32m
+//   MMSEQS2_AGENT_INPUT_DIRS   default empty   colon-separated dirs queryPath may read
 //   MMSEQS2_AGENT_RESULT_ROW_CAP  default unset  (1 .. 1000000)
 //
 // Operator mode: `--gc [--dry-run]` expires artifacts and cached result payloads, printing one report
@@ -18,7 +20,15 @@
 // Startup errors go to stderr and exit non-zero: stdout is the MCP transport, so writing anything
 // human-readable there would corrupt the protocol stream.
 
-import { main, runGc } from '../src/server.js';
+// The published package ships dist/server.mjs; a repo checkout runs src/ unbundled.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const BUNDLE = path.join(HERE, '..', 'dist', 'server.mjs');
+const { main, runGc } = await import(
+    fs.existsSync(BUNDLE) ? `file://${BUNDLE}` : '../src/server.js');
 
 const args = process.argv.slice(2);
 const run = args.includes('--gc')

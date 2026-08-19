@@ -335,7 +335,7 @@ test('the submitted motif re-derives from the exported artifact and its lineage 
     const out = await client.exportResult('MSA1');
     const mapFile = out.files.find(f => f.role === 'msa-residue-map');
     const lines = await fs.readFile(
-        path.join(path.dirname(out.localManifestPath), mapFile.path), 'utf8');
+        path.join(path.dirname(out.localPath), mapFile.path), 'utf8');
     const map = lines.trim().split('\n').map(JSON.parse)[ticket.derivedFrom.entry];
 
     const wanted = new Set(expandRanges(ticket.derivedFrom.columns));

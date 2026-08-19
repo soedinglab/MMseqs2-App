@@ -18,9 +18,11 @@ Environment only, no config file. Startup errors go to stderr — stdout is the 
 | `MMSEQS2_AGENT_ARTIFACT_TTL` | `30m` | how long an exported artifact survives after last access; `1m` … `7d` |
 | `MMSEQS2_AGENT_RESULT_TTL` | `24h` | how long a cached result payload survives after last use; `1m` … `30d` |
 | `MMSEQS2_AGENT_LOCAL_PATHS` | `1` | `0` withholds local paths from descriptors |
+| `MMSEQS2_AGENT_RESOURCE_MAX_BYTES` | `16k` | cap on one resource read; `1k` … `32m` |
+| `MMSEQS2_AGENT_INPUT_DIRS` | empty | colon-separated directories `queryPath` may read from |
 | `MMSEQS2_AGENT_RESULT_ROW_CAP` | unset | 1 … 1000000; overrides the search saturation cap |
 
-Ten variables, one required. Both TTLs take a duration — `90s`, `30m`, `24h`, `7d` — or a plain number
+Twelve variables, one required. Both TTLs take a duration — `90s`, `30m`, `24h`, `7d` — or a plain number
 of seconds. Out-of-range values fail at startup naming the variable and its range, rather than being
 clamped.
 
@@ -28,9 +30,51 @@ Derived data expires fast, fetched data slowly. An artifact is rebuilt from the 
 milliseconds, so thirty minutes costs nothing; the cached parse itself is a network round trip and a
 multi-MB parse, so it is kept for a day. `ticket.json` and `selections.json` never expire.
 
+## Installing
+
+**Claude Code:**
+
+```bash
+claude mcp add mmseqs2 -e MMSEQS2_AGENT_BASE_URL=https://search.foldseek.com \
+  -- npx -y mmseqs2-agent-mcp
+```
+
+Or project-scoped in `.mcp.json`, committed for a team:
+
+```jsonc
+{ "mcpServers": { "mmseqs2": {
+    "command": "npx", "args": ["-y", "mmseqs2-agent-mcp"],
+    "env": { "MMSEQS2_AGENT_BASE_URL": "https://search.foldseek.com" } } } }
+```
+
+**Claude Desktop:** the same object in `claude_desktop_config.json`
+(`~/Library/Application Support/Claude/`, or `%APPDATA%\Claude\`). Needs Node and a working global
+npm. **Cowork** uses Desktop's servers, so configuring Desktop configures Cowork — note the boundary:
+the server runs outside the VM, the code Claude writes runs inside it.
+
+From a checkout instead of the registry:
+
 ```bash
 claude mcp add mmseqs2-agent -- node /path/to/headless/mcp-server/bin/mmseqs2-agent-mcp.js
 ```
+
+The published package is one file: `dist/server.mjs`, with core and `frontend/lib` inlined by esbuild
+and `@modelcontextprotocol/sdk` the only runtime dependency. `bin/mmseqs2-agent-mcp.js` runs the bundle
+when it is present and `src/` otherwise, so a checkout works unbundled.
+
+```bash
+npm run build      # dist/server.mjs, ~254 KB; never committed
+npm pack           # 4 files, ~70 KB
+```
+
+## Query input
+
+`query` takes structure text. `queryPath` takes a path the server reads instead — a 361 KB mmCIF is
+~91,000 tokens inline and 31 as a path. It is off until `MMSEQS2_AGENT_INPUT_DIRS` names the
+directories the server may read; anything resolving outside them, symlinks included, is refused with
+`INPUT_PATH_REFUSED`. `foldmason_msa` takes `filePaths` the same way. `query`, `queryPath` and
+`accession` are mutually exclusive, and a path never reaches the backend or a result — only the bytes
+it held, recorded as `queryBytes` and `queryHash`.
 
 ## The flow
 
@@ -87,8 +131,25 @@ path must appear verbatim in the manifest's file table, so a file sitting in the
 from the manifest is not readable and traversal has nothing to work on. JSON, JSONL and FASTA come back
 as text; `coordinates.json.gz` comes back as a blob.
 
-`localManifestPath` is included when the client shares the filesystem — an optimisation, not the
-contract. The URI is authoritative.
+### Reading an artifact from a script
+
+`export_result` returns, besides the JSON descriptor, one `resource_link` content block per file. It
+also returns `artifactRoot`, `localPath` (the manifest inside it), and `localPathVerified: false` — the
+server cannot know whether the caller shares its filesystem, so it says so rather than implying it.
+
+The handshake, once per session:
+
+1. read `manifest.json` at `localPath` with the host's own file tool — 1-3 KB;
+2. compare its `artifactId` to the handle you were given. Equal means paths work here;
+3. from then on, compose `artifactRoot` + any manifest path and open files directly. No tool call, no
+   bytes through the model.
+
+If step 1 or 2 fails, this host cannot support the local-script workflow. Fall back to resource reads
+for the small files and treat the summary as the product.
+
+Resource reads are capped at `MMSEQS2_AGENT_RESOURCE_MAX_BYTES` (16 KB by default), so a row file is
+refused with `RESOURCE_TOO_LARGE` naming its size and pointing back here. That is deliberate: reading a
+real 3Di+AA row file as a resource costs on the order of a million tokens.
 
 ## Selections
 
@@ -148,7 +209,7 @@ Two kinds, reported two ways.
 - **`isError: true` with a `code`** — the tool ran and failed for a reason worth acting on:
   `RESULT_NOT_READY`, `RESULT_FAILED`, `INVALID_ENTRY`, `UNKNOWN_TICKET`, `INVALID_INPUT`,
   `SELECTION_NOT_FOUND`, `SELECTION_COLLISION`, `SELECTION_NAME_INVALID`, `EXPORT_FAILED`,
-  `UNSUPPORTED_ON_DEPLOYMENT`.
+  `INPUT_PATH_REFUSED`, `UNSUPPORTED_ON_DEPLOYMENT`.
 - **A protocol error** — the tool or resource does not exist, or a resource URI is not readable
   (`ARTIFACT_NOT_FOUND`, `INVALID_ARTIFACT_PATH`). Nothing ran and no argument change helps.
 
@@ -173,6 +234,7 @@ named `result-<entry>.json`, `foldmason.json` or `folddisco.json`, it never remo
 ```bash
 npm test                                                        # no network
 MMSEQS2_AGENT_LIVE_TESTS=1 MMSEQS2_AGENT_BASE_URL=… npm test    # + read-only live checks
+MMSEQS2_AGENT_PACK_TEST=1 node --test test/pack.test.js         # build, pack, install, drive it
 ```
 
 The tools are defined in `src/tools.js` with no MCP SDK involved, so they can be exercised against a

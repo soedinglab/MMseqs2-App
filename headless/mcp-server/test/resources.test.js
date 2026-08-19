@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createClient } from 'mmseqs2-agent-core';
 import { createResources, RESOURCE_TEMPLATE } from '../src/resources.js';
+import { resourceLinks } from '../src/server.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(HERE, '..', '..', 'core', 'test', 'fixtures');
@@ -25,7 +26,8 @@ const FOLDMASON = {
     tree: '(a,b);',
 };
 
-async function fixture({ type = 'structuresearch', result = load('foldseek-bfmd.raw.json') } = {}) {
+async function fixture({ type = 'structuresearch', result = load('foldseek-bfmd.raw.json'),
+    maxBytes = undefined } = {}) {
     const stateDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-res-'));
     const fetchImpl = async (url) => ({
         ok: true, status: 200,
@@ -37,7 +39,7 @@ async function fixture({ type = 'structuresearch', result = load('foldseek-bfmd.
         text: async () => '',
     });
     const client = createClient({ baseUrl: 'https://example.test', stateDir, fetchImpl });
-    return { client, resources: createResources(client) };
+    return { client, resources: createResources(client, maxBytes ? { maxBytes } : {}) };
 }
 
 test('a built artifact is listed by its manifest, and the manifest reads back', async () => {
@@ -59,7 +61,8 @@ test('a built artifact is listed by its manifest, and the manifest reads back', 
 });
 
 test('every file the descriptor names reads back with the right kind of content', async () => {
-    const { client, resources } = await fixture({ type: 'foldmasoneasymsa' });
+    // Cap lifted: this test's subject is content type, not size.
+    const { client, resources } = await fixture({ type: 'foldmasoneasymsa', maxBytes: 32 * 1024 * 1024 });
     const descriptor = await client.exportResult('T2abcd');
 
     for (const file of descriptor.files) {
@@ -84,7 +87,7 @@ test('every file the descriptor names reads back with the right kind of content'
 test('a path that is not in the manifest is refused, even when the file exists', async () => {
     const { client, resources } = await fixture();
     const descriptor = await client.exportResult('T1abcd');
-    const dir = path.dirname(descriptor.localManifestPath);
+    const dir = path.dirname(descriptor.localPath);
 
     // Real files inside the artifact, deliberately absent from the manifest's file table.
     await fsp.writeFile(path.join(dir, 'READY'), '');
@@ -108,7 +111,7 @@ test('traversal, absolute and encoded paths are refused', async () => {
         `${descriptor.uri}%2e%2e/manifest.json`,
         'mmseqs2-artifact:///etc/passwd',
         'file:///etc/passwd',
-        `file://${descriptor.localManifestPath}`,
+        `file://${descriptor.localPath}`,
         'mmseqs2-artifact://not-an-id/manifest.json',
         `mmseqs2-artifact://${'A'.repeat(64)}/manifest.json`,
         `mmseqs2-artifact://${'a'.repeat(63)}/manifest.json`,
@@ -126,7 +129,7 @@ test('traversal, absolute and encoded paths are refused', async () => {
 test('an artifact that was collected reads as gone, not as an empty file', async () => {
     const { client, resources } = await fixture();
     const descriptor = await client.exportResult('T1abcd');
-    await fsp.rm(path.dirname(descriptor.localManifestPath), { recursive: true, force: true });
+    await fsp.rm(path.dirname(descriptor.localPath), { recursive: true, force: true });
 
     await assert.rejects(() => resources.read(descriptor.manifestUri),
         err => err.code === 'ARTIFACT_NOT_FOUND');
@@ -148,4 +151,88 @@ test('listing is newest first and bounded', async () => {
     const listed = await resources.list();
     assert.equal(listed.length, 3);
     assert.equal((await resources.list({ limit: 2 })).length, 2);
+});
+
+test('the default cap admits a manifest and refuses a row file', async () => {
+    const { client, resources } = await fixture();
+    assert.equal(resources.maxBytes, 16 * 1024);
+    const descriptor = await client.exportResult('T1abcd');
+
+    const manifest = await resources.read(descriptor.manifestUri);
+    assert.ok(Buffer.byteLength(manifest.text) < resources.maxBytes, 'the handshake file still reads');
+
+    const rows = descriptor.files.find(f => f.role === 'rows' && f.bytes > resources.maxBytes);
+    assert.ok(rows, 'the bfmd fixture has a row file over 16 KB');
+
+    await assert.rejects(() => resources.read(`${descriptor.uri}${rows.path}`), (err) => {
+        assert.equal(err.code, 'RESOURCE_TOO_LARGE');
+        assert.ok(err.message.includes(rows.path), 'names the path');
+        assert.ok(err.message.includes(String(rows.bytes)), 'and the size');
+        assert.ok(err.message.includes(String(resources.maxBytes)), 'and the limit');
+        assert.match(err.message, /artifactRoot or localPath/, 'and where to read it instead');
+        assert.match(err.message, /MMSEQS2_AGENT_RESOURCE_MAX_BYTES/);
+        assert.ok(err.message.length < 400, `refusal is ${err.message.length} bytes`);
+        return true;
+    });
+});
+
+test('the cap is configurable, and a gz is measured compressed', async () => {
+    // 120 bytes straddles the fixture's gz: 106 on disk, 135 inflated.
+    const cap = 120;
+    const { client, resources } = await fixture({ type: 'foldmasoneasymsa', maxBytes: cap });
+    const descriptor = await client.exportResult('T2abcd');
+
+    const gz = descriptor.files.find(f => f.mime === 'application/gzip');
+    assert.ok(gz.bytes <= cap && gz.uncompressedBytes > cap, 'the case worth checking');
+
+    const read = await resources.read(`${descriptor.uri}${gz.path}`);
+    assert.equal(Buffer.from(read.blob, 'base64').length, gz.bytes,
+        'over the cap inflated, under it on disk, so it reads');
+
+    const over = descriptor.files.find(f => f.bytes > cap);
+    await assert.rejects(() => resources.read(`${descriptor.uri}${over.path}`),
+        err => err.code === 'RESOURCE_TOO_LARGE');
+});
+
+// --- handles a script can use -------------------------------------------------------------------
+
+test('the descriptor hands over a root, a path, and its own uncertainty', async () => {
+    const { client } = await fixture();
+    const descriptor = await client.exportResult('T1abcd');
+
+    assert.equal(descriptor.localPath, path.join(descriptor.artifactRoot, 'manifest.json'));
+    assert.equal(descriptor.localPathVerified, false, 'the server cannot know the caller shares this fs');
+
+    // root + a manifest path composes to a real file, which is the whole point of publishing the root.
+    for (const file of descriptor.files) {
+        assert.ok(fs.existsSync(path.join(descriptor.artifactRoot, file.path)), file.path);
+    }
+
+    // Self-verifying: one read of localPath tells a caller whether paths work at all.
+    const manifest = JSON.parse(await fsp.readFile(descriptor.localPath, 'utf8'));
+    assert.equal(manifest.artifactId, descriptor.artifactId);
+
+    assert.ok(JSON.stringify(descriptor).length < 2048, `${JSON.stringify(descriptor).length} bytes`);
+});
+
+test('a descriptor becomes one resource_link per file, carrying no contents', async () => {
+    const { client, resources } = await fixture();
+    const descriptor = await client.exportResult('T1abcd');
+
+    const links = resourceLinks(descriptor);
+    assert.equal(links.length, descriptor.files.length);
+
+    for (const link of links) {
+        assert.equal(link.type, 'resource_link');
+        assert.ok(link.uri.startsWith(descriptor.uri));
+        assert.ok(link.name && link.mimeType && link.description);
+        assert.equal(link.text, undefined, 'a link, not the file');
+        assert.equal(link.blob, undefined);
+        await resources.read(link.uri).catch(err => assert.equal(err.code, 'RESOURCE_TOO_LARGE', link.name));
+    }
+
+    assert.deepEqual(resourceLinks({ isError: true, files: descriptor.files, uri: descriptor.uri }), [],
+        'a failure links nothing');
+    assert.deepEqual(resourceLinks({ ticketId: 'T1', status: 'PENDING' }), [],
+        'and so does a tool with no files');
 });

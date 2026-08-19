@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { ARTIFACT_ID, DEFAULT_ARTIFACT_TTL_SECONDS } from './artifacts.js';
+import { containedRealPath } from './inputs.js';
 
 const BUILD_PREFIX = '.build-';
 const READY = 'READY';
@@ -79,9 +80,8 @@ async function refuseUnsafe(root, name) {
     if (stat.isSymbolicLink()) return 'SYMLINK';
     if (!stat.isDirectory()) return 'NOT_A_DIRECTORY';
 
-    const realRoot = await fs.realpath(root);
-    const real = await fs.realpath(dir);
-    if (path.relative(realRoot, real) !== name) return 'ESCAPES_ROOT';
+    const real = await containedRealPath([root], dir);
+    if (real !== path.join(await fs.realpath(root), name)) return 'ESCAPES_ROOT';
     return null;
 }
 
@@ -241,8 +241,8 @@ async function refuseUnsafePayload(root, relative) {
     try { stat = await fs.lstat(full); } catch { return 'VANISHED'; }
     if (stat.isSymbolicLink()) return 'SYMLINK';
     if (!stat.isFile()) return 'NOT_A_FILE';
-    const realRoot = await fs.realpath(root);
-    if ((await fs.realpath(full)) !== path.join(realRoot, relative)) return 'ESCAPES_ROOT';
+    const real = await containedRealPath([root], full);
+    if (real !== path.join(await fs.realpath(root), relative)) return 'ESCAPES_ROOT';
     return null;
 }
 
@@ -293,8 +293,7 @@ export async function collectResultCache(store, {
                         continue;
                     }
                     const relative = path.join(a, b, id, entry.name);
-                    // A payload name that is not a plain file is a deliberate shape, so it is audited
-                    // rather than quietly counted as preserved.
+                    // A payload name that is not a plain file is deliberate, so it leaves a trace.
                     if (!entry.isFile()) {
                         report.skipped += 1;
                         await record({

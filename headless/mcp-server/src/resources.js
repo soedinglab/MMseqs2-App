@@ -3,6 +3,9 @@
 // Nothing here touches an arbitrary path: an id must be a full sha256 hex digest, and a relative path
 // must appear verbatim in that artifact's own manifest. A file sitting inside the directory but absent
 // from the manifest is not readable, so traversal has no surface to work on.
+//
+// A read spends model context, so a file over the cap is refused with its size. Resources carry what
+// belongs in context — manifest, database map, tree; row files are for a script to open by path.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -26,10 +29,14 @@ function invalid(code, message) {
     return err;
 }
 
-export function createResources(client) {
+export const DEFAULT_MAX_BYTES = 16 * 1024;
+
+export function createResources(client, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
     const store = client.artifacts;
 
     return {
+        maxBytes,
+
         template: RESOURCE_TEMPLATE,
 
         /** One entry per READY artifact: its manifest, which names every file it holds. */
@@ -72,6 +79,16 @@ export function createResources(client) {
             }
 
             const full = path.join(hit.dir, file.path);
+
+            // The stat, not the manifest's record: a .gz is measured compressed, as it crosses the wire.
+            const bytes = await fs.stat(full).then(st => st.size).catch(() => null);
+            if (bytes !== null && bytes > maxBytes) {
+                throw invalid('RESOURCE_TOO_LARGE',
+                    `${file.path} is ${bytes} bytes, over the ${maxBytes} limit for a resource read. ` +
+                    'Open it from the file system using artifactRoot or localPath from export_result, ' +
+                    'or raise MMSEQS2_AGENT_RESOURCE_MAX_BYTES.');
+            }
+
             if (TEXT_MIME.has(file.mime)) {
                 return { uri, mimeType: file.mime, text: await fs.readFile(full, 'utf8') };
             }

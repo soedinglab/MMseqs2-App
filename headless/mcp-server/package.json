@@ -8,14 +8,24 @@
   "bin": {
     "mmseqs2-agent-mcp": "bin/mmseqs2-agent-mcp.js"
   },
+  "files": [
+    "dist/",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
-    "mmseqs2-agent-core": "*"
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   },
   "scripts": {
-    "test": "node --test test/"
+    "build": "node build.mjs",
+    "test": "node --test test/",
+    "prepublishOnly": "node build.mjs"
   }
 }
