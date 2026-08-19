@@ -38,7 +38,7 @@ function alignment() {
 }
 
 function tmpDir() {
-    return fs.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-msasel-'));
+    return fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-msasel-'));
 }
 
 /** cg2all echoes what it was given: real reconstruction keeps chain and residue numbering. */

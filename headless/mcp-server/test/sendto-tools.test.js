@@ -12,7 +12,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ResultTable, Store, MsaColumnSelection, SubmittableQuery } from 'mmseqs2-agent-core';
+import { ResultTable, Store, MsaColumnSelection, SubmittableQuery } from 'foldseek-server-lib';
 import { createTools, runTool } from '../src/tools.js';
 
 const CA = '1.000,2.000,3.000,4.000,5.000,6.000,7.000,8.000,9.000';
@@ -48,7 +48,7 @@ const ALIGNMENT = {
 };
 
 function tmpDir() {
-    return fs.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-mcp-sendto-'));
+    return fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-mcp-sendto-'));
 }
 
 /**
@@ -346,18 +346,21 @@ test('folddisco_search takes the motif the accession came with, and lets one be 
     assert.deepEqual(client.submitted().map(c => c.args[0].motif), ['A10, A12', 'A5, A6']);
 });
 
-test('only one of query, queryPath and accession is accepted', async () => {
+test('only one structure input is accepted at a time', async () => {
     const { tools } = await toolsFor();
     const pairs = [
         { query: 'ATOM', accession: '1ABC' },
         { query: 'ATOM', queryPath: '/tmp/x.pdb' },
         { queryPath: '/tmp/x.pdb', accession: '1ABC' },
-        { query: 'ATOM', queryPath: '/tmp/x.pdb', accession: '1ABC' },
+        { query: 'ATOM', queryUrl: 'https://x.test/a.cif' },
+        { queryUrl: 'https://x.test/a.cif', accession: '1ABC' },
+        { queryPath: '/tmp/x.pdb', queryUrl: 'https://x.test/a.cif' },
+        { query: 'ATOM', queryPath: '/tmp/x.pdb', queryUrl: 'https://x.test/a.cif', accession: '1ABC' },
     ];
     for (const given of pairs) {
         const out = await runTool(tools, 'foldseek_search', { ...given, databases: ['afdb50'] });
         assert.equal(out.isError, true, JSON.stringify(given));
-        assert.match(out.error, /pass one of query, queryPath or accession/);
+        assert.match(out.error, /pass one of query, queryPath, queryUrl or accession/);
         for (const key of Object.keys(given)) assert.ok(out.error.includes(key), key);
     }
 });

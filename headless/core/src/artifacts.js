@@ -21,7 +21,7 @@ import { foldMasonColumns, foldMasonEntries, foldMasonFasta, msaResidueMap } fro
 export const ARTIFACT_ID = /^[0-9a-f]{64}$/;
 export const DEFAULT_ARTIFACT_TTL_SECONDS = 1800;
 
-export const URI_SCHEME = 'mmseqs2-artifact';
+export const URI_SCHEME = 'foldseek-artifact';
 
 const READY = 'READY';
 const MANIFEST = 'manifest.json';
@@ -35,7 +35,7 @@ const MIME = {
     gz: 'application/gzip',
 };
 
-const BUILT_BY = { package: 'mmseqs2-agent-core', version: '0.1.0' };
+const BUILT_BY = { package: 'foldseek-server-lib', version: '0.1.0' };
 
 /** The origin an artifact belongs to, normalized so the same server never yields two namespaces. */
 export function serverNamespaceFor({ baseUrl, apiPath = '/api' } = {}) {

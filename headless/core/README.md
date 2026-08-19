@@ -1,4 +1,4 @@
-# `mmseqs2-agent-core`
+# `foldseek-server-lib`
 
 A headless client for this repo's Go backend: submit Foldseek, FoldMason and FoldDisco jobs, poll
 them, decode the results with the frontend's own parsing code, and forward a hit or an alignment
@@ -9,13 +9,13 @@ Node 18+. No dependencies outside the repo except `msa-webgpu` (for the substitu
 ## Creating a client
 
 ```js
-import { createClient } from 'mmseqs2-agent-core';
+import { createClient } from 'foldseek-server-lib';
 
 const client = createClient({
     baseUrl: 'https://search.foldseek.com',   // required — the site origin, not the /api path
     app: 'foldseek',                          // affects cross-reference links in parsed results
     apiPath: '/api',                          // for a deployment using config.Server.PathPrefix
-    stateDir: '~/.mmseqs2-agent',             // ticket cache; MMSEQS2_AGENT_STATE_DIR overrides
+    stateDir: '~/.foldseek-server',             // ticket cache; FOLDSEEK_SERVER_STATE_DIR overrides
     basicAuth: null,                          // { user, pass }
     cg2allUrl: 'https://3di.foldseek.com/cg2all/predict',
     onWarning: msg => console.warn(msg),      // non-fatal notes: a DB lookup that fell back, rows skipped
@@ -66,7 +66,7 @@ await client.exportResult(id, entry);       // the complete result as files; ret
 
 `getResultSummary` takes a ticket and an entry and nothing else — no fields, sorting, filtering or
 limits. It is bounded by construction (~1.7 KB on a nine-database search, 1.2 KB on a 1000-hit
-FoldDisco result) and validated against `mmseqs2-agent/result-summary@1` before it is returned. An
+FoldDisco result) and validated against `foldseek-server/result-summary@1` before it is returned. An
 unfinished ticket comes back as `RESULT_NOT_READY` after a single status read — never a wait loop.
 
 `exportResult` writes one reproducible bundle per result unit and returns roles, byte counts and row

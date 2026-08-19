@@ -49,7 +49,7 @@ function manifest(patch = {}) {
         },
         derivedFrom: null,
         createdAt: '2026-08-18T00:00:00.000Z',
-        builtBy: { package: 'mmseqs2-agent-core', version: '0.1.0' },
+        builtBy: { package: 'foldseek-server-lib', version: '0.1.0' },
         counts: { serverAlignments: 3, parsedRows: 3, exportedRows: 3, grouping: 'none' },
         completeness: { complete: null, saturated: false, capSource: 'deployment-default', rowCap: 1000 },
         ranking: RANKING,
@@ -125,7 +125,7 @@ test('wrong types, bad enums and unexpected keys are all refused', () => {
     assert.deepEqual(paths(validateResultSummary(summary({ resultKind: 'msa' }))), ['resultKind']);
     assert.deepEqual(paths(validateResultSummary(summary({ ranking: { ...RANKING, label: undefined } }))),
         ['ranking.label']);
-    assert.deepEqual(paths(validateResultSummary(summary({ schema: 'mmseqs2-agent/result-summary@2' }))), ['schema']);
+    assert.deepEqual(paths(validateResultSummary(summary({ schema: 'foldseek-server/result-summary@2' }))), ['schema']);
     assert.deepEqual(paths(validateResultSummary(summary({ surprise: 1 }))), ['surprise']);
     assert.equal(validateResultSummary('not an object').ok, false);
     assert.equal(validateResultSummary(null).ok, false);

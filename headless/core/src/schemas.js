@@ -1,7 +1,7 @@
 // Public contract shapes. A version bump means a public meaning or shape change, not a refactor.
 
-export const SUMMARY_SCHEMA = 'mmseqs2-agent/result-summary@1';
-export const ARTIFACT_SCHEMA = 'mmseqs2-agent/result-artifact@1';
+export const SUMMARY_SCHEMA = 'foldseek-server/result-summary@1';
+export const ARTIFACT_SCHEMA = 'foldseek-server/result-artifact@1';
 
 export const RESULT_KINDS = ['search', 'complexsearch', 'foldmason', 'folddisco'];
 export const STATUSES = ['PENDING', 'RUNNING', 'COMPLETE', 'ERROR', 'UNKNOWN'];

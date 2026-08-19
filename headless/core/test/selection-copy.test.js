@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { Store, assertSelectionName } from '../src/index.js';
 
-const tmpDir = () => fsp.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-selcopy-'));
+const tmpDir = () => fsp.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-selcopy-'));
 const TICKET = 'zXdtIy4ZBaW9CmHXTKyfeMdLSDBOlvftku3N5g';
 
 async function store() {

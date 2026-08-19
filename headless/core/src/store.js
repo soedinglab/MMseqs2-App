@@ -41,7 +41,7 @@ function coded(code, message) {
 }
 
 export function defaultStateDir() {
-    return process.env.MMSEQS2_AGENT_STATE_DIR || path.join(os.homedir(), '.mmseqs2-agent');
+    return process.env.FOLDSEEK_SERVER_STATE_DIR || path.join(os.homedir(), '.foldseek-server');
 }
 
 /**

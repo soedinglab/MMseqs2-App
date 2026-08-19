@@ -1,22 +1,22 @@
 // Opt-in tests that talk to a real backend. Excluded from the default run: they need a server, and
 // the submitting half queues actual compute.
 //
-//   MMSEQS2_AGENT_LIVE_TESTS=1     enable the read-only half
-//   MMSEQS2_AGENT_BASE_URL=...     site origin, default http://localhost:3000 (a `go run main.go -local`)
-//   MMSEQS2_AGENT_LIVE_TICKET=...  a completed search ticket to read; defaults to the Foldseek
+//   FOLDSEEK_SERVER_LIVE_TESTS=1     enable the read-only half
+//   FOLDSEEK_SERVER_BASE_URL=...     site origin, default http://localhost:3000 (a `go run main.go -local`)
+//   FOLDSEEK_SERVER_LIVE_TICKET=...  a completed search ticket to read; defaults to the Foldseek
 //                                  validation ticket, which only exists on search.foldseek.com
-//   MMSEQS2_AGENT_LIVE_SUBMIT=1    also submit a real job and wait for it
+//   FOLDSEEK_SERVER_LIVE_SUBMIT=1    also submit a real job and wait for it
 //
 // The submit flag is deliberately separate from the read flag rather than folded into it. Reading a
 // completed ticket costs a request; submitting occupies a queue slot and a worker, which is not
 // something a test run should do because someone exported one variable.
 //
 //   node --test test/                                   # skips all of this
-//   MMSEQS2_AGENT_LIVE_TESTS=1 \
-//   MMSEQS2_AGENT_BASE_URL=https://search.foldseek.com \
+//   FOLDSEEK_SERVER_LIVE_TESTS=1 \
+//   FOLDSEEK_SERVER_BASE_URL=https://search.foldseek.com \
 //   node --test test/                                   # read-only against production
-//   MMSEQS2_AGENT_LIVE_TESTS=1 MMSEQS2_AGENT_LIVE_SUBMIT=1 \
-//   MMSEQS2_AGENT_BASE_URL=http://localhost:3000 \
+//   FOLDSEEK_SERVER_LIVE_TESTS=1 FOLDSEEK_SERVER_LIVE_SUBMIT=1 \
+//   FOLDSEEK_SERVER_BASE_URL=http://localhost:3000 \
 //   node --test test/                                   # full cycle against a local backend
 
 import { test } from 'node:test';
@@ -27,10 +27,10 @@ import path from 'node:path';
 
 import { createClient } from '../src/index.js';
 
-const LIVE = process.env.MMSEQS2_AGENT_LIVE_TESTS === '1';
-const SUBMIT = process.env.MMSEQS2_AGENT_LIVE_SUBMIT === '1';
-const BASE_URL = process.env.MMSEQS2_AGENT_BASE_URL || 'http://localhost:3000';
-const TICKET = process.env.MMSEQS2_AGENT_LIVE_TICKET || 'zXdtIy4ZBaW9CmHXTKyfeMdLSDBOlvftku3N5g';
+const LIVE = process.env.FOLDSEEK_SERVER_LIVE_TESTS === '1';
+const SUBMIT = process.env.FOLDSEEK_SERVER_LIVE_SUBMIT === '1';
+const BASE_URL = process.env.FOLDSEEK_SERVER_BASE_URL || 'http://localhost:3000';
+const TICKET = process.env.FOLDSEEK_SERVER_LIVE_TICKET || 'zXdtIy4ZBaW9CmHXTKyfeMdLSDBOlvftku3N5g';
 
 // Two CA-only residues: enough to be a valid submission without asking a server to do real work.
 const TINY_QUERY = [
@@ -41,7 +41,7 @@ const TINY_QUERY = [
 async function liveClient() {
     return createClient({
         baseUrl: BASE_URL,
-        stateDir: await fs.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-live-')),
+        stateDir: await fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-live-')),
     });
 }
 

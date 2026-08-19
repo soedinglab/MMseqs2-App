@@ -42,7 +42,7 @@ const base = { ticket: 'T1', entry: 0, jobType: 'structuresearch', status: 'COMP
 test('a 3Di+AA search summary reports counts, ranking semantics and one hit per database', () => {
     const out = resultSummary({ ...base, table: table(FOLDSEEK), catalog: CATALOG });
 
-    assert.equal(out.schema, 'mmseqs2-agent/result-summary@1');
+    assert.equal(out.schema, 'foldseek-server/result-summary@1');
     assert.equal(out.resultKind, 'search');
     assert.equal(out.mode, '3diaa');
     assert.equal(out.counts.parsedRows, 150);
@@ -237,7 +237,7 @@ test('every summary validates against its own schema', () => {
 // --- the client wiring: status handling and the promise not to poll in a loop -------------------
 
 async function tmpDir() {
-    return fsp.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-summary-'));
+    return fsp.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-summary-'));
 }
 
 function stubFetch(routes) {

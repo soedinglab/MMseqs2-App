@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createClient } from 'mmseqs2-agent-core';
+import { createClient } from 'foldseek-server-lib';
 import { createResources, RESOURCE_TEMPLATE } from '../src/resources.js';
 import { resourceLinks } from '../src/server.js';
 
@@ -27,8 +27,8 @@ const FOLDMASON = {
 };
 
 async function fixture({ type = 'structuresearch', result = load('foldseek-bfmd.raw.json'),
-    maxBytes = undefined } = {}) {
-    const stateDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-res-'));
+    maxBytes = undefined, exposeLocalPaths = true } = {}) {
+    const stateDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-res-'));
     const fetchImpl = async (url) => ({
         ok: true, status: 200,
         json: async () => (url.includes('/ticket/type/') ? { type }
@@ -38,7 +38,9 @@ async function fixture({ type = 'structuresearch', result = load('foldseek-bfmd.
                         : { id: 'T1', status: 'COMPLETE' }),
         text: async () => '',
     });
-    const client = createClient({ baseUrl: 'https://example.test', stateDir, fetchImpl });
+    const client = createClient({
+        baseUrl: 'https://example.test', stateDir, fetchImpl, artifacts: { exposeLocalPaths },
+    });
     return { client, resources: createResources(client, maxBytes ? { maxBytes } : {}) };
 }
 
@@ -109,12 +111,12 @@ test('traversal, absolute and encoded paths are refused', async () => {
         `${descriptor.uri}..%2f..%2fetc%2fpasswd`,
         `${descriptor.uri}search/../../manifest.json`,
         `${descriptor.uri}%2e%2e/manifest.json`,
-        'mmseqs2-artifact:///etc/passwd',
+        'foldseek-artifact:///etc/passwd',
         'file:///etc/passwd',
         `file://${descriptor.localPath}`,
-        'mmseqs2-artifact://not-an-id/manifest.json',
-        `mmseqs2-artifact://${'A'.repeat(64)}/manifest.json`,
-        `mmseqs2-artifact://${'a'.repeat(63)}/manifest.json`,
+        'foldseek-artifact://not-an-id/manifest.json',
+        `foldseek-artifact://${'A'.repeat(64)}/manifest.json`,
+        `foldseek-artifact://${'a'.repeat(63)}/manifest.json`,
         'not a uri at all',
         '',
         null,
@@ -138,7 +140,7 @@ test('an artifact that was collected reads as gone, not as an empty file', async
 
 test('the template says how a uri is built, and nothing is listed before an export', async () => {
     const { resources } = await fixture();
-    assert.equal(RESOURCE_TEMPLATE.uriTemplate, 'mmseqs2-artifact://{artifactId}/{path}');
+    assert.equal(RESOURCE_TEMPLATE.uriTemplate, 'foldseek-artifact://{artifactId}/{path}');
     assert.deepEqual(await resources.list(), []);
 });
 
@@ -170,7 +172,7 @@ test('the default cap admits a manifest and refuses a row file', async () => {
         assert.ok(err.message.includes(String(rows.bytes)), 'and the size');
         assert.ok(err.message.includes(String(resources.maxBytes)), 'and the limit');
         assert.match(err.message, /artifactRoot or localPath/, 'and where to read it instead');
-        assert.match(err.message, /MMSEQS2_AGENT_RESOURCE_MAX_BYTES/);
+        assert.match(err.message, /FOLDSEEK_SERVER_RESOURCE_MAX_BYTES/);
         assert.ok(err.message.length < 400, `refusal is ${err.message.length} bytes`);
         return true;
     });
@@ -235,4 +237,23 @@ test('a descriptor becomes one resource_link per file, carrying no contents', as
         'a failure links nothing');
     assert.deepEqual(resourceLinks({ ticketId: 'T1', status: 'PENDING' }), [],
         'and so does a tool with no files');
+});
+
+test('with local paths withheld, the descriptor and the refusal both stop promising a filesystem', async () => {
+    const { client, resources } = await fixture({ exposeLocalPaths: false });
+    const descriptor = await client.exportResult('T1abcd');
+
+    assert.equal(descriptor.artifactRoot, undefined);
+    assert.equal(descriptor.localPath, undefined);
+    assert.equal(descriptor.localPathVerified, undefined, 'not false — the field is simply absent');
+    assert.ok(descriptor.uri && descriptor.manifestUri, 'the uri is the contract, and it survives');
+
+    const rows = descriptor.files.find(f => f.role === 'rows' && f.bytes > resources.maxBytes);
+    await assert.rejects(() => resources.read(`${descriptor.uri}${rows.path}`), (err) => {
+        assert.equal(err.code, 'RESOURCE_TOO_LARGE');
+        assert.match(err.message, /withholds local paths/);
+        assert.equal(/artifactRoot|localPath/.test(err.message), false,
+            'a field the caller was never given must not be named');
+        return true;
+    });
 });

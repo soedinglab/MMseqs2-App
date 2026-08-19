@@ -10,7 +10,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { ARTIFACT_ID, URI_SCHEME } from 'mmseqs2-agent-core';
+import { ARTIFACT_ID, URI_SCHEME } from 'foldseek-server-lib';
 
 const MANIFEST = 'manifest.json';
 const URI = new RegExp(`^${URI_SCHEME}://([0-9a-f]{64})/(.*)$`);
@@ -83,10 +83,14 @@ export function createResources(client, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
             // The stat, not the manifest's record: a .gz is measured compressed, as it crosses the wire.
             const bytes = await fs.stat(full).then(st => st.size).catch(() => null);
             if (bytes !== null && bytes > maxBytes) {
+                // Only point at paths a caller was actually given: with local paths withheld there is
+                // no filesystem answer, and naming one would send them looking for a missing field.
+                const instead = store.exposeLocalPaths
+                    ? 'Open it from the file system using artifactRoot or localPath from export_result, or'
+                    : 'This deployment withholds local paths, so read it server-side, or';
                 throw invalid('RESOURCE_TOO_LARGE',
                     `${file.path} is ${bytes} bytes, over the ${maxBytes} limit for a resource read. ` +
-                    'Open it from the file system using artifactRoot or localPath from export_result, ' +
-                    'or raise MMSEQS2_AGENT_RESOURCE_MAX_BYTES.');
+                    `${instead} raise FOLDSEEK_SERVER_RESOURCE_MAX_BYTES.`);
             }
 
             if (TEXT_MIME.has(file.mime)) {

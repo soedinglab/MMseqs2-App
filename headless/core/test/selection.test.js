@@ -66,7 +66,7 @@ function parsed() {
 }
 
 function tmpDir() {
-    return fs.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-selection-'));
+    return fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-selection-'));
 }
 
 function stubFetch(routes = {}) {

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { UnsupportedOnDeploymentError } from 'mmseqs2-agent-core';
+import { UnsupportedOnDeploymentError } from 'foldseek-server-lib';
 import { createTools, runTool } from '../src/tools.js';
 
 const EXPECTED = [
@@ -49,7 +49,7 @@ function stubClient(overrides = {}) {
         async getTicketType(t) { record('getTicketType', t); return { type: 'structuresearch' }; },
         async resultUrl(t) { return `https://example.test/result/${t}/0`; },
         store: { async readTicket() { return null; } },
-        async getResultSummary(t, e) { record('getResultSummary', t, e); return { schema: 'mmseqs2-agent/result-summary@1', ticket: t, entry: e }; },
+        async getResultSummary(t, e) { record('getResultSummary', t, e); return { schema: 'foldseek-server/result-summary@1', ticket: t, entry: e }; },
         async exportResult(t, e) { record('exportResult', t, e); return { artifactId: 'a'.repeat(64), ticket: t, entry: e }; },
         ...overrides,
     };

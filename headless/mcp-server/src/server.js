@@ -3,12 +3,15 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
     CallToolRequestSchema, ListToolsRequestSchema,
     ListResourcesRequestSchema, ListResourceTemplatesRequestSchema, ReadResourceRequestSchema,
     ErrorCode, McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-import { createClient, parseInputDirs } from 'mmseqs2-agent-core';
+import { randomUUID } from 'node:crypto';
+
+import { createClient, parseInputDirs, parseUrlHosts } from 'foldseek-server-lib';
 
 import { createTools, runTool } from './tools.js';
 import { createResources } from './resources.js';
@@ -82,34 +85,35 @@ function boolFromEnv(env, name, fallback) {
 }
 
 export function readConfigFromEnv(env = process.env) {
-    const baseUrl = env.MMSEQS2_AGENT_BASE_URL;
+    const baseUrl = env.FOLDSEEK_SERVER_BASE_URL;
     if (!baseUrl) {
         throw new Error(
-            'MMSEQS2_AGENT_BASE_URL is required — set it to the site origin, e.g. ' +
+            'FOLDSEEK_SERVER_BASE_URL is required — set it to the site origin, e.g. ' +
             'http://localhost:3000 or https://search.foldseek.com.'
         );
     }
-    const user = env.MMSEQS2_AGENT_BASIC_AUTH_USER;
-    const pass = env.MMSEQS2_AGENT_BASIC_AUTH_PASS;
+    const user = env.FOLDSEEK_SERVER_BASIC_AUTH_USER;
+    const pass = env.FOLDSEEK_SERVER_BASIC_AUTH_PASS;
     return {
         baseUrl,
-        app: env.MMSEQS2_AGENT_APP || 'foldseek',
-        stateDir: env.MMSEQS2_AGENT_STATE_DIR || undefined,
-        apiPath: env.MMSEQS2_AGENT_API_PATH || undefined,
+        app: env.FOLDSEEK_SERVER_APP || 'foldseek',
+        stateDir: env.FOLDSEEK_SERVER_STATE_DIR || undefined,
+        apiPath: env.FOLDSEEK_SERVER_API_PATH || undefined,
         basicAuth: user ? { user, pass: pass ?? '' } : null,
-        resultRowCap: intFromEnv(env, 'MMSEQS2_AGENT_RESULT_ROW_CAP',
+        resultRowCap: intFromEnv(env, 'FOLDSEEK_SERVER_RESULT_ROW_CAP',
             { fallback: null, min: 1, max: 1000000 }),
         // Small on purpose: manifests fit, row files do not and belong on the file system.
-        resourceMaxBytes: sizeFromEnv(env, 'MMSEQS2_AGENT_RESOURCE_MAX_BYTES',
+        resourceMaxBytes: sizeFromEnv(env, 'FOLDSEEK_SERVER_RESOURCE_MAX_BYTES',
             { fallback: 16 * 1024, min: 1024, max: 32 * 1024 * 1024 }),
-        // Empty means queryPath is off. Opt-in, because the alternative is an arbitrary-file reader.
-        inputDirs: parseInputDirs(env.MMSEQS2_AGENT_INPUT_DIRS),
-        resultTtlSeconds: durationFromEnv(env, 'MMSEQS2_AGENT_RESULT_TTL',
+        // Both empty by default: the alternatives are an arbitrary-file reader and an open proxy.
+        inputDirs: parseInputDirs(env.FOLDSEEK_SERVER_INPUT_DIRS),
+        urlHosts: parseUrlHosts(env.FOLDSEEK_SERVER_URL_HOSTS),
+        resultTtlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_RESULT_TTL',
             { fallback: 86400, min: 60, max: 2592000 }),
         artifacts: {
-            ttlSeconds: durationFromEnv(env, 'MMSEQS2_AGENT_ARTIFACT_TTL',
+            ttlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_ARTIFACT_TTL',
                 { fallback: 1800, min: 60, max: 604800 }),
-            exposeLocalPaths: boolFromEnv(env, 'MMSEQS2_AGENT_LOCAL_PATHS', true),
+            exposeLocalPaths: boolFromEnv(env, 'FOLDSEEK_SERVER_LOCAL_PATHS', true),
         },
     };
 }
@@ -128,11 +132,13 @@ export function resourceLinks(result) {
 
 export function createServer(config) {
     const client = createClient(config);
-    const tools = createTools(client, { inputDirs: config.inputDirs ?? [] });
+    const tools = createTools(client, {
+        inputDirs: config.inputDirs ?? [], urlHosts: config.urlHosts ?? [],
+    });
     const resources = createResources(client, { maxBytes: config.resourceMaxBytes });
 
     const server = new Server(
-        { name: 'mmseqs2-agent', version: '0.1.0' },
+        { name: 'foldseek-server', version: '0.1.0' },
         { capabilities: { tools: {}, resources: {} } },
     );
 
@@ -177,9 +183,87 @@ export function createServer(config) {
     return { server, client, tools, resources };
 }
 
-export async function main(env = process.env) {
-    const { server, client } = createServer(readConfigFromEnv(env));
-    await server.connect(new StdioServerTransport());
+/**
+ * `--http --host H --port N` selects Streamable HTTP; stdio otherwise. Host and port must both be
+ * given: binding a guessed address is how a local-only server ends up reachable.
+ */
+export function readTransportFromArgv(argv = []) {
+    if (!argv.includes('--http')) return { kind: 'stdio' };
+    const value = (flag) => {
+        const at = argv.indexOf(flag);
+        return at === -1 ? undefined : argv[at + 1];
+    };
+    const host = value('--host');
+    const rawPort = value('--port');
+    if (!host || !rawPort) {
+        throw new Error('--http needs an explicit --host and --port, e.g. ' +
+                        '--http --host 127.0.0.1 --port 8080');
+    }
+    const port = Number(rawPort);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        throw new Error(`--port ${JSON.stringify(rawPort)} is not a port number (1..65535)`);
+    }
+    return { kind: 'http', host, port };
+}
+
+const LOOPBACK = /^(127\.\d+\.\d+\.\d+|::1|localhost)$/i;
+
+/**
+ * `queryPath` reads the *server's* filesystem. That is the same machine as the caller over stdio, and
+ * over HTTP only when the bind address is loopback. Anywhere else the path either means nothing or
+ * means a different file, so the combination is refused rather than served.
+ */
+export function assertTransportAllows({ inputDirs = [] }, transport) {
+    if (!inputDirs.length || transport.kind !== 'http' || LOOPBACK.test(transport.host)) return;
+    throw new Error(
+        `FOLDSEEK_SERVER_INPUT_DIRS is set and --http binds ${transport.host}, which is not loopback. ` +
+        'A path argument would read this host\'s files on behalf of a remote caller. Unset it, or ' +
+        'bind 127.0.0.1.');
+}
+
+/** Serve over Streamable HTTP. Returns the listening node http.Server. */
+export async function listenHttp(server, { host, port }) {
+    const { createServer: createHttpServer } = await import('node:http');
+    let transport = null;
+
+    const http = createHttpServer((req, res) => {
+        if (!transport) { res.writeHead(503).end(); return; }
+        transport.handleRequest(req, res).catch(() => {
+            if (!res.headersSent) res.writeHead(500).end();
+        });
+    });
+    await new Promise((resolve, reject) => {
+        http.once('error', reject);
+        http.listen(port, host, resolve);
+    });
+
+    // After binding, so the rebinding guard names the port actually in use rather than the one asked
+    // for — they differ whenever port 0 hands out an ephemeral one.
+    const bound = http.address().port;
+    transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        allowedHosts: [host, `${host}:${bound}`],
+        enableDnsRebindingProtection: true,
+    });
+    await server.connect(transport);
+    return http;
+}
+
+export async function main(env = process.env, argv = process.argv.slice(2)) {
+    const transport = readTransportFromArgv(argv);
+    const config = readConfigFromEnv(env);
+    assertTransportAllows(config, transport);
+    const { server, client } = createServer(config);
+
+    if (transport.kind === 'http') {
+        await listenHttp(server, transport);
+        process.stderr.write(
+            `foldseek-server: streamable http on http://${transport.host}:${transport.port}\n`);
+    } else {
+        await server.connect(new StdioServerTransport());
+        // Never stdout: that is the protocol stream in this mode.
+        process.stderr.write('foldseek-server: stdio\n');
+    }
 
     // After the transport is up, so a slow sweep never delays the handshake, and to stderr only —
     // stdout is the protocol stream.
@@ -187,12 +271,12 @@ export async function main(env = process.env) {
         .then(({ artifacts, results }) => {
             if (artifacts.deleted || results.deleted || artifacts.errors || results.errors) {
                 process.stderr.write(
-                    `mmseqs2-agent: startup GC removed ${artifacts.deleted} artifact(s) and ` +
+                    `foldseek-server: startup GC removed ${artifacts.deleted} artifact(s) and ` +
                     `${results.deleted} cached result(s), ` +
                     `${artifacts.errors + results.errors} error(s)\n`);
             }
         })
-        .catch(err => process.stderr.write(`mmseqs2-agent: startup GC failed: ${err.message}\n`));
+        .catch(err => process.stderr.write(`foldseek-server: startup GC failed: ${err.message}\n`));
 }
 
 /** Operator maintenance: sweep and report, without starting a server. */

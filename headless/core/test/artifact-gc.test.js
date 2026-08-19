@@ -12,7 +12,7 @@ import { createArtifactStore, collectArtifacts, collectResultCache, fileAudit, S
 const HOUR = 3600 * 1000;
 const id = n => String(n).repeat(64).slice(0, 64);
 
-const tmpDir = () => fsp.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-gc-'));
+const tmpDir = () => fsp.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-gc-'));
 
 /**
  * A store whose clock the test drives, over a root the test populates by hand. The clock starts at

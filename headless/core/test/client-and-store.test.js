@@ -24,7 +24,7 @@ const QUERY = [
 ].join('\n');
 
 async function tmpDir() {
-    return fs.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-test-'));
+    return fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-test-'));
 }
 
 /** Records every request and answers from a small routing table. */

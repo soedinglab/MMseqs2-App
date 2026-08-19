@@ -34,7 +34,7 @@ cd headless/core && npm test                  # no network, nothing submitted
 ```
 
 ```js
-import { createClient } from 'mmseqs2-agent-core';
+import { createClient } from 'foldseek-server-lib';
 
 const client = createClient({ baseUrl: 'https://search.foldseek.com' });
 const ticket = await client.submitFoldseekSearch({
@@ -53,7 +53,8 @@ for. The **artifact** is the complete factual export, written to files and addre
 analysis happens locally, as many times as wanted, without another round trip. Nothing large is ever
 inlined into a tool result.
 
-For the MCP server, see [`mcp-server/README.md`](mcp-server/README.md).
+For the MCP server: [`mcp-server/README.md`](mcp-server/README.md) is the full user documentation and
+the page npm publishes; [`mcp-server/REFERENCE.md`](mcp-server/REFERENCE.md) is for contributors.
 
 ## Examples
 
@@ -77,20 +78,12 @@ crosses between steps — a ticket id, a few row ids, a column range, and no str
 ```bash
 npm test                                      # in either package; no network, nothing submitted
 
-MMSEQS2_AGENT_LIVE_TESTS=1 \
-MMSEQS2_AGENT_BASE_URL=https://search.foldseek.com npm test     # + read-only live checks
+FOLDSEEK_SERVER_LIVE_TESTS=1 \
+FOLDSEEK_SERVER_BASE_URL=https://search.foldseek.com npm test     # + read-only live checks
 
-MMSEQS2_AGENT_LIVE_TESTS=1 MMSEQS2_AGENT_LIVE_SUBMIT=1 \
-MMSEQS2_AGENT_BASE_URL=http://localhost:3000 npm test           # + a real submitted job
+FOLDSEEK_SERVER_LIVE_TESTS=1 FOLDSEEK_SERVER_LIVE_SUBMIT=1 \
+FOLDSEEK_SERVER_BASE_URL=http://localhost:3000 npm test           # + a real submitted job
 ```
 
 The submit flag is separate from the read flag on purpose: reading a completed ticket costs a
 request, submitting occupies a queue slot and a worker.
-
-## Design notes
-
-The reasoning behind the API — why send-to dispatches on origin *and* destination, why selections
-persist, why reconstruction is a property of the destination — is in
-[`claude-plan/headless-agent-layer/`](../claude-plan/headless-agent-layer/): `plan.md` for the
-design, `context.md` for why each decision went the way it did, `checklist.md` for what was built and
-what was measured.

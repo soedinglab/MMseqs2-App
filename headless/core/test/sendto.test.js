@@ -52,7 +52,7 @@ const ORIGINAL_FILE = [
 ].join('\n');
 
 function tmpDir() {
-    return fs.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-sendto-'));
+    return fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-sendto-'));
 }
 
 /**

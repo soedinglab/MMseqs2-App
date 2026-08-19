@@ -1,15 +1,36 @@
 {
-  "name": "mmseqs2-agent-mcp",
+  "name": "foldseek-server-mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "MCP server exposing Foldseek/FoldMason/FoldDisco to an agent over the MMseqs2-App backend: eleven tools, with complete results delivered as artifact resources.",
+  "description": "Protein structure search for AI agents: Foldseek, FoldMason and FoldDisco as MCP tools over a Foldseek Server deployment, with results delivered as files.",
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "foldseek",
+    "foldmason",
+    "folddisco",
+    "protein",
+    "structure",
+    "bioinformatics",
+    "structural-biology",
+    "alignment"
+  ],
+  "homepage": "https://github.com/soedinglab/MMseqs2-App/tree/master/headless/mcp-server",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soedinglab/MMseqs2-App.git",
+    "directory": "headless/mcp-server"
+  },
+  "bugs": {
+    "url": "https://github.com/soedinglab/MMseqs2-App/issues"
+  },
   "license": "GPL-3.0-or-later",
   "type": "module",
   "bin": {
-    "mmseqs2-agent-mcp": "bin/mmseqs2-agent-mcp.js"
+    "foldseek-server-mcp": "bin/foldseek-server-mcp.js"
   },
   "files": [
-    "dist/",
+    "dist/server.mjs",
     "bin/",
     "README.md",
     "LICENSE"
@@ -25,6 +46,7 @@
   },
   "scripts": {
     "build": "node build.mjs",
+    "build:mcpb": "node pack-mcpb.mjs",
     "test": "node --test test/",
     "prepublishOnly": "node build.mjs"
   }

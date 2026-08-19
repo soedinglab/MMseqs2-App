@@ -1,11 +1,11 @@
-// End-to-end over real MCP: spawns bin/mmseqs2-agent-mcp.js as a child process and drives it with
+// End-to-end over real MCP: spawns bin/foldseek-server-mcp.js as a child process and drives it with
 // the SDK's own client over stdio. tools.test.js covers what the handlers do; this covers the parts
 // only a real transport exercises — the handshake, the advertised schemas, JSON round-tripping, and
 // that a startup failure is reported instead of hanging.
 //
 // Needs a reachable backend, so it is opt-in like the core live tests:
-//   MMSEQS2_AGENT_LIVE_TESTS=1 \
-//   MMSEQS2_AGENT_BASE_URL=https://search.foldseek.com \
+//   FOLDSEEK_SERVER_LIVE_TESTS=1 \
+//   FOLDSEEK_SERVER_BASE_URL=https://search.foldseek.com \
 //   node --test test/
 //
 // Read-only throughout: it inspects existing tickets and never submits a job.
@@ -22,18 +22,18 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 import { readConfigFromEnv } from '../src/server.js';
 
-const LIVE = process.env.MMSEQS2_AGENT_LIVE_TESTS === '1';
-const BASE_URL = process.env.MMSEQS2_AGENT_BASE_URL || 'http://localhost:3000';
-const TICKET = process.env.MMSEQS2_AGENT_LIVE_TICKET || 'zXdtIy4ZBaW9CmHXTKyfeMdLSDBOlvftku3N5g';
+const LIVE = process.env.FOLDSEEK_SERVER_LIVE_TESTS === '1';
+const BASE_URL = process.env.FOLDSEEK_SERVER_BASE_URL || 'http://localhost:3000';
+const TICKET = process.env.FOLDSEEK_SERVER_LIVE_TICKET || 'zXdtIy4ZBaW9CmHXTKyfeMdLSDBOlvftku3N5g';
 
-const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'mmseqs2-agent-mcp.js');
+const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'foldseek-server-mcp.js');
 
 async function connect(extraEnv = {}) {
-    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-e2e-'));
+    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-e2e-'));
     const transport = new StdioClientTransport({
         command: process.execPath,
         args: [BIN],
-        env: { ...process.env, MMSEQS2_AGENT_BASE_URL: BASE_URL, MMSEQS2_AGENT_STATE_DIR: stateDir, ...extraEnv },
+        env: { ...process.env, FOLDSEEK_SERVER_BASE_URL: BASE_URL, FOLDSEEK_SERVER_STATE_DIR: stateDir, ...extraEnv },
     });
     const client = new Client({ name: 'e2e-test', version: '0.0.0' }, { capabilities: {} });
     await client.connect(transport);
@@ -91,7 +91,7 @@ test('e2e: status, summary and export work on a real ticket', { skip: !LIVE }, a
         const summary = payload(await client.callTool({
             name: 'get_result_summary', arguments: { ticketId: TICKET },
         }));
-        assert.equal(summary.schema, 'mmseqs2-agent/result-summary@1');
+        assert.equal(summary.schema, 'foldseek-server/result-summary@1');
         assert.ok(summary.counts.parsedRows > 0);
         assert.ok(summary.databases.some(d => d.topHit?.target));
         assert.ok(JSON.stringify(summary).length < 8000, 'a summary stays small on real data');
@@ -167,11 +167,11 @@ test('e2e: a ticket read through the transport lands in the local cache', { skip
 });
 
 test('e2e: the server refuses to start without a base URL', { skip: !LIVE }, async () => {
-    // No MMSEQS2_AGENT_BASE_URL: it must exit with a readable reason on stderr rather than serve
+    // No FOLDSEEK_SERVER_BASE_URL: it must exit with a readable reason on stderr rather than serve
     // requests against some compiled-in default.
     const { spawn } = await import('node:child_process');
     const env = { ...process.env };
-    delete env.MMSEQS2_AGENT_BASE_URL;
+    delete env.FOLDSEEK_SERVER_BASE_URL;
 
     const child = spawn(process.execPath, [BIN], { env, stdio: ['pipe', 'pipe', 'pipe'] });
     let stderr = '';
@@ -179,13 +179,13 @@ test('e2e: the server refuses to start without a base URL', { skip: !LIVE }, asy
     const code = await new Promise(resolve => child.on('exit', resolve));
 
     assert.notEqual(code, 0, 'a missing base URL must be a startup failure');
-    assert.match(stderr, /MMSEQS2_AGENT_BASE_URL is required/);
+    assert.match(stderr, /FOLDSEEK_SERVER_BASE_URL is required/);
 });
 
 // --- configuration: two durations, range-checked at startup, never silently clamped --------------
 
 test('the TTLs default, take duration strings, and are refused outside their range', () => {
-    const base = { MMSEQS2_AGENT_BASE_URL: 'https://example.test' };
+    const base = { FOLDSEEK_SERVER_BASE_URL: 'https://example.test' };
 
     const defaults = readConfigFromEnv(base);
     assert.deepEqual(defaults.artifacts, { ttlSeconds: 1800, exposeLocalPaths: true });
@@ -198,11 +198,11 @@ test('the TTLs default, take duration strings, and are refused outside their ran
 
     const tuned = readConfigFromEnv({
         ...base,
-        MMSEQS2_AGENT_ARTIFACT_TTL: '90s',
-        MMSEQS2_AGENT_RESULT_TTL: '7d',
-        MMSEQS2_AGENT_LOCAL_PATHS: '0',
-        MMSEQS2_AGENT_RESOURCE_MAX_BYTES: '2m',
-        MMSEQS2_AGENT_RESULT_ROW_CAP: '500',
+        FOLDSEEK_SERVER_ARTIFACT_TTL: '90s',
+        FOLDSEEK_SERVER_RESULT_TTL: '7d',
+        FOLDSEEK_SERVER_LOCAL_PATHS: '0',
+        FOLDSEEK_SERVER_RESOURCE_MAX_BYTES: '2m',
+        FOLDSEEK_SERVER_RESULT_ROW_CAP: '500',
     });
     assert.deepEqual(tuned.artifacts, { ttlSeconds: 90, exposeLocalPaths: false });
     assert.equal(tuned.resultTtlSeconds, 7 * 86400);
@@ -210,20 +210,20 @@ test('the TTLs default, take duration strings, and are refused outside their ran
     assert.equal(tuned.resultRowCap, 500);
 
     for (const [raw, bytes] of [['4096', 4096], ['16k', 16384], ['1m', 1048576]]) {
-        assert.equal(readConfigFromEnv({ ...base, MMSEQS2_AGENT_RESOURCE_MAX_BYTES: raw }).resourceMaxBytes,
+        assert.equal(readConfigFromEnv({ ...base, FOLDSEEK_SERVER_RESOURCE_MAX_BYTES: raw }).resourceMaxBytes,
             bytes, `${raw} should parse`);
     }
 
     for (const [raw, seconds] of [['600', 600], ['30m', 1800], ['2h', 7200], ['1d', 86400]]) {
-        assert.equal(readConfigFromEnv({ ...base, MMSEQS2_AGENT_ARTIFACT_TTL: raw }).artifacts.ttlSeconds,
+        assert.equal(readConfigFromEnv({ ...base, FOLDSEEK_SERVER_ARTIFACT_TTL: raw }).artifacts.ttlSeconds,
             seconds, `${raw} should parse`);
     }
 
     const outOfRange = {
-        MMSEQS2_AGENT_ARTIFACT_TTL: ['59', '8d', '0', '-1', 'soon', '30.5m', '30 m', '1w', ''],
-        MMSEQS2_AGENT_RESULT_TTL: ['30s', '31d'],
-        MMSEQS2_AGENT_RESULT_ROW_CAP: ['0', '-5'],
-        MMSEQS2_AGENT_RESOURCE_MAX_BYTES: ['1023', '33m', '16 k', '2g', 'lots'],
+        FOLDSEEK_SERVER_ARTIFACT_TTL: ['59', '8d', '0', '-1', 'soon', '30.5m', '30 m', '1w', ''],
+        FOLDSEEK_SERVER_RESULT_TTL: ['30s', '31d'],
+        FOLDSEEK_SERVER_RESULT_ROW_CAP: ['0', '-5'],
+        FOLDSEEK_SERVER_RESOURCE_MAX_BYTES: ['1023', '33m', '16 k', '2g', 'lots'],
     };
     for (const [name, values] of Object.entries(outOfRange)) {
         for (const value of values) {
@@ -233,20 +233,20 @@ test('the TTLs default, take duration strings, and are refused outside their ran
                 `${name}=${value} should name the variable and its range`);
         }
     }
-    assert.equal(readConfigFromEnv({ ...base, MMSEQS2_AGENT_ARTIFACT_TTL: '' }).artifacts.ttlSeconds, 1800);
-    assert.throws(() => readConfigFromEnv({ ...base, MMSEQS2_AGENT_LOCAL_PATHS: 'maybe' }),
-        /MMSEQS2_AGENT_LOCAL_PATHS/);
+    assert.equal(readConfigFromEnv({ ...base, FOLDSEEK_SERVER_ARTIFACT_TTL: '' }).artifacts.ttlSeconds, 1800);
+    assert.throws(() => readConfigFromEnv({ ...base, FOLDSEEK_SERVER_LOCAL_PATHS: 'maybe' }),
+        /FOLDSEEK_SERVER_LOCAL_PATHS/);
 });
 
 test('the eleven tools and the resource capability survive a real handshake, and stdout stays clean', async () => {
-    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-e2e-'));
+    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-e2e-'));
     const transport = new StdioClientTransport({
         command: process.execPath,
         args: [BIN],
         env: {
             ...process.env,
-            MMSEQS2_AGENT_BASE_URL: 'http://127.0.0.1:9',      // discard port: nothing will connect
-            MMSEQS2_AGENT_STATE_DIR: stateDir,
+            FOLDSEEK_SERVER_BASE_URL: 'http://127.0.0.1:9',      // discard port: nothing will connect
+            FOLDSEEK_SERVER_STATE_DIR: stateDir,
         },
         stderr: 'pipe',
     });
@@ -267,12 +267,12 @@ test('the eleven tools and the resource capability survive a real handshake, and
         const { resources } = await client.listResources();
         assert.deepEqual(resources, []);
         const { resourceTemplates } = await client.listResourceTemplates();
-        assert.equal(resourceTemplates[0].uriTemplate, 'mmseqs2-artifact://{artifactId}/{path}');
+        assert.equal(resourceTemplates[0].uriTemplate, 'foldseek-artifact://{artifactId}/{path}');
 
         // A tool that fails, and an unreadable resource: neither may break the stream.
         const failed = await client.callTool({ name: 'get_result_summary', arguments: { ticketId: 'T1abcd' } });
         assert.equal(failed.isError, true);
-        await assert.rejects(() => client.readResource({ uri: 'mmseqs2-artifact://nope/manifest.json' }));
+        await assert.rejects(() => client.readResource({ uri: 'foldseek-artifact://nope/manifest.json' }));
 
         // The connection is still usable, which is what "stdout stayed clean" means in practice: any
         // stray write would have desynchronised the framing by now.

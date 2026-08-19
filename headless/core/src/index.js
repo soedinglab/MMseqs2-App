@@ -40,7 +40,8 @@ export {
 } from './facts.js';
 export { Store, defaultStateDir, summarizeRequest, assertSelectionName } from './store.js';
 export {
-    containedRealPath, resolveInputPath, parseInputDirs, MAX_INPUT_BYTES,
+    containedRealPath, resolveInputPath, resolveInputUrl, parseInputDirs, parseUrlHosts,
+    MAX_INPUT_BYTES,
 } from './inputs.js';
 export {
     checkMotif, validateMotif, assertMotif, computeDefaultMotif, motifFromTargetResidues,

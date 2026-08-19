@@ -27,7 +27,7 @@ const FOLDMASON = {
     tree: '(1abc,AF-P00001);',
 };
 
-const tmpDir = () => fsp.mkdtemp(path.join(os.tmpdir(), 'mmseqs2-agent-artifact-'));
+const tmpDir = () => fsp.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-artifact-'));
 
 /** A client whose network answers from fixtures, with a clock the test drives. */
 async function makeClient({ type = 'structuresearch', result = null, now = new Date('2026-08-18T00:00:00Z'),
@@ -61,7 +61,7 @@ test('a foldseek export writes rows, taxonomy and a database map, with counts th
     const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json') });
     const out = await client.exportResult('T1abcd');
 
-    assert.equal(out.schema, 'mmseqs2-agent/result-artifact@1');
+    assert.equal(out.schema, 'foldseek-server/result-artifact@1');
     assert.equal(out.cacheHit, false);
     assert.match(out.artifactId, /^[0-9a-f]{64}$/);
     assert.deepEqual(roles(out), ['databases', 'rows', 'taxonomy']);
@@ -288,7 +288,7 @@ test('the descriptor stays small and carries no file contents', async () => {
     assert.ok(text.length < 2000, `descriptor is ${text.length} bytes`);
     assert.equal(text.includes('ATOM'), false);
     assert.equal(text.includes('"nodes"'), false);
-    assert.match(out.uri, /^mmseqs2-artifact:\/\/[0-9a-f]{64}\/$/);
+    assert.match(out.uri, /^foldseek-artifact:\/\/[0-9a-f]{64}\/$/);
     assert.equal(out.manifestUri, `${out.uri}manifest.json`);
 });
 
@@ -309,7 +309,7 @@ test('local paths can be withheld for a client that cannot use them', async () =
     });
     const out = await client.exportResult('T1abcd');
     assert.equal(out.localPath, undefined);
-    assert.match(out.manifestUri, /^mmseqs2-artifact:/);
+    assert.match(out.manifestUri, /^foldseek-artifact:/);
 });
 
 test('an unfinished ticket exports nothing', async () => {
@@ -392,7 +392,7 @@ test('a manifest that fails its own schema is never published', async () => {
     const id = 'b'.repeat(64);
 
     await assert.rejects(
-        () => store.build(id, async () => ({ schema: 'mmseqs2-agent/result-artifact@1' })),
+        () => store.build(id, async () => ({ schema: 'foldseek-server/result-artifact@1' })),
         e => e.code === 'EXPORT_FAILED');
     assert.equal(fs.existsSync(store.dirFor(id)), false);
     assert.deepEqual(fs.readdirSync(store.root).filter(n => n.startsWith('.build-')), [],

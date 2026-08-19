@@ -1,15 +1,32 @@
 // The eleven tools: name, schema, handler. No MCP SDK here — server.js does the wrapping.
 
 import {
-    UnsupportedOnDeploymentError, DESTINATIONS, expandRanges, kindForJobType, resolveInputPath,
-} from 'mmseqs2-agent-core';
+    UnsupportedOnDeploymentError, DESTINATIONS, expandRanges, kindForJobType,
+    resolveInputPath, resolveInputUrl,
+} from 'foldseek-server-lib';
 
 const TICKET = { type: 'string', description: 'Ticket id.' };
 const ENTRY = { type: 'number', description: 'Query index. Foldseek and multimer only; default 0.' };
 const QUERY = { type: 'string', description: 'Structure as PDB or mmCIF text.' };
 const QUERY_PATH = {
     type: 'string',
-    description: 'Path to a structure file, read server-side. Needs MMSEQS2_AGENT_INPUT_DIRS.',
+    description: 'Path to a structure file, read server-side. Needs FOLDSEEK_SERVER_INPUT_DIRS.',
+};
+const FILE_PATHS = {
+    type: 'array',
+    minItems: 2,
+    items: { type: 'string' },
+    description: 'Paths read server-side instead of files. Needs FOLDSEEK_SERVER_INPUT_DIRS.',
+};
+const QUERY_URL = {
+    type: 'string',
+    description: 'https URL the server downloads. Needs FOLDSEEK_SERVER_URL_HOSTS.',
+};
+const FILE_URLS = {
+    type: 'array',
+    minItems: 2,
+    items: { type: 'string' },
+    description: 'https URLs the server downloads instead of files. Needs FOLDSEEK_SERVER_URL_HOSTS.',
 };
 const DATABASES = { type: 'array', items: { type: 'string' }, description: 'Paths from list_databases.' };
 const EMAIL = { type: 'string', description: 'Optional notification address.' };
@@ -58,16 +75,26 @@ function describe(selection, maxEntries) {
     };
 }
 
-export function createTools(client, { inputDirs = [] } = {}) {
+export function createTools(client, { inputDirs = [], urlHosts = [] } = {}) {
     const readPath = p => resolveInputPath(p, { inputDirs });
+    const readUrl = u => resolveInputUrl(u, { urlHosts, fetchImpl: client.fetchImpl });
+    // Advertised only when it can work. A schema offering a capability that always refuses is worse
+    // than one that never mentions it.
+    const byPath = inputDirs.length ? { queryPath: QUERY_PATH } : {};
+    const byPaths = inputDirs.length ? { filePaths: FILE_PATHS } : {};
+    const byUrl = urlHosts.length ? { queryUrl: QUERY_URL } : {};
+    const byUrls = urlHosts.length ? { fileUrls: FILE_URLS } : {};
 
-    const resolveQuery = async ({ query, queryPath, accession, motif }) => {
-        const given = ['query', 'queryPath', 'accession'].filter(k => ({ query, queryPath, accession })[k]);
+    const resolveQuery = async ({ query, queryPath, queryUrl, accession, motif }) => {
+        const all = { query, queryPath, queryUrl, accession };
+        const given = Object.keys(all).filter(k => all[k]);
         if (given.length > 1) {
-            throw coded('INVALID_INPUT', `pass one of query, queryPath or accession — got ${given.join(', ')}`);
+            throw coded('INVALID_INPUT',
+                `pass one of query, queryPath, queryUrl or accession — got ${given.join(', ')}`);
         }
-        if (queryPath) {
-            const file = await readPath(queryPath);
+        for (const [key, read] of [['queryPath', readPath], ['queryUrl', readUrl]]) {
+            if (!all[key]) continue;
+            const file = await read(all[key]);
             return { query: file.text, motif, loaded: { name: file.name, bytes: file.bytes } };
         }
         if (!accession) return { query, motif };
@@ -84,8 +111,9 @@ export function createTools(client, { inputDirs = [] } = {}) {
 
     const submit = async (tool, args, run) => {
         const resolved = await resolveQuery(args);
-        // queryPath never reaches the client: only the text it held.
-        const { queryPath, ...rest } = args;
+        // Neither a local path nor a URL reaches the client: only the text it held. A URL can carry a
+        // presigned signature, so it is no more recordable than a path.
+        const { queryPath, queryUrl, ...rest } = args;
         const full = { ...rest, query: resolved.query, ...(resolved.motif ? { motif: resolved.motif } : {}) };
         if (args.validateOnly) {
             const report = await client.validateSubmission({ tool, ...full });
@@ -172,7 +200,8 @@ export function createTools(client, { inputDirs = [] } = {}) {
                 required: ['databases'],
                 properties: {
                     query: QUERY,
-                    queryPath: QUERY_PATH,
+                    ...byPath,
+                    ...byUrl,
                     accession: ACCESSION,
                     databases: DATABASES,
                     mode: { type: 'string', enum: ['3diaa', '3di', 'tmalign', 'lolalign'], description: 'Default 3diaa.' },
@@ -199,7 +228,8 @@ export function createTools(client, { inputDirs = [] } = {}) {
                 required: ['databases'],
                 properties: {
                     query: QUERY,
-                    queryPath: QUERY_PATH,
+                    ...byPath,
+                    ...byUrl,
                     accession: ACCESSION,
                     databases: DATABASES,
                     mode: { type: 'string', enum: ['3diaa', '3di', 'tmalign', 'lolalign'], description: 'Default 3diaa.' },
@@ -231,27 +261,26 @@ export function createTools(client, { inputDirs = [] } = {}) {
                             properties: { name: { type: 'string' }, content: QUERY },
                         },
                     },
-                    filePaths: {
-                        type: 'array',
-                        minItems: 2,
-                        items: { type: 'string' },
-                        description: 'Paths read server-side instead of files. Needs MMSEQS2_AGENT_INPUT_DIRS.',
-                    },
+                    ...byPaths,
+                    ...byUrls,
                     email: EMAIL,
                     validateOnly: VALIDATE_ONLY,
                 },
             },
             async handler(args) {
-                const { filePaths, ...rest } = args;
-                if (!!args.files === !!filePaths) {
-                    throw coded('INVALID_INPUT', 'pass one of files or filePaths');
+                const { filePaths, fileUrls, ...rest } = args;
+                const given = ['files', 'filePaths', 'fileUrls'].filter(k => args[k]);
+                if (given.length !== 1) {
+                    throw coded('INVALID_INPUT',
+                        `pass exactly one of files, filePaths or fileUrls — got ${given.join(', ') || 'none'}`);
                 }
-                const files = filePaths
-                    ? await Promise.all(filePaths.map(async (p) => {
-                        const file = await readPath(p);
-                        return { name: file.name, content: file.text };
-                    }))
-                    : args.files;
+                const load = async (list, read) => Promise.all(list.map(async (item) => {
+                    const file = await read(item);
+                    return { name: file.name, content: file.text };
+                }));
+                const files = filePaths ? await load(filePaths, readPath)
+                    : fileUrls ? await load(fileUrls, readUrl)
+                        : args.files;
                 return submit('foldmason', { ...rest, files }, a => client.submitFoldMason(a));
             },
         },
@@ -265,7 +294,8 @@ export function createTools(client, { inputDirs = [] } = {}) {
                 required: ['databases'],
                 properties: {
                     query: QUERY,
-                    queryPath: QUERY_PATH,
+                    ...byPath,
+                    ...byUrl,
                     accession: ACCESSION,
                     databases: { ...DATABASES, description: 'Motif-capable paths from list_databases.' },
                     motif: { type: 'string', description: 'Required unless an accession supplies one.' },
