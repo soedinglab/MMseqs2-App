@@ -11,6 +11,7 @@ import { Task } from 'molstar/lib/mol-task';
 import { ValueCell } from 'molstar/lib/mol-util';
 import { Color } from 'molstar/lib/mol-util/color';
 import { ParamDefinition as PD } from 'molstar/lib/mol-util/param-definition';
+import { structureResidueKeys } from './molstarStructure.js';
 
 const QueryChainLabelColor = Color(0x1e88e5);
 const TargetChainLabelColor = Color(0xffc107);
@@ -58,7 +59,7 @@ const FoldseekChainLabelsShape = StateTransformer.builderFactory('foldseek')({
 
 export async function setChainLabels(plugin, state, input) {
     const labels = chainLabelData(state, input);
-    const enabled = input?.structureMode === 'multimer'
+    const enabled = (input?.structureMode === 'multimer' || input?.structureMode === 'interface')
         && input?.showChainLabels !== false
         && labels.length > 0;
 
@@ -67,8 +68,9 @@ export async function setChainLabels(plugin, state, input) {
         return;
     }
 
-    const chainScale = input?.chainLabelScale ?? input?.chainLabelSize ?? DefaultChainLabelScale;
-    const key = chainLabelKey(labels, chainScale);
+    const isInterface = input?.structureMode === 'interface';
+    const chainScale = input?.chainLabelScale ?? input?.chainLabelSize ?? (isInterface ? 3.5 : DefaultChainLabelScale);
+    const key = chainLabelKey(labels, chainScale, isInterface);
     if (state.chainLabels?.key === key) return;
 
     await deleteChainLabels(plugin, state);
@@ -83,6 +85,9 @@ export async function setChainLabels(plugin, state, input) {
             chainScale,
             background: false,
             attachment: 'middle-center',
+            tether: isInterface,
+            tetherLength: 1.2,
+            tetherBaseWidth: 0.12,
         }, {
             ref: ChainLabelsRepresentationRef,
             tags: ['foldseek-chain-labels-representation'],
@@ -101,8 +106,15 @@ async function deleteChainLabels(plugin, state) {
 function chainLabelData(state, input) {
     if (!state.query?.structure || !state.target?.structure) return [];
 
-    const queryAnchors = structureChainAnchors(state.query.structure);
-    const targetAnchors = structureChainAnchors(state.target.structure);
+    const interfaceOnly = input?.structureMode === 'interface'
+        && (input?.showQuery || 0) === 0
+        && (input?.showTarget || 0) === 0;
+    const queryAnchors = interfaceOnly
+        ? interfaceChainAnchors(state, 'query')
+        : structureChainAnchors(state.query.structure);
+    const targetAnchors = interfaceOnly
+        ? interfaceChainAnchors(state, 'target')
+        : structureChainAnchors(state.target.structure);
     const pairs = [];
     const seen = new Set();
     for (const [index, queryMap] of (state.alignmentMaps?.query || []).entries()) {
@@ -122,13 +134,49 @@ function chainLabelData(state, input) {
         pairs.push({
             queryChain: query.chain || queryChain,
             targetChain: target.chain || targetChain,
+            queryLabel: input?.structureMode === 'interface' ? `Q:${query.chain || queryChain}` : query.chain || queryChain,
+            targetLabel: input?.structureMode === 'interface' ? `T:${target.chain || targetChain}` : target.chain || targetChain,
             query,
             target,
         });
     }
 
     const sceneCenter = labelSceneCenter(pairs);
-    return pairs.map(pair => chainLabelEntry(pair, sceneCenter, input));
+    return pairs.map((pair, index) => chainLabelEntry(pair, sceneCenter, input, index, pairs.length));
+}
+
+function interfaceChainAnchors(state, side) {
+    const residuesByChain = new Map();
+    const seen = new Set();
+    for (const map of state.alignmentMaps?.[side] || []) {
+        const interfaceKeys = state.interfaceSelections?.[side]?.get(map.chain)?.keys;
+        if (!interfaceKeys?.size) continue;
+        for (const residue of map.toStructure.values()) {
+            if (!structureResidueKeys(residue, map.chain).some(key => interfaceKeys.has(key))) continue;
+            const key = `${map.chain}:${structureResidueKeys(residue).join('|')}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            if (!residuesByChain.has(map.chain)) residuesByChain.set(map.chain, []);
+            residuesByChain.get(map.chain).push(residue);
+        }
+    }
+
+    const byChain = new Map();
+    const list = [];
+    for (const [chain, residues] of residuesByChain) {
+        if (residues.length === 0) continue;
+        const center = Vec3();
+        for (const residue of residues) Vec3.add(center, center, [residue.x, residue.y, residue.z]);
+        Vec3.scale(center, center, 1 / residues.length);
+        const radius = residues.reduce((max, residue) => Math.max(
+            max,
+            Vec3.distance(center, [residue.x, residue.y, residue.z]),
+        ), 1);
+        const anchor = { chain, center, radius };
+        byChain.set(chain, anchor);
+        list.push(anchor);
+    }
+    return { byChain, list };
 }
 
 function structureChainAnchors(structureRef) {
@@ -165,19 +213,36 @@ function structureChainAnchors(structureRef) {
     return { byChain, list };
 }
 
-function chainLabelEntry({ queryChain, targetChain, query, target }, sceneCenter, input) {
+function chainLabelEntry({ queryChain, targetChain, queryLabel, targetLabel, query, target }, sceneCenter, input, index, total) {
     const pairCenter = Vec3.scale(Vec3(), Vec3.add(Vec3(), query.center, target.center), 0.5);
     const pairRadius = Math.max(query.radius, target.radius, Vec3.distance(pairCenter, query.center), Vec3.distance(pairCenter, target.center));
     const outward = outerLabelDirection(pairCenter, sceneCenter, query.center, target.center);
-    const offset = pairRadius * (input?.chainLabelOffset ?? 1.05);
+    const interfaceOnly = input?.structureMode === 'interface'
+        && (input?.showQuery || 0) === 0
+        && (input?.showTarget || 0) === 0;
+    const offset = pairRadius * (input?.chainLabelOffset ?? (interfaceOnly ? 1.55 : 1.12));
+    const position = Vec3.scaleAndAdd(Vec3(), pairCenter, outward, offset);
+    spreadLabelPosition(position, outward, pairRadius, index, total);
 
     return {
         queryChain,
         targetChain,
-        position: Vec3.scaleAndAdd(Vec3(), pairCenter, outward, offset),
+        queryLabel,
+        targetLabel,
+        position,
         depth: pairRadius,
         tooltip: `Query chain ${queryChain} / Target chain ${targetChain}`,
     };
+}
+
+function spreadLabelPosition(position, outward, radius, index, total) {
+    if (total < 2) return;
+    const axis = Math.abs(outward[1]) < 0.9 ? Vec3.create(0, 1, 0) : Vec3.create(1, 0, 0);
+    const lateral = Vec3.cross(Vec3(), outward, axis);
+    if (Vec3.magnitude(lateral) < 0.001) return;
+    Vec3.normalize(lateral, lateral);
+    const lane = index - (total - 1) / 2;
+    Vec3.scaleAndAdd(position, position, lateral, lane * Math.max(radius, 1) * 0.75);
 }
 
 function labelSceneCenter(pairs) {
@@ -201,12 +266,15 @@ function outerLabelDirection(pairCenter, sceneCenter, queryCenter, targetCenter)
     return Vec3.set(outward, 0, 1, 0);
 }
 
-function chainLabelKey(labels, chainScale) {
+function chainLabelKey(labels, chainScale, tether) {
     return [
         chainScale,
+        tether ? 1 : 0,
         labels.map(label => [
             label.queryChain,
             label.targetChain,
+            label.queryLabel || '',
+            label.targetLabel || '',
             ...label.position.map(roundCoordinate),
         ].join(',')).join(';'),
     ].join(':');
@@ -249,14 +317,14 @@ function buildChainLabelText(labels, props, oldText, groupMeta) {
 }
 
 function labelTextLength(label) {
-    return String(label.queryChain).length + String(label.targetChain).length + 1;
+    return String(label.queryLabel || label.queryChain).length + String(label.targetLabel || label.targetChain).length + 1;
 }
 
 function chainLabelRuns(label) {
     return [
-        { text: `${label.queryChain}`, color: QueryChainLabelColor },
+        { text: `${label.queryLabel || label.queryChain}`, color: QueryChainLabelColor },
         { text: '-', color: SeparatorChainLabelColor },
-        { text: `${label.targetChain}`, color: TargetChainLabelColor },
+        { text: `${label.targetLabel || label.targetChain}`, color: TargetChainLabelColor },
     ];
 }
 

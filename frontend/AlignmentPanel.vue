@@ -83,6 +83,7 @@
                 @toggleQuery="handleToggleQuery"
                 @toggleTarget="handleToggleTarget"
                 @toggleArrows="handleToggleArrows"
+                @toggle-structure-separation="handleToggleStructureSeparation"
                 @sceneEvent="handleStructureSceneEvent"
                 @sceneState="handleStructureSceneState"
             >
@@ -108,6 +109,7 @@
 import Alignment from './Alignment.vue'
 import StructureHoverTooltip from './StructureHoverTooltip.vue'
 import { foldseekResult } from './molstar/foldseekResult.js';
+import { InterfaceToolbarColors } from './molstar/foldseekInterface.js';
 import { getChainName } from './molstar/foldseekData.js'
 import { downloadBlob, exportAlignmentTitle, getResiduePointerOffset, makePositionMap, residueTextOffset } from './alignmentPanelUtils.js';
 import { prepareFoldseekStructureInput } from './molstar/foldseekData.js';
@@ -128,6 +130,7 @@ export default {
         showArrows: false,
         showQuery: 0,
         showTarget: 0,
+        separateStructures: false,
         highlights: [],
         queryHighlights: [],
         structureHighlights: [],
@@ -175,15 +178,23 @@ export default {
                 && !this.queryStructureHighlights.some(e => e !== null);
         },
         structureToolbar() {
-            return {
+            const toolbar = {
                 showQuery: this.showQuery,
                 showTarget: this.showTarget,
                 showArrows: this.showArrows,
                 disableQueryButton: !this.hasQueryStructure,
                 disableTargetButton: false,
-                disableArrowButton: !this.hasQueryStructure,
+                disableArrowButton: !this.hasQueryStructure || this.structureMode === 'interface',
                 cifButtonLabel: 'Save CIF',
             };
+            if (this.structureMode === 'interface') {
+                toolbar.queryColors = InterfaceToolbarColors.query;
+                toolbar.targetColors = InterfaceToolbarColors.target;
+                toolbar.interfaceToggle = true;
+                toolbar.separationToggle = this.hasQueryStructure;
+                toolbar.separateStructures = this.separateStructures;
+            }
+            return toolbar;
         },
         structureSceneInput() {
             return {
@@ -192,6 +203,7 @@ export default {
                 showQuery: this.showQuery,
                 showTarget: this.showTarget,
                 showArrows: this.showArrows,
+                structuresSeparated: this.structureMode === 'interface' && this.separateStructures,
                 highlightSelections: [
                     ...this.queryStructureHighlights
                         .map((value, index) => value ? { side: 'query', index, start: value[0], length: value[1] } : null),
@@ -233,6 +245,9 @@ export default {
         async prepareStructureViewer() {
             if (__APP__ !== 'foldseek') return;
 
+            const enteringInterfaceMode = this.structureMode === 'interface'
+                && this.foldseekStructureInput?.structureMode !== 'interface';
+
             const input = await prepareFoldseekStructureInput({
                 alignments: this.alignments,
                 hits: this.hits,
@@ -244,6 +259,13 @@ export default {
             });
 
             this.foldseekStructureInput = input;
+            if (enteringInterfaceMode) {
+                // Interface-only fragments are hard to orient in isolation.
+                // Start with the faded structural context; the toolbar can
+                // still cycle to interface-only or solid-chain views.
+                this.showQuery = 1;
+                this.showTarget = 1;
+            }
             this.hasQueryStructure = Boolean(input.hasQuery);
         },
         handleToggleQuery() {
@@ -262,6 +284,9 @@ export default {
         },
         handleToggleArrows() {
             this.showArrows = !this.showArrows;
+        },
+        handleToggleStructureSeparation() {
+            this.separateStructures = !this.separateStructures;
         },
         handleMakeImage(blob) {
             downloadBlob(blob, `${exportAlignmentTitle(this.alignments, this.hasQueryStructure)}.png`);

@@ -39,8 +39,8 @@ const FoldseekArrowsShape = StateTransformer.builderFactory('foldseek')({
     },
 });
 
-export async function setArrows(plugin, state, input) {
-    if (input?.structureMode === 'interface' || !input?.showArrows || !state.query || !state.target) {
+export async function setArrows(plugin, state, input, { force = false } = {}) {
+    if (input?.structureMode === 'interface' || input?.structuresSeparated || !input?.showArrows || !state.query || !state.target) {
         if (state.arrows?.ref) {
             await plugin.state.data.build().delete(state.arrows.ref).commit();
             state.arrows = null;
@@ -48,6 +48,10 @@ export async function setArrows(plugin, state, input) {
         return;
     }
 
+    if (state.arrows?.ref && force) {
+        await plugin.state.data.build().delete(state.arrows.ref).commit();
+        state.arrows = null;
+    }
     if (state.arrows?.ref) return;
 
     const pairs = alignmentArrowPairs(state, input);
@@ -132,11 +136,20 @@ function alignmentArrowPairs(state, input) {
         for (const match of getMatchingResiduePairs(alignment)) {
             const query = residueCoordinate(queryMap.toStructure.get(match.query));
             const target = residueCoordinate(targetMap.toStructure.get(match.target));
-            if (query && target) pairs.push([query, target]);
+            if (query && target) pairs.push([query, translatedTargetCoordinate(target, state)]);
         }
     }
 
     return pairs;
+}
+
+function translatedTargetCoordinate(target, state) {
+    const translation = state.interfaceSeparation || [0, 0, 0];
+    return [
+        target[0] + translation[0],
+        target[1] + translation[1],
+        target[2] + translation[2],
+    ];
 }
 
 function residueCoordinate(residue) {

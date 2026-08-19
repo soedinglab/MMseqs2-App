@@ -18,6 +18,7 @@
             @toggleQuery="$emit('toggleQuery')"
             @toggleTarget="$emit('toggleTarget')"
             @toggleArrows="$emit('toggleArrows')"
+            @toggle-structure-separation="$emit('toggle-structure-separation')"
         />
         <div class="molstar-structure-viewer" ref="viewport">
             <canvas class="molstar-structure-canvas" ref="canvas" aria-hidden="true"></canvas>

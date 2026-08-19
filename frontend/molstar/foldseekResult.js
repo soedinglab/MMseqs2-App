@@ -1,6 +1,8 @@
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
 import { OrderedSet } from 'molstar/lib/mol-data/int';
+import { Mat3, Vec3 } from 'molstar/lib/mol-math/linear-algebra';
 import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
+import { structureLayingTransform } from 'molstar/lib/mol-plugin-state/manager/focus-camera/orient-axes';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
@@ -99,6 +101,12 @@ function diffInput(previous, next) {
         hover: rebuild || selectionKey(previous?.hoverSelection) !== selectionKey(next?.hoverSelection),
         focus: rebuild || selectionKey(previous?.focusSelection, { focus: true }) !== selectionKey(next?.focusSelection, { focus: true }),
     };
+}
+
+function separationChanged(previous, next) {
+    return previous?.structureMode === 'interface'
+        && next?.structureMode === 'interface'
+        && Boolean(previous?.structuresSeparated) !== Boolean(next?.structuresSeparated);
 }
 
 function standardVisibilityKey(input, queryMode = input?.showQuery || 0, targetMode = input?.showTarget || 0) {
@@ -486,6 +494,9 @@ function resetSceneState(state, input) {
     state.visibilityKey = null;
     state.hoverLoci = null;
     state.hoverKey = null;
+    state.interfaceTargetBase = null;
+    state.interfaceSeparation = [0, 0, 0];
+    state.interfaceSeparationDirection = null;
     state.alignmentMaps = { query: [], target: [] };
     state.structureResidues = { query: new Map(), target: new Map() };
     state.interfaceRegions = { query: [], target: [] };
@@ -693,6 +704,9 @@ async function setStructureHover(plugin, state, input) {
 }
 
 async function setTargetFocus(plugin, state, input) {
+    // Interface mode has its own two-structure framing. A residual MSA focus
+    // must not pull the camera back to the target after a display toggle.
+    if (input?.structureMode === 'interface' && input?.structuresSeparated) return;
     const selection = input?.focusSelection;
     const key = selectionKey(selection, { focus: true });
     if (state.focusKey === key) return;
@@ -716,18 +730,29 @@ async function rebuildScene(plugin, state, input) {
         if (!input) return;
 
         let target = input.target ? await loadStructureFromData(plugin, input.target) : null;
+        // Interface CA coordinates are expressed in the source target frame.
+        // Keep that structure for residue matching before the display copy is
+        // superposed onto the query.
+        const interfaceTargetSource = target;
         const query = input.query ? await loadStructureFromData(plugin, input.query) : null;
 
         target = input?.structureMode === 'multimer'
             ? await prepareMultimerTarget(plugin, target, query, input, state)
             : await prepareSuperposedTarget(plugin, target, query, input, state);
+        if (input?.structureMode === 'interface' && target && query) {
+            // Keep TM-align and display layout as separate state transforms.
+            // The latter can be updated independently when the toolbar toggle
+            // is pressed, preserving the actual alignment transform.
+            state.interfaceTargetBase = target;
+            target = await transformStructureConformation(plugin, target, identityTransform());
+        }
         registerStructureSide(state, 'target', target);
         registerStructureSide(state, 'query', query);
         const alignmentState = buildAlignmentMaps(query, target, input);
         state.alignmentMaps = alignmentState.alignmentMaps;
         state.structureResidues = alignmentState.structureResidues;
         if (input?.structureMode === 'interface') {
-            prepareInterfaceState(state, input, { query, target });
+            prepareInterfaceState(state, input, { query, target: interfaceTargetSource });
         }
 
         if (target) {
@@ -743,7 +768,120 @@ async function rebuildScene(plugin, state, input) {
         }
     });
 
-    focusVisibleStructure(plugin, state.target || state.query);
+    if (input?.structureMode === 'interface' && input?.structuresSeparated) {
+        await setInterfaceSeparation(plugin, state, input, true, { animate: false });
+    } else if (input?.structureMode === 'interface') {
+        focusInterfaceStructures(plugin, state);
+    } else {
+        focusVisibleStructure(plugin, state.target || state.query);
+    }
+}
+
+function interfaceSeparationTranslation(plugin, state, target, query) {
+    // The radius sum is deliberately reduced: the cartoons do not fill their
+    // bounding spheres, so using their full radii creates an unnecessarily
+    // large empty band between the two assemblies.
+    const gap = Math.max(24, 0.8 * (structureRadius(target) + structureRadius(query)) + 4);
+    if (!state.interfaceSeparationDirection) {
+        state.interfaceSeparationDirection = screenStackDirection(plugin, query) || [0, -1, 0];
+    }
+    return state.interfaceSeparationDirection.map(value => value * gap);
+}
+
+function screenStackDirection(plugin, query) {
+    const camera = plugin.canvas3d?.camera?.state;
+    const structure = query?.cell?.obj?.data;
+    if (!camera || !structure) return null;
+
+    const up = Vec3.normalize(Vec3(), camera.up);
+    const view = Vec3.normalize(Vec3(), Vec3.sub(Vec3(), camera.target, camera.position));
+    const right = Vec3.normalize(Vec3(), Vec3.cross(Vec3(), view, up));
+    if (Vec3.magnitude(right) < 0.001) return Vec3.scale(Vec3(), up, -1);
+
+    // PCA X is the structure's longest axis. Project it into the camera plane,
+    // then choose the perpendicular screen direction so the two structures are
+    // stacked alongside that long axis rather than diagonally across it.
+    const { rotation } = structureLayingTransform([structure]);
+    const longestAxis = Vec3.transformMat3(Vec3(), Vec3.create(1, 0, 0), Mat3.invert(Mat3(), rotation));
+    const alongRight = Vec3.dot(longestAxis, right);
+    const alongUp = Vec3.dot(longestAxis, up);
+    const stack = Vec3.add(
+        Vec3(),
+        Vec3.scale(Vec3(), right, -alongUp),
+        Vec3.scale(Vec3(), up, alongRight),
+    );
+    if (Vec3.magnitude(stack) < 0.001) return Vec3.scale(Vec3(), up, -1);
+    Vec3.normalize(stack, stack);
+    if (Vec3.dot(stack, up) > 0) Vec3.negate(stack, stack);
+    return stack;
+}
+
+function identityTransform() {
+    return mat4FromRotationTranslation([0, 0, 0], [[1, 0, 0], [0, 1, 0], [0, 0, 1]]);
+}
+
+function separationTransform(translation) {
+    return mat4FromRotationTranslation(translation, [[1, 0, 0], [0, 1, 0], [0, 0, 1]]);
+}
+
+async function setInterfaceSeparation(plugin, state, input, separated, { animate = true } = {}) {
+    const target = state.target?.structure;
+    if (!target) return;
+
+    const from = state.interfaceSeparation || [0, 0, 0];
+    const to = separated
+        ? interfaceSeparationTranslation(plugin, state, state.interfaceTargetBase || target, state.query?.structure)
+        : [0, 0, 0];
+    const steps = animate ? 10 : 1;
+    for (let step = 1; step <= steps; step++) {
+        const progress = step / steps;
+        // Smoothstep eases into and out of the stacked position.
+        const eased = progress * progress * (3 - 2 * progress);
+        const translation = from.map((value, index) => value + (to[index] - value) * eased);
+        await plugin.state.data.build()
+            .to(target)
+            .update({
+                transform: {
+                    name: 'matrix',
+                    params: { data: separationTransform(translation), transpose: false },
+                },
+            })
+            .commit({ doNotUpdateCurrent: true });
+        if (animate && step < steps) await new Promise(resolve => setTimeout(resolve, 24));
+    }
+    state.interfaceSeparation = to;
+    await setArrows(plugin, state, input, { force: true });
+    // Let Mol* publish the final transformed bounds before deriving the camera
+    // focus sphere; otherwise the camera can retain the overlay zoom.
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    focusInterfaceStructures(plugin, state, { durationMs: 250 });
+}
+
+function focusInterfaceStructures(plugin, state, options = {}) {
+    const all = MS.struct.generator.all();
+    const loci = [state.query, state.target]
+        .map(entry => lociFromStructureExpression(entry?.structure, all))
+        .filter(Boolean);
+    if (loci.length) {
+        plugin.managers.camera.focusLoci(loci, {
+            durationMs: options.durationMs ?? 0,
+            extraRadius: 6,
+            minRadius: 3,
+        });
+    } else {
+        plugin.managers.camera.reset();
+    }
+}
+
+function structureRadius(structureRef) {
+    const structure = structureRef?.cell?.obj?.data;
+    if (!structure?.units?.length) return 20;
+    let radius = 0;
+    for (const unit of structure.units) {
+        const sphere = unit.lookup3d?.boundary?.sphere;
+        if (sphere?.radius) radius = Math.max(radius, sphere.radius);
+    }
+    return radius || 20;
 }
 
 async function prepareSuperposedTarget(plugin, target, query, input, state) {
@@ -873,10 +1011,15 @@ export const foldseekResult = {
         if (plan.rebuild && state.baseKey !== sceneKey(input)) {
             await rebuildScene(plugin, state, input);
         }
+        if (!plan.rebuild && separationChanged(previous, input)) {
+            await setInterfaceSeparation(plugin, state, input, Boolean(input?.structuresSeparated));
+        }
         if (plan.visibility) {
             await plugin.dataTransaction(async () => {
                 if (input?.structureMode === 'interface') {
                     await applyInterfaceVisibility(plugin, state, input);
+                    await setArrows(plugin, state, input);
+                    await setChainLabels(plugin, state, input);
                     return;
                 }
                 const queryMode = input?.showQuery || 0;

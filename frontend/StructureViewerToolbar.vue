@@ -23,7 +23,7 @@
         v-if="!disableQueryButton"
         v-bind="toolbarButtonProps"
         @click="$emit('toggleQuery')"
-        title="Toggle between the entire query structure and aligned region"
+        :title="queryToggleTitle"
     >
         <span v-if="queryColorList.length >= 2" class="two-tone-icon">
             <!-- The icon shape itself changes with 
@@ -50,7 +50,7 @@
         v-if="!disableTargetButton"
         v-bind="toolbarButtonProps"
         @click="$emit('toggleTarget')"
-        title="Toggle between the entire target structure and aligned region"
+        :title="targetToggleTitle"
     >
         <span v-if="targetColorList.length >= 2" class="two-tone-icon">
             <v-icon v-bind="toolbarIconProps"
@@ -69,6 +69,17 @@
             {{ targetIconName }}
         </v-icon>
         <span v-if="isFullscreen">&nbsp;Toggle full target</span>
+    </v-btn>
+    <v-btn
+        v-if="separationToggle"
+        v-bind="toolbarButtonProps"
+        @click="$emit('toggle-structure-separation')"
+        :title="separateStructures ? 'Overlay query and target structures' : 'Separate query and target structures while preserving their superposition'"
+    >
+        <v-icon v-bind="toolbarIconProps">
+            {{ separateStructures ? $MDI.Layers : $MDI.LayersOutline }}
+        </v-icon>
+        <span v-if="isFullscreen">&nbsp;{{ separateStructures ? 'Overlay structures' : 'Separate structures' }}</span>
     </v-btn>
     <v-btn
         v-if="!disableArrowButton"
@@ -139,6 +150,12 @@ export default {
         // (0 = aligned, 1 = full aligned chains, 2 = full complex incl.
         // non-aligned chains). Icons collapse to CircleHalf / Circle.
         binaryToggle: { type: Boolean, default: false },
+        // Interface mode uses the normal three-state cycle, but its states
+        // are interface-only, interface plus faded chain context, and solid
+        // chains rather than alignment coverage.
+        interfaceToggle: { type: Boolean, default: false },
+        separationToggle: { type: Boolean, default: false },
+        separateStructures: { type: Boolean, default: false },
     },
     computed: {
         structureFileButtonDisabled: function() {
@@ -166,6 +183,16 @@ export default {
         },
         targetColorList: function() {
             return Array.isArray(this.targetColors) ? this.targetColors : [this.targetColors];
+        },
+        queryToggleTitle: function() {
+            return this.interfaceToggle
+                ? 'Cycle query view: interface residues, faded chain context, solid chains'
+                : 'Toggle between the entire query structure and aligned region';
+        },
+        targetToggleTitle: function() {
+            return this.interfaceToggle
+                ? 'Cycle target view: interface residues, faded chain context, solid chains'
+                : 'Toggle between the entire target structure and aligned region';
         },
         // Two-state icon path: CircleHalf (aligned only) vs Circle (full).
         isBinary: function() {
