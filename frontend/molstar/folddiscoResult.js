@@ -22,7 +22,7 @@ const QueryColor = 0x1e88e5;
 const TargetColor = 0xffc107;
 const QueryLightColor = 0xa5cff5;
 const TargetLightColor = 0xffe699;
-const MotifRadius = 0.28;
+const MotifRadius = 0.20;
 
 async function addRepresentation(plugin, structure, label, expression, color, alpha = 1, type = 'cartoon', qualityPreset = 'viewer') {
     return addUniformRepresentation(
