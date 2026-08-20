@@ -3,8 +3,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { ARTIFACT_ID, DEFAULT_ARTIFACT_TTL_SECONDS } from './artifacts.js';
-import { containedRealPath } from './inputs.js';
+import { ARTIFACT_ID, DEFAULT_ARTIFACT_TTL_SECONDS, ROOT_MARKER } from './artifacts.js';
+import {
+    containedRealPath, treeBytes, inputsRoot, INPUT_ID, DEFAULT_INPUT_TTL_SECONDS,
+} from './inputs.js';
 
 const BUILD_PREFIX = '.build-';
 const READY = 'READY';
@@ -53,20 +55,6 @@ async function newestMtimeMs(dir, depth = 2) {
 
 async function readdirSafe(dir, withFileTypes = false) {
     try { return await fs.readdir(dir, { withFileTypes }); } catch { return []; }
-}
-
-async function directoryBytes(dir) {
-    let total = 0;
-    let entries;
-    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return 0; }
-    for (const entry of entries) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) total += await directoryBytes(full);
-        else {
-            try { total += (await fs.lstat(full)).size; } catch { /* vanished mid-walk */ }
-        }
-    }
-    return total;
 }
 
 async function refuseUnsafe(root, name) {
@@ -130,6 +118,13 @@ export async function collectArtifacts(store, {
     let names;
     try { names = await fs.readdir(root); } catch { return report; }
 
+    // Only roots we created. An export directory can be any folder the operator names, and a typo
+    // would otherwise aim the sweep at one we have never written to.
+    if (!names.includes(ROOT_MARKER)) {
+        report.refused = 'NOT_AN_ARTIFACT_ROOT';
+        return report;
+    }
+
     const record = async (entry) => {
         if (!audit) return;
         const routine = ROUTINE_RESULTS.has(entry.result) && ROUTINE_REASONS.has(entry.reason);
@@ -139,6 +134,7 @@ export async function collectArtifacts(store, {
 
     const candidates = [];
     for (const name of names) {
+        if (name === ROOT_MARKER) continue;
         const isArtifact = ARTIFACT_ID.test(name);
         const isScratch = name.startsWith(BUILD_PREFIX);
         if (!isArtifact && !isScratch) {
@@ -200,7 +196,7 @@ export async function collectArtifacts(store, {
             continue;
         }
 
-        const bytes = await directoryBytes(candidate.dir);
+        const bytes = await treeBytes(candidate.dir);
         const entry = {
             artifactId: candidate.name,
             reason: candidate.reason,
@@ -352,6 +348,116 @@ export async function collectResultCache(store, {
             await fs.rm(path.join(root, candidate.relative), { force: true });
             report.deleted += 1;
             report.bytesReclaimed += candidate.bytes;
+            await record({ ...entry, result: 'deleted' });
+        } catch (err) {
+            report.errors += 1;
+            await record({ ...entry, result: 'error', error: err.message });
+        }
+    }
+
+    report.finishedAt = new Date(now.getTime()).toISOString();
+    return report;
+}
+
+/**
+ * Expire staged inputs under `<stateDir>/inputs/`.
+ *
+ * @param {object} store  a Store
+ * @returns {Promise<object>} a report; never throws for a single unusable entry
+ */
+export async function collectStagedInputs(store, {
+    ttlSeconds = DEFAULT_INPUT_TTL_SECONDS,
+    maxDeletions = DEFAULT_MAX_DELETIONS,
+    dryRun = false,
+    audit = null,
+    auditKeeps = false,
+    now = new Date(),
+} = {}) {
+    const root = inputsRoot(store);
+    const report = {
+        startedAt: now.toISOString(),
+        dryRun,
+        examined: 0,
+        deleted: 0,
+        wouldDelete: 0,
+        kept: 0,
+        preserved: 0,
+        skipped: 0,
+        errors: 0,
+        bytesReclaimed: 0,
+        remaining: 0,
+        maxDeletions,
+    };
+
+    const record = async (entry) => {
+        if (!audit) return;
+        const routine = ROUTINE_RESULTS.has(entry.result) && ROUTINE_REASONS.has(entry.reason);
+        if (routine && !auditKeeps) return;
+        await audit({ ts: now.toISOString(), scope: 'inputs', ...entry }).catch?.(() => {});
+    };
+
+    const candidates = [];
+    for (const entry of await readdirSafe(root, true)) {
+        if (!INPUT_ID.test(entry.name)) {
+            // A scratch directory from an upload still in flight, or anything else. Not ours to judge.
+            report.preserved += 1;
+            continue;
+        }
+        if (!entry.isDirectory()) {
+            report.skipped += 1;
+            await record({
+                inputId: entry.name, result: 'skipped',
+                reason: entry.isSymbolicLink() ? 'SYMLINK' : 'NOT_A_DIRECTORY',
+            });
+            continue;
+        }
+        report.examined += 1;
+        const dir = path.join(root, entry.name);
+        let stat;
+        try { stat = await fs.lstat(dir); } catch { continue; }
+        const age = (now.getTime() - stat.mtimeMs) / 1000;
+        if (age <= ttlSeconds) {
+            report.kept += 1;
+            await record({
+                inputId: entry.name, reason: 'WITHIN_TTL', result: 'kept',
+                ageSeconds: Math.round(age),
+            });
+            continue;
+        }
+        candidates.push({ name: entry.name, dir, age });
+    }
+
+    candidates.sort((x, y) => y.age - x.age);
+
+    for (const candidate of candidates) {
+        if (report.deleted + report.wouldDelete >= maxDeletions) {
+            report.remaining += 1;
+            continue;
+        }
+        const real = await containedRealPath([root], candidate.dir);
+        if (real !== path.join(await fs.realpath(root), candidate.name)) {
+            report.skipped += 1;
+            await record({ inputId: candidate.name, reason: 'ESCAPES_ROOT', result: 'skipped' });
+            continue;
+        }
+
+        const bytes = await treeBytes(candidate.dir);
+        const entry = {
+            inputId: candidate.name,
+            reason: 'EXPIRED',
+            ageSeconds: Math.round(candidate.age),
+            bytes,
+        };
+        if (dryRun) {
+            report.wouldDelete += 1;
+            report.bytesReclaimed += bytes;
+            await record({ ...entry, result: 'would-delete' });
+            continue;
+        }
+        try {
+            await fs.rm(candidate.dir, { recursive: true, force: true });
+            report.deleted += 1;
+            report.bytesReclaimed += bytes;
             await record({ ...entry, result: 'deleted' });
         } catch (err) {
             report.errors += 1;

@@ -182,10 +182,13 @@ test('the summary and export tools pass through the ticket and entry, and nothin
     const client = stubClient();
     const tools = createTools(client);
 
-    for (const name of ['get_result_summary', 'export_result']) {
+    // The intent is that neither tool grows a query language: no fields, sorting, filtering or limits.
+    // `mountRoot` is not a query — it says where the caller sees the files, which only it can know.
+    const allowed = { get_result_summary: ['ticketId', 'entry'], export_result: ['ticketId', 'entry', 'mountRoot'] };
+    for (const [name, keys] of Object.entries(allowed)) {
         const tool = tools.find(t => t.name === name);
-        assert.deepEqual(Object.keys(tool.inputSchema.properties), ['ticketId', 'entry'],
-            `${name} takes a ticket and an entry — no fields, sorting, filtering or limits`);
+        assert.deepEqual(Object.keys(tool.inputSchema.properties), keys,
+            `${name} takes ${keys.join(', ')} and nothing else`);
     }
 
     assert.equal((await runTool(tools, 'get_result_summary', { ticketId: 'T1', entry: 2 })).entry, 2);

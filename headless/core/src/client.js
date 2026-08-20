@@ -43,9 +43,11 @@ import { TERMINAL_STATUSES, kindForJobType, normalizeEntry } from './facts.js';
 import { resultSummary, notReadySummary } from './summary.js';
 import { createArtifactStore, artifactCacheKey, artifactWriter, serverNamespaceFor } from './artifacts.js';
 import {
-    collectArtifacts as sweepArtifacts, collectResultCache as sweepResultCache, fileAudit,
+    collectArtifacts as sweepArtifacts, collectResultCache as sweepResultCache,
+    collectStagedInputs as sweepStagedInputs, fileAudit,
     DEFAULT_RESULT_TTL_SECONDS,
 } from './gc.js';
+import { DEFAULT_INPUT_TTL_SECONDS } from './inputs.js';
 import { getChainName } from '../../../frontend/lib/targetName.js';
 import { listChains } from '../../../frontend/lib/structureText.js';
 import { mockPDB, encodeMultimer } from '../../../frontend/lib/pdbAssembly.js';
@@ -117,7 +119,9 @@ export function createClient({
     fetchImpl = globalThis.fetch,
     onWarning = null,
     resultRowCap = null,
+    artifactDir = null,
     resultTtlSeconds = DEFAULT_RESULT_TTL_SECONDS,
+    inputTtlSeconds = DEFAULT_INPUT_TTL_SECONDS,
     artifacts = {},
 } = {}) {
     // Never default this. A wrong-but-plausible default would send someone's structures to a public
@@ -144,8 +148,19 @@ export function createClient({
         return value;
     };
     const serverNamespace = serverNamespaceFor({ baseUrl, apiPath });
+
+    // Exports can be sent somewhere the caller's host can already read — a hidden state directory is
+    // reachable by the server and by nothing else. The sweep only removes names it recognises, but an
+    // artifact root that contained the state directory would still be aimed at the wrong tree.
+    const artifactRoot = artifactDir || path.join(stateDir, 'artifacts');
+    const toState = path.relative(artifactRoot, stateDir);
+    if (toState === '' || (!toState.startsWith('..') && !path.isAbsolute(toState))) {
+        throw new Error(`artifactDir ${artifactRoot} contains the state directory ${stateDir} — ` +
+                        'pick a directory outside it');
+    }
     const artifactStore = createArtifactStore({
-        root: path.join(stateDir, 'artifacts'),
+        root: artifactRoot,
+        insideStateDir: !artifactDir,
         ...artifacts,
     });
     // Outside the artifact root on purpose: the GC never has to decide whether its own log is an
@@ -629,7 +644,7 @@ export function createClient({
          * The complete factual export for one result unit, as files. Returns a descriptor — the
          * resource URI and what is in the bundle — never the data.
          */
-        async exportResult(ticket, entry = 0) {
+        async exportResult(ticket, entry = 0, { mountRoot = null } = {}) {
             const unit = await client.resolveUnit(ticket, entry);
             if (unit.status !== 'COMPLETE') {
                 const err = new Error(`ticket ${ticket} is ${unit.status}; nothing to export yet`);
@@ -670,7 +685,7 @@ export function createClient({
             }));
             await client.collectGarbage({ minIntervalSeconds: GC_MIN_INTERVAL_SECONDS })
                 .catch(err => onWarning?.(`GC failed: ${err.message}`));
-            return artifactStore.descriptor(manifest, { cacheHit });
+            return artifactStore.descriptor(manifest, { cacheHit, mountRoot });
         },
 
         /**
@@ -700,6 +715,7 @@ export function createClient({
             const report = {
                 artifacts: await sweepArtifacts(artifactStore, shared),
                 results: await sweepResultCache(store, { ...shared, ttlSeconds: resultTtlSeconds }),
+                inputs: await sweepStagedInputs(store, { ...shared, ttlSeconds: inputTtlSeconds }),
             };
             await fsp.writeFile(gcStateFile, JSON.stringify({ lastSweepAt: now.toISOString() }))
                 .catch(err => onWarning?.(`could not record the GC sweep time: ${err.message}`));

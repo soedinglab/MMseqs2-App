@@ -133,16 +133,72 @@ test('the mcpb manifest matches the tools it ships and asks for what has no defa
     assert.deepEqual(manifest.compatibility.platforms, ['darwin', 'win32'], 'mcpb is not a linux format');
     assert.match(manifest.compatibility.runtimes.node, /18/);
 
-    // base_url is the reason the form exists: required, and never defaulted to someone else's server.
-    assert.equal(manifest.user_config.base_url.required, true);
-    assert.equal(manifest.user_config.base_url.default, undefined);
+    // base_url defaults to the public deployment, which is the common case.
+    assert.match(manifest.user_config.base_url.default, /^https:\/\//);
     assert.equal(manifest.user_config.state_dir.type, 'directory');
-    assert.equal(manifest.user_config.input_dirs.required, false,
+    assert.equal(manifest.user_config.input_dir.required, false,
         'reading local files stays opt-in here too');
 
+    // No host reliably expands a placeholder inside a default — Claude Desktop passes the literal
+    // through, which is how another extension ends up looking for "/${HOME}/Documents". Anything that
+    // needs the home directory is resolved by the server at runtime, from an empty value.
+    for (const [key, field] of Object.entries(manifest.user_config)) {
+        if (!('default' in field)) continue;
+        assert.equal(JSON.stringify(field.default).includes('${'), false,
+            `${key} has a placeholder in its default, which the host will not expand`);
+    }
+
+    // Hosts derive a per-server log filename from these, so a path separator makes an unwritable
+    // path and the launch dies in the logger — which is why nothing gets logged about it.
+    for (const field of ['name', 'display_name']) {
+        assert.doesNotMatch(manifest[field], /[/\\:]/,
+            `${field} must be path-safe: it becomes part of a log filename`);
+    }
+
+    // Single-valued throughout: Claude Desktop could not build a launch config from a multi-value
+    // field, whether it was referenced in env or in args, and logged nothing when it failed.
+    for (const [key, field] of Object.entries(manifest.user_config)) {
+        assert.notEqual(field.multiple, true, `${key} must not be multi-valued`);
+    }
+
+    // Collected but never passed on, whether through env or args.
     for (const key of Object.keys(manifest.user_config)) {
-        assert.ok(JSON.stringify(manifest.server.mcp_config.env).includes(`\${user_config.${key}}`),
+        assert.ok(JSON.stringify(manifest.server.mcp_config).includes(`\${user_config.${key}}`),
             `${key} is collected but never passed to the server`);
+    }
+
+    // Two ways this manifest has already broken Claude Desktop, both silent:
+    //
+    // 1. a `${user_config.x}` that can never resolve makes Desktop treat the extension as
+    //    unconfigured, whatever `required` says, so it will not stay enabled;
+    // 2. a multi-value field substituted into an env *string* cannot be built at all — the launch
+    //    fails before the process is created. Lists belong in `args`, as every working extension does.
+    const mcp = manifest.server.mcp_config;
+    const inEnv = JSON.stringify(mcp.env ?? {});
+    const inArgs = JSON.stringify(mcp.args ?? []);
+    for (const [, key] of JSON.stringify(mcp).matchAll(/\$\{user_config\.([a-z_]+)\}/g)) {
+        const field = manifest.user_config[key];
+        assert.ok(field, `mcp_config references ${key}, which is not a user_config field`);
+        // Two separate host behaviours, learned the hard way:
+        //   - a reference with no default at all makes Desktop call the extension unconfigured;
+        //   - a `required: true` field is only resolved from a *saved* value, never from its default,
+        //     so the extension reports "No MCP config found" until someone opens the form and saves.
+        // Between them, every referenced field needs a default and must not be required.
+        assert.ok('default' in field, `${key} is referenced in mcp_config with no default`);
+        assert.notEqual(field.required, true,
+            `${key} is required, so Desktop will not resolve it from its default — the extension will ` +
+            'not start until the form is saved by hand');
+        if (field.multiple) {
+            assert.ok(!inEnv.includes(`\${user_config.${key}}`),
+                `${key} is multi-valued and cannot be substituted into env — put it in args`);
+            assert.ok(inArgs.includes(`\${user_config.${key}}`), `${key} should be expanded in args`);
+        }
+    }
+
+    // Whatever the manifest passes in args, the binary has to understand.
+    const bin = await fs.readFile(path.join(PKG, 'bin', 'foldseek-server-mcp.js'), 'utf8');
+    for (const arg of mcp.args ?? []) {
+        if (arg.startsWith('--')) assert.ok(bin.includes(`'${arg}'`), `${arg} is passed but not parsed`);
     }
 });
 

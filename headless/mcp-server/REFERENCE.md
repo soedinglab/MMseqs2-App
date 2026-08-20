@@ -32,7 +32,7 @@ aromatic vs alanine, `n`/`N` negative vs asparagine, `h`/`H` hydrophilic vs hist
 proline. Upper-casing would silently turn *aromatic* into *alanine*: a search that runs, returns hits, and
 answers a different question.
 
-**Getting bytes to the server.** MCP has no upload channel — client capabilities are `sampling`,
+**Getting bytes to the server.** `POST /input` exists because MCP has no upload channel — client capabilities are `sampling`,
 `elicitation` (primitives only) and `roots` (directory URIs, deprecated), and tool arguments are JSON the
 model produces. So `queryPath` (the server opens a local file) and `queryUrl` (the server downloads one)
 exist because there is no protocol answer. `queryPath` is refused when `--http` binds a non-loopback
@@ -105,6 +105,14 @@ test failure.
 - **`queryUrl` makes the server fetch.** The host allowlist is the boundary; the scheme, address, redirect
   and size checks are defence against a mistyped entry. Adding another URL-taking argument means going
   through `resolveInputUrl`, never a bare `fetch`.
+- **A staged input is the only copy of those bytes.** So `collectStagedInputs` removes only
+  `in_<16 hex>` directories under `inputs/`, and only for expiry — never as cleanup, never anything else.
+  A scratch directory from an upload in flight is counted as preserved, not swept.
+- **The artifact sweep only touches roots it created.** `FOLDSEEK_SERVER_ARTIFACT_DIR` can name any
+  folder, so a typo would otherwise aim it at one we have never written to — and the name allowlist alone
+  would still delete a 64-hex directory belonging to something else. A build writes
+  `.foldseek-artifacts` into the root, and `collectArtifacts` refuses any root without it, examining
+  nothing and auditing nothing. The refusal heals on the next export.
 - **The GC deletes derived data only.** `ticket.json` and `selections.json` are not candidates at any age,
   and no directory is ever unlinked. The tests assert both by asserting what stayed.
 - **Eleven tools.** New capability goes into an existing tool's arguments or into the artifact, not into a
@@ -128,6 +136,3 @@ Two things that have bitten and are now tested:
 
 `.mcpb` archives carry their own `node_modules` — Desktop ships Node, not a registry client — so
 `pack-mcpb.mjs` stages a production-only tree rather than relying on the workspace's hoisted one.
-
-Publishing: `../../claude-plan/distribute-mcp/publishing.md`.
-Manual host checks that cannot be automated: `../../claude-plan/distribute-mcp/manual-testing.md`.

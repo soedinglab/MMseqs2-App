@@ -425,3 +425,53 @@ test('an expired artifact rebuilds from the cached result, without refetching it
     assert.deepEqual(second.fetched.map(u => u.replace('https://example.test', '')), ['/api/databases'],
         'only the database catalog, which is ~1 KB and memoised for the process');
 });
+
+test('exports can be sent to a directory the host can read, but not one holding the state', async () => {
+    const stateDir = await tmpDir();
+    const artifactDir = path.join(await tmpDir(), 'shared', 'exports');
+
+    const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir });
+    const elsewhere = createClient({
+        baseUrl: 'https://example.test',
+        stateDir,
+        artifactDir,
+        fetchImpl: client.fetchImpl,
+    });
+    const out = await elsewhere.exportResult('T1abcd');
+
+    assert.ok(out.artifactRoot.startsWith(artifactDir), `${out.artifactRoot} is under the chosen root`);
+
+    // A caller that sees the export directory at a mount of its own rebuilds the path from these.
+    assert.equal(out.exportRoot, artifactDir);
+    assert.equal(out.mountName, 'exports', 'the basename is what a sandbox mounts it under');
+    assert.equal(out.artifactRoot, path.join(out.exportRoot, out.artifactId));
+    assert.match(out.ifUnreadable, /find a directory named "exports"/);
+    assert.equal(
+        path.join('/sessions/x/mnt', out.mountName, out.artifactId, out.files[0].path),
+        `/sessions/x/mnt/exports/${out.artifactId}/${out.files[0].path}`);
+    assert.ok(JSON.stringify(out).length < 2048, `descriptor is ${JSON.stringify(out).length} bytes`);
+    assert.equal(fs.existsSync(out.localPath), true);
+    assert.equal(fs.existsSync(path.join(stateDir, 'artifacts')), false, 'and not in the state dir');
+
+    // The sweep is aimed at that root, so a root holding the state directory is refused outright.
+    for (const bad of [stateDir, path.dirname(stateDir), path.join(stateDir, '..')]) {
+        assert.throws(() => createClient({ baseUrl: 'https://example.test', stateDir, artifactDir: bad }),
+            /contains the state directory/, bad);
+    }
+    assert.doesNotThrow(() => createClient({
+        baseUrl: 'https://example.test', stateDir, artifactDir: path.join(stateDir, 'artifacts'),
+    }), 'the default location is still allowed');
+});
+
+test('a descriptor says so when its files are somewhere no other machine can reach', async () => {
+    const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json') });
+    const out = await client.exportResult('T1abcd');
+
+    // The default location is inside the state directory: readable by this server and nothing else.
+    // The server does know that much, so it says it rather than handing over a path that cannot work.
+    assert.match(out.ifUnreadable, /private state directory/);
+    assert.match(out.ifUnreadable, /FOLDSEEK_SERVER_ARTIFACT_DIR/);
+    assert.equal(out.localPathVerified, false);
+    assert.ok(out.uri, 'and the uri, which needs no filesystem, is still there');
+    assert.ok(JSON.stringify(out).length < 2048, `descriptor is ${JSON.stringify(out).length} bytes`);
+});

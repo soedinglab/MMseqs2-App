@@ -7,7 +7,9 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { createArtifactStore, collectArtifacts, collectResultCache, fileAudit, Store } from '../src/index.js';
+import {
+    createArtifactStore, collectArtifacts, collectResultCache, fileAudit, Store, ROOT_MARKER,
+} from '../src/index.js';
 
 const HOUR = 3600 * 1000;
 const id = n => String(n).repeat(64).slice(0, 64);
@@ -23,6 +25,8 @@ async function fixture({ now = new Date(), ttlSeconds = 7200 } = {}) {
     const stateDir = await tmpDir();
     const root = path.join(stateDir, 'artifacts');
     await fsp.mkdir(root, { recursive: true });
+    // The sweep only touches roots it created, which a real export marks on first build.
+    await fsp.writeFile(path.join(root, ROOT_MARKER), '{}');
     const clock = { at: now };
     const store = createArtifactStore({ root, ttlSeconds, clock: () => clock.at });
     const lines = [];
@@ -145,7 +149,9 @@ test('anything that is not an artifact id is skipped, never deleted', async () =
     assert.equal(report.deleted, 0);
     assert.equal(report.skipped, 5);
     for (const line of lines) assert.equal(line.reason, 'UNRECOGNIZED_NAME');
-    assert.equal(fs.readdirSync(root).length, 5, 'everything stayed');
+    assert.deepEqual(fs.readdirSync(root).sort(),
+        ['..hidden', 'A'.repeat(64), ROOT_MARKER, `${id(1)}x`, 'artifact-gc-audit.jsonl', 'not-an-id'].sort(),
+        'everything stayed, the root claim included');
 });
 
 test('stale build scratch is removed, a fresh one is left alone', async () => {
@@ -447,4 +453,48 @@ test('a payload name that is a symlink or a directory is refused, not followed',
 test('an empty state directory is not an error', async () => {
     const report = await collectResultCache(new Store(await tmpDir()));
     assert.deepEqual([report.examined, report.deleted, report.errors], [0, 0, 0]);
+});
+
+test('a directory we did not create is never swept, whatever it contains', async () => {
+    // What a mistyped FOLDSEEK_SERVER_ARTIFACT_DIR looks like: a real folder, with something in it
+    // that happens to match the artifact name pattern.
+    const root = await tmpDir();
+    const lookalike = path.join(root, 'e'.repeat(64));
+    await fsp.mkdir(lookalike, { recursive: true });
+    await fsp.writeFile(path.join(lookalike, 'someone-elses-work.txt'), 'do not delete me');
+    await fsp.writeFile(path.join(root, 'notes.md'), 'nor this');
+    const old = new Date(Date.now() - 99 * HOUR);
+    await fsp.utimes(lookalike, old, old);
+
+    const store = createArtifactStore({ root, ttlSeconds: 60 });
+    const lines = [];
+    const report = await collectArtifacts(store, { audit: async e => { lines.push(e); } });
+
+    assert.equal(report.refused, 'NOT_AN_ARTIFACT_ROOT');
+    assert.equal(report.deleted, 0);
+    assert.equal(report.examined, 0, 'it did not even look');
+    assert.deepEqual(lines, [], 'and audited nothing');
+    assert.equal(exists(lookalike), true);
+    assert.equal(exists(path.join(root, 'notes.md')), true);
+});
+
+test('a build claims the root, and the claim is never a candidate', async () => {
+    const { root, store, make, audit, lines } = await fixture();
+    await fsp.rm(path.join(root, ROOT_MARKER));           // as if the root predates the marker
+
+    assert.equal((await collectArtifacts(store)).refused, 'NOT_AN_ARTIFACT_ROOT');
+
+    // Building anything claims it, so the refusal heals itself on the next export.
+    await store.build('c'.repeat(64), async (scratch) => {
+        await fsp.writeFile(path.join(scratch, 'manifest.json'), '{}');
+        return null;
+    }).catch(() => {});
+    assert.equal(exists(path.join(root, ROOT_MARKER)), true, 'the build claimed the root');
+
+    await make(id(1), { hoursAgo: 9 });
+    const report = await collectArtifacts(store, { audit, auditKeeps: true });
+    assert.equal(report.refused, undefined);
+    assert.equal(report.deleted, 1);
+    assert.equal(exists(path.join(root, ROOT_MARKER)), true, 'the claim itself is never deleted');
+    assert.equal(lines.some(l => l.artifactId === ROOT_MARKER), false, 'nor audited as a skip');
 });

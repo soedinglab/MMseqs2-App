@@ -12,6 +12,12 @@
 //   FOLDSEEK_SERVER_LOCAL_PATHS  default 1       0 withholds local paths from descriptors
 //   FOLDSEEK_SERVER_RESOURCE_MAX_BYTES default 16k  cap on one resource read, 1k .. 32m
 //   FOLDSEEK_SERVER_INPUT_DIRS   default empty   colon-separated dirs queryPath may read
+//                                                 (or `--input-dir A B C`, for hosts that pass lists
+//                                                  as arguments rather than environment strings)
+//   FOLDSEEK_SERVER_URL_HOSTS    default empty   comma-separated hosts queryUrl may fetch
+//   FOLDSEEK_SERVER_INPUT_TOKEN  default unset   enables POST /input on --http
+//   FOLDSEEK_SERVER_INPUT_TTL    default 1h      uploaded structures, from last use
+//   FOLDSEEK_SERVER_INPUT_QUOTA  default 1g      total uploaded bytes held at once
 //   FOLDSEEK_SERVER_RESULT_ROW_CAP  default unset  (1 .. 1000000)
 //
 // Transport: stdio by default. `--http --host 127.0.0.1 --port 8080` serves Streamable HTTP instead;
@@ -29,15 +35,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// `--input-dir A B C` fills FOLDSEEK_SERVER_INPUT_DIRS. Claude Desktop expands a multi-value config
+// into argv entries and cannot substitute a list into an env string, so the list arrives here.
+const argv = process.argv.slice(2);
+const at = argv.indexOf('--input-dir');
+if (at !== -1) {
+    const dirs = [];
+    for (let i = at + 1; i < argv.length && !argv[i].startsWith('--'); i++) dirs.push(argv[i]);
+    argv.splice(at, dirs.length + 1);
+    if (dirs.length) process.env.FOLDSEEK_SERVER_INPUT_DIRS = dirs.join(path.delimiter);
+}
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOURCE = path.join(HERE, '..', 'src', 'server.js');
 const BUNDLE = path.join(HERE, '..', 'dist', 'server.mjs');
 const { main, runGc } = await import(`file://${fs.existsSync(SOURCE) ? SOURCE : BUNDLE}`);
 
-const args = process.argv.slice(2);
-const run = args.includes('--gc')
-    ? () => runGc(process.env, { dryRun: args.includes('--dry-run') })
-    : () => main(process.env, args);
+const run = argv.includes('--gc')
+    ? () => runGc(process.env, { dryRun: argv.includes('--dry-run') })
+    : () => main(process.env, argv);
 
 run().catch((err) => {
     process.stderr.write(`foldseek-server-mcp: ${err.message}\n`);

@@ -360,7 +360,7 @@ test('only one structure input is accepted at a time', async () => {
     for (const given of pairs) {
         const out = await runTool(tools, 'foldseek_search', { ...given, databases: ['afdb50'] });
         assert.equal(out.isError, true, JSON.stringify(given));
-        assert.match(out.error, /pass one of query, queryPath, queryUrl or accession/);
+        assert.match(out.error, /pass one of query, queryPath, queryUrl, inputId, accession/);
         for (const key of Object.keys(given)) assert.ok(out.error.includes(key), key);
     }
 });

@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "foldseek-server",
-  "display_name": "Foldseek / FoldMason / FoldDisco",
+  "display_name": "Foldseek Server",
   "version": "0.1.0",
   "description": "Structure search against an MMseqs2-App backend: submit, inspect, export results as files, forward hits.",
   "author": {
@@ -31,7 +31,9 @@
       "env": {
         "FOLDSEEK_SERVER_BASE_URL": "${user_config.base_url}",
         "FOLDSEEK_SERVER_STATE_DIR": "${user_config.state_dir}",
-        "FOLDSEEK_SERVER_INPUT_DIRS": "${user_config.input_dirs}"
+        "FOLDSEEK_SERVER_INPUT_DIRS": "${user_config.input_dir}",
+        "FOLDSEEK_SERVER_URL_HOSTS": "${user_config.url_hosts}",
+        "FOLDSEEK_SERVER_ARTIFACT_DIR": "${user_config.artifact_dir}"
       }
     }
   },
@@ -85,22 +87,37 @@
     "base_url": {
       "type": "string",
       "title": "Server URL",
-      "description": "Origin of the MMseqs2-App deployment, e.g. https://search.foldseek.com",
-      "required": true
+      "description": "Origin of the Foldseek Server deployment. Defaults to the public instance; change it to point at your own.",
+      "required": false,
+      "default": "https://search.foldseek.com"
     },
     "state_dir": {
       "type": "directory",
       "title": "State directory",
-      "description": "Where cached results, selections and exported artifacts are kept. Artifact handles are only durable if this stays put.",
+      "description": "Where cached results, selections and exported artifacts are kept. Leave empty for ~/.foldseek-server. Artifact handles are only durable if this stays put.",
       "required": false,
-      "default": "${HOME}/.foldseek-server"
+      "default": ""
     },
-    "input_dirs": {
+    "url_hosts": {
+      "type": "string",
+      "title": "Downloadable hosts",
+      "description": "Hostnames the server may download structures from, comma separated. Leave empty to disable.",
+      "required": false,
+      "default": ""
+    },
+    "input_dir": {
       "type": "directory",
-      "title": "Readable input directories",
-      "description": "Folders the server may read structure files from, for queryPath. Leave empty to disable.",
-      "multiple": true,
-      "required": false
+      "title": "Readable input directory",
+      "description": "One folder the server may read structure files from, for queryPath. Optional.",
+      "required": false,
+      "default": ""
+    },
+    "artifact_dir": {
+      "type": "directory",
+      "title": "Export directory",
+      "description": "Where exported result files are written. Choose a folder Claude can already read and it can open them without a further step. Leave empty to keep them inside the state directory.",
+      "required": false,
+      "default": ""
     }
   },
   "compatibility": {

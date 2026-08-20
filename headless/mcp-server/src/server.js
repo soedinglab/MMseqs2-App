@@ -9,9 +9,11 @@ import {
     ListResourcesRequestSchema, ListResourceTemplatesRequestSchema, ReadResourceRequestSchema,
     ErrorCode, McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 
-import { createClient, parseInputDirs, parseUrlHosts } from 'foldseek-server-lib';
+import {
+    createClient, parseInputDirs, parseUrlHosts, stageInput, MAX_INPUT_BYTES,
+} from 'foldseek-server-lib';
 
 import { createTools, runTool } from './tools.js';
 import { createResources } from './resources.js';
@@ -54,16 +56,16 @@ function durationFromEnv(env, name, { fallback, min, max }) {
     return parseDuration(raw, { min, max, name });
 }
 
-const SIZE_UNITS = { b: 1, k: 1024, m: 1024 * 1024 };
+const SIZE_UNITS = { b: 1, k: 1024, m: 1024 * 1024, g: 1024 * 1024 * 1024 };
 
-/** `16k`, `2m`, or a plain integer of bytes. */
+/** `16k`, `2m`, `1g`, or a plain integer of bytes. */
 export function parseSize(raw, { min, max, name = 'size' }) {
     const refuse = () => {
         throw new Error(`${name}=${JSON.stringify(raw)} is not usable — expected a size like 16k, 2m ` +
                         `or a plain number of bytes, between ${min} and ${max} bytes`);
     };
     if (typeof raw !== 'string') refuse();
-    const match = /^(\d+)([bkm]?)$/i.exec(raw.trim());
+    const match = /^(\d+)([bkmg]?)$/i.exec(raw.trim());
     if (!match) refuse();
     const value = Number(match[1]) * SIZE_UNITS[(match[2] || 'b').toLowerCase()];
     if (!Number.isSafeInteger(value) || value < min || value > max) refuse();
@@ -98,6 +100,7 @@ export function readConfigFromEnv(env = process.env) {
         baseUrl,
         app: env.FOLDSEEK_SERVER_APP || 'foldseek',
         stateDir: env.FOLDSEEK_SERVER_STATE_DIR || undefined,
+        artifactDir: env.FOLDSEEK_SERVER_ARTIFACT_DIR || undefined,
         apiPath: env.FOLDSEEK_SERVER_API_PATH || undefined,
         basicAuth: user ? { user, pass: pass ?? '' } : null,
         resultRowCap: intFromEnv(env, 'FOLDSEEK_SERVER_RESULT_ROW_CAP',
@@ -108,6 +111,12 @@ export function readConfigFromEnv(env = process.env) {
         // Both empty by default: the alternatives are an arbitrary-file reader and an open proxy.
         inputDirs: parseInputDirs(env.FOLDSEEK_SERVER_INPUT_DIRS),
         urlHosts: parseUrlHosts(env.FOLDSEEK_SERVER_URL_HOSTS),
+        // No token means no upload route, so the default deployment has no write surface.
+        inputToken: env.FOLDSEEK_SERVER_INPUT_TOKEN || null,
+        inputTtlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_INPUT_TTL',
+            { fallback: 3600, min: 300, max: 604800 }),
+        inputQuotaBytes: sizeFromEnv(env, 'FOLDSEEK_SERVER_INPUT_QUOTA',
+            { fallback: 1024 * 1024 * 1024, min: 1024 * 1024, max: 64 * 1024 * 1024 * 1024 }),
         resultTtlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_RESULT_TTL',
             { fallback: 86400, min: 60, max: 2592000 }),
         artifacts: {
@@ -133,7 +142,9 @@ export function resourceLinks(result) {
 export function createServer(config) {
     const client = createClient(config);
     const tools = createTools(client, {
-        inputDirs: config.inputDirs ?? [], urlHosts: config.urlHosts ?? [],
+        inputDirs: config.inputDirs ?? [],
+        urlHosts: config.urlHosts ?? [],
+        staging: config.inputToken ? { ttlSeconds: config.inputTtlSeconds } : null,
     });
     const resources = createResources(client, { maxBytes: config.resourceMaxBytes });
 
@@ -221,12 +232,66 @@ export function assertTransportAllows({ inputDirs = [] }, transport) {
         'bind 127.0.0.1.');
 }
 
+const UPLOAD_PATH = '/input';
+
+function sameSecret(given, expected) {
+    // timingSafeEqual throws on unequal lengths, so both sides are hashed to 32 bytes: the comparison
+    // then says nothing about how long the token is.
+    const digest = value => createHash('sha256').update(String(value ?? '')).digest();
+    return timingSafeEqual(digest(given), digest(expected));
+}
+
+/** `POST /input` — bytes pushed in, referenced later by an id. Absent unless a token is configured. */
+function uploadRoute({ client, token, quotaBytes, ttlSeconds, allowedHosts }) {
+    return async (req, res) => {
+        const reply = (status, body) => {
+            res.writeHead(status, { 'content-type': 'application/json' });
+            res.end(JSON.stringify(body));
+        };
+        if (req.method !== 'POST') return reply(405, { error: 'POST only' });
+
+        // The transport checks Host for its own requests; this route is outside it, so it checks too.
+        const host = String(req.headers.host ?? '').toLowerCase();
+        if (allowedHosts.length && !allowedHosts.includes(host)) {
+            return reply(403, { error: `invalid Host header: ${req.headers.host}` });
+        }
+
+        const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1];
+        if (!bearer || !sameSecret(bearer, token)) return reply(401, { error: 'bad or missing token' });
+
+        const name = new URL(req.url, 'http://localhost').searchParams.get('name') ?? 'query';
+        try {
+            const staged = await stageInput(req, {
+                store: client.store, name, maxBytes: MAX_INPUT_BYTES, quotaBytes,
+            });
+            return reply(201, {
+                inputId: staged.inputId,
+                bytes: staged.bytes,
+                name: staged.name,
+                expiresAt: new Date(Date.parse(staged.createdAt) + ttlSeconds * 1000).toISOString(),
+            });
+        } catch (err) {
+            const status = err.code === 'INPUT_TOO_LARGE' ? 413
+                : err.code === 'INPUT_QUOTA_EXCEEDED' ? 507
+                    : err.code === 'INVALID_INPUT' ? 400 : 500;
+            return reply(status, { error: err.message, ...(err.code ? { code: err.code } : {}) });
+        }
+    };
+}
+
 /** Serve over Streamable HTTP. Returns the listening node http.Server. */
-export async function listenHttp(server, { host, port }) {
+export async function listenHttp(server, { host, port, client = null, staging = null }) {
     const { createServer: createHttpServer } = await import('node:http');
     let transport = null;
+    let upload = null;
 
     const http = createHttpServer((req, res) => {
+        if (upload && new URL(req.url, 'http://localhost').pathname === UPLOAD_PATH) {
+            upload(req, res).catch(() => {
+                if (!res.headersSent) res.writeHead(500).end();
+            });
+            return;
+        }
         if (!transport) { res.writeHead(503).end(); return; }
         transport.handleRequest(req, res).catch(() => {
             if (!res.headersSent) res.writeHead(500).end();
@@ -240,11 +305,13 @@ export async function listenHttp(server, { host, port }) {
     // After binding, so the rebinding guard names the port actually in use rather than the one asked
     // for — they differ whenever port 0 hands out an ephemeral one.
     const bound = http.address().port;
+    const allowedHosts = [host, `${host}:${bound}`];
     transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
-        allowedHosts: [host, `${host}:${bound}`],
+        allowedHosts,
         enableDnsRebindingProtection: true,
     });
+    if (client && staging?.token) upload = uploadRoute({ client, allowedHosts, ...staging });
     await server.connect(transport);
     return http;
 }
@@ -256,7 +323,17 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
     const { server, client } = createServer(config);
 
     if (transport.kind === 'http') {
-        await listenHttp(server, transport);
+        await listenHttp(server, {
+            ...transport,
+            client,
+            staging: config.inputToken
+                ? {
+                    token: config.inputToken,
+                    ttlSeconds: config.inputTtlSeconds,
+                    quotaBytes: config.inputQuotaBytes,
+                }
+                : null,
+        });
         process.stderr.write(
             `foldseek-server: streamable http on http://${transport.host}:${transport.port}\n`);
     } else {

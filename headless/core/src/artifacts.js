@@ -23,6 +23,9 @@ export const DEFAULT_ARTIFACT_TTL_SECONDS = 1800;
 
 export const URI_SCHEME = 'foldseek-artifact';
 
+/** Written when we create an artifact root. The sweep refuses any root without it. */
+export const ROOT_MARKER = '.foldseek-artifacts';
+
 const READY = 'READY';
 const MANIFEST = 'manifest.json';
 const ACCESS = 'access.json';
@@ -87,6 +90,7 @@ export function createArtifactStore({
     clock = () => new Date(),
     ttlSeconds = DEFAULT_ARTIFACT_TTL_SECONDS,
     exposeLocalPaths = true,
+    insideStateDir = true,
     verifyRows = false,
 } = {}) {
     if (!root) throw new Error('createArtifactStore({ root }) is required');
@@ -176,6 +180,10 @@ export function createArtifactStore({
         async build(id, write) {
             const dir = dirFor(id);
             await fs.mkdir(root, { recursive: true });
+            // Claims the root as ours, so a mistyped export directory is never swept.
+            await fs.writeFile(path.join(root, ROOT_MARKER), JSON.stringify({
+                kind: 'foldseek-server artifact root', createdAt: clock().toISOString(),
+            })).catch(() => {});
             const scratch = await fs.mkdtemp(path.join(root, BUILD_PREFIX));
             building.add(id);
 
@@ -221,7 +229,7 @@ export function createArtifactStore({
         },
 
         /** Small by construction: roles, sizes and counts, never file contents. */
-        descriptor(manifest, { cacheHit = false } = {}) {
+        descriptor(manifest, { cacheHit = false, mountRoot = null } = {}) {
             const id = manifest.artifactId;
             const accessed = clock();
             const out = {
@@ -245,12 +253,30 @@ export function createArtifactStore({
             };
             if (exposeLocalPaths) {
                 const dir = dirFor(id);
+                // A caller that knows where it sees the export directory gets paths in its own space:
+                // it is the only party that can know, and the arithmetic is ours to do.
+                const base = mountRoot || root;
                 if (!path.relative(root, dir).startsWith('..')) {
-                    out.artifactRoot = dir;
-                    out.localPath = path.join(dir, MANIFEST);
-                    // The server cannot know the caller shares this filesystem; the handshake in the
-                    // README is how a caller finds out.
+                    // exportRoot and its basename, because a sandboxed caller sees the export directory
+                    // at a mount of its own and must rebuild the path rather than use ours. The server
+                    // cannot discover that view: there is no channel for it, and `roots` is deprecated
+                    // and unimplemented by the hosts that sandbox.
+                    out.exportRoot = base;
+                    out.mountName = path.basename(root);
+                    out.artifactRoot = path.join(base, id);
+                    out.localPath = path.join(base, id, MANIFEST);
                     out.localPathVerified = false;
+                    if (mountRoot) out.pathsRemapped = true;
+                    out.ifUnreadable = mountRoot
+                        ? 'paths are already in the space you named; if they still do not open, the '
+                          + 'mountRoot was wrong'
+                        : insideStateDir
+                        ? 'these files are inside this server\'s private state directory, so a client '
+                          + 'that does not share its filesystem cannot read them at any path — use the '
+                          + 'uri, or ask the operator to set FOLDSEEK_SERVER_ARTIFACT_DIR to a folder '
+                          + 'you can be granted'
+                        : `find a directory named "${path.basename(root)}" among the paths you can read, `
+                          + 'then join artifactId and a file path to it';
                 }
             }
             return out;

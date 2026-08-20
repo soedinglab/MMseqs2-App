@@ -90,13 +90,14 @@ front of anything not on loopback.
     - `databases` (string[]): paths from `list_databases`
     - `query` (string, optional): PDB or mmCIF text
     - `accession` (string | object, optional): an id, or `{ id, source, autoMotif }`
-    - `queryPath` (string, optional): local file the server reads
+    - `queryPath` (string, optional): a path as the **server** sees it
     - `queryUrl` (string, optional): https URL the server downloads
+    - `inputId` (string, optional): id from an upload — see [Uploading](#uploading-a-structure)
     - `mode` (string, optional): `3diaa` (default) | `3di` | `tmalign` | `lolalign`
     - `iterativeSearch` (boolean, optional)
     - `taxFilter` (string, optional): taxon ids, comma separated; `!` negates
     - `email` (string, optional), `validateOnly` (boolean, optional)
-  - Exactly one of `query`, `accession`, `queryPath`, `queryUrl`
+  - Exactly one of `query`, `accession`, `queryPath`, `queryUrl`, `inputId`
   - Returns a ticket immediately; nothing blocks
 
 - **multimer_search**
@@ -118,8 +119,9 @@ front of anything not on loopback.
     - `files` (object[], optional): `[{ name, content }]`
     - `filePaths` (string[], optional): local files the server reads
     - `fileUrls` (string[], optional): https URLs the server downloads
+    - `inputIds` (string[], optional): ids from uploads
     - `email` (string, optional), `validateOnly` (boolean, optional)
-  - Exactly one of the three, at least two structures
+  - Exactly one of the four, at least two structures
 
 - **get_ticket_status**
   - Status of a submitted job
@@ -141,6 +143,8 @@ front of anything not on loopback.
   - Inputs:
     - `ticketId` (string)
     - `entry` (number, optional)
+    - `mountRoot` (string, optional): where you see the export directory, if not at the server's path.
+      Paths come back in that space
   - Every hit row, taxonomy node and alignment column, as JSONL / JSON / FASTA. Returns a directory
     path, a manifest, and one resource link per file — no file contents
   - Repeat calls return the same artifact without rebuilding
@@ -183,11 +187,37 @@ front of anything not on loopback.
       default true
   - The structure is reassembled for the destination, and the new ticket records its source
 
+### Paths
+
+`queryPath` and `filePaths` are opened by the server, so they mean what they mean on *its* machine, inside
+`FOLDSEEK_SERVER_INPUT_DIRS` — which the schema names. A sandboxed client has to put the file where the
+server can see it and pass that path; a file only inside the sandbox has none.
+
 ### Resources
 
-Exported files are readable as `foldseek-artifact://<artifactId>/<path>`. Small files — the manifest, the
-database map, the tree — read directly. Anything over `FOLDSEEK_SERVER_RESOURCE_MAX_BYTES` (16 KB) is
-refused; open it from the path `export_result` returned instead.
+Exported files are readable as `foldseek-artifact://<artifactId>/<path>`. Small files — manifest, database
+map, tree — read directly; anything over `FOLDSEEK_SERVER_RESOURCE_MAX_BYTES` (16 KB) is refused, naming
+the path to open instead.
+
+By default they sit in the state directory, which the client usually cannot read. Point
+`FOLDSEEK_SERVER_ARTIFACT_DIR` at a folder the client can be granted and they go there. It may not contain
+the state directory, and the sweep only touches folders it created, marked by `.foldseek-artifacts`.
+
+A sandboxed client sees that folder at a mount of its own, so the descriptor carries `exportRoot`,
+`mountName` and `ifUnreadable` to rebuild the path — or pass `mountRoot` and the server rewrites them.
+Grants are per session, and `localPathVerified` is always `false`.
+
+### Uploading
+
+With `FOLDSEEK_SERVER_INPUT_TOKEN` set, `--http` accepts a structure and returns an id:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" --data-binary @1abc.cif \
+  "http://127.0.0.1:8080/input?name=1abc.cif"      # -> { "inputId": "in_7f3a…", … }
+```
+
+Then `foldseek_search { inputId }`. Ids expire after `FOLDSEEK_SERVER_INPUT_TTL`, counted from last use.
+Without a token the route does not exist and the `inputId` arguments are absent from the schemas.
 
 ## Configuration
 
@@ -196,9 +226,13 @@ Environment variables only.
 | variable | default | |
 |---|---|---|
 | `FOLDSEEK_SERVER_BASE_URL` | **required** | deployment origin, e.g. `https://search.foldseek.com` |
-| `FOLDSEEK_SERVER_STATE_DIR` | `~/.foldseek-server` | cached results, selections, exported files |
+| `FOLDSEEK_SERVER_STATE_DIR` | `~/.foldseek-server` | cached results and selections |
+| `FOLDSEEK_SERVER_ARTIFACT_DIR` | inside the state dir | where `export_result` writes files |
 | `FOLDSEEK_SERVER_INPUT_DIRS` | empty | directories `queryPath` may read (`:` separated, `;` on Windows) |
 | `FOLDSEEK_SERVER_URL_HOSTS` | empty | hostnames `queryUrl` may download from (comma separated) |
+| `FOLDSEEK_SERVER_INPUT_TOKEN` | unset | enables `POST /input`; absent means no upload route |
+| `FOLDSEEK_SERVER_INPUT_TTL` | `1h` | how long an uploaded structure is kept after last use |
+| `FOLDSEEK_SERVER_INPUT_QUOTA` | `1g` | total size of uploaded structures held at once |
 | `FOLDSEEK_SERVER_RESOURCE_MAX_BYTES` | `16k` | cap on one resource read |
 | `FOLDSEEK_SERVER_ARTIFACT_TTL` | `30m` | how long exported files are kept after last use |
 | `FOLDSEEK_SERVER_RESULT_TTL` | `24h` | how long cached results are kept after last use |
@@ -209,7 +243,7 @@ Environment variables only.
 | `FOLDSEEK_SERVER_BASIC_AUTH_PASS` | — | |
 | `FOLDSEEK_SERVER_RESULT_ROW_CAP` | unset | overrides the assumed per-database hit cap |
 
-Durations take `90s`, `30m`, `24h`, `7d`; sizes take `16k`, `2m`. A bad value fails at startup naming the
+Durations take `90s`, `30m`, `24h`, `7d`; sizes take `16k`, `2m`, `1g`. A bad value fails at startup naming the
 variable and its range.
 
 ### Command line
@@ -224,5 +258,4 @@ variable and its range.
 ## License
 
 GPL-3.0-or-later. Source, issues and
-[design notes](https://github.com/soedinglab/MMseqs2-App/blob/master/headless/mcp-server/REFERENCE.md):
 [soedinglab/MMseqs2-App](https://github.com/soedinglab/MMseqs2-App)

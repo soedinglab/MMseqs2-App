@@ -28,10 +28,10 @@ export {
 export { resultSummary, notReadySummary } from './summary.js';
 export {
     createArtifactStore, artifactCacheKey, artifactWriter, serverNamespaceFor,
-    ARTIFACT_ID, URI_SCHEME,
+    ARTIFACT_ID, URI_SCHEME, ROOT_MARKER,
 } from './artifacts.js';
 export {
-    collectArtifacts, collectResultCache, fileAudit,
+    collectArtifacts, collectResultCache, collectStagedInputs, fileAudit,
     DEFAULT_TTL_SECONDS, DEFAULT_RESULT_TTL_SECONDS,
 } from './gc.js';
 export {
@@ -41,7 +41,8 @@ export {
 export { Store, defaultStateDir, summarizeRequest, assertSelectionName } from './store.js';
 export {
     containedRealPath, resolveInputPath, resolveInputUrl, parseInputDirs, parseUrlHosts,
-    MAX_INPUT_BYTES,
+    stageInput, resolveStagedInput, inputsRoot, treeBytes,
+    INPUT_ID, MAX_INPUT_BYTES, DEFAULT_INPUT_TTL_SECONDS, DEFAULT_INPUT_QUOTA_BYTES,
 } from './inputs.js';
 export {
     checkMotif, validateMotif, assertMotif, computeDefaultMotif, motifFromTargetResidues,

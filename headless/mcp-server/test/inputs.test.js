@@ -107,7 +107,7 @@ test('foldmason takes exactly one of files, filePaths and fileUrls', async () =>
         files: [{ name: 'a.pdb', content: PDB }, { name: 'b.pdb', content: PDB }], filePaths: [a, a],
     });
     assert.equal(both.code, 'INVALID_INPUT');
-    assert.match(both.error, /exactly one of files, filePaths or fileUrls/);
+    assert.match(both.error, /exactly one of files, filePaths, fileUrls, inputIds/);
 
     const neither = await runTool(tools, 'foldmason_msa', {});
     assert.equal(neither.code, 'INVALID_INPUT');
