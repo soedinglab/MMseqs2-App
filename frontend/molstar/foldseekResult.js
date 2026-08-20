@@ -1,8 +1,7 @@
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
 import { OrderedSet } from 'molstar/lib/mol-data/int';
-import { Mat3, Vec3 } from 'molstar/lib/mol-math/linear-algebra';
+import { Vec3 } from 'molstar/lib/mol-math/linear-algebra';
 import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
-import { structureLayingTransform } from 'molstar/lib/mol-plugin-state/manager/focus-camera/orient-axes';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
@@ -45,6 +44,12 @@ const ChainSurfaceColors = [
     0xd55e00,
     0xcc79a7,
 ];
+
+// Separation is explanatory rather than a physical packing simulation: allow
+// a little projected overlap in the faded context, while keeping the coloured
+// interface patches easy to distinguish.
+const InterfaceSeparationOverlapScale = 0.72;
+const InterfaceSeparationClearance = 14;
 
 function selectionsKey(selections) {
     return selections.map(selectionKey).join(';');
@@ -176,10 +181,10 @@ function lociForSelection(state, input, selection) {
     );
 }
 
-function buildAlignmentMaps(query, target, input) {
+function buildAlignmentMaps(query, target, input, sourceStructures = {}) {
     const alignmentMaps = {
-        query: buildSideAlignmentMaps(query, input, 'query'),
-        target: buildSideAlignmentMaps(target, input, 'target'),
+        query: buildSideAlignmentMaps(query, input, 'query', sourceStructures.query),
+        target: buildSideAlignmentMaps(target, input, 'target', sourceStructures.target),
     };
     return {
         alignmentMaps,
@@ -190,7 +195,7 @@ function buildAlignmentMaps(query, target, input) {
     };
 }
 
-function buildSideAlignmentMaps(structureRef, input, side) {
+function buildSideAlignmentMaps(structureRef, input, side, sourceStructureRef = structureRef) {
     const alignments = input?.alignments || [];
     const structureResidues = structureResiduesByChain(structureRef);
 
@@ -199,18 +204,33 @@ function buildSideAlignmentMaps(structureRef, input, side) {
         const sourceChain = getChainName(sourceName);
         const chain = structureChainForAlignment(input, side, sourceChain);
         const residues = structureResidues.get(chain) || [];
-        const lookup = residueNumberLookup(residues);
-        const positions = alignmentPositions(alignment, side);
         const toStructure = new Map();
-
-        for (const position of positions) {
-            const residue = lookup.label.get(position) || lookup.auth.get(position);
-            if (!residue) continue;
-            toStructure.set(position, residue);
-        }
 
         const start = side === 'query' ? alignment.qStartPos : alignment.dbStartPos;
         const end = side === 'query' ? alignment.qEndPos : alignment.dbEndPos;
+        if (input?.structureMode === 'interface') {
+            const sourceResidues = structureResiduesByChain(sourceStructureRef).get(chain) || [];
+            const displayLookup = residueNumberLookup(residues);
+            const coordinates = parseInterfaceCa(alignment[side === 'query' ? 'qCa' : 'tCa']);
+
+            // Interface qStartPos/dbStartPos address the extracted interface
+            // sequence. Match each indexed CA to the source dimer, then use
+            // its residue identity to locate the equivalent display residue.
+            // This is the same mapping used by the final NGL implementation.
+            coordinates.forEach((coordinate, offset) => {
+                const sourceResidue = nearestStructureResidue(sourceResidues, coordinate);
+                if (!sourceResidue) return;
+                const residue = displayLookup.label.get(sourceResidue.labelResidue)
+                    || displayLookup.auth.get(sourceResidue.authResidue);
+                if (residue) toStructure.set(start + offset, residue);
+            });
+        } else {
+            const lookup = residueNumberLookup(residues);
+            for (const position of alignmentPositions(alignment, side)) {
+                const residue = lookup.label.get(position) || lookup.auth.get(position);
+                if (residue) toStructure.set(position, residue);
+            }
+        }
         return {
             index,
             side,
@@ -221,6 +241,34 @@ function buildSideAlignmentMaps(structureRef, input, side) {
             toStructure,
         };
     });
+}
+
+function parseInterfaceCa(value) {
+    if (typeof value !== 'string' || !value) return [];
+    const numbers = value.split(',').map(Number);
+    const coordinates = [];
+    for (let index = 0; index + 2 < numbers.length; index += 3) {
+        if (numbers.slice(index, index + 3).every(Number.isFinite)) {
+            coordinates.push(numbers.slice(index, index + 3));
+        }
+    }
+    return coordinates;
+}
+
+function nearestStructureResidue(residues, [x, y, z]) {
+    let nearest = null;
+    let distanceSquared = Infinity;
+    for (const residue of residues) {
+        const dx = residue.x - x;
+        const dy = residue.y - y;
+        const dz = residue.z - z;
+        const candidate = dx * dx + dy * dy + dz * dz;
+        if (candidate < distanceSquared) {
+            distanceSquared = candidate;
+            nearest = residue;
+        }
+    }
+    return nearest;
 }
 
 function structureResidueAlignmentMap(alignmentMaps) {
@@ -496,7 +544,6 @@ function resetSceneState(state, input) {
     state.hoverKey = null;
     state.interfaceTargetBase = null;
     state.interfaceSeparation = [0, 0, 0];
-    state.interfaceSeparationDirection = null;
     state.alignmentMaps = { query: [], target: [] };
     state.structureResidues = { query: new Map(), target: new Map() };
     state.interfaceRegions = { query: [], target: [] };
@@ -748,7 +795,10 @@ async function rebuildScene(plugin, state, input) {
         }
         registerStructureSide(state, 'target', target);
         registerStructureSide(state, 'query', query);
-        const alignmentState = buildAlignmentMaps(query, target, input);
+        const alignmentState = buildAlignmentMaps(query, target, input, {
+            query,
+            target: interfaceTargetSource || target,
+        });
         state.alignmentMaps = alignmentState.alignmentMaps;
         state.structureResidues = alignmentState.structureResidues;
         if (input?.structureMode === 'interface') {
@@ -778,42 +828,59 @@ async function rebuildScene(plugin, state, input) {
 }
 
 function interfaceSeparationTranslation(plugin, state, target, query) {
-    // The radius sum is deliberately reduced: the cartoons do not fill their
-    // bounding spheres, so using their full radii creates an unnecessarily
-    // large empty band between the two assemblies.
-    const gap = Math.max(24, 0.8 * (structureRadius(target) + structureRadius(query)) + 4);
-    if (!state.interfaceSeparationDirection) {
-        state.interfaceSeparationDirection = screenStackDirection(plugin, query) || [0, -1, 0];
-    }
-    return state.interfaceSeparationDirection.map(value => value * gap);
+    const direction = screenStackDirection(plugin, target, query) || [0, -1, 0];
+    // Separate the coloured interface patches, not the whole assemblies.
+    // Long context tails are deliberately translucent and should not create a
+    // large, data-dependent empty band between the two contact regions.
+    const queryBounds = interfaceProjectionBounds(state.query, direction)
+        || structureProjectionBounds(query, direction);
+    const targetBounds = interfaceProjectionBounds(state.target, direction)
+        || structureProjectionBounds(target, direction);
+    const gap = queryBounds && targetBounds
+        ? Math.max(
+            0,
+            (queryBounds.max - targetBounds.min) * InterfaceSeparationOverlapScale
+                + InterfaceSeparationClearance,
+        )
+        : 24;
+    return direction.map(value => value * gap);
 }
 
-function screenStackDirection(plugin, query) {
+function screenStackDirection(plugin, target, query) {
     const camera = plugin.canvas3d?.camera?.state;
-    const structure = query?.cell?.obj?.data;
-    if (!camera || !structure) return null;
+    if (!camera) return null;
 
+    // Once the PCA axes have been oriented, camera up is the screen Y axis.
+    // Translating along it (or its negative) is therefore a planar vertical
+    // stack, with no component towards or away from the camera.
     const up = Vec3.normalize(Vec3(), camera.up);
-    const view = Vec3.normalize(Vec3(), Vec3.sub(Vec3(), camera.target, camera.position));
-    const right = Vec3.normalize(Vec3(), Vec3.cross(Vec3(), view, up));
-    if (Vec3.magnitude(right) < 0.001) return Vec3.scale(Vec3(), up, -1);
+    if (Vec3.magnitude(up) < 0.001) return null;
 
-    // PCA X is the structure's longest axis. Project it into the camera plane,
-    // then choose the perpendicular screen direction so the two structures are
-    // stacked alongside that long axis rather than diagonally across it.
-    const { rotation } = structureLayingTransform([structure]);
-    const longestAxis = Vec3.transformMat3(Vec3(), Vec3.create(1, 0, 0), Mat3.invert(Mat3(), rotation));
-    const alongRight = Vec3.dot(longestAxis, right);
-    const alongUp = Vec3.dot(longestAxis, up);
-    const stack = Vec3.add(
-        Vec3(),
-        Vec3.scale(Vec3(), right, -alongUp),
-        Vec3.scale(Vec3(), up, alongRight),
-    );
-    if (Vec3.magnitude(stack) < 0.001) return Vec3.scale(Vec3(), up, -1);
-    Vec3.normalize(stack, stack);
-    if (Vec3.dot(stack, up) > 0) Vec3.negate(stack, stack);
-    return stack;
+    // Preserve the natural vertical arrangement around the aligned interface.
+    // For example, if target-only barrels already project above the query,
+    // translate the target upwards instead of carrying them through the query.
+    const targetCenter = structureCenter(target);
+    const queryCenter = structureCenter(query);
+    if (targetCenter && queryCenter) {
+        const targetAboveQuery = Vec3.dot(Vec3.sub(Vec3(), targetCenter, queryCenter), up);
+        if (Math.abs(targetAboveQuery) > 0.01) {
+            return targetAboveQuery > 0 ? up : Vec3.negate(up, up);
+        }
+    }
+    return Vec3.negate(up, up);
+}
+
+async function orientInterfaceForSeparation(plugin, state) {
+    const structures = [state.query?.structure, state.interfaceTargetBase || state.target?.structure]
+        .map(ref => ref?.cell?.obj?.data)
+        .filter(Boolean);
+    if (structures.length === 0) return;
+
+    // Mol*'s PCA orientation puts the longest principal axis along screen X.
+    // Apply it before reading camera.up so the separation is always vertical
+    // beside the longest plane, independent of the preceding user rotation.
+    plugin.managers.camera.orientAxes(structures, 0);
+    await new Promise(resolve => requestAnimationFrame(resolve));
 }
 
 function identityTransform() {
@@ -827,6 +894,8 @@ function separationTransform(translation) {
 async function setInterfaceSeparation(plugin, state, input, separated, { animate = true } = {}) {
     const target = state.target?.structure;
     if (!target) return;
+
+    if (separated) await orientInterfaceForSeparation(plugin, state);
 
     const from = state.interfaceSeparation || [0, 0, 0];
     const to = separated
@@ -860,7 +929,17 @@ async function setInterfaceSeparation(plugin, state, input, separated, { animate
 function focusInterfaceStructures(plugin, state, options = {}) {
     const all = MS.struct.generator.all();
     const loci = [state.query, state.target]
-        .map(entry => lociFromStructureExpression(entry?.structure, all))
+        .flatMap((entry) => {
+            // In the default 1/3 view only the interface patches are visible;
+            // focus those patches rather than invisible full-chain context.
+            if (entry?.mode === 0 && entry.entries?.some(item => item.interfaceExpression)) {
+                return entry.entries
+                    .map(item => lociFromStructureExpression(entry.structure, item.interfaceExpression))
+                    .filter(Boolean);
+            }
+            const loci = lociFromStructureExpression(entry?.structure, all);
+            return loci ? [loci] : [];
+        })
         .filter(Boolean);
     if (loci.length) {
         plugin.managers.camera.focusLoci(loci, {
@@ -873,19 +952,74 @@ function focusInterfaceStructures(plugin, state, options = {}) {
     }
 }
 
-function structureRadius(structureRef) {
+function structureCenter(structureRef) {
     const structure = structureRef?.cell?.obj?.data;
-    if (!structure?.units?.length) return 20;
-    let radius = 0;
+    if (!structure?.units?.length) return null;
+
+    const center = Vec3();
+    let count = 0;
     for (const unit of structure.units) {
         const sphere = unit.lookup3d?.boundary?.sphere;
-        if (sphere?.radius) radius = Math.max(radius, sphere.radius);
+        if (!sphere) continue;
+        Vec3.add(center, center, Vec3.transformMat4(Vec3(), sphere.center, unit.conformation.operator.matrix));
+        count += 1;
     }
-    return radius || 20;
+    return count > 0 ? Vec3.scale(center, center, 1 / count) : null;
+}
+
+function interfaceProjectionBounds(stateEntry, direction) {
+    if (!stateEntry?.structure || !stateEntry.entries?.length) return null;
+    const bounds = [];
+    for (const entry of stateEntry.entries) {
+        const loci = lociFromStructureExpression(stateEntry.structure, entry.interfaceExpression);
+        const boundary = loci && StructureElement.Loci.getBoundary(loci);
+        if (boundary?.box) bounds.push(projectBoxBounds(boundary.box, direction));
+    }
+    return mergeProjectionBounds(bounds);
+}
+
+function structureProjectionBounds(structureRef, direction) {
+    const structure = structureRef?.cell?.obj?.data;
+    if (!structure?.units?.length) return null;
+    const bounds = [];
+    for (const unit of structure.units) {
+        const sphere = unit.lookup3d?.boundary?.sphere;
+        if (!sphere) continue;
+        const center = Vec3.transformMat4(Vec3(), sphere.center, unit.conformation.operator.matrix);
+        const projection = Vec3.dot(center, direction);
+        bounds.push({ min: projection - sphere.radius, max: projection + sphere.radius });
+    }
+    return mergeProjectionBounds(bounds);
+}
+
+function projectBoxBounds(box, direction) {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const x of [box.min[0], box.max[0]]) {
+        for (const y of [box.min[1], box.max[1]]) {
+            for (const z of [box.min[2], box.max[2]]) {
+                const projection = direction[0] * x + direction[1] * y + direction[2] * z;
+                min = Math.min(min, projection);
+                max = Math.max(max, projection);
+            }
+        }
+    }
+    return { min, max };
+}
+
+function mergeProjectionBounds(bounds) {
+    if (!bounds.length) return null;
+    return {
+        min: Math.min(...bounds.map(bound => bound.min)),
+        max: Math.max(...bounds.map(bound => bound.max)),
+    };
 }
 
 async function prepareSuperposedTarget(plugin, target, query, input, state) {
     if (!target || !query) return target;
+    if (input.targetTransform) {
+        return transformStructureConformation(plugin, target, input.targetTransform);
+    }
     const superposition = await superposeTargetWithFoldseekAlignment(
         plugin,
         target,
@@ -901,8 +1035,8 @@ async function superposeTargetWithFoldseekAlignment(plugin, target, query, align
     if (!alignments?.length || !alignments[0]?.qAln || !alignments[0]?.dbAln) {
         return { structure: target, results: null };
     }
-    const queryPdb = makeAlignedCaPdb(query, rangesByChain(alignments, 'query', input), true);
-    const targetPdb = makeAlignedCaPdb(target, rangesByChain(alignments, 'target', input), false);
+    const queryPdb = makeAlignedCaPdb(query, rangesByChain(alignments, 'query', input));
+    const targetPdb = makeAlignedCaPdb(target, rangesByChain(alignments, 'target', input));
     if (!queryPdb || !targetPdb) {
         return { structure: target, results: null };
     }
@@ -915,7 +1049,7 @@ async function superposeTargetWithFoldseekAlignment(plugin, target, query, align
     };
 }
 
-function makeAlignedCaPdb(structureRef, ranges, useRangeStart) {
+function makeAlignedCaPdb(structureRef, ranges) {
     const structure = structureRef?.cell?.obj?.data;
     if (!structure || ranges.size === 0) return '';
 
@@ -946,7 +1080,7 @@ function makeAlignedCaPdb(structureRef, ranges, useRangeStart) {
             const ordinal = (chainOrdinals.get(ordinalKey) || 0) + 1;
             chainOrdinals.set(ordinalKey, ordinal);
 
-            if (!alignedOrdinalInRanges(chainRanges, ordinal, useRangeStart)) continue;
+            if (!alignedOrdinalInRanges(chainRanges, ordinal)) continue;
 
             rows.push(atomToPdbRow({
                 serial,
@@ -965,12 +1099,8 @@ function makeAlignedCaPdb(structureRef, ranges, useRangeStart) {
     return rows.join('\n');
 }
 
-function alignedOrdinalInRanges(ranges, ordinal, useRangeStart) {
-    return ranges.some(([start, end]) => (
-        useRangeStart
-            ? ordinal >= start && ordinal <= end
-            : ordinal >= 1 && ordinal <= (end - start + 1)
-    ));
+function alignedOrdinalInRanges(ranges, ordinal) {
+    return ranges.some(([start, end]) => ordinal >= start && ordinal <= end);
 }
 
 async function prepareMultimerTarget(plugin, target, query, input, state) {

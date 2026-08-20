@@ -9,30 +9,29 @@ import {
     chainExpression,
     expressionForResidues,
     lociFromExpression as lociFromStructureExpression,
-    mergeExpressions,
     representationRef,
     residueRanges,
     residueInfosFromLoci,
     structureResidueKeys,
 } from './molstarStructure.js';
 
-// Hue identifies structure (blue query, yellow target); lightness identifies
-// chain; saturation and opacity identify interface membership. This keeps the
-// full assembly readable while making its interface the strongest signal.
+// Hue identifies the paired chain; lightness identifies the structure.
+// This restores the NGL interface palette: query chains are the lighter
+// variants, their matched target chains the darker variants.
 export const InterfaceVisualPalette = {
     query: {
-        interface: [0x1e88e5, 0x90caf9],
-        context: [0x91c3e5, 0xc1e1f3],
+        interface: [0x90caf9, 0xffb74d],
+        context: [0x90caf9, 0xffb74d],
     },
     target: {
-        interface: [0xffc107, 0xffe082],
-        context: [0xf2d99a, 0xf9edc7],
+        interface: [0x0d47a1, 0xe65100],
+        context: [0x0d47a1, 0xe65100],
     },
 };
 
 export const InterfaceToolbarColors = {
-    query: '#1E88E5',
-    target: '#FFC107',
+    query: '#90CAF9',
+    target: '#0D47A1',
 };
 
 const InterfaceContextTransparency = 0.7;
@@ -67,8 +66,8 @@ function computeInterfaceState(query, target, input, alignmentMaps) {
             selections: { query: new Map(), target: new Map() },
         };
     }
-    const queryState = computeInterfaceSide(query, alignmentMaps?.query || [], input.interfaceCutoff, input, 'query');
-    const targetState = computeInterfaceSide(target, alignmentMaps?.target || [], input.interfaceCutoff, input, 'target');
+    const queryState = computeInterfaceSide(query, alignmentMaps?.query || [], input, 'query');
+    const targetState = computeInterfaceSide(target, alignmentMaps?.target || [], input, 'target');
     return {
         regions: {
             query: queryState.regions,
@@ -81,13 +80,12 @@ function computeInterfaceState(query, target, input, alignmentMaps) {
     };
 }
 
-function computeInterfaceSide(structureRef, alignmentMaps, cutoff, input, side) {
+function computeInterfaceSide(structureRef, alignmentMaps, input, side) {
     const selections = interfaceSelectionsByChain(
         structureRef,
         alignmentMaps,
         input?.alignments || [],
         side,
-        cutoff,
     );
     const regions = mapInterfaceRegions(alignmentMaps, selections);
     for (const region of regions) {
@@ -244,7 +242,7 @@ function mapInterfaceRegions(alignmentMaps, selectionsByChain) {
     return regions;
 }
 
-function interfaceSelectionsByChain(structureRef, alignmentMaps, alignments, side, cutoff = 10) {
+function interfaceSelectionsByChain(structureRef, alignmentMaps, alignments, side) {
     const structure = structureRef?.cell?.obj?.data;
     const chainList = chainsFromMaps(alignmentMaps);
     const selections = new Map(chainList.map(chain => [
@@ -276,12 +274,16 @@ function interfaceSelectionsByChain(structureRef, alignmentMaps, alignments, sid
         const selection = selections.get(chain);
         if (!selection) continue;
 
-        if (selection.hasSearchCoordinates) {
+        if (selection.hasSearchCoordinates && selection.residues.size > 0) {
             selection.expression = expressionForResidues(Array.from(selection.residues.values()));
             continue;
         }
 
-        const expression = interfaceSurroundingsExpression(chain, chainList, cutoff);
+        // qCa/tCa are optional in older or malformed results. In that case we
+        // cannot identify a precise interface safely, so preserve NGL's
+        // graceful fallback: render the complete matched chain rather than
+        // fabricating a new contact patch with a geometric cutoff.
+        const expression = chainExpression(chain);
         const loci = lociFromStructureExpression(structure, expression);
         selection.expression = expression;
         for (const residue of residueInfosFromLoci(loci)) {
@@ -364,25 +366,6 @@ function structureResiduesByChain(structure) {
         }
     }
     return residuesByChain;
-}
-
-function interfaceSurroundingsExpression(chain, chains, cutoff) {
-    const currentChain = chainExpression(chain);
-    const otherChains = mergeExpressions(
-        chains
-            .filter(other => other !== chain)
-            .map(chainExpression),
-    );
-    if (!currentChain || !otherChains) return null;
-
-    return MS.struct.modifier.intersectBy({
-        0: currentChain,
-        by: MS.struct.modifier.includeSurroundings({
-            0: otherChains,
-            radius: cutoff,
-            'as-whole-residues': true,
-        }),
-    });
 }
 
 function chainsFromMaps(alignmentMaps = []) {

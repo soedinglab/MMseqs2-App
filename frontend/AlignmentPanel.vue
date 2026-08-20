@@ -53,8 +53,6 @@
                         :targetMap="targetMaps[index]"
                         :highlights="highlights[index]"
                         :queryHighlights="queryHighlights[index]"
-                        :interfaceHighlights="interfaceHighlights.target[index]"
-                        :queryInterfaceHighlights="interfaceHighlights.query[index]"
                         :hover="getAlignmentHover(index)"
                         :colorscheme="colorscheme"
                         ref="alignments"
@@ -139,7 +137,6 @@ export default {
         structureHoverInfo: null,
         structureFocus: null,
         alignmentHover: null,
-        sceneInterfaceRegions: { query: [], target: [] },
         hoverFocusTimer: null,
         isSelecting: false,
         isPointerDown: false,
@@ -224,22 +221,6 @@ export default {
             if (this.hits?.type === 'complexsearch') return 'multimer';
             return 'alignment';
         },
-        interfaceHighlights() {
-            if (this.structureMode !== 'interface') {
-                const empty = this.alignments.map(alignment => (
-                    new Array(Math.ceil((alignment?.qAln?.length || 0) / this.effectiveLineLen)).fill([])
-                ));
-                return { query: empty, target: empty };
-            }
-            return {
-                query: this.alignments.map((alignment, index) => (
-                    this.lineRangesForInterface(index, 'query', getChainName(alignment.query))
-                )),
-                target: this.alignments.map((alignment, index) => (
-                    this.lineRangesForInterface(index, 'target', getChainName(alignment.target))
-                )),
-            };
-        },
     },
     methods: {
         async prepareStructureViewer() {
@@ -260,11 +241,9 @@ export default {
 
             this.foldseekStructureInput = input;
             if (enteringInterfaceMode) {
-                // Interface-only fragments are hard to orient in isolation.
-                // Start with the faded structural context; the toolbar can
-                // still cycle to interface-only or solid-chain views.
-                this.showQuery = 1;
-                this.showTarget = 1;
+                // The first toolbar position is the extracted interface only.
+                this.showQuery = 0;
+                this.showTarget = 0;
             }
             this.hasQueryStructure = Boolean(input.hasQuery);
         },
@@ -421,34 +400,6 @@ export default {
             }
             return empty;
         },
-        lineRangesForInterface(index, side, chain) {
-            const map = side === 'query' ? this.queryMaps[index] : this.targetMaps[index];
-            const alignment = this.alignments[index];
-            if (!map || !alignment) return [];
-
-            const regions = (this.sceneInterfaceRegions[side] || []).filter(region => region.chain === chain);
-            const lineCount = Math.ceil((alignment.qAln?.length || 0) / this.effectiveLineLen);
-            const lines = Array.from({ length: lineCount }, () => []);
-            if (regions.length === 0) return lines;
-
-            for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
-                let start = null;
-                for (let offset = 0; offset < this.effectiveLineLen; offset++) {
-                    const alnOffset = lineIndex * this.effectiveLineLen + offset;
-                    if (alnOffset >= map.length) break;
-                    const residue = map[alnOffset];
-                    const isInterface = Number.isFinite(residue)
-                        && regions.some(region => residue >= region.start && residue <= region.end);
-                    if (isInterface && start === null) start = offset;
-                    if ((!isInterface || offset === this.effectiveLineLen - 1 || alnOffset === map.length - 1) && start !== null) {
-                        const end = isInterface ? offset + 1 : offset;
-                        lines[lineIndex].push([start, end]);
-                        start = null;
-                    }
-                }
-            }
-            return lines;
-        },
         updateMaps() {
             if (!this.alignments) return
             this.queryMaps = [];
@@ -594,7 +545,6 @@ export default {
         },
         handleStructureSceneState(state) {
             this.tmAlignResults = state?.tmAlignResults || null;
-            this.sceneInterfaceRegions = state?.interfaceRegions || { query: [], target: [] };
         },
         findStructureResidueHover(side, residues, preferredIndex = null) {
             if (!Number.isInteger(preferredIndex)) return null;

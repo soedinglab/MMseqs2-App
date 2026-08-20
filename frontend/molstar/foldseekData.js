@@ -25,7 +25,10 @@ export async function prepareFoldseekStructureInput(ctx) {
     const target = ctx.structureMode === 'interface'
         ? await buildInterfaceTarget(ctx)
         : await buildTarget(ctx);
-    const targetTransform = ctx.structureMode === 'multimer'
+    // Interface-search results can carry the same complex superposition
+    // matrix as multimer results. It is not a valid pairwise Foldseek
+    // transform, even when legacy monomer results happen to include it.
+    const targetTransform = ctx.structureMode === 'multimer' || ctx.structureMode === 'interface'
         ? computeMultimerTransform(ctx.alignments)
         : null;
     const superpositionAlignments = targetTransform || ctx.structureMode === 'interface'
@@ -164,7 +167,10 @@ async function buildTarget(ctx) {
 
         if (!tSeq || !tCa) continue;
 
-        const mock = mockPDB(tCa, tSeq, chain, alignment.dbStartPos || 1);
+        // Foldseek target CA/sequence data is numbered from the beginning of
+        // the target. Keep that numbering so dbStartPos/dbEndPos select the
+        // same segment that NGL passes to TM-align.
+        const mock = mockPDB(tCa, tSeq, chain);
         try {
             targets.push(applyChainId(await pulchra(mock), chain));
         } catch (e) {

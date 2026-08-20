@@ -13,8 +13,12 @@ import { Color } from 'molstar/lib/mol-util/color';
 import { ParamDefinition as PD } from 'molstar/lib/mol-util/param-definition';
 import { structureResidueKeys } from './molstarStructure.js';
 
-const QueryChainLabelColor = Color(0x1e88e5);
-const TargetChainLabelColor = Color(0xffc107);
+// Multimer cartoons use one color per structure. Interface results instead
+// use the paired-chain palette from the interface viewer.
+const MultimerQueryChainLabelColor = Color(0x1e88e5);
+const MultimerTargetChainLabelColor = Color(0xffc107);
+const InterfaceQueryChainLabelColors = [Color(0x90caf9), Color(0xffb74d)];
+const InterfaceTargetChainLabelColors = [Color(0x0d47a1), Color(0xe65100)];
 const SeparatorChainLabelColor = Color(0xffffff);
 const ChainLabelsRef = 'foldseek-chain-labels';
 const ChainLabelsRepresentationRef = 'foldseek-chain-labels-representation';
@@ -106,15 +110,8 @@ async function deleteChainLabels(plugin, state) {
 function chainLabelData(state, input) {
     if (!state.query?.structure || !state.target?.structure) return [];
 
-    const interfaceOnly = input?.structureMode === 'interface'
-        && (input?.showQuery || 0) === 0
-        && (input?.showTarget || 0) === 0;
-    const queryAnchors = interfaceOnly
-        ? interfaceChainAnchors(state, 'query')
-        : structureChainAnchors(state.query.structure);
-    const targetAnchors = interfaceOnly
-        ? interfaceChainAnchors(state, 'target')
-        : structureChainAnchors(state.target.structure);
+    const queryAnchors = chainAnchorsForVisibleMode(state, input, 'query');
+    const targetAnchors = chainAnchorsForVisibleMode(state, input, 'target');
     const pairs = [];
     const seen = new Set();
     for (const [index, queryMap] of (state.alignmentMaps?.query || []).entries()) {
@@ -145,6 +142,37 @@ function chainLabelData(state, input) {
     return pairs.map((pair, index) => chainLabelEntry(pair, sceneCenter, input, index, pairs.length));
 }
 
+function chainAnchorsForVisibleMode(state, input, side) {
+    // Interface labels identify the colored interface pair. Keep them tied to
+    // that pair even when a toggle reveals the faint full-chain context.
+    if (input?.structureMode === 'interface') return interfaceChainAnchors(state, side);
+
+    // Keep multimer labels attached to the matched chain region in every
+    // visibility mode. In particular, mode 1 can reveal a long unaligned
+    // target tail: its full-chain bounding sphere would otherwise push the
+    // paired label far away from the highlighted query surface.
+    if (input?.structureMode === 'multimer') {
+        const aligned = alignedChainAnchors(state, side);
+        if (aligned.list.length > 0) return aligned;
+    }
+    return structureChainAnchors(state[side]?.structure);
+}
+
+function alignedChainAnchors(state, side) {
+    const residuesByChain = new Map();
+    const seen = new Set();
+    for (const map of state.alignmentMaps?.[side] || []) {
+        for (const residue of map.toStructure.values()) {
+            const key = `${map.chain}:${structureResidueKeys(residue).join('|')}`;
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            if (!residuesByChain.has(map.chain)) residuesByChain.set(map.chain, []);
+            residuesByChain.get(map.chain).push(residue);
+        }
+    }
+    return anchorsFromResidues(residuesByChain);
+}
+
 function interfaceChainAnchors(state, side) {
     const residuesByChain = new Map();
     const seen = new Set();
@@ -161,6 +189,10 @@ function interfaceChainAnchors(state, side) {
         }
     }
 
+    return anchorsFromResidues(residuesByChain);
+}
+
+function anchorsFromResidues(residuesByChain) {
     const byChain = new Map();
     const list = [];
     for (const [chain, residues] of residuesByChain) {
@@ -172,7 +204,15 @@ function interfaceChainAnchors(state, side) {
             max,
             Vec3.distance(center, [residue.x, residue.y, residue.z]),
         ), 1);
-        const anchor = { chain, center, radius };
+        const anchor = {
+            chain,
+            center,
+            radius,
+            // Keep the actual displayed residue positions. A bounding sphere
+            // is adequate for camera fitting but not for label placement on
+            // elongated chains.
+            points: residues.map(residue => Vec3.create(residue.x, residue.y, residue.z)),
+        };
         byChain.set(chain, anchor);
         list.push(anchor);
     }
@@ -183,54 +223,80 @@ function structureChainAnchors(structureRef) {
     const structure = structureRef?.cell?.obj?.data || structureRef;
     if (!structure?.units?.length) return { byChain: new Map(), list: [] };
 
-    const byChain = new Map();
-    const list = [];
+    const residuesByChain = new Map();
+    const aliases = new Map();
+    const seen = new Set();
     const loc = StructureElement.Location.create(structure);
 
     for (const unit of structure.units) {
         if (OrderedSet.size(unit.elements) === 0) continue;
+        for (const element of unit.elements) {
+            loc.unit = unit;
+            loc.element = element;
 
-        loc.unit = unit;
-        loc.element = OrderedSet.getAt(unit.elements, 0);
+            const auth = StructureProperties.chain.auth_asym_id(loc) || '';
+            const label = StructureProperties.chain.label_asym_id(loc) || '';
+            const chain = auth || label;
+            if (!chain) continue;
 
-        const auth = StructureProperties.chain.auth_asym_id(loc) || '';
-        const label = StructureProperties.chain.label_asym_id(loc) || '';
-        const chain = auth || label;
-        if (!chain) continue;
+            const residueKey = `${unit.id}|${chain}|${StructureProperties.residue.auth_seq_id(loc)}|${StructureProperties.residue.label_seq_id(loc)}|${StructureProperties.residue.pdbx_PDB_ins_code(loc) || ''}`;
+            if (seen.has(residueKey)) continue;
+            seen.add(residueKey);
 
-        const { center, radius } = unit.lookup3d.boundary.sphere;
-        const anchor = {
-            chain,
-            center: Vec3.transformMat4(Vec3(), center, unit.conformation.operator.matrix),
-            radius,
-        };
-
-        list.push(anchor);
-        if (auth && !byChain.has(auth)) byChain.set(auth, anchor);
-        if (label && !byChain.has(label)) byChain.set(label, anchor);
+            const point = Vec3.transformMat4(Vec3(), [
+                StructureProperties.atom.x(loc),
+                StructureProperties.atom.y(loc),
+                StructureProperties.atom.z(loc),
+            ], unit.conformation.operator.matrix);
+            if (!residuesByChain.has(chain)) residuesByChain.set(chain, []);
+            residuesByChain.get(chain).push({ x: point[0], y: point[1], z: point[2] });
+            if (!aliases.has(chain)) aliases.set(chain, new Set());
+            if (auth) aliases.get(chain).add(auth);
+            if (label) aliases.get(chain).add(label);
+        }
     }
 
-    return { byChain, list };
+    const anchors = anchorsFromResidues(residuesByChain);
+    for (const [chain, names] of aliases) {
+        const anchor = anchors.byChain.get(chain);
+        if (!anchor) continue;
+        for (const name of names) {
+            if (!anchors.byChain.has(name)) anchors.byChain.set(name, anchor);
+        }
+    }
+    return anchors;
 }
 
 function chainLabelEntry({ queryChain, targetChain, queryLabel, targetLabel, query, target }, sceneCenter, input, index, total) {
     const pairCenter = Vec3.scale(Vec3(), Vec3.add(Vec3(), query.center, target.center), 0.5);
     const pairRadius = Math.max(query.radius, target.radius, Vec3.distance(pairCenter, query.center), Vec3.distance(pairCenter, target.center));
     const outward = outerLabelDirection(pairCenter, sceneCenter, query.center, target.center);
-    const interfaceOnly = input?.structureMode === 'interface'
-        && (input?.showQuery || 0) === 0
-        && (input?.showTarget || 0) === 0;
-    const offset = pairRadius * (input?.chainLabelOffset ?? (interfaceOnly ? 1.55 : 1.12));
+    const isInterface = input?.structureMode === 'interface';
+    // Interface patches can be far apart. Their separation is not part of a
+    // label's visible extent, even when faint context is shown.
+    const visibleRadius = isInterface ? Math.max(query.radius, target.radius) : pairRadius;
+    const points = [...(query.points || []), ...(target.points || [])];
+    const outwardExtent = points.length > 0
+        ? Math.max(0, ...points.map(point => Vec3.dot(Vec3.sub(Vec3(), point, pairCenter), outward)))
+        : visibleRadius;
+    const clearance = Math.max(3, visibleRadius * Math.max(0.1, (input?.chainLabelOffset ?? 1.25) - 1));
+    const offset = outwardExtent + clearance;
     const position = Vec3.scaleAndAdd(Vec3(), pairCenter, outward, offset);
-    spreadLabelPosition(position, outward, pairRadius, index, total);
+    spreadLabelPosition(position, outward, visibleRadius, index, total);
 
     return {
         queryChain,
         targetChain,
         queryLabel,
         targetLabel,
+        queryColor: isInterface
+            ? InterfaceQueryChainLabelColors[index % InterfaceQueryChainLabelColors.length]
+            : MultimerQueryChainLabelColor,
+        targetColor: isInterface
+            ? InterfaceTargetChainLabelColors[index % InterfaceTargetChainLabelColors.length]
+            : MultimerTargetChainLabelColor,
         position,
-        depth: pairRadius,
+        depth: visibleRadius,
         tooltip: `Query chain ${queryChain} / Target chain ${targetChain}`,
     };
 }
@@ -322,9 +388,9 @@ function labelTextLength(label) {
 
 function chainLabelRuns(label) {
     return [
-        { text: `${label.queryLabel || label.queryChain}`, color: QueryChainLabelColor },
+        { text: `${label.queryLabel || label.queryChain}`, color: label.queryColor || MultimerQueryChainLabelColor },
         { text: '-', color: SeparatorChainLabelColor },
-        { text: `${label.targetLabel || label.targetChain}`, color: TargetChainLabelColor },
+        { text: `${label.targetLabel || label.targetChain}`, color: label.targetColor || MultimerTargetChainLabelColor },
     ];
 }
 

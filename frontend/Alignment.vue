@@ -9,7 +9,6 @@
                     :selectionStart="getSelectionStart(i, 'query')"
                     :selectionEnd="getSelectionEnd(i, 'query')"
                     :hoverOffset="getHoverOffset(i, 'query')"
-                    :interfaceRanges="getInterfaceRanges(i, 'query')"
                     @selectstart="onSelectStart($event, alnIndex, i, 'query')"
                     @pointerdown="onPointerDown($event, alnIndex, i, 'query')"
                     @pointerup="onPointerUp($event, alnIndex, i, 'query')"
@@ -27,7 +26,6 @@
                     :selectionStart="getSelectionStart(i, 'target')"
                     :selectionEnd="getSelectionEnd(i, 'target')"
                     :hoverOffset="getHoverOffset(i, 'target')"
-                    :interfaceRanges="getInterfaceRanges(i, 'target')"
                     @selectstart="onSelectStart($event, alnIndex, i, 'target')"
                     @pointerdown="onPointerDown($event, alnIndex, i, 'target')"
                     @pointerup="onPointerUp($event, alnIndex, i, 'target')"
@@ -71,8 +69,6 @@ export default {
         'alnIndex',
         'highlights',
         'queryHighlights',
-        'interfaceHighlights',
-        'queryInterfaceHighlights',
         'hover',
         'colorscheme'
     ],
@@ -89,11 +85,6 @@ export default {
         getHoverOffset(i, side) {
             return this.hover?.side === side && this.hover?.lineNo === i ? this.hover.offset : null;
         },
-        getInterfaceRanges(i, side) {
-            const highlights = side === 'query' ? this.queryInterfaceHighlights : this.interfaceHighlights;
-            return (i > 0 && highlights && i <= highlights.length) ? highlights[i - 1] : [];
-        },
-
         // Get the index of a given residue in the alignment
         getQueryIndex(index) { return this.queryMap[index] },
         getTargetIndex(index) { return this.targetMap[index] },
