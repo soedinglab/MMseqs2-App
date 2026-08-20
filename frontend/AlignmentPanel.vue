@@ -108,9 +108,8 @@ import Alignment from './Alignment.vue'
 import StructureHoverTooltip from './StructureHoverTooltip.vue'
 import { foldseekResult } from './molstar/foldseekResult.js';
 import { InterfaceToolbarColors } from './molstar/foldseekInterface.js';
-import { getChainName } from './molstar/foldseekData.js'
+import { getChainName, prepareFoldseekStructureInput } from './molstar/foldseekData.js'
 import { downloadBlob, exportAlignmentTitle, getResiduePointerOffset, makePositionMap, residueTextOffset } from './alignmentPanelUtils.js';
-import { prepareFoldseekStructureInput } from './molstar/foldseekData.js';
 
 export default {
     components: {

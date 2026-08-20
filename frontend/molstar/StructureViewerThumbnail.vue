@@ -102,7 +102,6 @@ export default {
                 root: this.$root,
                 isLocal: this.$LOCAL,
                 structureMode: this.structureMode,
-                interfaceCutoff: 10,
             });
         },
 

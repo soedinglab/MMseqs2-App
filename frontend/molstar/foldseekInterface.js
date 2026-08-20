@@ -1,17 +1,19 @@
-import { OrderedSet } from 'molstar/lib/mol-data/int';
-import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
+import { StructureElement } from 'molstar/lib/mol-model/structure';
 import { setSubtreeVisibility } from 'molstar/lib/mol-plugin/behavior/static/state';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
 import {
     addUniformRepresentation,
     addRepresentationToSet,
+    caResiduesByChain,
     chainExpression,
     expressionForResidues,
     lociFromExpression as lociFromStructureExpression,
     representationRef,
     residueRanges,
     residueInfosFromLoci,
+    nearestResidue,
+    parseCaCoordinates,
     structureResidueKeys,
 } from './molstarStructure.js';
 
@@ -19,14 +21,8 @@ import {
 // This restores the NGL interface palette: query chains are the lighter
 // variants, their matched target chains the darker variants.
 export const InterfaceVisualPalette = {
-    query: {
-        interface: [0x90caf9, 0xffb74d],
-        context: [0x90caf9, 0xffb74d],
-    },
-    target: {
-        interface: [0x0d47a1, 0xe65100],
-        context: [0x0d47a1, 0xe65100],
-    },
+    query: [0x90caf9, 0xffb74d],
+    target: [0x0d47a1, 0xe65100],
 };
 
 export const InterfaceToolbarColors = {
@@ -48,7 +44,6 @@ export function interfaceVisibilityKey(input, queryMode = input?.showQuery || 0,
 export function interfaceSceneKey(input, baseSceneKey) {
     return [
         baseSceneKey(input),
-        input?.interfaceCutoff ?? '',
         ...(input?.alignments || []).map(alignment => `${alignment.qCa || ''}:${alignment.tCa || ''}`),
     ].join('|');
 }
@@ -99,17 +94,19 @@ export async function applyInterfaceVisibility(plugin, state, input) {
     const queryMode = input?.showQuery || 0;
     const targetMode = input?.showTarget || 0;
     const key = interfaceVisibilityKey(input, queryMode, targetMode);
-    if (state.visibilityKey === key) return;
+    if (state.visibilityKey === key) return false;
     state.visibilityKey = key;
 
+    let modeChanged = false;
     if (state.query) {
         state.query.contextTransparency = input.interfaceContextTransparency ?? InterfaceContextTransparency;
-        await setInterfaceMode(plugin, state.query, queryMode);
+        modeChanged = (await setInterfaceMode(plugin, state.query, queryMode)) || modeChanged;
     }
     if (state.target) {
         state.target.contextTransparency = input.interfaceContextTransparency ?? InterfaceContextTransparency;
-        await setInterfaceMode(plugin, state.target, targetMode);
+        modeChanged = (await setInterfaceMode(plugin, state.target, targetMode)) || modeChanged;
     }
+    return modeChanged;
 }
 
 export async function buildInterfaceRepresentations(plugin, state, structure, side, input) {
@@ -145,24 +142,27 @@ export async function buildInterfaceRepresentations(plugin, state, structure, si
 }
 
 async function setInterfaceMode(plugin, stateEntry, mode) {
-    if (!stateEntry) return;
+    if (!stateEntry) return false;
     const modeChanged = stateEntry.mode !== mode;
     stateEntry.mode = mode;
     await applyInterfaceBackgroundMode(plugin, stateEntry, mode);
-    if (modeChanged) plugin.managers.camera.reset();
+    return modeChanged;
 }
 
 function interfaceEntries(state, side) {
     const palette = InterfaceVisualPalette[side];
     const selections = state.interfaceSelections?.[side] || new Map();
-    return chainsFromMaps(state.alignmentMaps?.[side]).map((chain, index) => ({
-        chain,
-        interfaceColor: palette.interface[index % palette.interface.length],
-        contextColor: palette.context[index % palette.context.length],
-        chainExpression: chainExpression(chain),
-        interfaceExpression: selections.get(chain)?.expression || null,
-        regions: selections.get(chain)?.regions || [],
-    }));
+    return chainsFromMaps(state.alignmentMaps?.[side]).map((chain, index) => {
+        const color = palette[index % palette.length];
+        return {
+            chain,
+            interfaceColor: color,
+            contextColor: color,
+            chainExpression: chainExpression(chain),
+            interfaceExpression: selections.get(chain)?.expression || null,
+            regions: selections.get(chain)?.regions || [],
+        };
+    });
 }
 
 async function createInterfaceBackground(plugin, state, stateEntry, side) {
@@ -254,9 +254,9 @@ function interfaceSelectionsByChain(structureRef, alignmentMaps, alignments, sid
     // Interface search returns the CA coordinates of the residues that define
     // the searched interface. These are authoritative; a generic distance
     // cutoff finds a different contact patch on many assemblies.
-    const residuesByChain = structureResiduesByChain(structure);
+    const residuesByChain = caResiduesByChain(structure);
     for (const map of alignmentMaps || []) {
-        const coords = parseCaString(alignments[map.index]?.[side === 'query' ? 'qCa' : 'tCa']);
+        const coords = parseCaCoordinates(alignments[map.index]?.[side === 'query' ? 'qCa' : 'tCa']);
         if (coords.length === 0) continue;
 
         const selection = selections.get(map.chain);
@@ -299,73 +299,6 @@ function addInterfaceResidue(selection, residue) {
     if (!key) return;
     selection.residues.set(key, residue);
     for (const residueKey of structureResidueKeys(residue)) selection.keys.add(residueKey);
-}
-
-function parseCaString(value) {
-    if (typeof value !== 'string' || !value) return [];
-    const numbers = value.split(',').map(Number);
-    const coordinates = [];
-    for (let index = 0; index + 2 < numbers.length; index += 3) {
-        if (numbers.slice(index, index + 3).every(Number.isFinite)) {
-            coordinates.push(numbers.slice(index, index + 3));
-        }
-    }
-    return coordinates;
-}
-
-function nearestResidue(residues, [x, y, z]) {
-    let nearest = null;
-    let distanceSquared = Infinity;
-    for (const residue of residues) {
-        const dx = residue.x - x;
-        const dy = residue.y - y;
-        const dz = residue.z - z;
-        const candidate = dx * dx + dy * dy + dz * dz;
-        if (candidate < distanceSquared) {
-            distanceSquared = candidate;
-            nearest = residue;
-        }
-    }
-    return nearest;
-}
-
-function structureResiduesByChain(structure) {
-    const residuesByChain = new Map();
-    const seen = new Set();
-    const location = StructureElement.Location.create(structure);
-
-    for (const unit of structure.units || []) {
-        if (!Unit.isAtomic(unit)) continue;
-        location.unit = unit;
-        for (let index = 0; index < OrderedSet.size(unit.elements); index++) {
-            location.element = OrderedSet.getAt(unit.elements, index);
-            if (StructureProperties.atom.label_atom_id(location) !== 'CA') continue;
-
-            const authChain = StructureProperties.chain.auth_asym_id(location) || '';
-            const labelChain = StructureProperties.chain.label_asym_id(location) || '';
-            const authResidue = StructureProperties.residue.auth_seq_id(location);
-            const labelResidue = StructureProperties.residue.label_seq_id(location);
-            const identity = `${labelChain}:${authChain}:${labelResidue}:${authResidue}`;
-            if (seen.has(identity)) continue;
-            seen.add(identity);
-
-            const residue = {
-                chain: authChain || labelChain,
-                authChain,
-                labelChain,
-                authResidue,
-                labelResidue,
-                x: StructureProperties.atom.x(location),
-                y: StructureProperties.atom.y(location),
-                z: StructureProperties.atom.z(location),
-            };
-            for (const chain of new Set([authChain, labelChain].filter(Boolean))) {
-                if (!residuesByChain.has(chain)) residuesByChain.set(chain, []);
-                residuesByChain.get(chain).push(residue);
-            }
-        }
-    }
-    return residuesByChain;
 }
 
 function chainsFromMaps(alignmentMaps = []) {

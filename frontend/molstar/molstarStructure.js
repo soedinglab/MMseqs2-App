@@ -1,6 +1,6 @@
 import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { Mat4 } from 'molstar/lib/mol-math/linear-algebra';
-import { StructureElement, StructureProperties } from 'molstar/lib/mol-model/structure';
+import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
 import { Color } from 'molstar/lib/mol-util/color';
@@ -235,6 +235,75 @@ export function residueInfosFromLoci(loci) {
         residues.push(residue);
     });
     return residues;
+}
+
+export function parseCaCoordinates(value) {
+    if (typeof value !== 'string' || !value) return [];
+    const numbers = value.split(',').map(Number);
+    const coordinates = [];
+    for (let index = 0; index + 2 < numbers.length; index += 3) {
+        if (numbers.slice(index, index + 3).every(Number.isFinite)) {
+            coordinates.push(numbers.slice(index, index + 3));
+        }
+    }
+    return coordinates;
+}
+
+export function nearestResidue(residues, [x, y, z]) {
+    let nearest = null;
+    let distanceSquared = Infinity;
+    for (const residue of residues) {
+        const dx = residue.x - x;
+        const dy = residue.y - y;
+        const dz = residue.z - z;
+        const candidate = dx * dx + dy * dy + dz * dz;
+        if (candidate < distanceSquared) {
+            distanceSquared = candidate;
+            nearest = residue;
+        }
+    }
+    return nearest;
+}
+
+export function caResiduesByChain(structureRef) {
+    const structure = structureRef?.cell?.obj?.data || structureRef;
+    const residuesByChain = new Map();
+    if (!structure) return residuesByChain;
+
+    const seen = new Set();
+    const location = StructureElement.Location.create(structure);
+    for (const unit of structure.units || []) {
+        if (!Unit.isAtomic(unit)) continue;
+        location.unit = unit;
+        for (let index = 0; index < OrderedSet.size(unit.elements); index++) {
+            location.element = OrderedSet.getAt(unit.elements, index);
+            if (StructureProperties.atom.label_atom_id(location) !== 'CA') continue;
+
+            const authChain = StructureProperties.chain.auth_asym_id(location) || '';
+            const labelChain = StructureProperties.chain.label_asym_id(location) || '';
+            const authResidue = StructureProperties.residue.auth_seq_id(location);
+            const labelResidue = StructureProperties.residue.label_seq_id(location);
+            const identity = `${labelChain}:${authChain}:${labelResidue}:${authResidue}`;
+            if (seen.has(identity)) continue;
+            seen.add(identity);
+
+            const residue = {
+                chain: authChain || labelChain,
+                authChain,
+                labelChain,
+                authResidue,
+                labelResidue,
+                x: StructureProperties.atom.x(location),
+                y: StructureProperties.atom.y(location),
+                z: StructureProperties.atom.z(location),
+            };
+            for (const chain of new Set([authChain, labelChain].filter(Boolean))) {
+                if (!residuesByChain.has(chain)) residuesByChain.set(chain, []);
+                residuesByChain.get(chain).push(residue);
+            }
+        }
+    }
+    return residuesByChain;
 }
 
 export function structuresMatch(a, b) {

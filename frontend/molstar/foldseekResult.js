@@ -1,29 +1,30 @@
 import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
-import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { Vec3 } from 'molstar/lib/mol-math/linear-algebra';
-import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
+import { StructureElement } from 'molstar/lib/mol-model/structure';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
-import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import {
     addUniformRepresentation,
     addRepresentationToSet,
-    atomToPdbRow,
     chainExpression,
     expressionForResidues,
     isValidLoci,
     loadStructureFromData,
     lociFromExpression as lociFromStructureExpression,
-    mat4FromRotationTranslation,
     mergeExpressions,
     residueInfosFromLoci,
     representationRef,
-    residuesForMappedRange,
     setRepresentationNonPickable,
     structureResidueKeys,
+    mat4FromRotationTranslation,
     transformStructureConformation,
 } from './molstarStructure.js';
-import { getChainName } from './foldseekData.js';
+import {
+    alignmentChains,
+    atomGroupExpressionForFoldseekRange,
+    buildAlignmentMaps,
+} from './foldseekAlignmentMapping.js';
+import { prepareMultimerTarget, prepareSuperposedTarget } from './foldseekSuperposition.js';
 import { setArrows } from './foldseekArrows.js';
 import { setChainLabels } from './foldseekChainLabels.js';
 import {
@@ -137,31 +138,6 @@ function visibilityKey(input) {
         : standardVisibilityKey(input);
 }
 
-function rangesByChain(alignments, side, input = null) {
-    const ranges = new Map();
-    for (const { chain, start, end } of alignmentRegions(alignments, side, input)) {
-        if (!ranges.has(chain)) ranges.set(chain, []);
-        ranges.get(chain).push([start, end]);
-    }
-    return ranges;
-}
-
-function alignmentRegions(alignments, side, input = null) {
-    const regions = [];
-    for (const alignment of alignments || []) {
-        const name = side === 'query' ? alignment.query : alignment.target;
-        const start = side === 'query' ? alignment.qStartPos : alignment.dbStartPos;
-        const end = side === 'query' ? alignment.qEndPos : alignment.dbEndPos;
-        if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
-        regions.push({
-            chain: structureChainForAlignment(input, side, getChainName(name)),
-            start: Math.min(start, end),
-            end: Math.max(start, end),
-        });
-    }
-    return regions;
-}
-
 function structureSelectionExpression(state, input, selection) {
     if (!selection) return null;
     const side = selection?.side || 'target';
@@ -179,214 +155,6 @@ function lociForSelection(state, input, selection) {
         state[side]?.structure,
         structureSelectionExpression(state, input, selection),
     );
-}
-
-function buildAlignmentMaps(query, target, input, sourceStructures = {}) {
-    const alignmentMaps = {
-        query: buildSideAlignmentMaps(query, input, 'query', sourceStructures.query),
-        target: buildSideAlignmentMaps(target, input, 'target', sourceStructures.target),
-    };
-    return {
-        alignmentMaps,
-        structureResidues: {
-            query: structureResidueAlignmentMap(alignmentMaps.query),
-            target: structureResidueAlignmentMap(alignmentMaps.target),
-        },
-    };
-}
-
-function buildSideAlignmentMaps(structureRef, input, side, sourceStructureRef = structureRef) {
-    const alignments = input?.alignments || [];
-    const structureResidues = structureResiduesByChain(structureRef);
-
-    return alignments.map((alignment, index) => {
-        const sourceName = side === 'query' ? alignment.query : alignment.target;
-        const sourceChain = getChainName(sourceName);
-        const chain = structureChainForAlignment(input, side, sourceChain);
-        const residues = structureResidues.get(chain) || [];
-        const toStructure = new Map();
-
-        const start = side === 'query' ? alignment.qStartPos : alignment.dbStartPos;
-        const end = side === 'query' ? alignment.qEndPos : alignment.dbEndPos;
-        if (input?.structureMode === 'interface') {
-            const sourceResidues = structureResiduesByChain(sourceStructureRef).get(chain) || [];
-            const displayLookup = residueNumberLookup(residues);
-            const coordinates = parseInterfaceCa(alignment[side === 'query' ? 'qCa' : 'tCa']);
-
-            // Interface qStartPos/dbStartPos address the extracted interface
-            // sequence. Match each indexed CA to the source dimer, then use
-            // its residue identity to locate the equivalent display residue.
-            // This is the same mapping used by the final NGL implementation.
-            coordinates.forEach((coordinate, offset) => {
-                const sourceResidue = nearestStructureResidue(sourceResidues, coordinate);
-                if (!sourceResidue) return;
-                const residue = displayLookup.label.get(sourceResidue.labelResidue)
-                    || displayLookup.auth.get(sourceResidue.authResidue);
-                if (residue) toStructure.set(start + offset, residue);
-            });
-        } else {
-            const lookup = residueNumberLookup(residues);
-            for (const position of alignmentPositions(alignment, side)) {
-                const residue = lookup.label.get(position) || lookup.auth.get(position);
-                if (residue) toStructure.set(position, residue);
-            }
-        }
-        return {
-            index,
-            side,
-            sourceChain,
-            chain,
-            start: Math.min(start, end),
-            end: Math.max(start, end),
-            toStructure,
-        };
-    });
-}
-
-function parseInterfaceCa(value) {
-    if (typeof value !== 'string' || !value) return [];
-    const numbers = value.split(',').map(Number);
-    const coordinates = [];
-    for (let index = 0; index + 2 < numbers.length; index += 3) {
-        if (numbers.slice(index, index + 3).every(Number.isFinite)) {
-            coordinates.push(numbers.slice(index, index + 3));
-        }
-    }
-    return coordinates;
-}
-
-function nearestStructureResidue(residues, [x, y, z]) {
-    let nearest = null;
-    let distanceSquared = Infinity;
-    for (const residue of residues) {
-        const dx = residue.x - x;
-        const dy = residue.y - y;
-        const dz = residue.z - z;
-        const candidate = dx * dx + dy * dy + dz * dz;
-        if (candidate < distanceSquared) {
-            distanceSquared = candidate;
-            nearest = residue;
-        }
-    }
-    return nearest;
-}
-
-function structureResidueAlignmentMap(alignmentMaps) {
-    const mapped = new Map();
-    for (const map of alignmentMaps) {
-        for (const [position, residue] of map.toStructure.entries()) {
-            for (const key of structureResidueKeys(residue)) {
-                if (!mapped.has(key)) {
-                    mapped.set(key, {
-                        chain: map.chain,
-                        index: map.index,
-                        residue: position,
-                        structureResidue: residue,
-                    });
-                }
-            }
-        }
-    }
-    return mapped;
-}
-
-function structureChainForAlignment(input, side, sourceChain) {
-    if (
-        side === 'query'
-        && input?.structureMode !== 'multimer'
-        && input?.structureMode !== 'interface'
-        && input?.queryChain
-    ) {
-        return input.queryChain;
-    }
-    return sourceChain;
-}
-
-function alignmentPositions(alignment, side) {
-    const sequence = side === 'query' ? alignment?.qAln : alignment?.dbAln;
-    let position = side === 'query' ? alignment?.qStartPos : alignment?.dbStartPos;
-    if (!sequence || !Number.isFinite(position)) return [];
-
-    const positions = [];
-    for (const residue of sequence) {
-        if (residue !== '-') {
-            positions.push(position);
-            position += 1;
-        }
-    }
-    return positions;
-}
-
-function residueNumberLookup(residues) {
-    const label = new Map();
-    const auth = new Map();
-    for (const residue of residues) {
-        if (Number.isFinite(residue.labelResidue) && !label.has(residue.labelResidue)) {
-            label.set(residue.labelResidue, residue);
-        }
-        if (Number.isFinite(residue.authResidue) && !auth.has(residue.authResidue)) {
-            auth.set(residue.authResidue, residue);
-        }
-    }
-    return { label, auth };
-}
-
-function atomGroupExpressionForFoldseekRange(state, side, index, start, end) {
-    const map = state.alignmentMaps?.[side]?.[index];
-    if (!map) return null;
-    return expressionForResidues(residuesForMappedRange(map, start, end));
-}
-
-function alignmentChains(state, side) {
-    return Array.from(new Set((state.alignmentMaps?.[side] || []).map(map => map.chain).filter(Boolean)));
-}
-
-function structureResiduesByChain(structureRef) {
-    const structure = structureRef?.cell?.obj?.data;
-    const residuesByChain = new Map();
-    if (!structure) return residuesByChain;
-
-    const seenResidues = new Set();
-    const loc = StructureElement.Location.create(structure);
-
-    for (const unit of structure.units) {
-        if (!Unit.isAtomic(unit)) continue;
-        loc.unit = unit;
-        const size = OrderedSet.size(unit.elements);
-        for (let i = 0; i < size; i++) {
-            loc.element = OrderedSet.getAt(unit.elements, i);
-            if (StructureProperties.atom.label_atom_id(loc) !== 'CA') continue;
-
-            const authChain = StructureProperties.chain.auth_asym_id(loc);
-            const labelChain = StructureProperties.chain.label_asym_id(loc);
-            const authResidue = StructureProperties.residue.auth_seq_id(loc);
-            const labelResidue = StructureProperties.residue.label_seq_id(loc);
-            const key = `${labelChain}:${authChain}:${labelResidue}:${authResidue}`;
-            if (seenResidues.has(key)) continue;
-            seenResidues.add(key);
-            const residue = {
-                chain: labelChain || authChain,
-                authChain,
-                labelChain,
-                labelResidue,
-                authResidue,
-                x: StructureProperties.atom.x(loc),
-                y: StructureProperties.atom.y(loc),
-                z: StructureProperties.atom.z(loc),
-            };
-
-            if (authChain) {
-                if (!residuesByChain.has(authChain)) residuesByChain.set(authChain, []);
-                residuesByChain.get(authChain).push(residue);
-            }
-            if (labelChain && labelChain !== authChain) {
-                if (!residuesByChain.has(labelChain)) residuesByChain.set(labelChain, []);
-                residuesByChain.get(labelChain).push(residue);
-            }
-        }
-    }
-
-    return residuesByChain;
 }
 
 async function buildFoldseekRepresentations(plugin, state, structure, side, input) {
@@ -583,7 +351,7 @@ function sourceKey(source) {
     return {
         format: source.format || '',
         label: source.label || '',
-        data: source.data || '',
+        id: source.id || '',
     };
 }
 
@@ -1015,102 +783,6 @@ function mergeProjectionBounds(bounds) {
     };
 }
 
-async function prepareSuperposedTarget(plugin, target, query, input, state) {
-    if (!target || !query) return target;
-    if (input.targetTransform) {
-        return transformStructureConformation(plugin, target, input.targetTransform);
-    }
-    const superposition = await superposeTargetWithFoldseekAlignment(
-        plugin,
-        target,
-        query,
-        input.superpositionAlignments || input.alignments,
-        input,
-    );
-    state.tmAlignResults = superposition.results;
-    return superposition.structure;
-}
-
-async function superposeTargetWithFoldseekAlignment(plugin, target, query, alignments, input) {
-    if (!alignments?.length || !alignments[0]?.qAln || !alignments[0]?.dbAln) {
-        return { structure: target, results: null };
-    }
-    const queryPdb = makeAlignedCaPdb(query, rangesByChain(alignments, 'query', input));
-    const targetPdb = makeAlignedCaPdb(target, rangesByChain(alignments, 'target', input));
-    if (!queryPdb || !targetPdb) {
-        return { structure: target, results: null };
-    }
-    const alnFasta = `>target\n${alignments[0].dbAln}\n\n>query\n${alignments[0].qAln}`;
-    const tm = await tmalign(targetPdb, queryPdb, alnFasta);
-    const { t, u } = parseTMMatrix(tm.matrix);
-    return {
-        structure: await transformStructureConformation(plugin, target, mat4FromRotationTranslation(t, u)),
-        results: parseTMOutput(tm.output),
-    };
-}
-
-function makeAlignedCaPdb(structureRef, ranges) {
-    const structure = structureRef?.cell?.obj?.data;
-    if (!structure || ranges.size === 0) return '';
-
-    const rows = [];
-    const loc = StructureElement.Location.create(structure);
-    let serial = 1;
-    const chainOrdinals = new Map();
-
-    for (const unit of structure.units) {
-        if (!Unit.isAtomic(unit)) continue;
-        loc.unit = unit;
-
-        const { elements } = unit;
-        const size = OrderedSet.size(elements);
-        for (let i = 0; i < size; i++) {
-            loc.element = OrderedSet.getAt(elements, i);
-
-            const atomName = StructureProperties.atom.label_atom_id(loc);
-            if (atomName !== 'CA') continue;
-
-            const authChain = StructureProperties.chain.auth_asym_id(loc) || '';
-            const labelChain = StructureProperties.chain.label_asym_id(loc) || '';
-            const chain = ranges.has(authChain) ? authChain : (ranges.has(labelChain) ? labelChain : null);
-            if (!chain) continue;
-            const chainRanges = ranges.get(chain);
-
-            const ordinalKey = chain || authChain || labelChain || 'A';
-            const ordinal = (chainOrdinals.get(ordinalKey) || 0) + 1;
-            chainOrdinals.set(ordinalKey, ordinal);
-
-            if (!alignedOrdinalInRanges(chainRanges, ordinal)) continue;
-
-            rows.push(atomToPdbRow({
-                serial,
-                atomName,
-                resName: StructureProperties.atom.auth_comp_id(loc) || StructureProperties.atom.label_comp_id(loc) || 'ALA',
-                chain,
-                resno: ordinal,
-                x: StructureProperties.atom.x(loc),
-                y: StructureProperties.atom.y(loc),
-                z: StructureProperties.atom.z(loc),
-            }));
-            serial += 1;
-        }
-    }
-
-    return rows.join('\n');
-}
-
-function alignedOrdinalInRanges(ranges, ordinal) {
-    return ranges.some(([start, end]) => ordinal >= start && ordinal <= end);
-}
-
-async function prepareMultimerTarget(plugin, target, query, input, state) {
-    if (!target) return target;
-    if (input.targetTransform) {
-        return transformStructureConformation(plugin, target, input.targetTransform);
-    }
-    return prepareSuperposedTarget(plugin, target, query, input, state);
-}
-
 function makeCIF(state) {
     const queryStructure = state.query?.structure?.cell?.obj?.data;
     const targetStructure = state.target?.structure?.cell?.obj?.data;
@@ -1145,9 +817,10 @@ export const foldseekResult = {
             await setInterfaceSeparation(plugin, state, input, Boolean(input?.structuresSeparated));
         }
         if (plan.visibility) {
+            let interfaceModeChanged = false;
             await plugin.dataTransaction(async () => {
                 if (input?.structureMode === 'interface') {
-                    await applyInterfaceVisibility(plugin, state, input);
+                    interfaceModeChanged = await applyInterfaceVisibility(plugin, state, input);
                     await setArrows(plugin, state, input);
                     await setChainLabels(plugin, state, input);
                     return;
@@ -1162,6 +835,7 @@ export const foldseekResult = {
                 await setArrows(plugin, state, input);
                 await setChainLabels(plugin, state, input);
             });
+            if (interfaceModeChanged) focusInterfaceStructures(plugin, state, { durationMs: 250 });
         }
         if (plan.selection) await setStructureSelection(plugin, state, input);
         if (plan.hover) await setStructureHover(plugin, state, input);

@@ -136,20 +136,11 @@ function alignmentArrowPairs(state, input) {
         for (const match of getMatchingResiduePairs(alignment)) {
             const query = residueCoordinate(queryMap.toStructure.get(match.query));
             const target = residueCoordinate(targetMap.toStructure.get(match.target));
-            if (query && target) pairs.push([query, translatedTargetCoordinate(target, state)]);
+            if (query && target) pairs.push([query, target]);
         }
     }
 
     return pairs;
-}
-
-function translatedTargetCoordinate(target, state) {
-    const translation = state.interfaceSeparation || [0, 0, 0];
-    return [
-        target[0] + translation[0],
-        target[1] + translation[1],
-        target[2] + translation[2],
-    ];
 }
 
 function residueCoordinate(residue) {

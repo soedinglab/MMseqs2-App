@@ -42,7 +42,6 @@ export async function prepareFoldseekStructureInput(ctx) {
         superpositionAlignments,
         hasQuery: Boolean(query),
         structureMode: ctx.structureMode || 'alignment',
-        interfaceCutoff: ctx.interfaceCutoff || 10,
         queryIndex: queryIndex(ctx),
         queryChain: ctx.structureMode === 'multimer' || ctx.structureMode === 'interface'
             ? null
@@ -57,7 +56,6 @@ function emptyInput() {
         targetTransform: null,
         hasQuery: false,
         structureMode: 'alignment',
-        interfaceCutoff: 10,
     };
 }
 
@@ -66,7 +64,13 @@ async function buildQuery(ctx) {
     if (!data) return null;
 
     const format = detectStructureFormat(data);
-    return { data, format, label: 'query' };
+    const query = selectActiveQuery(ctx);
+    return {
+        data,
+        format,
+        label: 'query',
+        id: sourceIdentity(ctx, 'query', [queryIndex(ctx), queryNameOf(query), getChainName(ctx.alignments?.[0]?.query)]),
+    };
 }
 
 async function loadQueryData(ctx) {
@@ -179,7 +183,12 @@ async function buildTarget(ctx) {
     }
 
     const data = mergePdbChunks(targets);
-    return data ? { data, format: 'pdb', label: 'target' } : null;
+    return data ? {
+        data,
+        format: 'pdb',
+        label: 'target',
+        id: sourceIdentity(ctx, 'target', ctx.alignments.map(alignmentSourceIdentity)),
+    } : null;
 }
 
 async function buildInterfaceTarget(ctx) {
@@ -204,7 +213,32 @@ async function buildInterfaceTarget(ctx) {
     }
 
     const data = mergePdbChunks(chunks);
-    return data ? { data, format: 'pdb', label: 'target' } : null;
+    return data ? {
+        data,
+        format: 'pdb',
+        label: 'target',
+        id: sourceIdentity(ctx, 'interface-target', [...seen]),
+    } : null;
+}
+
+function sourceIdentity(ctx, side, parts = []) {
+    return [
+        side,
+        ctx.route?.params?.ticket || 'local',
+        ctx.route?.params?.entry ?? queryIndex(ctx),
+        ctx.structureMode || 'alignment',
+        ...parts,
+    ].join('|');
+}
+
+function alignmentSourceIdentity(alignment) {
+    return [
+        alignment?.db || '',
+        alignment?.id || '',
+        alignment?.target || '',
+        Number.isInteger(alignment?.tCa) ? alignment.tCa : 'inline',
+        alignment?.tSeq?.length || 0,
+    ].join(':');
 }
 
 function computeMultimerTransform(alignments) {
