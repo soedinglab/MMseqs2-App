@@ -44,10 +44,10 @@ import { resultSummary, notReadySummary } from './summary.js';
 import { createArtifactStore, artifactCacheKey, artifactWriter, serverNamespaceFor } from './artifacts.js';
 import {
     collectArtifacts as sweepArtifacts, collectResultCache as sweepResultCache,
-    collectStagedInputs as sweepStagedInputs, fileAudit,
+    collectDroppedInputs as sweepImports, fileAudit,
     DEFAULT_RESULT_TTL_SECONDS,
 } from './gc.js';
-import { DEFAULT_INPUT_TTL_SECONDS } from './inputs.js';
+import { DEFAULT_INPUT_TTL_SECONDS, sharedPaths } from './inputs.js';
 import { getChainName } from '../../../frontend/lib/targetName.js';
 import { listChains } from '../../../frontend/lib/structureText.js';
 import { mockPDB, encodeMultimer } from '../../../frontend/lib/pdbAssembly.js';
@@ -119,7 +119,7 @@ export function createClient({
     fetchImpl = globalThis.fetch,
     onWarning = null,
     resultRowCap = null,
-    artifactDir = null,
+    sharedDir = null,
     resultTtlSeconds = DEFAULT_RESULT_TTL_SECONDS,
     inputTtlSeconds = DEFAULT_INPUT_TTL_SECONDS,
     artifacts = {},
@@ -149,18 +149,23 @@ export function createClient({
     };
     const serverNamespace = serverNamespaceFor({ baseUrl, apiPath });
 
-    // Exports can be sent somewhere the caller's host can already read — a hidden state directory is
-    // reachable by the server and by nothing else. The sweep only removes names it recognises, but an
-    // artifact root that contained the state directory would still be aimed at the wrong tree.
-    const artifactRoot = artifactDir || path.join(stateDir, 'artifacts');
-    const toState = path.relative(artifactRoot, stateDir);
-    if (toState === '' || (!toState.startsWith('..') && !path.isAbsolute(toState))) {
-        throw new Error(`artifactDir ${artifactRoot} contains the state directory ${stateDir} — ` +
-                        'pick a directory outside it');
+    // One directory the caller's host can read and write, granted once. A hidden state directory is
+    // reachable by the server and by nothing else, so it stays the fallback, not the shared case.
+    const shared = sharedDir ? path.resolve(sharedDir) : null;
+    if (shared) {
+        const toState = path.relative(shared, stateDir);
+        if (toState === '' || (!toState.startsWith('..') && !path.isAbsolute(toState))) {
+            throw new Error(`sharedDir ${shared} contains the state directory ${stateDir} — ` +
+                            'pick a directory outside it');
+        }
     }
+    const { exportsDir, importsDir } = shared ? sharedPaths(shared) : {};
+    const artifactRoot = exportsDir || path.join(stateDir, 'artifacts');
     const artifactStore = createArtifactStore({
         root: artifactRoot,
-        insideStateDir: !artifactDir,
+        insideStateDir: !shared,
+        mountName: shared ? path.basename(shared) : null,
+        pathPrefix: shared ? 'exports' : null,
         ...artifacts,
     });
     // Outside the artifact root on purpose: the GC never has to decide whether its own log is an
@@ -660,7 +665,7 @@ export function createClient({
             const hit = await artifactStore.read(artifactId);
             if (hit.ok) {
                 await artifactStore.touch(artifactId);
-                return artifactStore.descriptor(hit.manifest, { cacheHit: true });
+                return artifactStore.descriptor(hit.manifest, { cacheHit: true, mountRoot });
             }
             if (hit.reason !== 'ABSENT') {
                 // Anything present that did not read back is a failed build or a damaged artifact:
@@ -711,11 +716,13 @@ export function createClient({
                     };
                 }
             }
-            const shared = { ...gcOptions, ...(audit ? { audit } : {}), dryRun, auditKeeps, now };
+            const opts = { ...gcOptions, ...(audit ? { audit } : {}), dryRun, auditKeeps, now };
             const report = {
-                artifacts: await sweepArtifacts(artifactStore, shared),
-                results: await sweepResultCache(store, { ...shared, ttlSeconds: resultTtlSeconds }),
-                inputs: await sweepStagedInputs(store, { ...shared, ttlSeconds: inputTtlSeconds }),
+                artifacts: await sweepArtifacts(artifactStore, opts),
+                results: await sweepResultCache(store, { ...opts, ttlSeconds: resultTtlSeconds }),
+                inputs: importsDir
+                    ? await sweepImports(importsDir, { ...opts, ttlSeconds: inputTtlSeconds })
+                    : { skipped: 'NO_SHARED_DIR' },
             };
             await fsp.writeFile(gcStateFile, JSON.stringify({ lastSweepAt: now.toISOString() }))
                 .catch(err => onWarning?.(`could not record the GC sweep time: ${err.message}`));
@@ -723,6 +730,9 @@ export function createClient({
         },
 
         listCachedTickets(opts) { return store.listTickets(opts); },
+
+        // The shared layout, for the caller that has to prepend imports/ to the read roots.
+        sharedDirs: shared ? { shared, exportsDir, importsDir } : null,
     };
 
     return client;

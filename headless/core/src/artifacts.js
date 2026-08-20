@@ -92,6 +92,9 @@ export function createArtifactStore({
     exposeLocalPaths = true,
     insideStateDir = true,
     verifyRows = false,
+    // What the caller sees this root as: the mount is the shared parent, not the export directory.
+    mountName = null,
+    pathPrefix = null,
 } = {}) {
     if (!root) throw new Error('createArtifactStore({ root }) is required');
 
@@ -255,14 +258,19 @@ export function createArtifactStore({
                 const dir = dirFor(id);
                 // A caller that knows where it sees the export directory gets paths in its own space:
                 // it is the only party that can know, and the arithmetic is ours to do.
-                const base = mountRoot || root;
+                // mountRoot is where the caller sees the shared folder, so the prefix is ours to add.
+                const base = mountRoot
+                    ? (pathPrefix ? path.join(mountRoot, pathPrefix) : mountRoot)
+                    : root;
                 if (!path.relative(root, dir).startsWith('..')) {
                     // exportRoot and its basename, because a sandboxed caller sees the export directory
                     // at a mount of its own and must rebuild the path rather than use ours. The server
                     // cannot discover that view: there is no channel for it, and `roots` is deprecated
                     // and unimplemented by the hosts that sandbox.
+                    const seen = mountName ?? path.basename(root);
                     out.exportRoot = base;
-                    out.mountName = path.basename(root);
+                    out.mountName = seen;
+                    out.pathFromMount = pathPrefix ? path.join(pathPrefix, id) : id;
                     out.artifactRoot = path.join(base, id);
                     out.localPath = path.join(base, id, MANIFEST);
                     out.localPathVerified = false;
@@ -273,10 +281,10 @@ export function createArtifactStore({
                         : insideStateDir
                         ? 'these files are inside this server\'s private state directory, so a client '
                           + 'that does not share its filesystem cannot read them at any path — use the '
-                          + 'uri, or ask the operator to set FOLDSEEK_SERVER_ARTIFACT_DIR to a folder '
+                          + 'uri, or ask the operator to set FOLDSEEK_SERVER_SHARED_DIR to a folder '
                           + 'you can be granted'
-                        : `find a directory named "${path.basename(root)}" among the paths you can read, `
-                          + 'then join artifactId and a file path to it';
+                        : `find a directory named "${seen}" among the paths you can read, then join `
+                          + 'pathFromMount and a file path to it';
                 }
             }
             return out;

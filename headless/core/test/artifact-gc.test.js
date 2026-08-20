@@ -456,7 +456,7 @@ test('an empty state directory is not an error', async () => {
 });
 
 test('a directory we did not create is never swept, whatever it contains', async () => {
-    // What a mistyped FOLDSEEK_SERVER_ARTIFACT_DIR looks like: a real folder, with something in it
+    // What a mistyped FOLDSEEK_SERVER_SHARED_DIR looks like: a real folder, with something in it
     // that happens to match the artifact name pattern.
     const root = await tmpDir();
     const lookalike = path.join(root, 'e'.repeat(64));

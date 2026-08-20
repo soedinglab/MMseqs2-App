@@ -9,11 +9,10 @@ import {
     ListResourcesRequestSchema, ListResourceTemplatesRequestSchema, ReadResourceRequestSchema,
     ErrorCode, McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 
-import {
-    createClient, parseInputDirs, parseUrlHosts, stageInput, MAX_INPUT_BYTES,
-} from 'foldseek-server-lib';
+import { createClient, parseInputDirs, parseUrlHosts, ensureSharedDirs } from 'foldseek-server-lib';
 
 import { createTools, runTool } from './tools.js';
 import { createResources } from './resources.js';
@@ -58,7 +57,8 @@ function durationFromEnv(env, name, { fallback, min, max }) {
 
 const SIZE_UNITS = { b: 1, k: 1024, m: 1024 * 1024, g: 1024 * 1024 * 1024 };
 
-/** `16k`, `2m`, `1g`, or a plain integer of bytes. */
+/** `16k`, `2m`, `1g`, or a plain integer of bytes. `g` is unused today; a size parser may as
+ * well know gigabytes. */
 export function parseSize(raw, { min, max, name = 'size' }) {
     const refuse = () => {
         throw new Error(`${name}=${JSON.stringify(raw)} is not usable — expected a size like 16k, 2m ` +
@@ -86,7 +86,19 @@ function boolFromEnv(env, name, fallback) {
     throw new Error(`${name}=${JSON.stringify(raw)} is not usable — expected 1/0, true/false, yes/no`);
 }
 
+export const RETIRED_ENV = {
+    FOLDSEEK_SERVER_ARTIFACT_DIR: 'use FOLDSEEK_SERVER_SHARED_DIR, whose exports/ replaces it',
+    FOLDSEEK_SERVER_INPUT_TOKEN: 'the upload route is gone; drop a file into the shared imports/ instead',
+    FOLDSEEK_SERVER_INPUT_QUOTA: 'nothing is uploaded now, so there is no upload quota',
+};
+
 export function readConfigFromEnv(env = process.env) {
+    // Removed variables are refused, not ignored: silently dropping ARTIFACT_DIR would move exports
+    // back into the state directory, which is what setting it was for.
+    for (const [gone, now] of Object.entries(RETIRED_ENV)) {
+        if (env[gone]) throw new Error(`${gone} is no longer read — ${now}`);
+    }
+
     const baseUrl = env.FOLDSEEK_SERVER_BASE_URL;
     if (!baseUrl) {
         throw new Error(
@@ -100,7 +112,7 @@ export function readConfigFromEnv(env = process.env) {
         baseUrl,
         app: env.FOLDSEEK_SERVER_APP || 'foldseek',
         stateDir: env.FOLDSEEK_SERVER_STATE_DIR || undefined,
-        artifactDir: env.FOLDSEEK_SERVER_ARTIFACT_DIR || undefined,
+        sharedDir: env.FOLDSEEK_SERVER_SHARED_DIR || undefined,
         apiPath: env.FOLDSEEK_SERVER_API_PATH || undefined,
         basicAuth: user ? { user, pass: pass ?? '' } : null,
         resultRowCap: intFromEnv(env, 'FOLDSEEK_SERVER_RESULT_ROW_CAP',
@@ -111,12 +123,8 @@ export function readConfigFromEnv(env = process.env) {
         // Both empty by default: the alternatives are an arbitrary-file reader and an open proxy.
         inputDirs: parseInputDirs(env.FOLDSEEK_SERVER_INPUT_DIRS),
         urlHosts: parseUrlHosts(env.FOLDSEEK_SERVER_URL_HOSTS),
-        // No token means no upload route, so the default deployment has no write surface.
-        inputToken: env.FOLDSEEK_SERVER_INPUT_TOKEN || null,
         inputTtlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_INPUT_TTL',
             { fallback: 3600, min: 300, max: 604800 }),
-        inputQuotaBytes: sizeFromEnv(env, 'FOLDSEEK_SERVER_INPUT_QUOTA',
-            { fallback: 1024 * 1024 * 1024, min: 1024 * 1024, max: 64 * 1024 * 1024 * 1024 }),
         resultTtlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_RESULT_TTL',
             { fallback: 86400, min: 60, max: 2592000 }),
         artifacts: {
@@ -139,12 +147,13 @@ export function resourceLinks(result) {
     }));
 }
 
-export function createServer(config) {
+export function createServer(config, transport = { kind: 'stdio' }) {
     const client = createClient(config);
     const tools = createTools(client, {
-        inputDirs: config.inputDirs ?? [],
+        inputDirs: readRoots(client, config, transport),
         urlHosts: config.urlHosts ?? [],
-        staging: config.inputToken ? { ttlSeconds: config.inputTtlSeconds } : null,
+        // Reading a dropped file postpones its expiry; a curated directory is never written to.
+        touchDirs: client.sharedDirs ? [client.sharedDirs.importsDir] : [],
     });
     const resources = createResources(client, { maxBytes: config.resourceMaxBytes });
 
@@ -220,7 +229,7 @@ export function readTransportFromArgv(argv = []) {
 const LOOPBACK = /^(127\.\d+\.\d+\.\d+|::1|localhost)$/i;
 
 /**
- * `queryPath` reads the *server's* filesystem. That is the same machine as the caller over stdio, and
+ * `queryRef` reads the *server's* filesystem. That is the same machine as the caller over stdio, and
  * over HTTP only when the bind address is loopback. Anywhere else the path either means nothing or
  * means a different file, so the combination is refused rather than served.
  */
@@ -232,66 +241,24 @@ export function assertTransportAllows({ inputDirs = [] }, transport) {
         'bind 127.0.0.1.');
 }
 
-const UPLOAD_PATH = '/input';
-
-function sameSecret(given, expected) {
-    // timingSafeEqual throws on unequal lengths, so both sides are hashed to 32 bytes: the comparison
-    // then says nothing about how long the token is.
-    const digest = value => createHash('sha256').update(String(value ?? '')).digest();
-    return timingSafeEqual(digest(given), digest(expected));
-}
-
-/** `POST /input` — bytes pushed in, referenced later by an id. Absent unless a token is configured. */
-function uploadRoute({ client, token, quotaBytes, ttlSeconds, allowedHosts }) {
-    return async (req, res) => {
-        const reply = (status, body) => {
-            res.writeHead(status, { 'content-type': 'application/json' });
-            res.end(JSON.stringify(body));
-        };
-        if (req.method !== 'POST') return reply(405, { error: 'POST only' });
-
-        // The transport checks Host for its own requests; this route is outside it, so it checks too.
-        const host = String(req.headers.host ?? '').toLowerCase();
-        if (allowedHosts.length && !allowedHosts.includes(host)) {
-            return reply(403, { error: `invalid Host header: ${req.headers.host}` });
-        }
-
-        const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1];
-        if (!bearer || !sameSecret(bearer, token)) return reply(401, { error: 'bad or missing token' });
-
-        const name = new URL(req.url, 'http://localhost').searchParams.get('name') ?? 'query';
-        try {
-            const staged = await stageInput(req, {
-                store: client.store, name, maxBytes: MAX_INPUT_BYTES, quotaBytes,
-            });
-            return reply(201, {
-                inputId: staged.inputId,
-                bytes: staged.bytes,
-                name: staged.name,
-                expiresAt: new Date(Date.parse(staged.createdAt) + ttlSeconds * 1000).toISOString(),
-            });
-        } catch (err) {
-            const status = err.code === 'INPUT_TOO_LARGE' ? 413
-                : err.code === 'INPUT_QUOTA_EXCEEDED' ? 507
-                    : err.code === 'INVALID_INPUT' ? 400 : 500;
-            return reply(status, { error: err.message, ...(err.code ? { code: err.code } : {}) });
-        }
-    };
+/**
+ * Read roots for the tools: the shared imports/ first, then the configured allowlist.
+ *
+ * `imports/` is a root nobody asked for, so a non-loopback bind drops it rather than refusing to
+ * start — exports/ still works, and the ref argument leaves the schema on its own.
+ */
+export function readRoots(client, config, transport = { kind: 'stdio' }) {
+    const importsDir = client.sharedDirs?.importsDir;
+    const remote = transport.kind === 'http' && !LOOPBACK.test(transport.host);
+    return [...(importsDir && !remote ? [importsDir] : []), ...(config.inputDirs ?? [])];
 }
 
 /** Serve over Streamable HTTP. Returns the listening node http.Server. */
-export async function listenHttp(server, { host, port, client = null, staging = null }) {
+export async function listenHttp(server, { host, port }) {
     const { createServer: createHttpServer } = await import('node:http');
     let transport = null;
-    let upload = null;
 
     const http = createHttpServer((req, res) => {
-        if (upload && new URL(req.url, 'http://localhost').pathname === UPLOAD_PATH) {
-            upload(req, res).catch(() => {
-                if (!res.headersSent) res.writeHead(500).end();
-            });
-            return;
-        }
         if (!transport) { res.writeHead(503).end(); return; }
         transport.handleRequest(req, res).catch(() => {
             if (!res.headersSent) res.writeHead(500).end();
@@ -311,7 +278,6 @@ export async function listenHttp(server, { host, port, client = null, staging = 
         allowedHosts,
         enableDnsRebindingProtection: true,
     });
-    if (client && staging?.token) upload = uploadRoute({ client, allowedHosts, ...staging });
     await server.connect(transport);
     return http;
 }
@@ -320,20 +286,19 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
     const transport = readTransportFromArgv(argv);
     const config = readConfigFromEnv(env);
     assertTransportAllows(config, transport);
-    const { server, client } = createServer(config);
+    assertNoNestedRoots(config);
+    const { server, client } = createServer(config, transport);
+
+    // Before the handshake: the client has to be able to drop a file in, and the folder has to exist
+    // for a person to grant it.
+    if (client.sharedDirs) {
+        // Not fatal: unclaimed means never swept, so searching still works and nothing is at risk.
+        await ensureSharedDirs(client.sharedDirs.shared)
+            .catch(err => process.stderr.write(`foldseek-server: ${err.message}\n`));
+    }
 
     if (transport.kind === 'http') {
-        await listenHttp(server, {
-            ...transport,
-            client,
-            staging: config.inputToken
-                ? {
-                    token: config.inputToken,
-                    ttlSeconds: config.inputTtlSeconds,
-                    quotaBytes: config.inputQuotaBytes,
-                }
-                : null,
-        });
+        await listenHttp(server, transport);
         process.stderr.write(
             `foldseek-server: streamable http on http://${transport.host}:${transport.port}\n`);
     } else {
@@ -345,15 +310,38 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
     // After the transport is up, so a slow sweep never delays the handshake, and to stderr only —
     // stdout is the protocol stream.
     client.collectGarbage()
-        .then(({ artifacts, results }) => {
-            if (artifacts.deleted || results.deleted || artifacts.errors || results.errors) {
+        .then(({ artifacts, results, inputs }) => {
+            const errors = artifacts.errors + results.errors + (inputs.errors ?? 0);
+            // Dropped files are deleted inside a folder someone can see, so say when that happens.
+            if (artifacts.deleted || results.deleted || inputs.deleted || errors) {
                 process.stderr.write(
-                    `foldseek-server: startup GC removed ${artifacts.deleted} artifact(s) and ` +
-                    `${results.deleted} cached result(s), ` +
-                    `${artifacts.errors + results.errors} error(s)\n`);
+                    `foldseek-server: startup GC removed ${artifacts.deleted} artifact(s), ` +
+                    `${results.deleted} cached result(s) and ${inputs.deleted ?? 0} dropped file(s), ` +
+                    `${errors} error(s)\n`);
             }
         })
         .catch(err => process.stderr.write(`foldseek-server: startup GC failed: ${err.message}\n`));
+}
+
+/**
+ * `INPUT_DIRS` is never swept and `imports/` always is, so neither may contain the other: one nesting
+ * puts a curated library on a 1 h timer, the other hides dropped files behind a root that outlives them.
+ */
+export function assertNoNestedRoots({ inputDirs = [], sharedDir = null }) {
+    if (!sharedDir) return;
+    const shared = path.resolve(sharedDir);
+    const importsDir = path.join(shared, 'imports');
+    for (const dir of inputDirs) {
+        for (const [outer, inner] of [[importsDir, dir], [dir, shared]]) {
+            const to = path.relative(outer, inner);
+            if (to === '' || (!to.startsWith('..') && !path.isAbsolute(to))) {
+                throw new Error(
+                    `FOLDSEEK_SERVER_INPUT_DIRS entry ${dir} and the shared folder ${shared} are ` +
+                    'nested — the shared imports/ is swept and an input directory never is, so one ' +
+                    'must be outside the other');
+            }
+        }
+    }
 }
 
 /** Operator maintenance: sweep and report, without starting a server. */

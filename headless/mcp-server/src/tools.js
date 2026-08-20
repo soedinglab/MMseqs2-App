@@ -2,18 +2,19 @@
 
 import {
     UnsupportedOnDeploymentError, DESTINATIONS, expandRanges, kindForJobType,
-    resolveInputPath, resolveInputUrl, resolveStagedInput,
+    resolveInputPath, resolveInputUrl,
 } from 'foldseek-server-lib';
 
 const TICKET = { type: 'string', description: 'Ticket id.' };
 const ENTRY = { type: 'number', description: 'Query index. Foldseek and multimer only; default 0.' };
 const QUERY = { type: 'string', description: 'Structure as PDB or mmCIF text.' };
 function pathArg(dirs, { many = false } = {}) {
-    const kind = many ? 'Paths' : 'Path';
-    const full = `${kind} read server-side. Must be inside: ${dirs.join(', ')}`;
+    const kind = many ? 'Names' : 'Name';
+    const full = `${kind} read server-side, relative to or inside: ${dirs.join(', ')}`;
     const description = full.length <= 128
         ? full
-        : `${kind} read server-side, inside one of ${dirs.length} allowed directories; a refusal lists them.`;
+        : `${kind} read server-side, relative to ${dirs.length === 1 ? 'a readable directory'
+            : `one of ${dirs.length} readable directories`}; a refusal lists them.`;
     return many
         ? { type: 'array', minItems: 2, items: { type: 'string' }, description }
         : { type: 'string', description };
@@ -28,16 +29,6 @@ const FILE_URLS = {
     minItems: 2,
     items: { type: 'string' },
     description: 'https URLs the server downloads instead of files. Needs FOLDSEEK_SERVER_URL_HOSTS.',
-};
-const INPUT_ID_ARG = {
-    type: 'string',
-    description: 'Id from a POST /input upload, e.g. "in_7f3a9c2e5b1d0a84".',
-};
-const INPUT_IDS = {
-    type: 'array',
-    minItems: 2,
-    items: { type: 'string' },
-    description: 'Ids from POST /input uploads, instead of files.',
 };
 const DATABASES = { type: 'array', items: { type: 'string' }, description: 'Paths from list_databases.' };
 const EMAIL = { type: 'string', description: 'Optional notification address.' };
@@ -86,27 +77,24 @@ function describe(selection, maxEntries) {
     };
 }
 
-export function createTools(client, { inputDirs = [], urlHosts = [], staging = null } = {}) {
-    const readPath = p => resolveInputPath(p, { inputDirs });
+export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs = [] } = {}) {
+    const readPath = p => resolveInputPath(p, { inputDirs, touchDirs });
     const readUrl = u => resolveInputUrl(u, { urlHosts, fetchImpl: client.fetchImpl });
-    const readStaged = id => resolveStagedInput(id, { store: client.store, ...staging });
     // Advertised only when it can work. A schema offering a capability that always refuses is worse
     // than one that never mentions it.
-    const byPath = inputDirs.length ? { queryPath: pathArg(inputDirs) } : {};
-    const byPaths = inputDirs.length ? { filePaths: pathArg(inputDirs, { many: true }) } : {};
+    const byPath = inputDirs.length ? { queryRef: pathArg(inputDirs) } : {};
+    const byPaths = inputDirs.length ? { fileRefs: pathArg(inputDirs, { many: true }) } : {};
     const byUrl = urlHosts.length ? { queryUrl: QUERY_URL } : {};
     const byUrls = urlHosts.length ? { fileUrls: FILE_URLS } : {};
-    const byId = staging ? { inputId: INPUT_ID_ARG } : {};
-    const byIds = staging ? { inputIds: INPUT_IDS } : {};
 
-    const resolveQuery = async ({ query, queryPath, queryUrl, inputId, accession, motif }) => {
-        const all = { query, queryPath, queryUrl, inputId, accession };
+    const resolveQuery = async ({ query, queryRef, queryUrl, accession, motif }) => {
+        const all = { query, queryRef, queryUrl, accession };
         const given = Object.keys(all).filter(k => all[k]);
         if (given.length > 1) {
             throw coded('INVALID_INPUT',
                 `pass one of ${Object.keys(all).join(', ')} — got ${given.join(', ')}`);
         }
-        for (const [key, read] of [['queryPath', readPath], ['queryUrl', readUrl], ['inputId', readStaged]]) {
+        for (const [key, read] of [['queryRef', readPath], ['queryUrl', readUrl]]) {
             if (!all[key]) continue;
             const file = await read(all[key]);
             return { query: file.text, motif, loaded: { name: file.name, bytes: file.bytes } };
@@ -127,7 +115,7 @@ export function createTools(client, { inputDirs = [], urlHosts = [], staging = n
         const resolved = await resolveQuery(args);
         // Neither a local path nor a URL reaches the client: only the text it held. A URL can carry a
         // presigned signature, so it is no more recordable than a path.
-        const { queryPath, queryUrl, inputId, ...rest } = args;
+        const { queryRef, queryUrl, ...rest } = args;
         const full = { ...rest, query: resolved.query, ...(resolved.motif ? { motif: resolved.motif } : {}) };
         if (args.validateOnly) {
             const report = await client.validateSubmission({ tool, ...full });
@@ -216,7 +204,6 @@ export function createTools(client, { inputDirs = [], urlHosts = [], staging = n
                     query: QUERY,
                     ...byPath,
                     ...byUrl,
-                    ...byId,
                     accession: ACCESSION,
                     databases: DATABASES,
                     mode: { type: 'string', enum: ['3diaa', '3di', 'tmalign', 'lolalign'], description: 'Default 3diaa.' },
@@ -245,7 +232,6 @@ export function createTools(client, { inputDirs = [], urlHosts = [], staging = n
                     query: QUERY,
                     ...byPath,
                     ...byUrl,
-                    ...byId,
                     accession: ACCESSION,
                     databases: DATABASES,
                     mode: { type: 'string', enum: ['3diaa', '3di', 'tmalign', 'lolalign'], description: 'Default 3diaa.' },
@@ -279,14 +265,13 @@ export function createTools(client, { inputDirs = [], urlHosts = [], staging = n
                     },
                     ...byPaths,
                     ...byUrls,
-                    ...byIds,
                     email: EMAIL,
                     validateOnly: VALIDATE_ONLY,
                 },
             },
             async handler(args) {
-                const { filePaths, fileUrls, inputIds, ...rest } = args;
-                const kinds = ['files', 'filePaths', 'fileUrls', 'inputIds'];
+                const { fileRefs, fileUrls, ...rest } = args;
+                const kinds = ['files', 'fileRefs', 'fileUrls'];
                 const given = kinds.filter(k => args[k]);
                 if (given.length !== 1) {
                     throw coded('INVALID_INPUT',
@@ -296,10 +281,9 @@ export function createTools(client, { inputDirs = [], urlHosts = [], staging = n
                     const file = await read(item);
                     return { name: file.name, content: file.text };
                 }));
-                const files = filePaths ? await load(filePaths, readPath)
+                const files = fileRefs ? await load(fileRefs, readPath)
                     : fileUrls ? await load(fileUrls, readUrl)
-                        : inputIds ? await load(inputIds, readStaged)
-                            : args.files;
+                        : args.files;
                 return submit('foldmason', { ...rest, files }, a => client.submitFoldMason(a));
             },
         },
@@ -315,7 +299,6 @@ export function createTools(client, { inputDirs = [], urlHosts = [], staging = n
                     query: QUERY,
                     ...byPath,
                     ...byUrl,
-                    ...byId,
                     accession: ACCESSION,
                     databases: { ...DATABASES, description: 'Motif-capable paths from list_databases.' },
                     motif: { type: 'string', description: 'Required unless an accession supplies one.' },

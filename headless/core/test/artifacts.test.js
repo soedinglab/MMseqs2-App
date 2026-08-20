@@ -426,41 +426,47 @@ test('an expired artifact rebuilds from the cached result, without refetching it
         'only the database catalog, which is ~1 KB and memoised for the process');
 });
 
-test('exports can be sent to a directory the host can read, but not one holding the state', async () => {
+test('exports go to the shared folder, and it may not hold the state directory', async () => {
     const stateDir = await tmpDir();
-    const artifactDir = path.join(await tmpDir(), 'shared', 'exports');
+    const sharedDir = path.join(await tmpDir(), 'foldseek-shared');
 
     const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir });
     const elsewhere = createClient({
         baseUrl: 'https://example.test',
         stateDir,
-        artifactDir,
+        sharedDir,
         fetchImpl: client.fetchImpl,
     });
     const out = await elsewhere.exportResult('T1abcd');
 
-    assert.ok(out.artifactRoot.startsWith(artifactDir), `${out.artifactRoot} is under the chosen root`);
+    const exportsDir = path.join(sharedDir, 'exports');
+    assert.ok(out.artifactRoot.startsWith(exportsDir), `${out.artifactRoot} is under exports/`);
 
-    // A caller that sees the export directory at a mount of its own rebuilds the path from these.
-    assert.equal(out.exportRoot, artifactDir);
-    assert.equal(out.mountName, 'exports', 'the basename is what a sandbox mounts it under');
-    assert.equal(out.artifactRoot, path.join(out.exportRoot, out.artifactId));
-    assert.match(out.ifUnreadable, /find a directory named "exports"/);
+    // One mount serves both directions, so the mount is the shared parent and the path is relative
+    // to it. A caller joins the two and never learns this machine's prefix.
+    assert.equal(out.exportRoot, exportsDir);
+    assert.equal(out.mountName, 'foldseek-shared');
+    assert.equal(out.pathFromMount, path.join('exports', out.artifactId));
+    assert.match(out.ifUnreadable, /find a directory named "foldseek-shared"/);
     assert.equal(
-        path.join('/sessions/x/mnt', out.mountName, out.artifactId, out.files[0].path),
-        `/sessions/x/mnt/exports/${out.artifactId}/${out.files[0].path}`);
+        path.join('/sessions/x/mnt', out.mountName, out.pathFromMount, out.files[0].path),
+        `/sessions/x/mnt/foldseek-shared/exports/${out.artifactId}/${out.files[0].path}`);
     assert.ok(JSON.stringify(out).length < 2048, `descriptor is ${JSON.stringify(out).length} bytes`);
     assert.equal(fs.existsSync(out.localPath), true);
     assert.equal(fs.existsSync(path.join(stateDir, 'artifacts')), false, 'and not in the state dir');
 
-    // The sweep is aimed at that root, so a root holding the state directory is refused outright.
+    // mountRoot names the shared folder as the caller sees it; the exports/ prefix is ours to add.
+    const remapped = await elsewhere.exportResult('T1abcd', 0,
+        { mountRoot: '/sessions/x/mnt/foldseek-shared' });
+    assert.equal(remapped.artifactRoot,
+        `/sessions/x/mnt/foldseek-shared/exports/${remapped.artifactId}`);
+    assert.equal(remapped.pathsRemapped, true);
+
+    // The sweep is aimed inside that folder, so one holding the state directory is refused outright.
     for (const bad of [stateDir, path.dirname(stateDir), path.join(stateDir, '..')]) {
-        assert.throws(() => createClient({ baseUrl: 'https://example.test', stateDir, artifactDir: bad }),
+        assert.throws(() => createClient({ baseUrl: 'https://example.test', stateDir, sharedDir: bad }),
             /contains the state directory/, bad);
     }
-    assert.doesNotThrow(() => createClient({
-        baseUrl: 'https://example.test', stateDir, artifactDir: path.join(stateDir, 'artifacts'),
-    }), 'the default location is still allowed');
 });
 
 test('a descriptor says so when its files are somewhere no other machine can reach', async () => {
@@ -470,7 +476,7 @@ test('a descriptor says so when its files are somewhere no other machine can rea
     // The default location is inside the state directory: readable by this server and nothing else.
     // The server does know that much, so it says it rather than handing over a path that cannot work.
     assert.match(out.ifUnreadable, /private state directory/);
-    assert.match(out.ifUnreadable, /FOLDSEEK_SERVER_ARTIFACT_DIR/);
+    assert.match(out.ifUnreadable, /FOLDSEEK_SERVER_SHARED_DIR/);
     assert.equal(out.localPathVerified, false);
     assert.ok(out.uri, 'and the uri, which needs no filesystem, is still there');
     assert.ok(JSON.stringify(out).length < 2048, `descriptor is ${JSON.stringify(out).length} bytes`);

@@ -33,7 +33,7 @@
         "FOLDSEEK_SERVER_STATE_DIR": "${user_config.state_dir}",
         "FOLDSEEK_SERVER_INPUT_DIRS": "${user_config.input_dir}",
         "FOLDSEEK_SERVER_URL_HOSTS": "${user_config.url_hosts}",
-        "FOLDSEEK_SERVER_ARTIFACT_DIR": "${user_config.artifact_dir}"
+        "FOLDSEEK_SERVER_SHARED_DIR": "${user_config.shared_dir}"
       }
     }
   },
@@ -105,17 +105,17 @@
       "required": false,
       "default": ""
     },
-    "input_dir": {
+    "shared_dir": {
       "type": "directory",
-      "title": "Readable input directory",
-      "description": "One folder the server may read structure files from, for queryPath. Optional.",
+      "title": "Shared folder",
+      "description": "One folder shared with Claude, in both directions: exports/ for result files, imports/ for structures you want searched. Pick a folder Claude can be granted. Leave empty to keep exports inside the state directory.",
       "required": false,
       "default": ""
     },
-    "artifact_dir": {
+    "input_dir": {
       "type": "directory",
-      "title": "Export directory",
-      "description": "Where exported result files are written. Choose a folder Claude can already read and it can open them without a further step. Leave empty to keep them inside the state directory.",
+      "title": "Readable input directory",
+      "description": "A further folder the server may read structure files from, never swept. Must not sit inside the shared folder. Optional.",
       "required": false,
       "default": ""
     }

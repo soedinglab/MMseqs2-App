@@ -86,6 +86,35 @@ test('a port that is already taken fails at startup rather than serving nothing'
     }
 });
 
+test('there is no upload route: a structure posted to /input is not staged', async () => {
+    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-http-'));
+
+    // A leftover token does not bring the route back; it stops the server instead.
+    assert.throws(() => readConfigFromEnv({
+        FOLDSEEK_SERVER_BASE_URL: 'https://example.test',
+        FOLDSEEK_SERVER_INPUT_TOKEN: 'leftover-secret',
+    }), /no longer read/);
+
+    const config = readConfigFromEnv({
+        FOLDSEEK_SERVER_BASE_URL: 'https://example.test',
+        FOLDSEEK_SERVER_STATE_DIR: stateDir,
+    });
+    const http = await listenHttp(createServer(config).server, { host: '127.0.0.1', port: 0 });
+    const { port } = http.address();
+    try {
+        const res = await fetch(`http://127.0.0.1:${port}/input?name=q.cif`, {
+            method: 'POST',
+            headers: { authorization: 'Bearer any-secret', 'content-type': 'text/plain' },
+            body: 'ATOM      1  CA  MET A   1       1.000   2.000   3.000  1.00  0.00           C\n',
+        });
+        assert.notEqual(res.status, 201, 'nothing was created');
+        assert.doesNotMatch(await res.text(), /inputId/);
+    } finally {
+        http.close();
+        await new Promise(resolve => http.once('close', resolve));
+    }
+});
+
 test('a path allowlist and a non-loopback bind are refused together', () => {
     const withDirs = { inputDirs: ['/data/structures'] };
     const without = { inputDirs: [] };
@@ -113,13 +142,13 @@ test('the path arguments are advertised only when they can work', async () => {
 
     const props = (tools, name) => tools.find(t => t.name === name).inputSchema.properties;
     for (const name of ['foldseek_search', 'multimer_search', 'folddisco_search']) {
-        assert.equal('queryPath' in props(off, name), false, `${name} must not offer it when off`);
-        assert.equal('queryPath' in props(on, name), true, name);
+        assert.equal('queryRef' in props(off, name), false, `${name} must not offer it when off`);
+        assert.equal('queryRef' in props(on, name), true, name);
         assert.equal('query' in props(off, name), true, 'query text always works');
         assert.equal('accession' in props(off, name), true, 'and so does an accession');
     }
-    assert.equal('filePaths' in props(off, 'foldmason_msa'), false);
-    assert.equal('filePaths' in props(on, 'foldmason_msa'), true);
+    assert.equal('fileRefs' in props(off, 'foldmason_msa'), false);
+    assert.equal('fileRefs' in props(on, 'foldmason_msa'), true);
     assert.equal('files' in props(off, 'foldmason_msa'), true);
 });
 
@@ -180,5 +209,51 @@ test('the rebinding guard refuses a Host header that is not the bound address', 
         assert.equal(good.status, 200, 'the bound address is admitted');
     } finally {
         http.close();
+    }
+});
+
+test('a swept root and a never-swept one may not nest, in either direction', async () => {
+    const { assertNoNestedRoots } = await import('../src/server.js');
+    const shared = '/Users/me/foldseek-shared';
+
+    assert.doesNotThrow(() => assertNoNestedRoots({ sharedDir: shared, inputDirs: ['/data/structures'] }));
+    assert.doesNotThrow(() => assertNoNestedRoots({ inputDirs: ['/data'] }), 'no shared folder, no rule');
+
+    // Nested the first way, a curated library would be on the imports timer. Nested the other, the
+    // library outlives files the sweep is meant to remove.
+    for (const dirs of [[path.join(shared, 'imports')], [path.join(shared, 'imports', 'lib')],
+        [path.dirname(shared)], [shared]]) {
+        assert.throws(() => assertNoNestedRoots({ sharedDir: shared, inputDirs: dirs }),
+            /are nested/, dirs.join());
+    }
+});
+
+test('imports is a read root over stdio and loopback, and not over anything else', async () => {
+    const { readRoots } = await import('../src/server.js');
+    const shared = await fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-shared-'));
+    const config = readConfigFromEnv({
+        FOLDSEEK_SERVER_BASE_URL: 'https://example.test',
+        FOLDSEEK_SERVER_STATE_DIR: await fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-state-')),
+        FOLDSEEK_SERVER_SHARED_DIR: shared,
+        FOLDSEEK_SERVER_INPUT_DIRS: '/data/structures',
+    });
+    const { client } = createServer(config);
+    const importsDir = path.join(shared, 'imports');
+
+    assert.deepEqual(readRoots(client, config), [importsDir, '/data/structures'],
+        'imports first, so a dropped file wins over a name that also exists in the library');
+    assert.deepEqual(readRoots(client, config, { kind: 'http', host: '127.0.0.1' }),
+        [importsDir, '/data/structures']);
+
+    // Nobody configured imports/, so a remote bind drops it instead of refusing to start. The
+    // configured allowlist is the operator's own decision, and assertTransportAllows refuses that.
+    assert.deepEqual(readRoots(client, config, { kind: 'http', host: '0.0.0.0' }), ['/data/structures']);
+});
+
+test('a retired variable stops the server rather than being ignored', () => {
+    for (const gone of ['FOLDSEEK_SERVER_ARTIFACT_DIR', 'FOLDSEEK_SERVER_INPUT_QUOTA']) {
+        assert.throws(() => readConfigFromEnv({
+            FOLDSEEK_SERVER_BASE_URL: 'https://example.test', [gone]: '/somewhere',
+        }), new RegExp(`${gone} is no longer read`), gone);
     }
 });

@@ -32,10 +32,11 @@ aromatic vs alanine, `n`/`N` negative vs asparagine, `h`/`H` hydrophilic vs hist
 proline. Upper-casing would silently turn *aromatic* into *alanine*: a search that runs, returns hits, and
 answers a different question.
 
-**Getting bytes to the server.** `POST /input` exists because MCP has no upload channel — client capabilities are `sampling`,
+**Getting bytes to the server.** MCP has no upload channel — client capabilities are `sampling`,
 `elicitation` (primitives only) and `roots` (directory URIs, deprecated), and tool arguments are JSON the
-model produces. So `queryPath` (the server opens a local file) and `queryUrl` (the server downloads one)
-exist because there is no protocol answer. `queryPath` is refused when `--http` binds a non-loopback
+model produces. So `queryRef` (the server opens a local file) and `queryUrl` (the server downloads one)
+exist because there is no protocol answer. A `POST /input` route was built and removed: no agent on any
+host could reach it, and the hosts that could had the filesystem already. `queryRef` is refused when `--http` binds a non-loopback
 address: a remote caller's path names a file on the *server's* disk. For `queryUrl` the host allowlist is
 the boundary; https-only, private-address refusal, two re-checked redirects and a counted body are defence
 against a mistyped entry, not against someone controlling DNS for a listed host. Neither is recorded — a
@@ -83,7 +84,7 @@ test failure.
 | `surface.test.js` | every tool is declared, described briefly, and cannot be asked to block |
 | `sendto-tools.test.js` | selections and forwarding, against a stubbed client |
 | `resources.test.js` | which reads work, which must not, the size cap, `resource_link` blocks |
-| `inputs.test.js` | the `queryPath` allowlist and everything it refuses |
+| `inputs.test.js` | the `queryRef` allowlist and everything it refuses |
 | `transport.test.js` | the `--http` flag, the rebinding guard, the loopback rule |
 | `e2e.test.js` | a real stdio transport against the built bin; env parsing |
 | `pack.test.js` | build, pack, install outside the repo, and the README/manifest drift guards |
@@ -100,15 +101,20 @@ test failure.
 - **A motif is derived, never dictated.** `msa/residue-map.jsonl` plus `derivedFrom.{columns,residueAa}`
   must reproduce the submitted motif with no server involved. Anything that lets the two diverge is a
   regression, whatever it enables.
-- **`queryPath` reads the server's disk.** Safe over stdio and loopback HTTP, and refused otherwise.
-  Adding another path-taking argument means the same guard.
+- **`queryRef` reads the server's disk.** Safe over stdio and loopback HTTP. A configured `INPUT_DIRS`
+  plus a non-loopback bind is refused at startup; `imports/` is dropped from the read roots instead,
+  because nobody configured it and refusing would break a deployment that only wanted exports. Adding
+  another path-taking argument means the same two rules.
+- **`imports/` is swept only because it is claimed.** Its files are named by whoever wrote them, so the
+  `.foldseek-drop` marker is the only guard — a directory without it is refused, examined and audited
+  nothing. The marker is therefore never written into a directory that already had contents:
+  `SHARED_DIR` pointed at a folder with an `imports/` of its own would otherwise put those files on the
+  input TTL. `exports/` needs no such rule, because the artifact-id pattern filters it as well. `INPUT_DIRS` is never swept, and may not nest with the shared folder in either direction: one
+  way puts a curated library on a 1 h timer, the other hides drops behind a root that outlives them.
 - **`queryUrl` makes the server fetch.** The host allowlist is the boundary; the scheme, address, redirect
   and size checks are defence against a mistyped entry. Adding another URL-taking argument means going
   through `resolveInputUrl`, never a bare `fetch`.
-- **A staged input is the only copy of those bytes.** So `collectStagedInputs` removes only
-  `in_<16 hex>` directories under `inputs/`, and only for expiry — never as cleanup, never anything else.
-  A scratch directory from an upload in flight is counted as preserved, not swept.
-- **The artifact sweep only touches roots it created.** `FOLDSEEK_SERVER_ARTIFACT_DIR` can name any
+- **The artifact sweep only touches roots it created.** `FOLDSEEK_SERVER_SHARED_DIR` can name any
   folder, so a typo would otherwise aim it at one we have never written to — and the name allowlist alone
   would still delete a 64-hex directory belonging to something else. A build writes
   `.foldseek-artifacts` into the root, and `collectArtifacts` refuses any root without it, examining

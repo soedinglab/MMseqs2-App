@@ -31,7 +31,7 @@ export {
     ARTIFACT_ID, URI_SCHEME, ROOT_MARKER,
 } from './artifacts.js';
 export {
-    collectArtifacts, collectResultCache, collectStagedInputs, fileAudit,
+    collectArtifacts, collectResultCache, collectDroppedInputs, fileAudit,
     DEFAULT_TTL_SECONDS, DEFAULT_RESULT_TTL_SECONDS,
 } from './gc.js';
 export {
@@ -41,8 +41,8 @@ export {
 export { Store, defaultStateDir, summarizeRequest, assertSelectionName } from './store.js';
 export {
     containedRealPath, resolveInputPath, resolveInputUrl, parseInputDirs, parseUrlHosts,
-    stageInput, resolveStagedInput, inputsRoot, treeBytes,
-    INPUT_ID, MAX_INPUT_BYTES, DEFAULT_INPUT_TTL_SECONDS, DEFAULT_INPUT_QUOTA_BYTES,
+    treeBytes, sharedPaths, ensureSharedDirs, DROP_MARKER, LISTED_NAMES,
+    MAX_INPUT_BYTES, DEFAULT_INPUT_TTL_SECONDS,
 } from './inputs.js';
 export {
     checkMotif, validateMotif, assertMotif, computeDefaultMotif, motifFromTargetResidues,

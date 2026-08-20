@@ -130,6 +130,11 @@ test('the mcpb manifest matches the tools it ships and asks for what has no defa
 
     assert.deepEqual(manifest.tools.map(t => t.name).sort(), actual, 'the listed tools must be the real ones');
     assert.equal(manifest.server.entry_point, 'bin/foldseek-server-mcp.js');
+
+    // npm and the .mcpb ship the same server from two hand-kept version fields; a user comparing the
+    // two would have no way to tell which is older.
+    const pkg = JSON.parse(await fs.readFile(path.join(PKG, 'package.json'), 'utf8'));
+    assert.equal(manifest.version, pkg.version, 'manifest.json and package.json must agree');
     assert.deepEqual(manifest.compatibility.platforms, ['darwin', 'win32'], 'mcpb is not a linux format');
     assert.match(manifest.compatibility.runtimes.node, /18/);
 
@@ -215,13 +220,24 @@ test('the published README documents every tool, variable and error code', async
         }
     }
 
+    const { RETIRED_ENV } = await import('../src/server.js');
+    const retired = new Set(Object.keys(RETIRED_ENV));
     const declared = new Set([...readme.matchAll(/FOLDSEEK_SERVER_[A-Z_]+/g)].map(m => m[0]));
+    const read = new Set();
     for (const file of ['src/server.js', '../core/src/store.js']) {
         const source = await fs.readFile(path.join(PKG, file), 'utf8');
         for (const [name] of source.matchAll(/FOLDSEEK_SERVER_[A-Z_]+/g)) {
             if (/_(LIVE_TESTS|LIVE_TICKET|PACK_TEST)$/.test(name)) continue;
+            // Retired names appear only to be refused, so they are read but not offered.
+            if (retired.has(name)) continue;
+            read.add(name);
             assert.ok(declared.has(name), `${name} is read but undocumented`);
         }
+    }
+    // And the other way: a documented variable nobody reads is a leftover, which the forward check
+    // above cannot see.
+    for (const name of declared) {
+        assert.ok(read.has(name), `${name} is documented but never read`);
     }
 
     // The reference does not ship, so a bare relative link would be a dead end. A full URL is fine.

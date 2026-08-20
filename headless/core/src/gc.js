@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { ARTIFACT_ID, DEFAULT_ARTIFACT_TTL_SECONDS, ROOT_MARKER } from './artifacts.js';
 import {
-    containedRealPath, treeBytes, inputsRoot, INPUT_ID, DEFAULT_INPUT_TTL_SECONDS,
+    containedRealPath, treeBytes, DROP_MARKER, DEFAULT_INPUT_TTL_SECONDS,
 } from './inputs.js';
 
 const BUILD_PREFIX = '.build-';
@@ -360,12 +360,12 @@ export async function collectResultCache(store, {
 }
 
 /**
- * Expire staged inputs under `<stateDir>/inputs/`.
+ * Expire files dropped into `<shared>/imports/`.
  *
- * @param {object} store  a Store
+ * @param {string} root  the imports directory
  * @returns {Promise<object>} a report; never throws for a single unusable entry
  */
-export async function collectStagedInputs(store, {
+export async function collectDroppedInputs(root, {
     ttlSeconds = DEFAULT_INPUT_TTL_SECONDS,
     maxDeletions = DEFAULT_MAX_DELETIONS,
     dryRun = false,
@@ -373,7 +373,6 @@ export async function collectStagedInputs(store, {
     auditKeeps = false,
     now = new Date(),
 } = {}) {
-    const root = inputsRoot(store);
     const report = {
         startedAt: now.toISOString(),
         dryRun,
@@ -393,22 +392,26 @@ export async function collectStagedInputs(store, {
         if (!audit) return;
         const routine = ROUTINE_RESULTS.has(entry.result) && ROUTINE_REASONS.has(entry.reason);
         if (routine && !auditKeeps) return;
-        await audit({ ts: now.toISOString(), scope: 'inputs', ...entry }).catch?.(() => {});
+        await audit({ ts: now.toISOString(), scope: 'imports', ...entry }).catch?.(() => {});
     };
 
+    const entries = await readdirSafe(root, true);
+    // Dropped files are named by whoever wrote them, so there is no pattern to filter on and the
+    // marker is the only thing between this sweep and a directory we do not own.
+    if (!entries.some(entry => entry.name === DROP_MARKER)) {
+        report.refused = 'NOT_A_DROP_DIRECTORY';
+        return report;
+    }
+
     const candidates = [];
-    for (const entry of await readdirSafe(root, true)) {
-        if (!INPUT_ID.test(entry.name)) {
-            // A scratch directory from an upload still in flight, or anything else. Not ours to judge.
+    for (const entry of entries) {
+        if (entry.name === DROP_MARKER) {
             report.preserved += 1;
             continue;
         }
-        if (!entry.isDirectory()) {
+        if (entry.isSymbolicLink()) {
             report.skipped += 1;
-            await record({
-                inputId: entry.name, result: 'skipped',
-                reason: entry.isSymbolicLink() ? 'SYMLINK' : 'NOT_A_DIRECTORY',
-            });
+            await record({ name: entry.name, result: 'skipped', reason: 'SYMLINK' });
             continue;
         }
         report.examined += 1;
@@ -419,12 +422,11 @@ export async function collectStagedInputs(store, {
         if (age <= ttlSeconds) {
             report.kept += 1;
             await record({
-                inputId: entry.name, reason: 'WITHIN_TTL', result: 'kept',
-                ageSeconds: Math.round(age),
+                name: entry.name, reason: 'WITHIN_TTL', result: 'kept', ageSeconds: Math.round(age),
             });
             continue;
         }
-        candidates.push({ name: entry.name, dir, age });
+        candidates.push({ name: entry.name, dir, age, bytes: entry.isDirectory() ? null : stat.size });
     }
 
     candidates.sort((x, y) => y.age - x.age);
@@ -437,13 +439,13 @@ export async function collectStagedInputs(store, {
         const real = await containedRealPath([root], candidate.dir);
         if (real !== path.join(await fs.realpath(root), candidate.name)) {
             report.skipped += 1;
-            await record({ inputId: candidate.name, reason: 'ESCAPES_ROOT', result: 'skipped' });
+            await record({ name: candidate.name, reason: 'ESCAPES_ROOT', result: 'skipped' });
             continue;
         }
 
-        const bytes = await treeBytes(candidate.dir);
+        const bytes = candidate.bytes ?? await treeBytes(candidate.dir);
         const entry = {
-            inputId: candidate.name,
+            name: candidate.name,
             reason: 'EXPIRED',
             ageSeconds: Math.round(candidate.age),
             bytes,

@@ -3,13 +3,11 @@
 // Empty by default: without a list the server would be an arbitrary-file reader for anything that can
 // call a tool, including text that arrived inside a result.
 
-import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 export const MAX_INPUT_BYTES = 64 * 1024 * 1024;
 export const DEFAULT_INPUT_TTL_SECONDS = 3600;
-export const DEFAULT_INPUT_QUOTA_BYTES = 1024 * 1024 * 1024;
 
 /** Total size of a tree. Shared with the collectors so there is one walker, not two. */
 export async function treeBytes(dir) {
@@ -59,17 +57,36 @@ export function parseInputDirs(value) {
 async function firstResolvable(inputDirs, relative) {
     for (const root of inputDirs) {
         const real = await containedRealPath([root], path.join(root, relative));
-        if (real && await fs.lstat(real).then(st => st.isFile()).catch(() => false)) return real;
+        if (real && await fs.lstat(real).then(st => st.isFile()).catch(() => false)) {
+            return { real, root };
+        }
     }
     return null;
 }
 
+export const LISTED_NAMES = 20;
+
+/** What is actually there, so one refused try is how a caller learns the contents. */
+async function listing(dirs) {
+    const parts = [];
+    for (const dir of dirs) {
+        const names = (await fs.readdir(dir).catch(() => []))
+            .filter(name => !name.startsWith('.'));
+        if (!names.length) continue;
+        const shown = names.slice(0, LISTED_NAMES).join(', ');
+        parts.push(names.length > LISTED_NAMES
+            ? `${dir} holds ${shown} … (${names.length} entries)`
+            : `${dir} holds ${shown}`);
+    }
+    return parts.join('; ');
+}
+
 /**
  * @param {string} candidate  an absolute path, or one relative to an allowed directory
- * @param {{inputDirs: string[]}} opts
+ * @param {{inputDirs: string[], touchDirs: string[]}} opts
  * @returns {Promise<{path: string, text: string, name: string, bytes: number}>}
  */
-export async function resolveInputPath(candidate, { inputDirs = [] } = {}) {
+export async function resolveInputPath(candidate, { inputDirs = [], touchDirs = [] } = {}) {
     if (typeof candidate !== 'string' || candidate.trim() === '') {
         throw coded('INVALID_INPUT', 'a path is required');
     }
@@ -78,23 +95,33 @@ export async function resolveInputPath(candidate, { inputDirs = [] } = {}) {
             'reading queries from files is off — set FOLDSEEK_SERVER_INPUT_DIRS to the directories ' +
             'this server may read from');
     }
-    const real = path.isAbsolute(candidate)
-        ? await containedRealPath(inputDirs, candidate)
+    const found = path.isAbsolute(candidate)
+        ? await containedRealPath(inputDirs, candidate).then(real => (real ? { real, root: null } : null))
         : await firstResolvable(inputDirs, candidate);
-    if (!real) {
+    if (!found) {
+        const what = await listing(inputDirs);
         throw coded('INPUT_PATH_REFUSED',
-            `${candidate} did not resolve inside FOLDSEEK_SERVER_INPUT_DIRS ` +
-            `(${inputDirs.join(path.delimiter)})`);
+            `${candidate} did not resolve in any readable directory (${inputDirs.join(path.delimiter)})`
+            + (what ? `. ${what}` : ''));
     }
+    const real = found.real;
     const stat = await fs.lstat(real);
     if (!stat.isFile()) throw coded('INPUT_PATH_REFUSED', `${candidate} is not a regular file`);
     if (stat.size > MAX_INPUT_BYTES) {
         throw coded('INPUT_PATH_REFUSED', `${candidate} is ${stat.size} bytes, over ${MAX_INPUT_BYTES}`);
     }
+    // Only inside a swept root: the TTL runs from last use, so a file still being searched cannot
+    // expire mid-workflow. A never-swept directory is the user's, and is not written to.
+    if (touchDirs.length && await containedRealPath(touchDirs, real)) {
+        const at = new Date();
+        await fs.utimes(real, at, at).catch(() => {});
+    }
     return {
         path: real,
         name: path.basename(real),
         bytes: stat.size,
+        // Which root answered: imports/ shadows the allowlist for a name that is in both.
+        ...(found.root ? { root: found.root } : {}),
         text: await fs.readFile(real, 'utf8'),
     };
 }
@@ -211,110 +238,34 @@ async function readCapped(res, maxBytes) {
     return Buffer.concat(chunks).toString('utf8');
 }
 
-// --- staged inputs: bytes pushed in over HTTP, referenced later by an opaque id -------------------
+// --- the shared workspace ------------------------------------------------------------------------
 
-export const INPUT_ID = /^in_[0-9a-f]{16}$/;
-const BODY = 'body';
-const META = 'meta.json';
+export const DROP_MARKER = '.foldseek-drop';
 
-export const inputsRoot = store => path.join(store.stateDir, 'inputs');
+/** Both halves derived from one directory, so neither can be aimed at the other. */
+export const sharedPaths = shared => ({
+    exportsDir: path.join(shared, 'exports'),
+    importsDir: path.join(shared, 'imports'),
+});
 
-/** An entry name, never a path component. */
-function safeName(raw) {
-    const base = path.basename(String(raw ?? '').replace(/\\/g, '/')).trim();
-    return /^[\w.-]{1,128}$/.test(base) && base !== '.' && base !== '..' ? base : 'query';
-}
+/** The client needs somewhere to write before the server has written anything. */
+export async function ensureSharedDirs(shared) {
+    const { exportsDir, importsDir } = sharedPaths(shared);
+    await fs.mkdir(exportsDir, { recursive: true });
+    await fs.mkdir(importsDir, { recursive: true });
 
-async function* chunksOf(source) {
-    if (typeof source === 'string' || Buffer.isBuffer(source)) { yield Buffer.from(source); return; }
-    for await (const chunk of source) yield Buffer.from(chunk);
-}
-
-/**
- * Write bytes under a fresh id and return a handle.
- *
- * @param {AsyncIterable|Buffer|string} source
- */
-export async function stageInput(source, {
-    store, name = 'query', maxBytes = MAX_INPUT_BYTES, quotaBytes = DEFAULT_INPUT_QUOTA_BYTES,
-} = {}) {
-    const root = inputsRoot(store);
-    const used = await treeBytes(root);
-    if (used >= quotaBytes) {
-        throw coded('INPUT_QUOTA_EXCEEDED',
-            `${used} bytes already staged, at the ${quotaBytes} limit — wait for expiry or raise it`);
+    // Only a directory we made, or one already ours. `imports/` is swept by age with no name pattern,
+    // so writing the marker into a directory that was already here would put its files on the timer.
+    const names = await fs.readdir(importsDir);
+    if (names.length && !names.includes(DROP_MARKER)) {
+        throw coded('SHARED_DIR_OCCUPIED',
+            `${importsDir} already existed and holds ${names.length} entr${names.length === 1 ? 'y' : 'ies'}`
+            + ' — refusing to claim it, because everything in it would expire on the input TTL. Point'
+            + ' FOLDSEEK_SERVER_SHARED_DIR at a directory with no imports/ of its own, or move those'
+            + ' files out.');
     }
-
-    const inputId = `in_${crypto.randomBytes(8).toString('hex')}`;
-    const scratch = path.join(root, `.staging-${inputId.slice(3)}`);
-    await fs.mkdir(scratch, { recursive: true });
-
-    try {
-        const hash = crypto.createHash('sha256');
-        const handle = await fs.open(path.join(scratch, BODY), 'w');
-        let bytes = 0;
-        try {
-            for await (const chunk of chunksOf(source)) {
-                bytes += chunk.byteLength;
-                if (bytes > maxBytes) {
-                    throw coded('INPUT_TOO_LARGE', `over the ${maxBytes} byte limit`);
-                }
-                if (used + bytes > quotaBytes) {
-                    throw coded('INPUT_QUOTA_EXCEEDED', `would exceed the ${quotaBytes} byte quota`);
-                }
-                hash.update(chunk);
-                await handle.write(chunk);
-            }
-        } finally {
-            await handle.close();
-        }
-        if (bytes === 0) throw coded('INVALID_INPUT', 'the body was empty');
-
-        // Re-measured now the bytes are on disk: concurrent uploads can each pass the first check and
-        // jointly exceed the quota. The loser removes its own scratch, never another's input.
-        if ((await treeBytes(root)) > quotaBytes) {
-            throw coded('INPUT_QUOTA_EXCEEDED', `staging this would exceed the ${quotaBytes} byte quota`);
-        }
-
-        const meta = {
-            inputId,
-            name: safeName(name),
-            bytes,
-            createdAt: new Date().toISOString(),
-            contentSha256: hash.digest('hex'),
-        };
-        await fs.writeFile(path.join(scratch, META), JSON.stringify(meta));
-        await fs.rename(scratch, path.join(root, inputId));
-        return meta;
-    } catch (err) {
-        await fs.rm(scratch, { recursive: true, force: true }).catch(() => {});
-        throw err;
-    }
-}
-
-/**
- * Read a staged input. Touches the directory, so the TTL runs from last use, and does not consume:
- * one upload normally backs several searches.
- */
-export async function resolveStagedInput(id, {
-    store, ttlSeconds = DEFAULT_INPUT_TTL_SECONDS, now = new Date(),
-} = {}) {
-    const unknown = () => coded('INPUT_ID_UNKNOWN',
-        `no staged input ${JSON.stringify(id)} — it may have expired; upload it again`);
-    if (typeof id !== 'string' || !INPUT_ID.test(id)) throw unknown();
-
-    const root = inputsRoot(store);
-    // The id cannot traverse, so this is here for a symlink swapped in where a directory should be.
-    const dir = await containedRealPath([root], path.join(root, id));
-    if (!dir) throw unknown();
-    const stat = await fs.lstat(dir).catch(() => null);
-    if (!stat?.isDirectory()) throw unknown();
-    if ((now.getTime() - stat.mtimeMs) / 1000 > ttlSeconds) throw unknown();
-
-    const meta = await fs.readFile(path.join(dir, META), 'utf8').then(JSON.parse).catch(() => null);
-    const text = await fs.readFile(path.join(dir, BODY), 'utf8').catch(() => null);
-    if (!meta || text === null) throw unknown();
-
-    await fs.utimes(dir, now, now).catch(() => {});
-    return { inputId: meta.inputId, name: meta.name, bytes: meta.bytes, text };
+    await fs.writeFile(path.join(importsDir, DROP_MARKER), JSON.stringify({
+        kind: 'foldseek-server drop directory', createdAt: new Date().toISOString(),
+    })).catch(() => {});
+    return { exportsDir, importsDir };
 }

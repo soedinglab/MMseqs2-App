@@ -11,13 +11,11 @@
 //   FOLDSEEK_SERVER_RESULT_TTL   default 24h     duration, 1m .. 30d
 //   FOLDSEEK_SERVER_LOCAL_PATHS  default 1       0 withholds local paths from descriptors
 //   FOLDSEEK_SERVER_RESOURCE_MAX_BYTES default 16k  cap on one resource read, 1k .. 32m
-//   FOLDSEEK_SERVER_INPUT_DIRS   default empty   colon-separated dirs queryPath may read
+//   FOLDSEEK_SERVER_INPUT_DIRS   default empty   colon-separated dirs queryRef may read
 //                                                 (or `--input-dir A B C`, for hosts that pass lists
 //                                                  as arguments rather than environment strings)
 //   FOLDSEEK_SERVER_URL_HOSTS    default empty   comma-separated hosts queryUrl may fetch
-//   FOLDSEEK_SERVER_INPUT_TOKEN  default unset   enables POST /input on --http
-//   FOLDSEEK_SERVER_INPUT_TTL    default 1h      uploaded structures, from last use
-//   FOLDSEEK_SERVER_INPUT_QUOTA  default 1g      total uploaded bytes held at once
+//   FOLDSEEK_SERVER_INPUT_TTL    default 1h      dropped files, from last use
 //   FOLDSEEK_SERVER_RESULT_ROW_CAP  default unset  (1 .. 1000000)
 //
 // Transport: stdio by default. `--http --host 127.0.0.1 --port 8080` serves Streamable HTTP instead;

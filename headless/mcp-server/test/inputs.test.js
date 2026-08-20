@@ -41,13 +41,13 @@ test('a file inside the allowlist submits its contents, and the path is not pass
     const { tools, submitted, write } = await fixture();
     const file = await write('nested/query.cif', `${PDB}${PDB}`);
 
-    const out = await runTool(tools, 'foldseek_search', { queryPath: file, databases: ['afdb50'] });
+    const out = await runTool(tools, 'foldseek_search', { queryRef: file, databases: ['afdb50'] });
     assert.equal(out.ticketId, 'FS1');
     assert.deepEqual(out.loaded, { name: 'query.cif', bytes: PDB.length * 2 });
 
     const [[, args]] = submitted;
     assert.equal(args.query, `${PDB}${PDB}`);
-    assert.equal(args.queryPath, undefined, 'the client never sees a local path');
+    assert.equal(args.queryRef, undefined, 'the client never sees a local path');
 
     // Nor does anything that leaves the server: not the reply, not the arguments the client records.
     assert.equal(JSON.stringify(out).includes(path.dirname(file)), false);
@@ -60,10 +60,10 @@ test('every submit tool takes a path', async () => {
     const a = await write('a.pdb');
     const b = await write('b.pdb');
 
-    await runTool(tools, 'foldseek_search', { queryPath: a, databases: ['db'] });
-    await runTool(tools, 'multimer_search', { queryPath: a, databases: ['db'] });
-    await runTool(tools, 'folddisco_search', { queryPath: a, databases: ['db'], motif: 'A1' });
-    const msa = await runTool(tools, 'foldmason_msa', { filePaths: [a, b] });
+    await runTool(tools, 'foldseek_search', { queryRef: a, databases: ['db'] });
+    await runTool(tools, 'multimer_search', { queryRef: a, databases: ['db'] });
+    await runTool(tools, 'folddisco_search', { queryRef: a, databases: ['db'], motif: 'A1' });
+    const msa = await runTool(tools, 'foldmason_msa', { fileRefs: [a, b] });
 
     assert.deepEqual(submitted.map(([tool]) => tool), ['foldseek', 'multimer', 'folddisco', 'foldmason']);
     assert.equal(msa.ticketId, 'FM1');
@@ -79,12 +79,14 @@ test('a path outside the allowlist is refused, and so is a symlink pointing out'
     await fs.symlink(outside, path.join(dir, 'link.pdb'));
 
     for (const bad of [outside, path.join(dir, 'link.pdb'), path.join(dir, '..', path.basename(outside))]) {
-        const out = await runTool(tools, 'foldseek_search', { queryPath: bad, databases: ['db'] });
+        const out = await runTool(tools, 'foldseek_search', { queryRef: bad, databases: ['db'] });
         assert.equal(out.code, 'INPUT_PATH_REFUSED', bad);
-        assert.match(out.error, /FOLDSEEK_SERVER_INPUT_DIRS/);
+        assert.match(out.error, /did not resolve in any readable directory/, bad);
+        // The refusal is also how a caller learns what is there, so one try is enough.
+        assert.match(out.error, /holds .*ok\.pdb/, bad);
     }
 
-    const asDir = await runTool(tools, 'foldseek_search', { queryPath: dir, databases: ['db'] });
+    const asDir = await runTool(tools, 'foldseek_search', { queryRef: dir, databases: ['db'] });
     assert.equal(asDir.code, 'INPUT_PATH_REFUSED');
     assert.match(asDir.error, /not a regular file/);
 });
@@ -93,21 +95,21 @@ test('with no allowlist the capability is off, and says which variable turns it 
     const { tools, write } = await fixture({ allow: false });
     const file = await write('query.pdb');
 
-    const out = await runTool(tools, 'foldseek_search', { queryPath: file, databases: ['db'] });
+    const out = await runTool(tools, 'foldseek_search', { queryRef: file, databases: ['db'] });
     assert.equal(out.code, 'INPUT_PATH_REFUSED');
     assert.match(out.error, /reading queries from files is off/);
     assert.match(out.error, /FOLDSEEK_SERVER_INPUT_DIRS/);
 });
 
-test('foldmason takes exactly one of files, filePaths and fileUrls', async () => {
+test('foldmason takes exactly one of files, fileRefs and fileUrls', async () => {
     const { tools, write } = await fixture();
     const a = await write('a.pdb');
 
     const both = await runTool(tools, 'foldmason_msa', {
-        files: [{ name: 'a.pdb', content: PDB }, { name: 'b.pdb', content: PDB }], filePaths: [a, a],
+        files: [{ name: 'a.pdb', content: PDB }, { name: 'b.pdb', content: PDB }], fileRefs: [a, a],
     });
     assert.equal(both.code, 'INVALID_INPUT');
-    assert.match(both.error, /exactly one of files, filePaths, fileUrls, inputIds/);
+    assert.match(both.error, /exactly one of files, fileRefs, fileUrls/);
 
     const neither = await runTool(tools, 'foldmason_msa', {});
     assert.equal(neither.code, 'INVALID_INPUT');

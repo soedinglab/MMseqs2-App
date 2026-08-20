@@ -350,17 +350,17 @@ test('only one structure input is accepted at a time', async () => {
     const { tools } = await toolsFor();
     const pairs = [
         { query: 'ATOM', accession: '1ABC' },
-        { query: 'ATOM', queryPath: '/tmp/x.pdb' },
-        { queryPath: '/tmp/x.pdb', accession: '1ABC' },
+        { query: 'ATOM', queryRef: '/tmp/x.pdb' },
+        { queryRef: '/tmp/x.pdb', accession: '1ABC' },
         { query: 'ATOM', queryUrl: 'https://x.test/a.cif' },
         { queryUrl: 'https://x.test/a.cif', accession: '1ABC' },
-        { queryPath: '/tmp/x.pdb', queryUrl: 'https://x.test/a.cif' },
-        { query: 'ATOM', queryPath: '/tmp/x.pdb', queryUrl: 'https://x.test/a.cif', accession: '1ABC' },
+        { queryRef: '/tmp/x.pdb', queryUrl: 'https://x.test/a.cif' },
+        { query: 'ATOM', queryRef: '/tmp/x.pdb', queryUrl: 'https://x.test/a.cif', accession: '1ABC' },
     ];
     for (const given of pairs) {
         const out = await runTool(tools, 'foldseek_search', { ...given, databases: ['afdb50'] });
         assert.equal(out.isError, true, JSON.stringify(given));
-        assert.match(out.error, /pass one of query, queryPath, queryUrl, inputId, accession/);
+        assert.match(out.error, /pass one of query, queryRef, queryUrl, accession/);
         for (const key of Object.keys(given)) assert.ok(out.error.includes(key), key);
     }
 });
