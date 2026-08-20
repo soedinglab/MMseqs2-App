@@ -20,7 +20,7 @@
         </v-tooltip>
         <template v-if="entry.topHit">
             <div class="thumbnail-container" style="margin-left: 16px; margin-right: 16px;" @click="$emit('activate')">
-                <div v-if="isActive" ref="viewerSlot" class="viewer-slot">
+                <div v-if="isActive" ref="viewerSlot" class="viewer-slot" @click.stop>
                     <StructureViewerToolbar
                         :isFullscreen="false"
                         :isSpinning="isSpinning"
@@ -36,9 +36,8 @@
                         @toggleSpin="$emit('toggleSpin')"
                     />
                 </div>
-                <img v-else-if="thumbnailUrl" style="display: none" />
+                <img v-else-if="thumbnailUrl" class="thumbnail-img" :src="thumbnailUrl" alt="" />
                 <v-skeleton-loader height="240" v-else type="image" />
-                <canvas class="thumbnail-img" :id="`${entry.db}-thumbnail-canvas`" v-show="!isActive && thumbnailUrl"></canvas>
             </div>
             <v-card-text>
                 <div class="card-content-entry" :data-label="searchType === 'interfacesearch' ? 'Query Interface TM-score' : 'Query TM-score'" v-if="entry.qTM">
@@ -144,8 +143,8 @@ export default {
             default: ""
         },
         thumbnailUrl: {
-            type: Boolean,
-            default: false,
+            type: String,
+            default: "",
         },
         isActive: {
             type: Boolean,

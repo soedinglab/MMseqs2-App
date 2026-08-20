@@ -490,7 +490,6 @@ export default {
                 queryFile = await query.text()
                 queryName = await db.getItem('msa.query.forwarded_query_name')
             }
-
             for (let i = 0; i < size; i++) {
                 const entry = await db.getItem(`msa.query.chunk:${i}`)
                 if (!entry || entry.length == 0) {
@@ -504,9 +503,6 @@ export default {
 
             if (names.length != texts.length) {
                 console.warn("MSA query entries and names size differs")
-                console.log(`names length: ${names.length}`)
-                console.log(`texts length: ${texts.length}`)
-                console.log(texts)
                 await clean(size)
                 return
             }

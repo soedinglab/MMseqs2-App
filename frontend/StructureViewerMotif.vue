@@ -1,448 +1,147 @@
 <template>
-    <div class="structure-panel">
-        <StructureViewerTooltip attach=".structure-panel" />
-        <div class="structure-wrapper" ref="structurepanel">
-            <table class="tmscore-panel" v-bind="tmPanelBindings">
-            <tr>
-                <td class="left-cell">idf-score:</td>
-                <td class="right-cell">{{ alignment.idfscore }}</td>
-            </tr>
-            <tr>
-                <td class="left-cell">RMSD:</td>
-                <td class="right-cell">{{ alignment.rmsd  }}</td>
-            </tr>
+<div class="structure-panel">
+    <MolstarStructureViewer
+        ref="viewer"
+        :scene="scene"
+        :sceneInput="sceneInput"
+        :toolbar="toolbar"
+        :bgColorLight="bgColorLight"
+        :bgColorDark="bgColorDark"
+        @makeImage="handleMakeImage"
+        @makeCIF="handleMakeCIF"
+        @toggleQuery="handleToggleQuery"
+        @toggleTarget="handleToggleTarget"
+        @sceneEvent="handleSceneEvent"
+    >
+        <template v-slot:overlay>
+            <table class="tmscore-panel" :class="{ fullscreen: isFullscreen }">
+                <tr>
+                    <td class="left-cell">idf-score:</td>
+                    <td class="right-cell">{{ alignment.idfscore }}</td>
+                </tr>
+                <tr>
+                    <td class="left-cell">RMSD:</td>
+                    <td class="right-cell">{{ alignment.rmsd }}</td>
+                </tr>
             </table>
-            <StructureViewerToolbar
-                :isFullscreen="isFullscreen"
-                :isSpinning="isSpinning"
-                :showTarget="showTarget"
-                :showQuery="showQuery"
-                :disableArrowButton="true"
-                @makeImage="handleMakeImage"
-                @makePDB="handleMakePDB"
-                @resetView="handleResetView"
-                @toggleFullscreen="handleToggleFullscreen"
-                @toggleQuery="handleToggleQuery"
-                @toggleTarget="handleToggleTarget"
-                @toggleSpin="handleToggleSpin"
-                style="position: absolute; bottom: 8px;"
-            />
-            <div class="structure-viewer" ref="viewport"></div>
-        </div>
-    </div>
+            <StructureHoverTooltip :value="hoverInfo" />
+        </template>
+    </MolstarStructureViewer>
+</div>
 </template>
 
 <script>
-import StructureViewerMixin from './StructureViewerMixin.vue';
-import StructureViewerToolbar from './StructureViewerToolbar.vue';
-import StructureViewerTooltip from './StructureViewerTooltip.vue';
-import { getPdbText, transformStructure } from './Utilities.js'
-import { download, ColormakerRegistry } from 'ngl'
-
-const processPdb = (rawpdb) => {
-    let outpdb = '';
-    let data = '';
-    let ext = 'pdb';
-    outpdb = rawpdb.trimStart();
-    if (outpdb[0] == "#" || outpdb.startsWith("data_")) {
-        ext = 'cif';
-        // NGL doesn't like AF3's _chem_comp entries
-        outpdb = outpdb.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.");
-    } else {
-        for (let line of outpdb.split('\n')) {
-            if (line.startsWith('ATOM')) {
-                const process_resn = line[20] != ' ' // 17
-                const process_coord = line[60] != ' ' // 30
-                line = process_coord ? line.slice(0, 30) + line.slice(31) : line
-                line = process_resn ? line.slice(0, 17) + line.slice(18) : line
-            }
-            let numCols = Math.max(0, 80 - line.length);
-            let newLine = line + ' '.repeat(numCols) + '\n';
-            data += newLine
-        }
-        outpdb = data;
-    }
-    return [outpdb, ext]
-}
-
-const getMotif = (motif) => {
-    const motifList = new Set(motif.split(','));
-    const motifSele = [];
-    for (let m of motifList) {
-        const chain = m[0];
-        const resno = m.slice(1);
-        motifSele.push(`${resno}:${chain}`);
-    }
-
-    return motifSele.join(" or ");
-}
-
-const getMatchedChain = (motif) => {
-    const motifList = new Set(motif.split(','));
-    const chainSele = new Set();
-    for (let m of motifList) {
-        const chain = m[0];
-        if (!chainSele.has(chain)) {
-            chainSele.add(`:${chain}`);
-        }
-    }
-    return Array.from(chainSele).join(" or ");
-}
+import MolstarStructureViewer from './molstar/StructureViewer.vue';
+import StructureHoverTooltip from './StructureHoverTooltip.vue';
+import { folddiscoResult } from './molstar/folddiscoResult.js';
+import { downloadBlob } from './alignmentPanelUtils.js';
 
 export default {
     name: "StructureViewerMotif",
     components: {
-        StructureViewerToolbar,
-        StructureViewerTooltip,
+        MolstarStructureViewer,
+        StructureHoverTooltip,
     },
-    mixins: [
-        StructureViewerMixin
-    ],
     data: () => ({
-        // selection: null,
+        scene: folddiscoResult,
         showQuery: 0,
         showTarget: 0,
+        hoverInfo: null,
+        isFullscreen: false,
     }),
     props: {
-        alignment: { type: Object, required: true, },
-        lineLen: { type: Number, required: true, },
-        queryPdb: {type: String, required: true, },
-        targetPdb: {type: String, required: true, },
-
-        strRepr: { type: String, default: "ribbon" },
-        motifRepr: {type: String, default: "licorice"},
-
-        qmotifClr: {type: String, default: "#1E88E5"},
-        tmotifClr: {type: String, default: "#FFC107"},
-        qClr: {type: String, default: "#A5CFF5"},
-        tClr: {type: String, default: "#FFE699"},
-        qnullClr: {type: String, default: "#A5CFF5"},
-        tnullClr: {type: String, default: "#FFE699"},
-
-        bgColorLight: {type: String, default: "white"},
-        bgColorDark: {type: String, default: "#1E1E1E"},
-        autoViewTime: { type: Number, default: 100 },
+        alignment: { type: Object, required: true },
+        lineLen: { type: Number, required: true },
+        queryPdb: { type: String, required: true },
+        targetPdb: { type: String, required: true },
+        bgColorLight: { type: String, default: "white" },
+        bgColorDark: { type: String, default: "#1E1E1E" },
     },
     computed: {
-        // hasSelection() {
-        //     return !this.structureHighlights.some(e => e !== null);
-        // }
-        bgColor() {
-            return this.$vuetify.theme.dark ? this.bgColorDark : this.bgColorLight;
-        },
-        tmPanelBindings: function() {
-            return (this.isFullscreen) ? { 'style': 'margin-top: 10px; font-size: 2em; line-height: 2em' } : {  }
-        },
-        querySele: function() {
-            if (this.alignment.length === 0 || this.showQuery === 2) {
-                return '';
-            }
-            if (this.showQuery === 0) {
-                return getMotif(this.alignment.queryresidues) 
-            }
-            if (this.showQuery === 1 ) {
-                return getMatchedChain(this.alignment.queryresidues) 
-            }
-        },
-        targetSele: function() {
-            if (this.alignment.length === 0 || this.showTarget === 2) {
-                return '';
-            }
-            if (this.showTarget === 0) {
-                return getMotif(this.alignment.targetresidues);
-            }
-            if (this.showTarget === 1) {
-                return getMatchedChain(this.alignment.targetresidues);
-            }
-        },
-        stageParameters: function() {
+        sceneInput() {
             return {
-                log: 'folddisco',
-                backgroundColor: this.bgColor,
-                transparent: true,
-                clipNear: -1000,
-                clipFar: 1000,
-                fogFar: 1000,
-                fogNear: -1000,
-            }
+                alignment: this.alignment,
+                queryPdb: this.queryPdb,
+                targetPdb: this.targetPdb,
+                showQuery: this.showQuery,
+                showTarget: this.showTarget,
+            };
         },
-        cartoonMatched: function() {
+        toolbar() {
             return {
-                opacity: 0.8, smmothSheet: true,
-                metalness: 0, quality:"high", tension: 0,
-            }
-        },
-        cartoonNull: function() {
-            return {
-                opacity: 0.3, smmothSheet: true,
-                metalness: 0, quality:"medium", tension: 0,
-            }
+                showQuery: this.showQuery,
+                showTarget: this.showTarget,
+                disableArrowButton: true,
+                cifButtonLabel: 'Save CIF',
+            };
         },
     },
     methods: {
-        handleResetView() {
-            if (!this.stage) return;
-            this.setQuerySelection();
-        },
-        async handleMakeImage() {
-            if (!this.stage)
-                return;
-            const wasSpinning = this.isSpinning;
-            this.isSpinning = false;
-            let title = this.alignment.target.replace(/\.(pdb|cif)$/, '');
-            this.stage.viewer.setLight(undefined, undefined, undefined, 0.2)
-            const blob = await this.stage.makeImage({
-                trim: true,
-                factor: (this.isFullscreen) ? 1 : 8,
-                antialias: true,
-                transparent: true,
-            });
-            this.stage.viewer.setLight(undefined, undefined, undefined, this.$vuetify.theme.dark ? 0.4 : 0.2)
-            download(blob, `folddisco-${title}.png`)
-            this.isSpinning = wasSpinning;   
-        },
-        handleMakePDB() {
-            if (!this.stage)
-                return;
-            let qPDB = this.stage.getComponentsByName("queryStructure").list.map(getPdbText); 
-            let tPDB = this.stage.getComponentsByName("targetStructure").list.map(getPdbText);
-            if (!qPDB && !tPDB) 
-                return;
-            let title = `folddisco-${this.alignment.target.replace(/\.(pdb|cif)$/, '')}`;
-            let result = null;
-            if (qPDB && tPDB) {
-                result =
-`TITLE     ${title}
-REMARK     This file was generated by the Foldseek webserver:
-REMARK       https://search.foldseek.com/folddisco
-REMARK     Please cite:
-REMARK       TODO
-REMARK     Warning: Target structure has been decompressed by Foldcomp
-MODEL        1
-${qPDB.join('\n')}
-ENDMDL
-MODEL        2
-${tPDB.join('\n')}
-ENDMDL
-END
-`
-            } else {
-                result =
-`TITLE     ${title.join(" ")}
-REMARK     This file was generated by the Foldseek webserver:
-REMARK       https://search.foldseek.com/folddisco
-REMARK     Please cite:
-REMARK       TODO
-MODEL        1
-${tPDB.join('\n')}
-ENDMDL
-END
-`
-            }
-            download(new Blob([result], { type: 'text/plain' }), (title + ".pdb"));
-        },
         handleToggleQuery() {
-            if (!this.stage) return;
-
-            if (__LOCAL__) {
-                this.showQuery = (this.showQuery === 0) ? 1 : 0;
-            } else {
-                this.showQuery = (this.showQuery === 2) ? 0 : this.showQuery + 1;
-            }
+            this.showQuery = __LOCAL__
+                ? (this.showQuery === 0 ? 1 : 0)
+                : (this.showQuery === 2 ? 0 : this.showQuery + 1);
         },
         handleToggleTarget() {
-            if (!this.stage) return;
-
-            if (__LOCAL__) {
-                this.showTarget = (this.showTarget === 0) ? 1 : 0;
-            } else {
-                this.showTarget = (this.showTarget === 2) ? 0 : this.showTarget + 1;
-            }            
+            this.showTarget = __LOCAL__
+                ? (this.showTarget === 0 ? 1 : 0)
+                : (this.showTarget === 2 ? 0 : this.showTarget + 1);
         },
-        setQuerySelection() {
-            let repr = this.stage.getRepresentationsByName("queryStructure");
-            if (!repr) return;
-            let sele = this.querySele;
-            repr.setSelection(sele);
-            repr.list[0].parent.autoView(sele, this.autoViewTime);
-            if (this.alignment.length === 0) {
-                return
-            }
-            if (this.showQuery === 0 ) {
-                this.stage.getRepresentationsByName("queryMatched").setVisibility(false);
-                this.stage.getRepresentationsByName("queryStructure").setVisibility(false);
-            } else if (this.showQuery === 1) {
-                this.stage.getRepresentationsByName("queryMatched").setVisibility(true);
-                this.stage.getRepresentationsByName("queryStructure").setVisibility(false);
-            } else if (this.showQuery === 2) {
-                this.stage.getRepresentationsByName("queryMatched").setVisibility(true);
-                this.stage.getRepresentationsByName("queryStructure").setVisibility(true);
-            }
+        async handleMakeCIF(cif) {
+            if (!cif) return;
+            const title = `folddisco-${this.alignment.target.replace(/\.(pdb|cif)$/, '')}`;
+            downloadBlob(new Blob([cif], { type: 'text/plain' }), `${title}.cif`);
         },
-        setTargetSelection() {
-            let repr = this.stage.getRepresentationsByName("targetStructure");
-            if (!repr) return;
-            let sele = this.targetSele;
-            repr.setSelection(sele);
-            if (this.alignment.length === 0) {
-                return
-            }
-            if (this.showTarget === 0 ) {
-                this.stage.getRepresentationsByName("targetMatched").setVisibility(false);
-                this.stage.getRepresentationsByName("targetStructure").setVisibility(false);
-            } else if (this.showTarget === 1) {
-                this.stage.getRepresentationsByName("targetMatched").setVisibility(true);
-                this.stage.getRepresentationsByName("targetStructure").setVisibility(false);
-            } else if (this.showTarget === 2) {
-                this.stage.getRepresentationsByName("targetMatched").setVisibility(true);
-                this.stage.getRepresentationsByName("targetStructure").setVisibility(true);
-            }
+        async handleMakeImage(blob) {
+            if (!blob) return;
+            const title = `folddisco-${this.alignment.target.replace(/\.(pdb|cif)$/, '')}`;
+            downloadBlob(blob, `${title}.png`);
         },
-        setHoverTooltip() {
-            var tooltip = document.createElement("div");
-            Object.assign(tooltip.style, {
-                display: "none",
-                position: "absolute",
-                zIndex: 10,
-                pointerEvents: "none",
-                backgroundColor: "rgba(0, 0, 0, 0)",
-                opacity: 0.7,
-                color: "black",
-                padding: "8px",
-                borderRadius: "5px",
-            });
-            this.stage.viewer.container.appendChild(tooltip);
-            this.stage.mouseControls.remove("hoverPick");
-            this.stage.signals.hovered.add(function (pickingProxy) {
-                if (pickingProxy && (pickingProxy.atom || pickingProxy.bond)) {
-                    var atom = pickingProxy.atom || pickingProxy.closestBondAtom
-                    var name = atom.structure.name;
-                    if (name === "queryStructure") {
-                        tooltip.style.backgroundColor = "#1E88E5";
-                    } else if (name === "targetStructure") {
-                        tooltip.style.backgroundColor = "#FFC107";
-                    } else {
-                        tooltip.backgroundColor = "rgba(0, 0, 0, 0.7)";
-                    }
-                    tooltip.innerText = `${atom.structure.name} ${atom.chainname} ${atom.resno} ${atom.resname}`;
-                    tooltip.style.top = "10px";
-                    tooltip.style.right = "0px";
-                    tooltip.style.display = "block";
-                } else {
-                    tooltip.innerText = "";
-                    tooltip.style.display = "none";
-                }
-            });
+        handleSceneEvent(event) {
+            if (event?.type === 'structure-hover' && event.hasLoci) {
+                this.hoverInfo = event;
+            } else if (event?.type === 'structure-hover') {
+                this.hoverInfo = null;
+            }
         },
     },
-    watch: {
-        'showQuery': function() {
-            if (!this.stage) return;
-            this.setQuerySelection();
-        },
-        'showTarget': function() {
-            if (!this.stage) return;
-            this.setTargetSelection();
-        },
-    },
-    // beforeMount() {
-    //     // this.updateMaps() // What does this do?
-    //     // this.setEmptyHighlight();
-    //     // this.setEmptyStructureHighlight();
-    // },
-    async mounted() {
-        if (typeof(this.alignment.tCa) == "undefined" || typeof(this.queryPdb) == "undefined" || typeof(this.targetPdb) == "undefined")
-            return;
-
-        let [queryPdb, qext] = processPdb(this.queryPdb);
-        let [targetPdb, text] = processPdb(this.targetPdb);
-        const query = await this.stage.loadFile(new Blob([queryPdb], { type: 'text/plain' }), { ext: qext, firstModelOnly: true, name: 'queryStructure'});
-        const target = await this.stage.loadFile(new Blob([targetPdb], { type: 'text/plain' }), { ext: text, firstModelOnly: true, name: 'targetStructure'});
-
-        const t = this.alignment.tmat.split(',').map(x => parseFloat(x));
-        let u = this.alignment.umat.split(',').map(x => parseFloat(x));
-        u = [
-            [u[0], u[1], u[2]],
-            [u[3], u[4], u[5]],
-            [u[6], u[7], u[8]],
-        ];
-        transformStructure(target.structure, t, u);
-        const matchedQuery = getMotif(this.alignment.queryresidues);
-        const matchedTarget = getMotif(this.alignment.targetresidues);
-        const matchedQchain = getMatchedChain(this.alignment.queryresidues);
-        const matchedTchain = getMatchedChain(this.alignment.targetresidues);
-
-        this.querySchemeId = ColormakerRegistry.addSelectionScheme([
-            [this.qmotifClr, matchedQuery],
-            [this.qClr, matchedQchain],
-            [this.qnullClr, "*"]
-        ], "_queryScheme")
-
-        this.targetSchemeId = ColormakerRegistry.addSelectionScheme([
-            [this.tmotifClr, matchedTarget],
-            [this.tClr, matchedTchain],
-            [this.tnullClr, "*"]
-        ], "_targetScheme")
-
-        query.addRepresentation(this.strRepr, {sele: "not (" + matchedQchain + ")", color: this.querySchemeId, name: "queryStructure", ...this.cartoonNull})
-        target.addRepresentation(this.strRepr, {sele: "not (" + matchedTchain + ")", color: this.targetSchemeId, name: "targetStructure", ...this.cartoonNull})
-        
-        query.addRepresentation(this.strRepr, { sele: matchedQchain, color: this.querySchemeId, name: "queryMatched", ...this.cartoonMatched})
-        target.addRepresentation(this.strRepr, { sele: matchedTchain, color: this.targetSchemeId, name: "targetMatched", ...this.cartoonMatched})
-        
-        query.addRepresentation(this.motifRepr, {sele: matchedQuery, color: this.qmotifClr, name: "queryMotif"})
-        target.addRepresentation(this.motifRepr, {sele: matchedTarget, color: this.tmotifClr, name: "targetMotif"})
-        this.setQuerySelection();
-        this.setTargetSelection();
-        this.setHoverTooltip();
-        query.autoView(matchedQuery, this.autoViewTime);
-    }
-}
+};
 </script>
 
 <style scoped>
-
 .structure-panel {
     width: 100%;
-    height: 100%;
+    height: 400px;
     position: relative;
 }
-.structure-wrapper {
-    width: 500px;
-    height: 400px;
-    margin: 0 auto;
+
+.tmscore-panel {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+    border-collapse: collapse;
+    color: rgba(0, 0, 0, 0.75);
 }
 
-.structure-viewer {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    padding: 0;
+.theme--dark .tmscore-panel {
+    color: rgba(255, 255, 255, 0.85);
 }
 
-.structure-viewer canvas {
-    border-radius: 2px;
+.tmscore-panel.fullscreen {
+    margin-top: 10px;
+    font-size: 2em;
+    line-height: 2em;
 }
 
-@media screen and (max-width: 960px) {
-    .structure-panel  {
-        display: flex;
-    }
-    .structure-panel {
-        flex-direction: column-reverse;
-    }
-    .structure-wrapper {
-        padding-bottom: 1em;
-    }
-    .structure-wrapper {
-        align-self: center;
-    }
+.left-cell {
+    text-align: right;
+    padding-right: 8px;
+    font-weight: 600;
 }
 
-@media screen and (min-width: 961px) {
-    .structure-wrapper {
-        padding-left: 2em;
-    }
+.right-cell {
+    text-align: left;
 }
 
 </style>

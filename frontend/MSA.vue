@@ -57,6 +57,7 @@
                             :mask="visibleColumnMask"
                             :selectedColumns="selectedColumns"
                             :previewColumn="previewColumn"
+                            :previewStructureIndex="previewStructureIndex"
                             @loadingChange="handleStructureLoadingChange"
                             @addHighlight="i => pushActiveIndex(i, true)"
                             @removeHighlight="spliceActiveIndex"
@@ -121,6 +122,11 @@
                             <span>{{ showViewer ? 'Hide' : 'Show' }} floating viewer</span>
                         </v-tooltip>
                     </div>
+                    <div
+                        v-show="structurePreviewMarker.visible"
+                        class="structure-preview-column-marker"
+                        :style="structurePreviewMarkerStyle"
+                    />
                     <div ref="msaViewerRoot" id="msa-viewer-root"></div>
                 </v-card>
             </v-col>
@@ -260,6 +266,7 @@ export default {
             treeLabelHeight: 0,
             showViewer: true,
             previewColumn: -1,
+            previewStructureIndex: -1,
             selectedColumns: [],
             showViewerCondition: false,
             msaViewerReady: false,
@@ -274,8 +281,17 @@ export default {
                 activeSchemeSourceRepresentationId: null,
             },
             updatingFromMSAViewer: false,
+            lastMSAViewerHoverColumn: -1,
+            msaViewerColumnToggleCandidate: null,
             scrollTicking: false,
             scrollPositionTick: 0,
+            structurePreviewMarker: {
+                visible: false,
+                left: 0,
+                top: 0,
+                width: 0,
+                height: 0,
+            },
             cellHover: {
                 visible: false,
                 x: 0,
@@ -290,6 +306,8 @@ export default {
     },
     beforeCreate() {
         this.msaViewer = null;
+        this.previewMarkerScrollHandlers = [];
+        this.msaViewerColumnToggleCleanup = null;
     },
     watch: {
         '$vuetify.theme.dark': function() {
@@ -416,6 +434,8 @@ export default {
     beforeDestroy() {
         window.removeEventListener("scroll", this.handleScroll);
         this._disposeApi?.();
+        this.unbindMSAPreviewMarkerScroll();
+        this.unbindMSAViewerColumnToggle();
         this.msaViewer?.destroy?.();
         this.msaViewer = null;
     },
@@ -449,6 +469,14 @@ export default {
             );
             const top = Math.max(padding, anchorRect.top + padding);
             return { left: `${left}px`, top: `${top}px`, };
+        },
+        structurePreviewMarkerStyle() {
+            return {
+                left: `${this.structurePreviewMarker.left}px`,
+                top: `${this.structurePreviewMarker.top}px`,
+                width: `${this.structurePreviewMarker.width}px`,
+                height: `${this.structurePreviewMarker.height}px`,
+            };
         },
     },
     methods: {
@@ -948,6 +976,8 @@ export default {
         resetMSAViewerState() {
             this.msaViewerReady = false;
             this.msaViewerBusy = false;
+            this.lastMSAViewerHoverColumn = -1;
+            this.msaViewerColumnToggleCandidate = null;
             this.msaViewerState = {
                 representations: [],
                 activeRepresentationId: null,
@@ -977,6 +1007,7 @@ export default {
         async initMSAViewer() {
             const root = this.$refs.msaViewerRoot;
             if (!root || this.entries.length === 0) return;
+            this.unbindMSAViewerColumnToggle();
             this.resetMSAViewerState();
             this.msaViewer?.destroy?.();
             this.msaViewer = null;
@@ -1022,6 +1053,7 @@ export default {
                 viewer.addEventListener("selectionchange", this.handleMSAViewerSelectionChange);
                 viewer.addEventListener("visibilitychange", this.handleMSAViewerVisibilityChange);
                 viewer.addEventListener("cellhover", this.handleMSAViewerCellHover);
+                this.bindMSAViewerColumnToggle(root);
                 await viewer.loadData([
                     { source: this.makeFasta("aa"), format: "fasta", id: "sequence", label: "Sequence", alphabetId: "aa", },
                     { source: this.makeFasta("ss"), format: "fasta", id: "structure", label: "Structure", alphabetId: "3di", },
@@ -1031,6 +1063,7 @@ export default {
                 this.syncMSAViewerColumnVisibility();
                 this.syncMSAViewerRowStyles();
                 this.msaViewerReady = true;
+                this.bindMSAPreviewMarkerScroll();
             } catch (error) {
                 console.error("Failed to initialize MSAViewer", error);
                 if (this.msaViewer === viewer) {
@@ -1040,6 +1073,27 @@ export default {
                     this.resetMSAViewerState();
                 }
             }
+        },
+        bindMSAPreviewMarkerScroll() {
+            this.unbindMSAPreviewMarkerScroll();
+            const shadowRoot = this.$refs.msaViewerRoot?.shadowRoot;
+            const scrollers = [
+                shadowRoot?.querySelector(".msa-alignment-horizontal-scroller"),
+                shadowRoot?.querySelector(".msa-alignment-interaction-proxy"),
+            ].filter(Boolean);
+            this.previewMarkerScrollHandlers = scrollers.map((node) => {
+                const handler = () => this.updateStructurePreviewMarker();
+                node.addEventListener("scroll", handler, { passive: true });
+                return { node, handler };
+            });
+            window.addEventListener("resize", this.updateStructurePreviewMarker, { passive: true });
+        },
+        unbindMSAPreviewMarkerScroll() {
+            for (const { node, handler } of this.previewMarkerScrollHandlers || []) {
+                node.removeEventListener("scroll", handler);
+            }
+            this.previewMarkerScrollHandlers = [];
+            window.removeEventListener("resize", this.updateStructurePreviewMarker);
         },
         async setMSAViewerRepresentation(representationId) {
             if (!this.msaViewer || !representationId || representationId === this.msaViewerState.activeRepresentationId) return;
@@ -1115,18 +1169,28 @@ export default {
             const rawColumn = detail.rawColumn;
             if (!Number.isInteger(rowIndex) || !Number.isInteger(rawColumn)) {
                 this.cellHover.visible = false;
+                this.lastMSAViewerHoverColumn = -1;
+                this.clearStructurePreviewFromAlignment();
                 return;
             }
             const entry = this.entries[rowIndex];
             if (!entry) {
                 this.cellHover.visible = false;
+                this.lastMSAViewerHoverColumn = -1;
+                this.clearStructurePreviewFromAlignment();
                 return;
             }
+            this.lastMSAViewerHoverColumn = rawColumn;
             const residueNumber = detail.sequenceResidueNumber;
             const symbol = detail.symbol || entry.aa?.[rawColumn] || "";
             const AA = oneToThree[symbol.toUpperCase()] || "";
             const formatted = AA?.charAt(0) + AA?.toLowerCase().slice(1, 3)
             const isGap = symbol === "-" || residueNumber == null;
+            if (isGap) {
+                this.clearStructurePreviewFromAlignment();
+            } else {
+                this.previewStructureFromAlignment(rawColumn, rowIndex);
+            }
             const chain = isGap ? null : entry.chains?.[residueNumber];
             const structureResidueNumber = isGap ? null : entry.resns?.[residueNumber];
             this.cellHover = {
@@ -1205,12 +1269,48 @@ export default {
             this.selectedColumns.splice(0, this.selectedColumns.length, ...columns);
             this.$emit('changedSelection', this.selectedColumns);
             this.$nextTick(() => {
-                this.$refs.structViewer?.updateAllHighlights?.();
                 if (columns.length > 0) {
                     this.$refs.structViewer?.moveView?.(columns[columns.length - 1]);
+                } else {
+                    this.$refs.structViewer?.refreshScene?.();
                 }
                 this.updatingFromMSAViewer = false;
             });
+        },
+        bindMSAViewerColumnToggle(root) {
+            this.unbindMSAViewerColumnToggle();
+
+            const onMouseDown = (event) => {
+                const column = this.lastMSAViewerHoverColumn;
+                this.msaViewerColumnToggleCandidate = event.button === 0 && this.selectedColumns.includes(column)
+                    ? { column, x: event.clientX, y: event.clientY }
+                    : null;
+            };
+            const onClick = (event) => {
+                const candidate = this.msaViewerColumnToggleCandidate;
+                this.msaViewerColumnToggleCandidate = null;
+                if (!candidate) return;
+                if (Math.abs(event.clientX - candidate.x) > 3 || Math.abs(event.clientY - candidate.y) > 3) {
+                    return;
+                }
+                this.$nextTick(() => {
+                    if (this.selectedColumns.includes(candidate.column)) {
+                        this.spliceActiveIndex(candidate.column);
+                    }
+                });
+            };
+
+            root.addEventListener('mousedown', onMouseDown, true);
+            root.addEventListener('click', onClick, true);
+            this.msaViewerColumnToggleCleanup = () => {
+                root.removeEventListener('mousedown', onMouseDown, true);
+                root.removeEventListener('click', onClick, true);
+            };
+        },
+        unbindMSAViewerColumnToggle() {
+            this.msaViewerColumnToggleCleanup?.();
+            this.msaViewerColumnToggleCleanup = null;
+            this.msaViewerColumnToggleCandidate = null;
         },
         handleNewStructureViewerReference(entryIndex) {
             if (entryIndex === this.structureViewerReference) {
@@ -1348,11 +1448,11 @@ export default {
             viewer.style.width = this.$vuetify.breakpoint.smAndDown ? '300px' : '360px'
             viewer.style.height = this.$vuetify.breakpoint.smAndDown ? '310px' : '380px'
             viewer.style.transform = ''
-            if (this.showViewerCondition) this.$refs.structViewer?.stage?.handleResize()
+            if (this.showViewerCondition) this.$refs.structViewer?.handleResize?.()
         },
         toggleView() {
-            const stage = this.$refs.structViewer
-            const structureViewerEl = stage?.$el;
+            const structureViewer = this.$refs.structViewer
+            const structureViewerEl = structureViewer?.$el;
             if (!structureViewerEl) return;
             if (!this.showViewer) {
                 this.showViewer = true
@@ -1366,7 +1466,7 @@ export default {
                 }
                 this.$nextTick(() => {
                     setTimeout(() => {
-                        stage?.handleResize?.()
+                        structureViewer?.handleResize?.()
                     }, 0)
                 })
             } else {
@@ -1377,22 +1477,23 @@ export default {
                     this.$refs.originalWrapper.appendChild(structureViewerEl)
                     this.$nextTick(() => {
                         setTimeout(() => {
-                            stage?.handleResize?.()
+                            structureViewer?.handleResize?.()
                         }, 0)
                     })
                 }
             }
         },
         pushActiveIndex(idx, move=false) {
-            if (!this.selectedColumns.includes(idx)) {
-                this.selectedColumns.push(idx)
+            if (this.selectedColumns.includes(idx)) {
+                this.spliceActiveIndex(idx)
+                return
             }
+            this.selectedColumns.push(idx)
             if (this.selectedColumns.length > 32) {
                 this.selectedColumns.shift()
             }
             this.$emit('changedSelection', this.selectedColumns)
             this.syncMSAViewerSelectionFromSelectedColumns()
-            this.$refs.structViewer?.updateAllHighlights?.()
             this.$refs.structViewer?.moveView?.(idx)
         },
         spliceActiveIndex(idx) {
@@ -1405,15 +1506,41 @@ export default {
             this.selectedColumns.splice(i, 1)
             this.$emit('changedSelection', this.selectedColumns)
             this.syncMSAViewerSelectionFromSelectedColumns()
-            this.$refs.structViewer?.updateAllHighlights?.()
+            this.$refs.structViewer?.refreshScene?.()
+        },
+        clearStructurePreviewFromAlignment() {
+            this.previewColumn = -1;
+            this.previewStructureIndex = -1;
+            this.structurePreviewMarker.visible = false;
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.$refs.structViewer?.refreshScene?.();
+                });
+            });
+        },
+        previewStructureFromAlignment(idx, rowIndex) {
+            if (!this.structureViewerSelection.includes(rowIndex)) {
+                this.clearStructurePreviewFromAlignment();
+                return;
+            }
+            this.previewColumn = Number(idx);
+            this.previewStructureIndex = rowIndex;
+            this.structurePreviewMarker.visible = false;
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.$refs.structViewer?.refreshScene?.();
+                });
+            });
         },
         changePreview(idx, fromStruct=false) {
+            this.previewStructureIndex = -1;
             if (idx < 0) {
                 if (this.previewColumn >= 0 ) {
                     this.previewColumn = -1
+                    this.structurePreviewMarker.visible = false
                     this.$nextTick(() => {
                         setTimeout(()=> {
-                            this.$refs.structViewer?.updateAllPreview?.()
+                            this.$refs.structViewer?.refreshScene?.()
                         })
                     })
 
@@ -1424,13 +1551,15 @@ export default {
                 if (fromStruct) {
                     this.$nextTick(() => {
                         setTimeout(()=>{
-                            this.$refs.structViewer?.updateAllPreview?.()
+                            this.$refs.structViewer?.refreshScene?.()
+                            this.updateStructurePreviewMarker()
                         })
                     })
                 } else {
                     this.$nextTick(() => {
                         setTimeout(()=>{
-                            this.$refs.structViewer?.updateAllPreview?.()
+                            this.$refs.structViewer?.refreshScene?.()
+                            this.updateStructurePreviewMarker()
                             this.$refs.structViewer?.moveView?.(Number(idx))
                         })
                     })
@@ -1438,8 +1567,50 @@ export default {
 
             }
         },
-        // Returns a result object like the hit-table pages. It used to return undefined, so the same
-        // method name had two different contracts depending on which result page you were on.
+        updateStructurePreviewMarker() {
+            const column = this.previewColumn;
+            if (!this.msaViewer || !Number.isInteger(column) || column < 0) {
+                this.structurePreviewMarker.visible = false;
+                return;
+            }
+
+            const root = this.$refs.msaViewerRoot;
+            const card = root?.closest(".msa-viewer-card");
+            const shadowRoot = root?.shadowRoot;
+            const viewport = shadowRoot?.querySelector(".msa-alignment-viewport");
+            const scroller = shadowRoot?.querySelector(".msa-alignment-horizontal-scroller");
+            if (!card || !viewport || !scroller) {
+                this.structurePreviewMarker.visible = false;
+                return;
+            }
+
+            const visibility = this.msaViewer.getColumnVisibility?.();
+            const visibleColumn = visibility?.rawToVisible
+                ? visibility.rawToVisible[column]
+                : column;
+            if (!Number.isFinite(visibleColumn) || visibleColumn < 0) {
+                this.structurePreviewMarker.visible = false;
+                return;
+            }
+
+            const cellWidth = this.msaViewer.alignmentView?.getRenderedCellWidthCss?.() || 12;
+            const viewportRect = viewport.getBoundingClientRect();
+            const cardRect = card.getBoundingClientRect();
+            const x = visibleColumn * cellWidth - scroller.scrollLeft;
+            if (x + cellWidth < 0 || x > viewportRect.width) {
+                this.structurePreviewMarker.visible = false;
+                return;
+            }
+
+            const clippedX = Math.max(0, x);
+            this.structurePreviewMarker = {
+                visible: true,
+                left: viewportRect.left - cardRect.left + clippedX,
+                top: viewportRect.top - cardRect.top,
+                width: Math.max(2, Math.min(cellWidth, viewportRect.width - clippedX)),
+                height: viewportRect.height,
+            };
+        },
         clearSelection() {
             const cleared = this.selectedColumns.length;
             this.selectedColumns.splice(0)
@@ -1447,7 +1618,7 @@ export default {
             if (!this.updatingFromMSAViewer) {
                 this.msaViewer?.clearSelection?.()
             }
-            this.$refs.structViewer?.updateAllHighlights?.()
+            this.$refs.structViewer?.refreshScene?.()
             return { ok: true, count: this.selectedColumns.length, cleared };
         },
         async exportMSAViewerSelectionAsFasta() {
@@ -1563,6 +1734,16 @@ export default {
     border-radius: 6px;
     font-size: 12px;
     line-height: 1.35;
+}
+
+.structure-preview-column-marker {
+    position: absolute;
+    z-index: 3;
+    pointer-events: none;
+    border-left: 1px dashed #ec3f5f;
+    border-right: 1px dashed #ec3f5f;
+    background: rgba(236, 63, 95, 0.18);
+    box-shadow: 0 0 0 1px rgba(236, 63, 95, 0.55);
 }
 
 #floating-viewer > div {
