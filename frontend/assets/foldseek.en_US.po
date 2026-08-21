@@ -54,9 +54,8 @@ msgstr ""
 
 msgid "CITATION_INTERFACE"
 msgstr ""
-"TODO Steinegger M."
-" <a href=\"TODO\" target=\"_blank\" rel=\"noopener\">"
-"TODO TITLE</a>. Journal, YEAR."
+"Strom JM, Cha S, Kim RS, Sajal H, Gilchrist CLM, Steinegger M, and Luck K. "
+"Foldseek-Interface reveals a protein interface universe far from complete</a>. bioRxiv, 2026."
 
 msgid "CITATION_FOLDMASON"
 msgstr ""
