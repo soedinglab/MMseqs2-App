@@ -25,11 +25,16 @@
             </div>
         </div>
         <template v-else>
-            <v-checkbox v-for="(db, index) in allDatabases" v-model="selectedDatabases" :key="index" :value="db.path"
-                :label="db.name + ' ' + db.version"
-                :append-icon="(db.status == 'ERROR' || db.status == 'UNKNOWN') ? $MDI.AlertCircleOutline : ((db.status == 'PENDING' || db.status == 'RUNNING') ? $MDI.ProgressWrench : undefined)"
-                :disabled="db.status != 'COMPLETE'" hide-details>
-            </v-checkbox>
+            <div v-for="(db, index) in allDatabases" :key="index" class="mb-1">
+                <v-checkbox v-model="selectedDatabases" :value="db.path"
+                    :label="db.name + ' ' + db.version"
+                    :append-icon="(db.status == 'ERROR' || db.status == 'UNKNOWN') ? $MDI.AlertCircleOutline : ((db.status == 'PENDING' || db.status == 'RUNNING') ? $MDI.ProgressWrench : undefined)"
+                    :disabled="db.status != 'COMPLETE'" hide-details>
+                </v-checkbox>
+                <div v-if="!db.default" class="caption text--secondary" style="margin-left: 32px; margin-top: -4px; margin-bottom: 4px;">
+                    It may take longer than several minutes.
+                </div>
+            </div>
         </template>
         <div v-if="databasesNotReady" class="alert alert-info mt-1">
             <span>Databases are loading...</span>

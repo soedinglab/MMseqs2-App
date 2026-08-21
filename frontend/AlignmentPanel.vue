@@ -34,6 +34,9 @@
                 Select query or target residues to highlight their structure.<br style="height: 0.2em">
                 Click on highlighted sequences to dehighlight the corresponding chain.
             </small>
+            <small v-if="searchType === 'interfacesearch'" class="alignment-hint" style="color: #d32f2f;">
+                Only interface residues are kept here, so the residue indices may differ from the full protein sequence.
+            </small>
         </div>
         <div class="alignment-wrapper-outer">
             <div class="alignment-content">
