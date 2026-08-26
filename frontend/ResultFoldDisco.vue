@@ -106,7 +106,7 @@
                             ref="top100" :hits="hits" :alignment="alignment" :selectedStates="selectedStates"
                             :selectedCounts="selectedCounts" :selectUpperbound="selectUpperbound"
                             @showAlignment="(o, db, e) => showAlignment(o, db, e)"
-                            @toggleSelection="(db, i, v) => handleToggleSelection(db, i, v, true)"
+                            @toggleSelection="(db, i, v) => handleToggleSelection(db, i, v)"
                             @bulkToggle="(a, v) => handleBulkToggleFromTop100(a, v)"
                             @forwardDropdown="(e, h) => forwardDropdown(e, h)"
                             @clearAll="clearAllEntries" @jumpTo="i => selectedDatabases = i+1"
@@ -404,23 +404,16 @@ export default {
         },
     },
     methods: {
-        _activeChild() {
-            if (!this.selectedDatabases) return null;
-            const refs = this.$refs['dbComponent' + (this.selectedDatabases - 1)];
-            return Array.isArray(refs) ? refs[0] : refs || null;
-        },
         _applySelection(ids, value) {
-            const changed = [], rejected = [];
-            if (!this.selectedStates) return { changed, rejected: ids, selectedCount: 0 };
+            if (!this.selectedStates) return;
 
-            const child = this._activeChild();
+            const refs = this.$refs['dbComponent' + (this.selectedDatabases - 1)];
+            const child = this.selectedDatabases
+                ? (Array.isArray(refs) ? refs[0] : refs || null)
+                : null;
             // FoldDisco is single-selection unless ?d2m=1 enabled it on the child.
             const multi = child ? child.multipleSelectionEnabled : true;
-            if (value && !multi && ids.length > 1) {
-                rejected.push(...ids.slice(1).map(id => ({ id,
-                    reason: 'FoldDisco is single-selection; add ?d2m=1 to enable multi-select' })));
-                ids = ids.slice(0, 1);
-            }
+            if (value && !multi && ids.length > 1) ids = ids.slice(0, 1);
             if (value && !multi) this.clearAllEntries();
 
             const deltaPerDb = {};
@@ -429,14 +422,11 @@ export default {
 
             for (const raw of ids) {
                 const id = normalizeId(raw, this.dbToIdx);
-                if (!id) { rejected.push({ id: raw, reason: 'unresolvable id' }); continue; }
+                if (!id) continue;
                 const { dbIdx, entryIdx } = splitId(id);
-                if (!this.hits?.results?.[dbIdx]?.alignments?.[entryIdx]) {
-                    rejected.push({ id: raw, reason: 'no such entry' }); continue;
-                }
-                if (value && delta >= room) {
-                    rejected.push({ id: raw, reason: 'selection cap reached' }); continue;
-                }
+                if (!this.hits?.results?.[dbIdx]?.alignments?.[entryIdx]) continue;
+                // The cap still binds; it just no longer reports which ids it turned away.
+                if (value && delta >= room) continue;
                 if (!!this.selectedStates[dbIdx][entryIdx] === !!value) continue;
 
                 this.$set(this.selectedStates[dbIdx], entryIdx, value);
@@ -445,7 +435,6 @@ export default {
                 value ? this.selectedSets.add(id) : this.selectedSets.delete(id);
                 deltaPerDb[dbIdx] = (deltaPerDb[dbIdx] || 0) + (value ? 1 : -1);
                 delta += value ? 1 : -1;
-                changed.push(id);
             }
 
             for (const [dbIdx, d] of Object.entries(deltaPerDb)) {
@@ -460,11 +449,7 @@ export default {
             }
             this.selectedCounts += delta;
             this.$refs.top100?.reflectSelectionState?.();
-            return { changed, rejected, selectedCount: this.selectedCounts };
         },
-        // Replaces the selection: after this, exactly `ids` are selected. The old name promised
-        // this and the old behaviour was additive, so a caller paging through results accumulated
-        // instead of replacing while every count it read back looked right.
         log(args) {
             console.log(args);
             return args;
@@ -533,11 +518,10 @@ export default {
                 this.menuActivator.click(event);
             }
         },
-        // Thin adapters over _applySelection — the same mutator the public API uses.
-        // Signatures unchanged so no call site in ResultFoldDiscoDB or Top100Folddisco moves.
-        // Previously three near-identical copies carrying the per-db-delta and
+        // Thin adapters over _applySelection, the click paths from ResultFoldDiscoDB and
+        // Top100Folddisco. Previously three near-identical copies carrying the per-db-delta and
         // `selectedStates[db].length` bugs; see claude-plan/ai-friendly-results.
-        handleToggleSelection(db, idx, value, fromTop100 = false) {
+        handleToggleSelection(db, idx, value) {
             this._applySelection([`${db}#${idx}`], value)
         },
         handleBulkToggle(db, indices, value) {

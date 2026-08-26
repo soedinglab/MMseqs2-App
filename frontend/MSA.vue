@@ -1109,14 +1109,12 @@ export default {
             };
         },
         clearSelection() {
-            const cleared = this.selectedColumns.length;
             this.selectedColumns.splice(0)
             this.$emit('changedSelection', this.selectedColumns)
             if (!this.updatingFromMSAViewer) {
                 this.msaViewer?.clearSelection?.()
             }
             this.$refs.structViewer?.refreshScene?.()
-            return { ok: true, count: this.selectedColumns.length, cleared };
         },
         async exportMSAViewerSelectionAsFasta() {
             if (!this.msaViewer || this.selectedColumns.length === 0) return;
