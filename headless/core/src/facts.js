@@ -23,12 +23,31 @@ export function kindForJobType(jobType) {
         case 'foldmasoneasymsa': return 'foldmason';
         case 'folddisco': return 'folddisco';
         case 'complexsearch': return 'complexsearch';
-        default: return 'search';       // search, structuresearch, interfacesearch, msa, pair, …
+        case 'search':
+        case 'structuresearch': return 'search';
+
+        case 'rnasearch': throw coded('UNSUPPORTED_TOOL',
+            'rnasearch (Riboseek) tickets are not supported for now.'
+            + 'Read it in the web UI');
+
+        case 'interfacesearch': throw coded('UNSUPPORTED_TOOL',
+            'interfacesearch tickets are not supported for now. '
+            + 'Read it in the web UI');
+
+        case 'index': throw coded('UNSUPPORTED_TOOL',
+            'index is a database indexing job, not a result.');
+        case 'nuclmsa': throw coded('UNSUPPORTED_TOOL',
+            'nuclmsa results are only served as a tarball download.');
+        case 'msa':
+        case 'pair': throw coded('UNSUPPORTED_TOOL',
+            `${jobType} tickets have no readable result route.`);
+
+        default:
+            if (jobType === undefined || jobType === null || jobType === '') return 'search';
+            throw coded('UNSUPPORTED_TOOL', `unknown job type: ${JSON.stringify(jobType)}`);
     }
 }
 
-// backend/worker.go:1918-1920 — folddisco query runs with a literal `--top 1000`, so this cap is
-// structural. worker.go:2139-2141 appends `--max-seqs 1000` only when the config does not set it.
 const FOLDDISCO_ROW_CAP = 1000;
 const SEARCH_ROW_CAP_DEFAULT = 1000;
 

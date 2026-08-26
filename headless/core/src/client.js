@@ -222,10 +222,9 @@ export function createClient({
     }
 
     const USABLE_FOR = {
-        search: d => !d.interface && !d.motif,
-        complexsearch: d => d.complex && !d.interface && !d.motif,
-        interfacesearch: d => d.interface && !d.motif,
-        folddisco: d => d.motif && !d.interface,
+        search: d => !d.interface && !d.motif && !d.rna,
+        complexsearch: d => d.complex && !d.interface && !d.motif && !d.rna,
+        folddisco: d => d.motif && !d.interface && !d.rna,
     };
 
     async function assertDatabases(requested, kind) {
@@ -364,7 +363,9 @@ export function createClient({
             const cached = await store.readTicket(ticket);
             if (cached?.jobType) return { type: cached.jobType };
             const res = await request(`/ticket/type/${encodeURIComponent(ticket)}`);
-            await store.writeTicket(ticket, { jobType: res.type, kind: kindForJobType(res.type) });
+            let kind = null;
+            try { kind = kindForJobType(res.type); } catch { /* unsupported: kind stays null */ }
+            await store.writeTicket(ticket, { jobType: res.type, kind });
             return res;
         },
 

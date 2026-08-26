@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import {
     normalizeQueryIdx, resultCounts, resultRowCap, completenessOf, databaseProvenance,
     taxonomyExport, serializeRow, motifPatternExport, isComplexResult,
-    msaResidueMap, residueTokens, MsaColumnSelection,
+    msaResidueMap, residueTokens, MsaColumnSelection, kindForJobType, toolForJobType,
 } from '../src/index.js';
 import { parseResults, parseResultsFoldDisco } from '../../../frontend/lib/parseResults.js';
 
@@ -338,4 +338,56 @@ test('the residue map is the same convention MsaColumnSelection derives its moti
     // tokens[i] is also residue i's offset into the entry's ca triplets, so a consumer needs no
     // arithmetic to go from a column to a coordinate.
     assert.equal(dimer.tokens.length, dimer.residueCount);
+});
+
+// Two job types the server produces that this layer cannot read. Both used to fall through to
+// 'search', which returns a table that looks right and is not — so both refuse by name.
+test('unsupported job types refuse instead of being read as a search', () => {
+    for (const [jobType, why] of [
+        ['rnasearch', 'Riboseek'],
+        ['interfacesearch', 'complex-search row shape'],
+    ]) {
+        assert.throws(() => kindForJobType(jobType), err => {
+            assert.equal(err.code, 'UNSUPPORTED_TOOL', `${jobType} must carry a code`);
+            assert.match(err.message, new RegExp(jobType), 'the message must name the job type');
+            return true;
+        }, `${jobType} (${why}) must not resolve to a kind`);
+        // toolForJobType goes through kindForJobType, so it refuses too rather than saying
+        // 'foldseek' about a tool this layer cannot read.
+        assert.throws(() => toolForJobType(jobType), { code: 'UNSUPPORTED_TOOL' });
+    }
+});
+
+// backend/server.go's resultHandler switches on exactly five job types — Search, RnaSearch,
+// StructureSearch, ComplexSearch, InterfaceSearch — and answers 400 "Invalid job type" for the rest.
+// Of those five, two are refused above, so only these resolve through /result/{ticket}/{entry}.
+test('the job types that ARE search-shaped still resolve', () => {
+    for (const jobType of ['search', 'structuresearch']) {
+        assert.equal(kindForJobType(jobType), 'search', jobType);
+        assert.equal(toolForJobType(jobType), 'foldseek', jobType);
+    }
+    assert.equal(kindForJobType('complexsearch'), 'complexsearch');
+    assert.equal(toolForJobType('complexsearch'), 'multimer');
+    assert.equal(kindForJobType('foldmasoneasymsa'), 'foldmason');
+    assert.equal(kindForJobType('folddisco'), 'folddisco');
+});
+
+// msa, pair, nuclmsa and index have no readable result route at all. They used to fall through to
+// 'search', which turned a clear server 400 into a request the layer had no business making.
+test('job types with no readable result route refuse by name', () => {
+    for (const jobType of ['msa', 'pair', 'nuclmsa', 'index']) {
+        assert.throws(() => kindForJobType(jobType), err => {
+            assert.equal(err.code, 'UNSUPPORTED_TOOL', jobType);
+            return true;
+        }, jobType);
+    }
+});
+
+// A job type this layer has never heard of is refused rather than read as a search — the mistake
+// interfacesearch represented for as long as the layer existed.
+test('an unknown job type refuses, but an absent one still defaults', () => {
+    assert.throws(() => kindForJobType('somethingNew'), { code: 'UNSUPPORTED_TOOL' });
+    for (const absent of [undefined, null, '']) {
+        assert.equal(kindForJobType(absent), 'search', JSON.stringify(absent));
+    }
 });

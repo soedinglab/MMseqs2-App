@@ -9,9 +9,6 @@ export {
   splitAlphaNum,
 } from "./lib/parseResults.js";
 
-// Same reason, same arrangement: the CA-only PDB builders and the multimer encode/decode pair, the
-// target-name readers, and the column-to-residue mapping all moved to lib/ so the headless layer can
-// import them, and are re-exported here so every existing import site keeps working unchanged.
 export {
   oneToThree,
   threeToOne,

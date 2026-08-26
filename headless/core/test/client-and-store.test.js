@@ -165,13 +165,16 @@ test('idForHit follows the page rule: filename for pdb*, dbkey elsewhere', () =>
     assert.equal(idForHit(hit, 'BFVD_folddisco'), 166622);
 });
 
-test('kindForJobType maps every backend job type to a cache kind', () => {
+test('kindForJobType maps every readable backend job type to a cache kind', () => {
     assert.equal(kindForJobType('foldmasoneasymsa'), 'foldmason');
     assert.equal(kindForJobType('folddisco'), 'folddisco');
     assert.equal(kindForJobType('complexsearch'), 'complexsearch');
-    for (const t of ['structuresearch', 'search', 'interfacesearch', undefined]) {
+    for (const t of ['structuresearch', 'search', undefined]) {
         assert.equal(kindForJobType(t), 'search');
     }
+    // interfacesearch used to be in that list. It is not search-shaped — the server returns it as
+    // [][]ComplexAlignmentEntry — so it refuses now. See facts.test.js for the full contract.
+    assert.throws(() => kindForJobType('interfacesearch'), { code: 'UNSUPPORTED_TOOL' });
 });
 
 test('summarizeRequest keeps a query identifiable without storing it', () => {
