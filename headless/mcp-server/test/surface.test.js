@@ -49,8 +49,8 @@ function stubClient(overrides = {}) {
         async getTicketType(t) { record('getTicketType', t); return { type: 'structuresearch' }; },
         async resultUrl(t) { return `https://example.test/result/${t}/0`; },
         store: { async readTicket() { return null; } },
-        async getResultSummary(t, e) { record('getResultSummary', t, e); return { schema: 'foldseek-server/result-summary@1', ticket: t, entry: e }; },
-        async exportResult(t, e) { record('exportResult', t, e); return { artifactId: 'a'.repeat(64), ticket: t, entry: e }; },
+        async getResultSummary(t, e) { record('getResultSummary', t, e); return { schema: 'foldseek-server/result-summary@1', ticket: t, queryIdx: e }; },
+        async exportResult(t, e) { record('exportResult', t, e); return { artifactId: 'a'.repeat(64), ticket: t, queryIdx: e }; },
         ...overrides,
     };
     return client;
@@ -146,15 +146,33 @@ test('foldseek_search is monomer only; multimer_search ignores what does not app
     assert.match(complexMode.error, /multimer_search/);
 
     const schema = tools.find(t => t.name === 'multimer_search').inputSchema.properties;
-    assert.equal(schema.iterativeSearch, undefined);
-    assert.equal(schema.taxFilter, undefined);
+    assert.equal(schema.iterativeSearch, undefined, 'complex search has no iterative mode');
+    // taxFilter does apply: ComplexSearchJob carries TaxFilter, it is part of the job hash, and the
+    // worker passes it through. Only the *result* lacks taxonomy reports.
+    assert.ok(schema.taxFilter, 'a complex search can be restricted by taxon');
 
-    const out = await runTool(tools, 'multimer_search',
-        { query: 'ATOM', databases: ['pdb100'], iterativeSearch: true, taxFilter: '9606' });
-    assert.deepEqual(out.ignored, ['iterativeSearch', 'taxFilter'], 'ignored, and said so');
-    const sent = client.submitted()[0].args[0];
-    assert.equal(sent.iterativeSearch, false);
-    assert.equal(sent.taxFilter, '');
+    // Refused, not ignored: an argument the backend drops in silence would leave a caller believing
+    // they had filtered.
+    const iterative = await runTool(tools, 'multimer_search',
+        { query: 'ATOM', databases: ['pdb100'], iterativeSearch: true });
+    assert.equal(iterative.code, 'INVALID_INPUT');
+    assert.match(iterative.error, /iterativeSearch is not a multimer_search argument/);
+
+    const taxed = await runTool(tools, 'multimer_search',
+        { query: 'ATOM', databases: ['pdb100'], taxFilter: '9606' });
+    assert.equal(taxed.isError, undefined, 'a taxon filter is accepted');
+
+    // FoldDiscoJob has neither field, so both are refused rather than dropped.
+    for (const field of ['taxFilter', 'mode']) {
+        const out = await runTool(tools, 'folddisco_search',
+            { query: 'ATOM', databases: ['pdb_folddisco'], motif: 'A1', [field]: 'x' });
+        assert.equal(out.code, 'INVALID_INPUT', field);
+        assert.match(out.error, new RegExp(`${field} is not a folddisco_search argument`));
+    }
+    // The filter reaches the client rather than being blanked on the way through.
+    const sent = client.submitted().at(-1).args[0];
+    assert.equal(sent.taxFilter, '9606');
+    assert.equal(sent.iterativeSearch, undefined, 'not sent, because it was never accepted');
 });
 
 test('list_databases filters to what a given tool accepts', async () => {
@@ -164,35 +182,38 @@ test('list_databases filters to what a given tool accepts', async () => {
     assert.deepEqual(all.databases.map(d => d.path),
         ['pdb100', 'afdb50', 'pdb_folddisco', 'ifacedb']);
     assert.deepEqual(all.databases.find(d => d.path === 'pdb100').usableFor,
-        ['foldseek_search', 'multimer_search']);
+        ['foldseek', 'multimer']);
     assert.equal(all.databases.find(d => d.path === 'pdb100').version, '2024');
 
-    for (const [jobType, expected] of [
-        ['foldseek_search', ['pdb100', 'afdb50']],
-        ['multimer_search', ['pdb100']],
-        ['folddisco_search', ['pdb_folddisco']],
+    for (const [tool, expected] of [
+        ['foldseek', ['pdb100', 'afdb50']],
+        ['multimer', ['pdb100']],
+        ['folddisco', ['pdb_folddisco']],
     ]) {
-        const out = await runTool(tools, 'list_databases', { jobType });
-        assert.deepEqual(out.databases.map(d => d.path), expected, jobType);
+        const out = await runTool(tools, 'list_databases', { tool });
+        assert.deepEqual(out.databases.map(d => d.path), expected, tool);
         assert.equal(out.databases[0].usableFor, undefined, 'the filter already answered that');
     }
 });
 
-test('the summary and export tools pass through the ticket and entry, and nothing else', async () => {
+test('the summary and export tools pass through the ticket and queryIdx, and nothing else', async () => {
     const client = stubClient();
     const tools = createTools(client);
 
     // The intent is that neither tool grows a query language: no fields, sorting, filtering or limits.
     // `mountRoot` is not a query — it says where the caller sees the files, which only it can know.
-    const allowed = { get_result_summary: ['ticketId', 'entry'], export_result: ['ticketId', 'entry', 'mountRoot'] };
+    const allowed = {
+        get_result_summary: ['ticketId', 'queryIdx'],
+        export_result: ['ticketId', 'queryIdx', 'mountRoot'],
+    };
     for (const [name, keys] of Object.entries(allowed)) {
         const tool = tools.find(t => t.name === name);
         assert.deepEqual(Object.keys(tool.inputSchema.properties), keys,
             `${name} takes ${keys.join(', ')} and nothing else`);
     }
 
-    assert.equal((await runTool(tools, 'get_result_summary', { ticketId: 'T1', entry: 2 })).entry, 2);
-    assert.equal((await runTool(tools, 'export_result', { ticketId: 'T1' })).entry, 0);
+    assert.equal((await runTool(tools, 'get_result_summary', { ticketId: 'T1', queryIdx: 2 })).queryIdx, 2);
+    assert.equal((await runTool(tools, 'export_result', { ticketId: 'T1' })).queryIdx, 0);
 });
 
 test('get_ticket_status reports the kind and the lineage, and survives a missing type', async () => {
@@ -201,8 +222,7 @@ test('get_ticket_status reports the kind and the lineage, and survives a missing
     }));
     const out = await runTool(tools, 'get_ticket_status', { ticketId: 'T1' });
     assert.equal(out.status, 'COMPLETE');
-    assert.equal(out.jobType, 'structuresearch');
-    assert.equal(out.resultKind, 'search');
+    assert.equal(out.tool, 'foldseek');
     assert.equal(out.derivedFrom.ticket, 'SRC');
 
     const degraded = createTools(stubClient({
@@ -211,8 +231,7 @@ test('get_ticket_status reports the kind and the lineage, and survives a missing
     }));
     const still = await runTool(degraded, 'get_ticket_status', { ticketId: 'T1' });
     assert.equal(still.status, 'COMPLETE');
-    assert.equal(still.jobType, null);
-    assert.equal(still.resultKind, null);
+    assert.equal(still.tool, null);
     assert.equal(still.resultUrl, null);
 });
 
@@ -241,4 +260,58 @@ test('send_to refuses an unknown destination before touching a ticket', async ()
         { from: { type: 'row', ticketId: 'T1', rowId: '0#0' }, tool: 'blastp' });
     assert.equal(out.code, 'INVALID_INPUT');
     assert.equal(client.calls.length, 0, 'nothing was fetched to find that out');
+});
+
+test('send_to refuses the options its destination does not have', async () => {
+    const client = stubClient();
+    const tools = createTools(client);
+    const from = { type: 'row', ticketId: 'T1abcd', rowId: '0#0' };
+
+    // The same fields the typed tools refuse, refused per destination: a forwarded job must not lose
+    // a filter in transit.
+    for (const [tool, field] of [['folddisco', 'taxFilter'], ['folddisco', 'mode'],
+        ['foldmason', 'taxFilter'], ['multimer', 'iterativeSearch']]) {
+        const out = await runTool(tools, 'send_to', { from, tool, databases: ['pdb100'], [field]: 'x' });
+        assert.equal(out.code, 'INVALID_INPUT', `${tool}.${field}`);
+        assert.match(out.error, new RegExp(`${field} is not a send_to ${tool} argument`));
+    }
+
+    // The refusal happens before the source is resolved, which is why this stub needs no result
+    // table; the accepted path is covered against a full client in sendto-tools.test.js.
+    const accepted = await runTool(tools, 'send_to',
+        { from, tool: 'foldseek', databases: ['pdb100'], taxFilter: '9606' });
+    assert.notEqual(accepted.code, 'INVALID_INPUT', 'a taxon filter is not foreign to foldseek');
+});
+
+test('every tool failure carries a code, and validateOnly is the other channel', async () => {
+    const client = stubClient();
+    const tools = createTools(client);
+
+    // `code` was conditional on the thrown error having one, so a plain Error — the FoldMason arity
+    // check — produced { isError, error } and refuted the documented shape.
+    const failures = [
+        ['send_to', { from: { type: 'row', ticketId: 'T1abcd', rowId: '0#0' }, tool: 'foldmason' }],
+        ['send_to', { from: { type: 'row', ticketId: 'T1abcd', rowId: '0#0' }, tool: 'nope' }],
+        ['foldseek_search', { databases: ['pdb100'] }],
+        ['foldmason_msa', { files: [{ name: 'a.pdb', content: 'ATOM' }] }],
+        ['folddisco_search', { query: 'ATOM', databases: ['pdb_folddisco'], taxFilter: '9606' }],
+        ['select_hits', { ticketId: 'T1abcd', action: 'describe', name: 'missing' }],
+    ];
+    for (const [name, args] of failures) {
+        const out = await runTool(tools, name, args);
+        assert.equal(out.isError, true, `${name} ${JSON.stringify(args)}`);
+        assert.ok(out.code, `${name} must carry a code, got ${JSON.stringify(out)}`);
+        assert.ok(out.error, `${name} must carry a message`);
+    }
+    assert.ok((await runTool(tools, 'no_such_tool', {})).code);
+
+    // The second channel: a dry run is a *successful* call whose verdict lives in `ok`, so it carries
+    // no isError even when it found problems. A caller branching only on isError reads an unusable
+    // database as a passing validation. (The stub always passes; the shape is the point here, and
+    // live.test.js exercises a real refusal.)
+    const dry = await runTool(tools, 'foldseek_search',
+        { query: 'ATOM', databases: ['pdb100'], validateOnly: true });
+    assert.equal(dry.isError, undefined, 'a dry run is not an error channel');
+    assert.equal(typeof dry.ok, 'boolean', 'its verdict is `ok`');
+    assert.ok(Array.isArray(dry.problems), 'with problems[] beside it');
 });

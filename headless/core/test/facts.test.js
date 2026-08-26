@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-    normalizeEntry, resultCounts, resultRowCap, completenessOf, databaseProvenance,
+    normalizeQueryIdx, resultCounts, resultRowCap, completenessOf, databaseProvenance,
     taxonomyExport, serializeRow, motifPatternExport, isComplexResult,
     msaResidueMap, residueTokens, MsaColumnSelection,
 } from '../src/index.js';
@@ -43,21 +43,26 @@ function complexResult() {
 }
 
 // 2.3.1
-test('entry normalization accepts an index, refuses nonsense, and collapses single-unit jobs', () => {
-    assert.deepEqual(normalizeEntry('structuresearch', 0), { entry: 0, normalized: false });
-    assert.deepEqual(normalizeEntry('structuresearch', 3), { entry: 3, normalized: false });
-    assert.deepEqual(normalizeEntry('complexsearch', undefined), { entry: 0, normalized: false });
+test('queryIdx is refused rather than collapsed on a job that has one result', () => {
+    assert.deepEqual(normalizeQueryIdx('structuresearch', 0), { queryIdx: 0 });
+    assert.deepEqual(normalizeQueryIdx('structuresearch', 3), { queryIdx: 3 });
+    assert.deepEqual(normalizeQueryIdx('complexsearch', undefined), { queryIdx: 0 });
+    assert.deepEqual(normalizeQueryIdx('foldmasoneasymsa', 0), { queryIdx: 0 });
 
-    assert.deepEqual(normalizeEntry('folddisco', 2), { entry: 0, normalized: true });
-    assert.deepEqual(normalizeEntry('foldmasoneasymsa', 2), { entry: 0, normalized: true });
-    assert.deepEqual(normalizeEntry('foldmasoneasymsa', 0), { entry: 0, normalized: false });
-
-    for (const bad of [-1, 1.5, 2 ** 53, 'x', '2', NaN, Infinity, null === 0 ? 0 : {}]) {
-        assert.throws(() => normalizeEntry('structuresearch', bad), e => e.code === 'INVALID_ENTRY',
-            `${JSON.stringify(bad)} should be refused`);
+    // Collapsing these to 0 handed back a valid-looking summary of a different unit — and FoldMason
+    // calls its alignment rows "entries", so a caller passing one means something real.
+    for (const jobType of ['folddisco', 'foldmasoneasymsa']) {
+        assert.throws(() => normalizeQueryIdx(jobType, 2), (e) => {
+            assert.equal(e.code, 'INVALID_QUERY_IDX');
+            assert.match(e.message, /one result per ticket/);
+            return true;
+        }, jobType);
     }
-    // A single-unit job validates before it normalizes, so a typo is not silently swallowed.
-    assert.throws(() => normalizeEntry('folddisco', -1), e => e.code === 'INVALID_ENTRY');
+    for (const bad of [-1, 1.5, 2 ** 53, 'x', '2', NaN, Infinity, {}]) {
+        assert.throws(() => normalizeQueryIdx('structuresearch', bad),
+            e => e.code === 'INVALID_QUERY_IDX', `${JSON.stringify(bad)} should be refused`);
+    }
+    assert.throws(() => normalizeQueryIdx('folddisco', -1), e => e.code === 'INVALID_QUERY_IDX');
 });
 
 // 2.3.2
@@ -94,18 +99,18 @@ test('folddisco rows are ungrouped and counted one for one', () => {
 });
 
 // 2.3.4
-test('row caps carry their provenance, because the two families prove different things', () => {
-    assert.deepEqual(resultRowCap({ jobType: 'folddisco' }), { rowCap: 1000, capSource: 'worker-fixed' });
+test('a worker-fixed cap is not configurable away, and foldmason has none', () => {
+    assert.deepEqual(resultRowCap({ jobType: 'folddisco' }), { rowCap: 1000 });
     assert.deepEqual(resultRowCap({ jobType: 'structuresearch' }),
-        { rowCap: 1000, capSource: 'deployment-default' });
+        { rowCap: 1000 });
     assert.deepEqual(resultRowCap({ jobType: 'complexsearch' }),
-        { rowCap: 1000, capSource: 'deployment-default' });
+        { rowCap: 1000 });
     assert.deepEqual(resultRowCap({ jobType: 'foldmasoneasymsa' }),
-        { rowCap: null, capSource: 'not-applicable' });
+        { rowCap: null });
     assert.deepEqual(resultRowCap({ jobType: 'structuresearch', configuredCap: 100 }),
-        { rowCap: 100, capSource: 'configured' });
+        { rowCap: 100 });
     assert.deepEqual(resultRowCap({ jobType: 'folddisco', configuredCap: 100 }),
-        { rowCap: 1000, capSource: 'worker-fixed' }, 'a fixed worker cap is not configurable away');
+        { rowCap: 1000 }, 'a fixed worker cap is not configurable away');
     for (const bad of [0, -5, 1.5, 'many']) {
         assert.throws(() => resultRowCap({ jobType: 'structuresearch', configuredCap: bad }),
             e => e.code === 'INVALID_CONFIG');
@@ -115,16 +120,16 @@ test('row caps carry their provenance, because the two families prove different 
 test('completeness is tri-state: a cap proves truncation, staying under one proves nothing', () => {
     assert.deepEqual(
         completenessOf({ jobType: 'folddisco', parsedRows: 1000 }),
-        { complete: false, saturated: true, capSource: 'worker-fixed', rowCap: 1000 });
+        { complete: false, saturated: true, rowCap: 1000 });
     assert.deepEqual(
         completenessOf({ jobType: 'structuresearch', parsedRows: 150 }),
-        { complete: null, saturated: false, capSource: 'deployment-default', rowCap: 1000 });
+        { complete: null, saturated: false, rowCap: 1000 });
     assert.deepEqual(
         completenessOf({ jobType: 'foldmasoneasymsa', parsedRows: 15 }),
-        { complete: true, saturated: false, capSource: 'not-applicable', rowCap: null });
+        { complete: true, saturated: false, rowCap: null });
     assert.deepEqual(
         completenessOf({ jobType: 'structuresearch', parsedRows: 150, configuredCap: 100 }),
-        { complete: false, saturated: true, capSource: 'configured', rowCap: 100 });
+        { complete: false, saturated: true, rowCap: 100 });
     assert.equal(completenessOf({ jobType: 'structuresearch', parsedRows: 999 }).complete, null,
         'one row short of the cap still proves nothing');
 });
@@ -135,14 +140,14 @@ test('database provenance names the catalog when it is reachable and says so whe
     assert.equal(withCatalog.catalogAvailable, true);
     assert.deepEqual(withCatalog.databases[BFMD], {
         dbIndex: BFMD, id: 'bfmd', safeName: `db-${BFMD}`, display: 'BFMD', version: '1.0',
-        status: 'COMPLETE', taxonomy: true, hasTaxonomy: true, hasDescription: false,
+        status: 'COMPLETE', taxonomy: true, taxonomyTree: true, hasDescription: false,
     });
 
     const without = databaseProvenance(FOLDSEEK, null);
     assert.equal(without.catalogAvailable, false);
     assert.equal(without.databases[BFMD].version, null);
     assert.equal(without.databases[BFMD].display, null);
-    assert.equal(without.databases[BFMD].hasTaxonomy, true, 'the parsed result still knows this much');
+    assert.equal(without.databases[BFMD].taxonomyTree, true, 'the parsed result still knows this much');
     for (const db of without.databases) {
         assert.match(db.safeName, /^db-\d+$/, 'no database id ever reaches a filename');
     }
@@ -327,7 +332,7 @@ test('the residue map is the same convention MsaColumnSelection derives its moti
 
     // The map is what a plugin gets in the artifact: columns -> motif with no further arithmetic.
     const dimer = msaResidueMap(alignment, 0);
-    const selection = new MsaColumnSelection(null, alignment, { entry: 0, columns: [2, 4] });
+    const selection = new MsaColumnSelection(null, alignment, { queryIdx: 0, columns: [2, 4] });
     assert.equal(selection.motif, 'A3, B1');
     assert.deepEqual(residueTokens(dimer, [2, 4]), ['A3', 'B1']);
     // tokens[i] is also residue i's offset into the entry's ca triplets, so a consumer needs no

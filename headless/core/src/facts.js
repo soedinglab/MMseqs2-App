@@ -5,6 +5,19 @@ import { numericMetric, NUMERIC_METRIC_FIELDS } from './metrics.js';
 
 export const TERMINAL_STATUSES = new Set(['COMPLETE', 'ERROR', 'UNKNOWN']);
 
+/**
+ * The tool a caller acts with, which is the one name a payload carries: `jobType` was the server's
+ * spelling and `resultKind` collapsed the two search shapes, so three names described one fact.
+ */
+export function toolForJobType(jobType) {
+    switch (kindForJobType(jobType)) {
+        case 'foldmason': return 'foldmason';
+        case 'folddisco': return 'folddisco';
+        case 'complexsearch': return 'multimer';
+        default: return 'foldseek';
+    }
+}
+
 export function kindForJobType(jobType) {
     switch (jobType) {
         case 'foldmasoneasymsa': return 'foldmason';
@@ -41,19 +54,22 @@ export function isComplexResult(parsed) {
 }
 
 /**
- * The entry index that addresses one result unit.
- * FoldMason and FoldDisco serve one unit per ticket, so any valid index normalizes to 0.
+ * Which query of a ticket to address. Refused rather than normalised: FoldMason calls its alignment
+ * rows "entries" too, so a caller passing one here means something real and would otherwise be handed
+ * a valid-looking summary of a different unit.
  */
-export function normalizeEntry(jobType, entry = 0) {
-    const value = entry === undefined || entry === null ? 0 : entry;
+export function normalizeQueryIdx(jobType, queryIdx = 0) {
+    const value = queryIdx === undefined || queryIdx === null ? 0 : queryIdx;
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-        throw coded('INVALID_ENTRY',
-            `invalid entry: ${JSON.stringify(entry)} — expected a non-negative safe integer`);
+        throw coded('INVALID_QUERY_IDX',
+            `invalid queryIdx: ${JSON.stringify(queryIdx)} — expected a non-negative safe integer`);
     }
-    if (SINGLE_UNIT_KINDS.has(kindForJobType(jobType))) {
-        return { entry: 0, normalized: value !== 0 };
+    if (SINGLE_UNIT_KINDS.has(kindForJobType(jobType)) && value !== 0) {
+        throw coded('INVALID_QUERY_IDX',
+            `${kindForJobType(jobType)} serves one result per ticket, so queryIdx must be 0 or omitted `
+            + `— got ${value}.`);
     }
-    return { entry: value, normalized: false };
+    return { queryIdx: value };
 }
 
 /**
@@ -81,35 +97,32 @@ export function resultCounts(parsed, { tool = 'foldseek' } = {}) {
 
 export function resultRowCap({ jobType, configuredCap = null } = {}) {
     const kind = kindForJobType(jobType);
-    if (kind === 'foldmason') return { rowCap: null, capSource: 'not-applicable' };
-    if (kind === 'folddisco') return { rowCap: FOLDDISCO_ROW_CAP, capSource: 'worker-fixed' };
+    if (kind === 'foldmason') return { rowCap: null };
+    if (kind === 'folddisco') return { rowCap: FOLDDISCO_ROW_CAP };
     if (configuredCap !== null && configuredCap !== undefined) {
         if (!Number.isSafeInteger(configuredCap) || configuredCap < 1) {
             throw coded('INVALID_CONFIG',
                 `invalid result row cap: ${JSON.stringify(configuredCap)} — expected an integer >= 1`);
         }
-        return { rowCap: configuredCap, capSource: 'configured' };
+        return { rowCap: configuredCap };
     }
-    return { rowCap: SEARCH_ROW_CAP_DEFAULT, capSource: 'deployment-default' };
+    return { rowCap: SEARCH_ROW_CAP_DEFAULT };
 }
 
 /**
  * Tri-state completeness. Reaching a cap proves truncation; staying under one proves nothing, so
  * `complete` is null rather than true.
  */
-export function completenessOf({ jobType, parsedRows = 0, rowCap, capSource, configuredCap = null } = {}) {
-    const resolved = rowCap === undefined || capSource === undefined
-        ? resultRowCap({ jobType, configuredCap })
-        : { rowCap, capSource };
+export function completenessOf({ jobType, parsedRows = 0, rowCap, configuredCap = null } = {}) {
+    const resolved = rowCap === undefined ? resultRowCap({ jobType, configuredCap }) : { rowCap };
 
     if (kindForJobType(jobType) === 'foldmason') {
-        return { complete: true, saturated: false, capSource: 'not-applicable', rowCap: null };
+        return { complete: true, saturated: false, rowCap: null };
     }
     const saturated = resolved.rowCap !== null && parsedRows >= resolved.rowCap;
     return {
         complete: saturated ? false : null,
         saturated,
-        capSource: resolved.capSource,
         rowCap: resolved.rowCap ?? null,
     };
 }
@@ -132,7 +145,7 @@ export function databaseProvenance(parsed, catalog = null) {
             version: known?.version ?? null,
             status: known?.status ?? null,
             taxonomy: known ? !!known.taxonomy : !!entryData?.hasTaxonomy,
-            hasTaxonomy: !!entryData?.hasTaxonomy,
+            taxonomyTree: !!entryData?.taxonomyreports?.[0]?.length,
             hasDescription: !!entryData?.hasDescription,
         };
     });

@@ -52,7 +52,7 @@ test('a built artifact is listed by its manifest, and the manifest reads back', 
     assert.equal(listed.length, 1);
     assert.equal(listed[0].uri, descriptor.manifestUri);
     assert.equal(listed[0].mimeType, 'application/json');
-    assert.match(listed[0].name, /search T1abcd/);
+    assert.match(listed[0].name, /foldseek T1abcd/);
     assert.match(listed[0].description, /file\(s\)/);
 
     const read = await resources.read(listed[0].uri);

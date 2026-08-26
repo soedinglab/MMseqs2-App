@@ -23,7 +23,7 @@ const CATALOG = [
 ];
 
 const table = (parsed, tool = 'foldseek', ticket = 'T1') =>
-    new ResultTable(parsed, { ticket, entry: 0, tool });
+    new ResultTable(parsed, { ticket, queryIdx: 0, tool });
 
 function foldMasonResult() {
     return {
@@ -37,39 +37,37 @@ function foldMasonResult() {
     };
 }
 
-const base = { ticket: 'T1', entry: 0, jobType: 'structuresearch', status: 'COMPLETE' };
+const base = { ticket: 'T1', queryIdx: 0, jobType: 'structuresearch', status: 'COMPLETE' };
 
 test('a 3Di+AA search summary reports counts, ranking semantics and one hit per database', () => {
     const out = resultSummary({ ...base, table: table(FOLDSEEK), catalog: CATALOG });
 
     assert.equal(out.schema, 'foldseek-server/result-summary@1');
-    assert.equal(out.resultKind, 'search');
+    assert.equal(out.tool, 'foldseek');
     assert.equal(out.mode, '3diaa');
     assert.equal(out.counts.parsedRows, 150);
     assert.equal(out.counts.grouping, 'none');
     assert.deepEqual(out.completeness,
-        { complete: null, saturated: false, capSource: 'deployment-default', rowCap: 1000 });
+        { complete: null, saturated: false, rowCap: 1000 });
 
-    assert.deepEqual(out.ranking, {
-        sortKey: 'score', field: 'score', label: 'Score',
-        direction: 'higher', crossDatabaseComparable: true, sortOrder: -1,
-    }, 'flat: nothing here repeats the mode, tool or field the payload already carries');
+    assert.deepEqual(out.ranking,
+        { field: 'score', label: 'Score', direction: 'higher', crossDatabaseComparable: true },
+        'field is the row key, label is what the value is called; no sortKey, no sortOrder');
 
     assert.equal(out.databases.length, 9);
     const bfmd = out.databases.find(d => d.id === 'bfmd');
     assert.deepEqual(Object.keys(bfmd).sort(),
-        ['dbIndex', 'display', 'hasTaxonomy', 'id', 'parsedRows', 'topHit', 'version'],
+        ['dbIndex', 'display', 'id', 'parsedRows', 'taxonomyTree', 'topHit', 'version'],
         'no safeName, status or per-database serverAlignments: derivable or belongs elsewhere');
     assert.equal(bfmd.display, 'BFMD', 'the catalog was reachable');
     assert.equal(bfmd.parsedRows, 150);
-    assert.equal(bfmd.hasTaxonomy, true);
+    assert.equal(bfmd.taxonomyTree, true);
     assert.equal(typeof bfmd.topHit.value, 'number');
     assert.match(bfmd.topHit.id, /^\d+#\d+$/);
     assert.equal(out.databases.find(d => d.id === 'pdb100').topHit, null, 'no hits, no top hit');
 
     assert.equal(out.availability, undefined, 'the presence of a block is its own availability flag');
     assert.equal(out.msa, undefined, 'a search has no alignment');
-    assert.equal(out.exportAvailable, true);
 });
 
 test('the top hit is the ranking metric applied by the table, and agrees with the row export', () => {
@@ -87,12 +85,12 @@ test('a folddisco summary carries bounded motif patterns and a saturated verdict
         ...base, jobType: 'folddisco', table: table(FOLDDISCO, 'folddisco'), catalog: CATALOG,
     });
 
-    assert.equal(out.resultKind, 'folddisco');
-    assert.equal(out.ranking.sortKey, 'idf');
+    assert.equal(out.tool, 'folddisco');
+    assert.equal(out.ranking.field, 'idfscore', 'the key the row file actually has');
     assert.equal(out.ranking.label, 'IDF-score');
     assert.equal(out.ranking.crossDatabaseComparable, false);
     assert.deepEqual(out.completeness,
-        { complete: false, saturated: true, capSource: 'worker-fixed', rowCap: 1000 });
+        { complete: false, saturated: true, rowCap: 1000 });
 
     assert.ok(out.motifPatterns.distinct > 0);
     assert.ok(out.motifPatterns.top.length <= 5, 'a distinct count plus a sample, never every pattern');
@@ -104,12 +102,12 @@ test('a foldmason summary describes the alignment and claims completeness', () =
         ...base, jobType: 'foldmasoneasymsa', foldMasonResult: foldMasonResult(),
     });
 
-    assert.equal(out.resultKind, 'foldmason');
+    assert.equal(out.tool, 'foldmason');
     assert.equal(out.ranking, null);
     assert.deepEqual(out.databases, []);
     assert.equal(out.counts.parsedRows, 2);
     assert.deepEqual(out.completeness,
-        { complete: true, saturated: false, capSource: 'not-applicable', rowCap: null });
+        { complete: true, saturated: false, rowCap: null });
 
     assert.equal(out.msa.totalColumns, 7);
     assert.equal(out.msa.entryCount, undefined, 'counts.parsedRows already says how many entries');
@@ -133,11 +131,11 @@ test('a complex search reports its grouping and ranks on qTM', () => {
     });
     const out = resultSummary({ ...base, jobType: 'complexsearch', table: table(parsed) });
 
-    assert.equal(out.resultKind, 'complexsearch');
+    assert.equal(out.tool, 'multimer');
     assert.equal(out.counts.grouping, 'complexid');
     assert.equal(out.counts.serverAlignments, 3);
     assert.equal(out.counts.parsedRows, 2);
-    assert.equal(out.ranking.sortKey, 'qtm');
+    assert.equal(out.ranking.field, 'complexqtm');
     assert.equal(out.ranking.label, 'Query TM-score');
     assert.equal(out.databases[0].topHit.value, 0.8);
 });
@@ -149,27 +147,28 @@ test('tmalign and lolalign summaries name the value correctly, whatever the fiel
     });
 
     const tm = resultSummary({ ...base, table: table(make('tmalign')) });
-    assert.equal(tm.ranking.label, 'Score');
-    assert.equal(tm.ranking.sortOrder, -1, 'a higher score sorts first');
+    assert.equal(tm.ranking.label, 'TM-score');
+    assert.equal(tm.ranking.direction, 'higher', 'a higher score sorts first');
 
     for (const [mode, label] of [['tmalign', 'TM-score'], ['lolalign', 'LOL-score']]) {
         const out = resultSummary({ ...base, table: table(make(mode)) });
         const top = out.databases[0].topHit;
         assert.equal(typeof top.value, 'number', `${mode} top hit must be numeric`);
         assert.ok(validateResultSummary(out).ok, `${mode} summary must validate`);
-        assert.equal(out.ranking.field, 'score');
-        assert.equal(label.length > 0, true);
+        // Both modes carry their score in `eval`, which is the column the server sorted on.
+        assert.equal(out.ranking.field, 'eval', mode);
+        assert.equal(out.ranking.label, label, mode);
     }
 });
 
 test('an unfinished ticket says so without touching the result', () => {
-    const out = notReadySummary({ ticket: 'T1', entry: 0, status: 'RUNNING', jobType: 'structuresearch' });
+    const out = notReadySummary({ ticket: 'T1', queryIdx: 0, status: 'RUNNING', jobType: 'structuresearch' });
     assert.equal(out.code, 'RESULT_NOT_READY');
     assert.equal(out.next, 'get_ticket_status');
     assert.equal(out.counts, undefined);
     assert.equal(out.databases, undefined);
 
-    const failed = notReadySummary({ ticket: 'T1', entry: 0, status: 'ERROR', jobType: 'structuresearch' });
+    const failed = notReadySummary({ ticket: 'T1', queryIdx: 0, status: 'ERROR', jobType: 'structuresearch' });
     assert.equal(failed.code, 'RESULT_FAILED');
 });
 
@@ -189,13 +188,13 @@ test('the payload is bounded: no rows, no columns, no taxa, and small on the lar
 
 test('the summary carries selection metadata only, read fresh at call time', () => {
     const selections = [
-        { name: 'draft', page: 'foldseek', entry: 0, size: 2, ids: ['0#1', '0#2'], createdAt: 'a', updatedAt: 'b' },
+        { name: 'draft', page: 'foldseek', queryIdx: 0, size: 2, ids: ['0#1', '0#2'], createdAt: 'a', updatedAt: 'b' },
         { name: 'to-foldmason__001', page: 'foldmason', entry: 1, size: 9, createdAt: 'c', updatedAt: 'd' },
     ];
     const out = resultSummary({ ...base, table: table(FOLDSEEK), selections });
 
     assert.deepEqual(out.selections, [
-        { name: 'draft', kind: 'rows', size: 2, entry: 0, createdAt: 'a', updatedAt: 'b' },
+        { name: 'draft', kind: 'rows', size: 2, queryIdx: 0, createdAt: 'a', updatedAt: 'b' },
         { name: 'to-foldmason__001', kind: 'columns', size: 9, entry: 1, createdAt: 'c', updatedAt: 'd' },
     ]);
     assert.equal(JSON.stringify(out).includes('0#1'), false, 'membership is not orientation');
@@ -209,7 +208,7 @@ test('the submission summary keeps identity and size, never the structure', () =
         request: {
             databases: ['bfmd'], mode: '3diaa', taxFilter: '', queryBytes: 70123, queryHash: 'abc123',
         },
-        derivedFrom: { ticket: 'SRC', entry: 0, origin: 'chains', tool: 'foldseek', rowId: '0#3' },
+        derivedFrom: { ticket: 'SRC', queryIdx: 0, origin: 'chains', tool: 'foldseek', rowId: '0#3' },
     };
     const out = resultSummary({ ...base, table: table(FOLDSEEK), record });
 
@@ -289,17 +288,40 @@ test('a completed ticket is read from cache without a second status poll', async
     assert.equal(fetchImpl.calls.length, before, 'a terminal status and a cached result need no network');
 });
 
-test('the entry is normalized per job type and refused when it is nonsense', async () => {
+test('queryIdx is refused on a single-result job, and accepted on a search', async () => {
     const fetchImpl = stubFetch({
         '/ticket/type/': { type: 'folddisco' },
         '/ticket/': { id: 'T1', status: 'RUNNING' },
     });
     const client = createClient({ baseUrl: 'https://example.test', stateDir: await tmpDir(), fetchImpl });
 
-    const out = await client.getResultSummary('T1abcd', 4);
-    assert.equal(out.entry, 0);
-    assert.equal(out.entryNormalized, true);
+    // Refused, not collapsed: the caller meant something, and a FoldDisco ticket has no query 4.
+    await assert.rejects(() => client.getResultSummary('T1abcd', 4), (e) => {
+        assert.equal(e.code, 'INVALID_QUERY_IDX');
+        assert.match(e.message, /one result per ticket/);
+        return true;
+    });
+    await assert.rejects(() => client.getResultSummary('T1abcd', -1), e => e.code === 'INVALID_QUERY_IDX');
+    await assert.rejects(() => client.getResultSummary('T1abcd', 1.5), e => e.code === 'INVALID_QUERY_IDX');
 
-    await assert.rejects(() => client.getResultSummary('T1abcd', -1), e => e.code === 'INVALID_ENTRY');
-    await assert.rejects(() => client.getResultSummary('T1abcd', 1.5), e => e.code === 'INVALID_ENTRY');
+    // 0 is the only valid index there, and it is not reported: there is no query to index.
+    const zero = await client.getResultSummary('T1abcd', 0);
+    assert.equal('queryIdx' in zero, false, 'omitted where it has no meaning');
+});
+
+test('a selection made on a non-zero query records that query, not 0', async () => {
+    // getResult builds the table from the route's entry index; when the table's own field was renamed
+    // this silently reset to 0, so every selection claimed query 0.
+    const { ResultTable } = await import('../src/results.js');
+    const built = new ResultTable(FOLDSEEK, { ticket: 'T1abcd', queryIdx: 2, app: 'foldseek' });
+    assert.equal(built.queryIdx, 2, 'the table keeps the query it was built for');
+
+    const out = resultSummary({
+        ...base,
+        table: built,
+        selections: [{ name: 'q2', page: 'foldseek', queryIdx: 2, size: 1, ids: ['0#0'],
+            createdAt: 'a', updatedAt: 'b' }],
+    });
+    assert.equal(out.selections[0].queryIdx, 2);
+    assert.equal('entry' in out.selections[0], false, 'a hit selection has no alignment row');
 });

@@ -12,7 +12,7 @@ const PDB = 'ATOM      1  CA  MET A   1       1.000   2.000   3.000  1.00  0.00 
 // --- a host that cannot expand a config placeholder must not create an allowlist ------------------
 
 test('an unexpanded placeholder or a relative path is not an allowlist entry', async () => {
-    const { parseInputDirs, parseUrlHosts } = await import('../src/index.js');
+    const { parseInputDirs } = await import('../src/index.js');
 
     // What Claude Desktop hands over when a user_config key has no value.
     for (const junk of ['${user_config.input_dirs}', '[]', 'relative/dir', '.', '..', '']) {
@@ -21,11 +21,6 @@ test('an unexpanded placeholder or a relative path is not an allowlist entry', a
     assert.deepEqual(parseInputDirs(`/data${path.delimiter}\${user_config.x}${path.delimiter}rel`),
         ['/data'], 'the good entry survives and the rest do not');
 
-    for (const junk of ['${user_config.url_hosts}', '[]', 'has space', '', ',,']) {
-        assert.deepEqual(parseUrlHosts(junk), [], junk);
-    }
-    assert.deepEqual(parseUrlHosts('Files.Lab.test, ${user_config.x} ,alphafold.ebi.ac.uk'),
-        ['files.lab.test', 'alphafold.ebi.ac.uk']);
 });
 
 // --- a relative queryRef, so neither side hardcodes the other's absolute prefix ------------------
@@ -236,3 +231,40 @@ test('a directory that was already there is not claimed, so its files are never 
     await ensureSharedDirs(shared);
     assert.equal(fs.existsSync(path.join(importsDir, DROP_MARKER)), true);
 });
+
+// --- the declared ranking must be the order the file is in ---------------------------------------
+
+test('live: ranking.field is the field the exported rows are actually sorted by',
+    { skip: process.env.FOLDSEEK_SERVER_LIVE_TESTS !== '1' }, async () => {
+        const { createClient } = await import('../src/index.js');
+        const shared = await fsp.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-rank-'));
+        const state = await fsp.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-rank-st-'));
+
+        // One ticket per mode. tmalign is the case that was wrong: the file is ordered by `eval`,
+        // which holds a TM-score there, while the frontend's table defaults to `score`.
+        const cases = [
+            ['https://search.foldseek.com', 'zXdtIy4ZBaW9CmHXTKyfeMdLSDBOlvftku3N5g'],
+            ['https://search.foldseek.com', 'yLD2rYR4rmA9tZJJSYTMmicsGxn_GZGTPqk9-Q'],
+            ['https://search-dev.foldseek.com', 'IiM6hkv4AFhNjwMpLsTCU7toi1rtmUWuKnG8Cg'],
+            ['https://search-dev.foldseek.com', 'Em2-GqHdTPHD14Kt1w29H-WVJV_ihngbZCfj1A'],
+        ];
+        for (const [baseUrl, ticket] of cases) {
+            const client = createClient({ baseUrl, sharedDir: shared, stateDir: state });
+            const out = await client.exportResult(ticket);
+            const manifest = JSON.parse(
+                await fsp.readFile(path.join(out.artifactRoot, 'manifest.json'), 'utf8'));
+            const { field, direction } = manifest.ranking;
+
+            const rowFile = manifest.files.find(f => f.role === 'rows');
+            const lines = (await fsp.readFile(path.join(out.artifactRoot, rowFile.path), 'utf8'))
+                .trim().split('\n').map(l => JSON.parse(l));
+            const values = lines.map(r => r[field]).filter(v => typeof v === 'number');
+            assert.ok(values.length > 1, `${ticket}: ${field} is not numeric in the rows`);
+
+            const ordered = values.every((v, i) => (i === 0 ? true
+                : (direction === 'higher' ? values[i - 1] >= v : values[i - 1] <= v)));
+            assert.ok(ordered,
+                `${manifest.state.tool}/${manifest.state.mode}: rows are not ${direction}-first `
+                + `in ${field}, so ranking describes a sort the file does not have`);
+        }
+    });

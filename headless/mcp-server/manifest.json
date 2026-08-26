@@ -32,7 +32,6 @@
         "FOLDSEEK_SERVER_BASE_URL": "${user_config.base_url}",
         "FOLDSEEK_SERVER_STATE_DIR": "${user_config.state_dir}",
         "FOLDSEEK_SERVER_INPUT_DIRS": "${user_config.input_dir}",
-        "FOLDSEEK_SERVER_URL_HOSTS": "${user_config.url_hosts}",
         "FOLDSEEK_SERVER_SHARED_DIR": "${user_config.shared_dir}"
       }
     }
@@ -95,13 +94,6 @@
       "type": "directory",
       "title": "State directory",
       "description": "Where cached results, selections and exported artifacts are kept. Leave empty for ~/.foldseek-server. Artifact handles are only durable if this stays put.",
-      "required": false,
-      "default": ""
-    },
-    "url_hosts": {
-      "type": "string",
-      "title": "Downloadable hosts",
-      "description": "Hostnames the server may download structures from, comma separated. Leave empty to disable.",
       "required": false,
       "default": ""
     },

@@ -16,25 +16,23 @@ function summary(patch = {}) {
     return {
         schema: SUMMARY_SCHEMA,
         ticket: 'T1',
-        entry: 0,
+        queryIdx: 0,
         status: 'COMPLETE',
-        jobType: 'structuresearch',
         mode: '3diaa',
-        resultKind: 'search',
+        tool: 'foldseek',
         submission: { queryHash: 'abc123', queryBytes: 70123 },
         derivedFrom: null,
         databases: [{
-            dbIndex: 0, id: 'pdb100', display: 'PDB', version: '2024', hasTaxonomy: true, parsedRows: 3,
+            dbIndex: 0, id: 'pdb100', display: 'PDB', version: '2024', taxonomyTree: true, parsedRows: 3,
             topHit: { id: '0#1', target: '1STP', value: 512, taxName: 'Streptomyces avidinii' },
         }],
         counts: { serverAlignments: 3, parsedRows: 3, grouping: 'none' },
-        completeness: { complete: null, saturated: false, capSource: 'deployment-default', rowCap: 1000 },
+        completeness: { complete: null, saturated: false, rowCap: 1000 },
         ranking: RANKING,
         selections: [{
             name: 'draft', kind: 'rows', size: 2, entry: 0,
             createdAt: '2026-08-18T00:00:00.000Z', updatedAt: '2026-08-18T00:00:01.000Z',
         }],
-        exportAvailable: true,
         ...patch,
     };
 }
@@ -45,18 +43,18 @@ function manifest(patch = {}) {
         artifactId: 'a'.repeat(64),
         state: {
             serverNamespace: 'https://search.foldseek.com/api',
-            ticket: 'T1', entry: 0, jobType: 'structuresearch', mode: '3diaa', resultKind: 'search',
+            ticket: 'T1', queryIdx: 0, mode: '3diaa', tool: 'foldseek',
         },
         derivedFrom: null,
         createdAt: '2026-08-18T00:00:00.000Z',
         builtBy: { package: 'foldseek-server-lib', version: '0.1.0' },
         counts: { serverAlignments: 3, parsedRows: 3, exportedRows: 3, grouping: 'none' },
-        completeness: { complete: null, saturated: false, capSource: 'deployment-default', rowCap: 1000 },
+        completeness: { complete: null, saturated: false, rowCap: 1000 },
         ranking: RANKING,
         metricSemantics: { score: { label: 'Score', direction: 'higher', crossDatabaseComparable: true, sortOrder: -1 } },
         databases: [{
             dbIndex: 0, id: 'pdb100', safeName: 'db-0', display: 'PDB', version: null, status: 'COMPLETE',
-            taxonomy: true, hasTaxonomy: true, hasDescription: false, serverAlignments: 3, parsedRows: 3,
+            taxonomy: true, taxonomyTree: true, hasDescription: false, serverAlignments: 3, parsedRows: 3,
         }],
         files: [
             { role: 'manifest', path: 'manifest.json', mime: 'application/json', bytes: 800, rows: null },
@@ -76,8 +74,8 @@ test('a valid summary and a valid manifest pass', () => {
 
 test('a not-ready summary is its own shape, and cannot smuggle result data', () => {
     const notReady = {
-        schema: SUMMARY_SCHEMA, ticket: 'T1', entry: 0, status: 'RUNNING',
-        jobType: 'structuresearch', code: 'RESULT_NOT_READY', next: 'get_ticket_status',
+        schema: SUMMARY_SCHEMA, ticket: 'T1', queryIdx: 0, status: 'RUNNING', tool: 'foldseek',
+        code: 'RESULT_NOT_READY', next: 'get_ticket_status',
     };
     assert.equal(validateResultSummary(notReady).ok, true);
 
@@ -92,8 +90,8 @@ test('a not-ready summary is its own shape, and cannot smuggle result data', () 
 
 test('a complete summary cannot omit a required field, one at a time', () => {
     const required = [
-        'schema', 'ticket', 'entry', 'status', 'resultKind', 'submission', 'derivedFrom',
-        'databases', 'counts', 'completeness', 'ranking', 'selections', 'exportAvailable',
+        'schema', 'ticket', 'status', 'submission', 'derivedFrom',
+        'databases', 'counts', 'completeness', 'ranking', 'selections',
     ];
     for (const field of required) {
         const broken = summary();
@@ -119,9 +117,9 @@ test('a manifest cannot omit a required field, one at a time', () => {
 });
 
 test('wrong types, bad enums and unexpected keys are all refused', () => {
-    assert.deepEqual(paths(validateResultSummary(summary({ entry: '0' }))), ['entry']);
-    assert.deepEqual(paths(validateResultSummary(summary({ entry: -1 }))), ['entry']);
-    assert.deepEqual(paths(validateResultSummary(summary({ entry: 1.5 }))), ['entry']);
+    assert.deepEqual(paths(validateResultSummary(summary({ queryIdx: '0' }))), ['queryIdx']);
+    assert.deepEqual(paths(validateResultSummary(summary({ queryIdx: -1 }))), ['queryIdx']);
+    assert.deepEqual(paths(validateResultSummary(summary({ queryIdx: 1.5 }))), ['queryIdx']);
     assert.deepEqual(paths(validateResultSummary(summary({ resultKind: 'msa' }))), ['resultKind']);
     assert.deepEqual(paths(validateResultSummary(summary({ ranking: { ...RANKING, label: undefined } }))),
         ['ranking.label']);
@@ -133,21 +131,19 @@ test('wrong types, bad enums and unexpected keys are all refused', () => {
 
 test('tri-state completeness accepts null but not a third value', () => {
     assert.equal(validateResultSummary(summary({
-        completeness: { complete: null, saturated: false, capSource: 'not-applicable' },
+        completeness: { complete: null, saturated: false },
     })).ok, true);
     assert.equal(validateResultSummary(summary({
-        completeness: { complete: true, saturated: false, capSource: 'worker-fixed' },
+        completeness: { complete: true, saturated: false },
     })).ok, true);
 
     const bad = validateResultSummary(summary({
-        completeness: { complete: 'maybe', saturated: false, capSource: 'worker-fixed' },
+        completeness: { complete: 'maybe', saturated: false },
     }));
     assert.deepEqual(paths(bad), ['completeness.complete']);
 
-    const badSource = validateResultSummary(summary({
-        completeness: { complete: null, saturated: false, capSource: 'guessed' },
-    }));
-    assert.deepEqual(paths(badSource), ['completeness.capSource']);
+    const missing = validateResultSummary(summary({ completeness: { complete: null } }));
+    assert.deepEqual(paths(missing), ['completeness.saturated']);
 });
 
 test('nested errors carry the full path', () => {
@@ -195,10 +191,10 @@ test('foldmason shapes: no ranking, no databases, complete is true', () => {
     assert.equal(validateArtifactManifest(manifest({
         state: {
             serverNamespace: 'https://search.foldseek.com/api',
-            ticket: 'T2', entry: 0, jobType: 'foldmasoneasymsa', mode: null, resultKind: 'foldmason',
+            ticket: 'T2', queryIdx: 0, mode: null, tool: 'foldmason',
         },
         counts: { serverAlignments: 0, parsedRows: 15, exportedRows: 15, grouping: 'none' },
-        completeness: { complete: true, saturated: false, capSource: 'not-applicable', rowCap: null },
+        completeness: { complete: true, saturated: false, rowCap: null },
         ranking: null,
         metricSemantics: {},
         databases: [],

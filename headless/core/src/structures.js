@@ -4,6 +4,12 @@
 import { fetchAccession, searchBindingSites, fetchBindingSite } from '../../../frontend/lib/accession.js';
 import { checkMotif, normalizeChainNames } from './motif.js';
 
+function coded(code, message) {
+    const err = new Error(message);
+    err.code = code;
+    return err;
+}
+
 export const RECONSTRUCT_TIMEOUT_MS = 180_000;
 export const FETCH_TIMEOUT_MS = 120_000;
 
@@ -271,7 +277,7 @@ export async function loadAccession(client, id, {
     source = 'PDB', autoMotif = true, normalizeChains = true,
 } = {}) {
     const { name, text } = await fetchAccession(id, source).catch(() => {
-        throw new Error(`could not load ${id} from ${source}`);
+        throw coded('UPSTREAM_FAILED', `could not load ${id} from ${source}`);
     });
 
     const loaded = new LoadedStructure(client, { id, source, name, text });

@@ -14,7 +14,6 @@
 //   FOLDSEEK_SERVER_INPUT_DIRS   default empty   colon-separated dirs queryRef may read
 //                                                 (or `--input-dir A B C`, for hosts that pass lists
 //                                                  as arguments rather than environment strings)
-//   FOLDSEEK_SERVER_URL_HOSTS    default empty   comma-separated hosts queryUrl may fetch
 //   FOLDSEEK_SERVER_INPUT_TTL    default 1h      dropped files, from last use
 //   FOLDSEEK_SERVER_RESULT_ROW_CAP  default unset  (1 .. 1000000)
 //

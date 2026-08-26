@@ -37,8 +37,6 @@ export const NUMERIC_METRIC_FIELDS = [
 // Labels are the page's own (ResultFoldseekDB.vue, ResultFoldDiscoDB.vue), so a value an agent
 // reports is named the way a human reading the same result sees it.
 export const METRIC_SEMANTICS = Object.freeze({
-    '3di.eval': { label: 'E-Value', direction: LOWER, crossDatabaseComparable: false },
-    '3di.score': { label: 'Score', direction: HIGHER, crossDatabaseComparable: true },
     '3diaa.eval': { label: 'E-Value', direction: LOWER, crossDatabaseComparable: false },
     '3diaa.score': { label: 'Score', direction: HIGHER, crossDatabaseComparable: true },
     'tmalign.eval': { label: 'TM-score', direction: HIGHER, crossDatabaseComparable: true },
@@ -75,27 +73,32 @@ export function metricSemantics({ tool = 'foldseek', mode = '', field } = {}) {
     // job, so the result — and therefore the parser and the sorter — only ever sees "tmalign".
     const resolved = baseMode(String(mode ?? ''));
     const entry = METRIC_SEMANTICS[registryKey(tool, resolved, field)];
-    const sortKey = SORT_KEY_FOR_FIELD[field] ?? null;
-    const sortOrder = sortKey ? defaultSortOrder(sortKey, { mode: resolved }) : null;
-
     if (!entry) {
-        return { known: false, label: field, direction: HIGHER, crossDatabaseComparable: null, sortOrder };
+        return { known: false, label: field, direction: HIGHER, crossDatabaseComparable: null };
     }
     return {
         known: true,
         label: entry.label,
         direction: entry.direction,
         crossDatabaseComparable: entry.crossDatabaseComparable,
-        sortOrder,
     };
 }
 
-/** The ranking a result table uses when nothing is asked for — mirrors ResultTable.getTable. */
+/**
+ * The order the server actually returns rows in, which is the order the artifact writes them.
+ */
+export function defaultSortKey({ tool = 'foldseek', mode = '', isComplex = false } = {}) {
+    if (tool === 'folddisco') return 'idf';
+    if (isComplex) return 'qtm';
+    const resolved = baseMode(String(mode ?? ''));
+    return resolved === 'tmalign' || resolved === 'lolalign' ? 'eval' : 'score';
+}
+
 export function defaultRankingSemantics({ tool = 'foldseek', mode = '', isComplex = false } = {}) {
-    const sortKey = tool === 'folddisco' ? 'idf' : (isComplex ? 'qtm' : 'score');
+    const sortKey = defaultSortKey({ tool, mode, isComplex });
     const field = rowFieldForSortKey(sortKey, tool);
     const { known, ...facts } = metricSemantics({ tool, mode, field });
-    return { sortKey, field, ...facts };
+    return { field, ...facts };
 }
 
 /**

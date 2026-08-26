@@ -8,6 +8,7 @@ import { expandDescendants, findTaxonByName, summarizeTaxonomy } from '../../../
 import { getAccession } from '../../../frontend/lib/targetName.js';
 import { QuerySet } from './submit.js';
 import { motifFromTargetResidues } from './motif.js';
+import { defaultSortKey } from './metrics.js';
 
 const SORT_KEYS = { foldseek: FOLDSEEK_SORT_KEYS, folddisco: FOLDDISCO_SORT_KEYS };
 
@@ -60,18 +61,18 @@ export class Row {
                 motif: motifFromTargetResidues(head.targetresidues) || undefined,
                 db,
                 ticket: table.ticket,
-                lineage: { entry: table.entry, rowId: this.id, db },
+                lineage: { queryIdx: table.queryIdx, rowId: this.id, db },
             }), { label });
         }
 
         return client.query(async () => ({
             kind: 'chains',
             chains: await client.getHitChains(table.ticket,
-                { entry: table.entry, db, idx: Number(this.groupId) }),
+                { queryIdx: table.queryIdx, db, idx: Number(this.groupId) }),
             db,
             accession: getAccession(head.target ?? label),
             ticket: table.ticket,
-            lineage: { entry: table.entry, rowId: this.id, db },
+            lineage: { queryIdx: table.queryIdx, rowId: this.id, db },
         }), { label });
     }
 
@@ -86,12 +87,12 @@ function numeric(value) {
 export class ResultTable {
     /**
      * @param {object} parsed  parseResults()/parseResultsFoldDisco() output
-     * @param {{ticket: string, entry: number, app: string, tool?: string}} meta
+     * @param {{ticket: string, queryIdx: number, app: string, tool?: string}} meta
      */
-    constructor(parsed, { ticket, entry = 0, app = 'foldseek', tool = 'foldseek', client = null } = {}) {
+    constructor(parsed, { ticket, queryIdx = 0, app = 'foldseek', tool = 'foldseek', client = null } = {}) {
         this.raw = parsed;
         this.ticket = ticket;
-        this.entry = entry;
+        this.queryIdx = queryIdx;
         this.app = app;
         this.tool = tool;
         // Reading a table needs no client; forwarding a row does. A table built straight from a
@@ -114,7 +115,7 @@ export class ResultTable {
         return String(this.raw?.mode ?? '').includes('complex') || this.raw?.type === 'complexsearch';
     }
 
-    /** This entry's query. A ticket can hold several; the route's entry index picks one. */
+    /** This query. A ticket can hold several; queryIdx picks one. */
     get queries() { return this.raw?.queries ?? []; }
     get query() { return this.queries[0] ?? null; }
     get queryHeader() { return this.query?.header ?? null; }
@@ -348,7 +349,7 @@ export class ResultTable {
             const entryData = this.raw.results[dbIdx];
             const alignments = entryData.alignments || {};
             const key = sortKey
-                || (this.tool === 'folddisco' ? 'idf' : (this.isComplex ? 'qtm' : 'score'));
+                || defaultSortKey({ tool: this.tool, mode: this.mode, isComplex: this.isComplex });
             if (!isValidSortKey(key, this.tool)) {
                 return {
                     db: entryData.db, dbIndex: dbIdx,
@@ -408,7 +409,7 @@ export class ResultTable {
             ok: !databases.some(d => d.error),
             page: this.tool,
             ticket: this.ticket,
-            entry: this.entry,
+            queryIdx: this.queryIdx,
             type: this.raw.type ?? (this.tool === 'folddisco' ? 'folddisco' : 'structuresearch'),
             mode: this.mode,
             isComplex: this.isComplex,
@@ -454,7 +455,7 @@ export class ResultTable {
         const databases = targets.map(dbIdx => {
             const entryData = this.raw.results[dbIdx];
             const alignments = entryData.alignments || {};
-            const key = this.tool === 'folddisco' ? 'idf' : (this.isComplex ? 'qtm' : 'score');
+            const key = defaultSortKey({ tool: this.tool, mode: this.mode, isComplex: this.isComplex });
             const order = defaultSortOrder(key, { mode: this.mode });
             const sorted = this._sortMemo.get(`${dbIdx}:${this.mode}`, alignments, key, order,
                 { mode: this.mode, isComplex: this.isComplex, tool: this.tool });
@@ -500,7 +501,7 @@ export class ResultTable {
             ok: true,
             page: this.tool,
             ticket: this.ticket,
-            entry: this.entry,
+            queryIdx: this.queryIdx,
             isComplex: this.isComplex,
             databases,
         };
@@ -654,7 +655,7 @@ export class Selection {
     async save(name = this.name) {
         this.name = name;
         const record = await this.table.requireClient().store.writeSelection(this.table.ticket, name, {
-            entry: this.table.entry,
+            queryIdx: this.table.queryIdx,
             page: this.table.tool,
             ids: this.ids,
         });
@@ -682,7 +683,7 @@ export class Selection {
         return {
             name: this.name,
             ticket: this.table.ticket,
-            entry: this.table.entry,
+            queryIdx: this.table.queryIdx,
             page: this.table.tool,
             size: entries.length,
             ...(this.savedAt ? { savedAt: this.savedAt } : { saved: false }),
@@ -697,7 +698,7 @@ export class Selection {
         const client = this.table.requireClient();
         return new QuerySet(client, this.rows().map(r => r.toQuery()), {
             ticket: this.table.ticket,
-            entry: this.table.entry,
+            queryIdx: this.table.queryIdx,
             description: this.describe(),
         });
     }

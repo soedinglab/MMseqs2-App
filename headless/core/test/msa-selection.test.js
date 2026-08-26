@@ -253,7 +253,7 @@ test('a column selection survives the process that made it, substitutions includ
 test('a record written by the old version loads, and its stored motif is ignored', async () => {
     const client = await makeClient();
     await client.store.writeSelection('MSA1', 'legacy', {
-        page: 'foldmason', entry: 0, columns: [0, 1], motif: 'A1, A3',
+        page: 'foldmason', queryIdx: 0, columns: [0, 1], motif: 'A1, A3',
     });
 
     const restored = await client.loadMsaSelection('MSA1', 'legacy');

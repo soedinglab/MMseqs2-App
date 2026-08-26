@@ -4,9 +4,13 @@
 import { SUMMARY_SCHEMA, validateResultSummary } from './schemas.js';
 import { defaultRankingSemantics } from './metrics.js';
 import {
-    kindForJobType, resultCounts, completenessOf, databaseProvenance, motifPatternExport, serializeRow,
+    kindForJobType, toolForJobType, resultCounts, completenessOf, databaseProvenance,
+    motifPatternExport, serializeRow,
 } from './facts.js';
 import { foldMasonSummary } from './msa.js';
+
+// One result per ticket, so there is no query to index.
+const SINGLE_UNIT = new Set(['foldmason', 'folddisco']);
 
 const MOTIF_PATTERN_SAMPLE = 5;
 
@@ -16,7 +20,10 @@ function selectionMetadata(records) {
         name: record.name,
         kind: record.page === 'foldmason' ? 'columns' : 'rows',
         size: record.size ?? 0,
-        entry: Number.isSafeInteger(record.entry) ? record.entry : null,
+        // Each kind reports its own index under its own name: a hit selection belongs to a query,
+        // a column selection to an alignment row.
+        ...(Number.isSafeInteger(record.queryIdx) ? { queryIdx: record.queryIdx } : {}),
+        ...(Number.isSafeInteger(record.entry) ? { entry: record.entry } : {}),
         createdAt: record.createdAt ?? null,
         updatedAt: record.updatedAt ?? null,
     }));
@@ -73,15 +80,14 @@ function topHitFor(parsed, dbIndex, rowId, tool, field) {
     };
 }
 
-export function notReadySummary({ ticket, entry = 0, entryNormalized = false, status, jobType = null }) {
+export function notReadySummary({ ticket, queryIdx = 0, status, jobType = null }) {
     const failed = status === 'ERROR' || status === 'UNKNOWN';
     const out = {
         schema: SUMMARY_SCHEMA,
         ticket,
-        entry,
-        ...(entryNormalized ? { entryNormalized } : {}),
+        ...(SINGLE_UNIT.has(kindForJobType(jobType)) ? {} : { queryIdx }),
         status,
-        jobType,
+        tool: toolForJobType(jobType),
         code: failed ? 'RESULT_FAILED' : 'RESULT_NOT_READY',
         next: 'get_ticket_status',
     };
@@ -98,7 +104,7 @@ export function notReadySummary({ ticket, entry = 0, entryNormalized = false, st
  * @param {object[]} [input.selections] store.listSelections output
  */
 export function resultSummary({
-    ticket, entry = 0, entryNormalized = false, jobType, status = 'COMPLETE',
+    ticket, queryIdx = 0, jobType, status = 'COMPLETE',
     table = null, foldMasonResult = null, record = null, catalog = null,
     selections = [], configuredCap = null,
 }) {
@@ -106,10 +112,9 @@ export function resultSummary({
     const head = {
         schema: SUMMARY_SCHEMA,
         ticket,
-        entry,
-        ...(entryNormalized ? { entryNormalized } : {}),
+        ...(SINGLE_UNIT.has(kindForJobType(jobType)) ? {} : { queryIdx }),
         status,
-        jobType,
+        tool: toolForJobType(jobType),
         derivedFrom: record?.derivedFrom ?? null,
         selections: selectionMetadata(selections),
     };
@@ -122,7 +127,6 @@ export function resultSummary({
         out = {
             ...head,
             mode: null,
-            resultKind: 'foldmason',
             submission: submissionSummary(record, null),
             databases: [],
             counts: {
@@ -134,7 +138,6 @@ export function resultSummary({
             ranking: null,
             // Whether an export carries data files beyond the manifest. An empty result still exports
             // — recording that a search found nothing is a real answer.
-            exportAvailable: entries.length > 0,
             msa,
         };
     } else {
@@ -155,7 +158,7 @@ export function resultSummary({
             id: db.id,
             display: db.display,
             version: db.version,
-            hasTaxonomy: db.hasTaxonomy,
+            taxonomyTree: db.taxonomyTree,
             parsedRows: counts.databases[i].parsedRows,
             topHit: topHitFor(parsed, db.dbIndex, topRow.get(db.dbIndex), table.tool, ranking.field),
         }));
@@ -167,7 +170,6 @@ export function resultSummary({
         out = {
             ...head,
             mode: table.mode || null,
-            resultKind: kind === 'complexsearch' ? 'complexsearch' : (table.tool === 'folddisco' ? 'folddisco' : 'search'),
             submission: submissionSummary(record, parsed),
             databases,
             counts: {
@@ -177,7 +179,6 @@ export function resultSummary({
             },
             completeness: completenessOf({ jobType, parsedRows: largest, configuredCap }),
             ranking,
-            exportAvailable: counts.parsedRows > 0,
             ...(table.tool === 'folddisco' ? { motifPatterns: motifPatternSample(parsed) } : {}),
         };
     }

@@ -1,12 +1,16 @@
 // The eleven tools: name, schema, handler. No MCP SDK here — server.js does the wrapping.
 
 import {
-    UnsupportedOnDeploymentError, DESTINATIONS, expandRanges, kindForJobType,
-    resolveInputPath, resolveInputUrl,
+    UnsupportedOnDeploymentError, DESTINATIONS, expandRanges, toolForJobType,
+    resolveInputPath,
 } from 'foldseek-server-lib';
 
 const TICKET = { type: 'string', description: 'Ticket id.' };
-const ENTRY = { type: 'number', description: 'Query index. Foldseek and multimer only; default 0.' };
+const QUERY_IDX = {
+    type: 'number',
+    description: 'Which query of a multi-query ticket; default 0. Foldseek and multimer only — '
+               + 'FoldMason and FoldDisco serve one result per ticket.',
+};
 const QUERY = { type: 'string', description: 'Structure as PDB or mmCIF text.' };
 function pathArg(dirs, { many = false } = {}) {
     const kind = many ? 'Names' : 'Name';
@@ -20,17 +24,12 @@ function pathArg(dirs, { many = false } = {}) {
         : { type: 'string', description };
 }
 
-const QUERY_URL = {
-    type: 'string',
-    description: 'https URL the server downloads. Needs FOLDSEEK_SERVER_URL_HOSTS.',
-};
-const FILE_URLS = {
-    type: 'array',
-    minItems: 2,
-    items: { type: 'string' },
-    description: 'https URLs the server downloads instead of files. Needs FOLDSEEK_SERVER_URL_HOSTS.',
-};
 const DATABASES = { type: 'array', items: { type: 'string' }, description: 'Paths from list_databases.' };
+const TAX_FILTER = {
+    type: 'string',
+    description: 'Taxon ids or scientific names; "!" negates after the first. '
+               + 'e.g. "Bacteria,!Escherichia coli".',
+};
 const EMAIL = { type: 'string', description: 'Optional notification address.' };
 const VALIDATE_ONLY = { type: 'boolean', description: 'Run every check and report; submit nothing.' };
 const NAME = { type: 'string', description: 'Selection name; default "default".' };
@@ -62,8 +61,8 @@ function refuseForeign(args, foreign, tool) {
 }
 
 function confirm(selection, rejected = []) {
-    const { entries, ...rest } = selection.describe();
-    return { ...rest, ...(rejected.length ? { rejected } : {}) };
+    const { name, size } = selection.describe();
+    return { name, size, ...(rejected.length ? { rejected } : {}) };
 }
 
 /** A selection read back: `size` is exact, the entry list is capped. */
@@ -77,24 +76,47 @@ function describe(selection, maxEntries) {
     };
 }
 
-export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs = [] } = {}) {
+export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
     const readPath = p => resolveInputPath(p, { inputDirs, touchDirs });
-    const readUrl = u => resolveInputUrl(u, { urlHosts, fetchImpl: client.fetchImpl });
     // Advertised only when it can work. A schema offering a capability that always refuses is worse
     // than one that never mentions it.
     const byPath = inputDirs.length ? { queryRef: pathArg(inputDirs) } : {};
     const byPaths = inputDirs.length ? { fileRefs: pathArg(inputDirs, { many: true }) } : {};
-    const byUrl = urlHosts.length ? { queryUrl: QUERY_URL } : {};
-    const byUrls = urlHosts.length ? { fileUrls: FILE_URLS } : {};
 
-    const resolveQuery = async ({ query, queryRef, queryUrl, accession, motif }) => {
-        const all = { query, queryRef, queryUrl, accession };
-        const given = Object.keys(all).filter(k => all[k]);
-        if (given.length > 1) {
-            throw coded('INVALID_INPUT',
-                `pass one of ${Object.keys(all).join(', ')} — got ${given.join(', ')}`);
+    /** Accessions for an alignment: no motif lookup, and each name keeps a real extension. */
+    const fetched = async (specs) => {
+        const ids = specs.map((spec) => {
+            const s = typeof spec === 'string' ? { id: spec } : spec;
+            const id = s?.id ?? s?.accession;
+            if (!id) throw coded('INVALID_INPUT', 'each accession must be an id or {id, source}');
+            return { id, source: s.source || 'PDB' };
+        });
+        const bySource = new Map();
+        for (const { id, source } of ids) {
+            if (!bySource.has(source)) bySource.set(source, []);
+            bySource.get(source).push(id);
         }
-        for (const [key, read] of [['queryRef', readPath], ['queryUrl', readUrl]]) {
+        const out = [];
+        for (const [source, list] of bySource) {
+            const loaded = await client.loadAccessions(list, { source });
+            if (loaded.failed.length) {
+                throw coded('INVALID_INPUT',
+                    `could not load ${loaded.failed.map(f => f.id).join(', ')} from ${source}`);
+            }
+            out.push(...loaded.structures.map(st => ({ name: st.name, content: st.text })));
+        }
+        return out;
+    };
+
+    // FoldMason brings `files` instead of a single query, so it opts out of the arity rule.
+    const resolveQuery = async ({ query, queryRef, accession, motif }, { required = true } = {}) => {
+        const all = { query, queryRef, accession };
+        const given = Object.keys(all).filter(k => all[k]);
+        if (given.length > 1 || (required && given.length === 0)) {
+            throw coded('INVALID_INPUT',
+                `pass exactly one of ${Object.keys(all).join(', ')} — got ${given.join(', ') || 'none'}`);
+        }
+        for (const [key, read] of [['queryRef', readPath]]) {
             if (!all[key]) continue;
             const file = await read(all[key]);
             return { query: file.text, motif, loaded: { name: file.name, bytes: file.bytes } };
@@ -112,10 +134,10 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
     };
 
     const submit = async (tool, args, run) => {
-        const resolved = await resolveQuery(args);
+        const resolved = await resolveQuery(args, { required: tool !== 'foldmason' });
         // Neither a local path nor a URL reaches the client: only the text it held. A URL can carry a
         // presigned signature, so it is no more recordable than a path.
-        const { queryRef, queryUrl, ...rest } = args;
+        const { queryRef, ...rest } = args;
         const full = { ...rest, query: resolved.query, ...(resolved.motif ? { motif: resolved.motif } : {}) };
         if (args.validateOnly) {
             const report = await client.validateSubmission({ tool, ...full });
@@ -127,17 +149,23 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
             status: ticket.status ?? 'PENDING',
             // Which motif was searched, when the caller did not supply it themselves.
             ...(full.motif ? { motif: full.motif } : {}),
+            // Which taxa a name turned into. Only when one did: the ids are the material fact and the
+            // caller never passed them.
+            ...(ticket.taxonomy ? { taxFilter: ticket.taxonomy.filter,
+                taxonomy: ticket.taxonomy.resolved.map(({ name, taxId, sciName, negated }) => (
+                    { name, taxId, ...(sciName !== name ? { sciName } : {}),
+                      ...(negated ? { negated } : {}) })) } : {}),
         };
         return resolved.loaded ? { ...out, loaded: resolved.loaded } : out;
     };
 
     const resolveSource = async (from) => {
-        const { type, ticketId, entry = 0, rowId, name = 'default' } = from ?? {};
+        const { type, ticketId, queryIdx = 0, rowId, name = 'default' } = from ?? {};
         if (type === 'row') {
-            return (await client.getResultTable(ticketId, { entry })).row(rowId);
+            return (await client.getResultTable(ticketId, { queryIdx })).row(rowId);
         }
         if (type === 'selection') {
-            const table = await client.getResultTable(ticketId, { entry });
+            const table = await client.getResultTable(ticketId, { queryIdx });
             const selection = await table.loadSelection(name);
             if (!selection) {
                 throw coded('SELECTION_NOT_FOUND',
@@ -162,31 +190,30 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
     return [
         {
             name: 'list_databases',
-            description: 'Databases this server offers. Pass jobType for only the ones that tool accepts.',
+            description: 'Databases this server offers. Pass tool for only the ones it accepts.',
             inputSchema: {
                 type: 'object',
                 properties: {
-                    jobType: { type: 'string', enum: SUBMIT_TOOLS.filter(t => t !== 'foldmason_msa') },
+                    tool: { type: 'string', enum: ['foldseek', 'multimer', 'folddisco'] },
                 },
             },
-            async handler({ jobType = null }) {
+            async handler({ tool = null }) {
                 const usable = {
-                    foldseek_search: d => !d.interface && !d.motif,
-                    multimer_search: d => d.complex && !d.interface && !d.motif,
-                    folddisco_search: d => d.motif && !d.interface,
+                    foldseek: d => !d.interface && !d.motif,
+                    multimer: d => d.complex && !d.interface && !d.motif,
+                    folddisco: d => d.motif && !d.interface,
                 };
                 const all = await client.getDatabases();
-                const listed = jobType ? all.filter(usable[jobType]) : all;
+                const listed = tool ? all.filter(usable[tool]) : all;
                 return {
-                    ...(jobType ? { jobType } : {}),
                     databases: listed.map(d => ({
                         path: d.path,
                         name: d.name,
                         version: d.version,
                         status: d.status,
                         taxonomy: !!d.taxonomy,
-                        ...(jobType ? {} : {
-                            usableFor: Object.keys(usable).filter(tool => usable[tool](d)),
+                        ...(tool ? {} : {
+                            usableFor: Object.keys(usable).filter(t => usable[t](d)),
                         }),
                     })),
                 };
@@ -203,12 +230,11 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                 properties: {
                     query: QUERY,
                     ...byPath,
-                    ...byUrl,
                     accession: ACCESSION,
                     databases: DATABASES,
-                    mode: { type: 'string', enum: ['3diaa', '3di', 'tmalign', 'lolalign'], description: 'Default 3diaa.' },
+                    mode: { type: 'string', enum: ['3diaa', 'tmalign', 'lolalign'], description: 'Default 3diaa.' },
                     iterativeSearch: { type: 'boolean' },
-                    taxFilter: { type: 'string', description: 'Taxon ids, comma separated; "!" negates after the first.' },
+                    taxFilter: TAX_FILTER,
                     email: EMAIL,
                     validateOnly: VALIDATE_ONLY,
                 },
@@ -224,26 +250,24 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
         {
             name: 'multimer_search',
             description: 'Search a complex against complex-capable databases. ' +
-                         'Iterative search and taxon filtering do not apply.',
+                         'Iterative search does not apply.',
             inputSchema: {
                 type: 'object',
                 required: ['databases'],
                 properties: {
                     query: QUERY,
                     ...byPath,
-                    ...byUrl,
                     accession: ACCESSION,
                     databases: DATABASES,
-                    mode: { type: 'string', enum: ['3diaa', '3di', 'tmalign', 'lolalign'], description: 'Default 3diaa.' },
+                    mode: { type: 'string', enum: ['3diaa', 'tmalign', 'lolalign'], description: 'Default 3diaa.' },
+                    taxFilter: TAX_FILTER,
                     email: EMAIL,
                     validateOnly: VALIDATE_ONLY,
                 },
             },
             async handler(args) {
-                const ignored = ['iterativeSearch', 'taxFilter'].filter(k => args[k] !== undefined);
-                const out = await submit('multimer', { ...args, iterativeSearch: false, taxFilter: '' },
-                    a => client.submitMultimerSearch(a));
-                return ignored.length ? { ...out, ignored } : out;
+                refuseForeign(args, ['iterativeSearch'], 'multimer_search');
+                return submit('multimer', args, a => client.submitMultimerSearch(a));
             },
         },
 
@@ -255,8 +279,8 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                 properties: {
                     files: {
                         type: 'array',
-                        minItems: 2,
-                        description: 'Structures to align.',
+                        minItems: 1,
+                        description: 'Structures as text. Combines with fileRefs and accessions.',
                         items: {
                             type: 'object',
                             required: ['name', 'content'],
@@ -264,27 +288,36 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                         },
                     },
                     ...byPaths,
-                    ...byUrls,
+                    accessions: {
+                        type: 'array',
+                        minItems: 1,
+                        description: 'Ids the server fetches, e.g. ["1abc", {"id": "P0DTC2", '
+                                   + '"source": "AlphaFoldDB"}]. Combines with the other two.',
+                        items: { type: ['string', 'object'] },
+                    },
                     email: EMAIL,
                     validateOnly: VALIDATE_ONLY,
                 },
             },
             async handler(args) {
-                const { fileRefs, fileUrls, ...rest } = args;
-                const kinds = ['files', 'fileRefs', 'fileUrls'];
-                const given = kinds.filter(k => args[k]);
-                if (given.length !== 1) {
-                    throw coded('INVALID_INPUT',
-                        `pass exactly one of ${kinds.join(', ')} — got ${given.join(', ') || 'none'}`);
-                }
-                const load = async (list, read) => Promise.all(list.map(async (item) => {
-                    const file = await read(item);
+                const { files, fileRefs, accessions, ...rest } = args;
+                const read = async (list) => Promise.all(list.map(async (item) => {
+                    const file = await readPath(item);
                     return { name: file.name, content: file.text };
                 }));
-                const files = fileRefs ? await load(fileRefs, readPath)
-                    : fileUrls ? await load(fileUrls, readUrl)
-                        : args.files;
-                return submit('foldmason', { ...rest, files }, a => client.submitFoldMason(a));
+                // Order is declared, because an entry's index is what a column selection refers to.
+                const assembled = [
+                    ...(files ?? []),
+                    ...(fileRefs ? await read(fileRefs) : []),
+                    ...(accessions ? await fetched(accessions) : []),
+                ];
+                if (assembled.length < 2) {
+                    throw coded('INVALID_INPUT',
+                        'foldmason needs at least two structures across files, fileRefs and '
+                        + `accessions — got ${assembled.length}`);
+                }
+                return submit('foldmason', { ...rest, files: assembled },
+                    a => client.submitFoldMason(a));
             },
         },
 
@@ -298,7 +331,6 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                 properties: {
                     query: QUERY,
                     ...byPath,
-                    ...byUrl,
                     accession: ACCESSION,
                     databases: { ...DATABASES, description: 'Motif-capable paths from list_databases.' },
                     motif: { type: 'string', description: 'Required unless an accession supplies one.' },
@@ -307,8 +339,10 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                 },
             },
             async handler(args) {
-                const out = await submit('folddisco', args, a => client.submitFoldDisco(a));
-                return out;
+                // FoldDiscoJob has no TaxFilter or Mode field, so these would be dropped in silence —
+                // and a caller who thought they had filtered would read an unfiltered result.
+                refuseForeign(args, ['taxFilter', 'mode', 'iterativeSearch'], 'folddisco_search');
+                return submit('folddisco', args, a => client.submitFoldDisco(a));
             },
         },
 
@@ -325,8 +359,7 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                 return {
                     ticketId,
                     status,
-                    jobType: type?.type ?? null,
-                    resultKind: type?.type ? kindForJobType(type.type) : null,
+                    tool: type?.type ? toolForJobType(type.type) : null,
                     resultUrl: await client.resultUrl(ticketId).catch(() => null),
                     ...(record?.derivedFrom ? { derivedFrom: record.derivedFrom } : {}),
                 };
@@ -340,10 +373,10 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
             inputSchema: {
                 type: 'object',
                 required: ['ticketId'],
-                properties: { ticketId: TICKET, entry: ENTRY },
+                properties: { ticketId: TICKET, queryIdx: QUERY_IDX },
             },
-            handler({ ticketId, entry = 0 }) {
-                return client.getResultSummary(ticketId, entry);
+            handler({ ticketId, queryIdx = 0 }) {
+                return client.getResultSummary(ticketId, queryIdx);
             },
         },
 
@@ -356,7 +389,7 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                 required: ['ticketId'],
                 properties: {
                     ticketId: TICKET,
-                    entry: ENTRY,
+                    queryIdx: QUERY_IDX,
                     mountRoot: {
                         type: 'string',
                         description: 'Where you see the export directory, if not at the server\'s path. ' +
@@ -364,8 +397,8 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                     },
                 },
             },
-            handler({ ticketId, entry = 0, mountRoot = null }) {
-                return client.exportResult(ticketId, entry, { mountRoot });
+            handler({ ticketId, queryIdx = 0, mountRoot = null }) {
+                return client.exportResult(ticketId, queryIdx, { mountRoot });
             },
         },
 
@@ -378,7 +411,7 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                 required: ['ticketId'],
                 properties: {
                     ticketId: TICKET,
-                    entry: ENTRY,
+                    queryIdx: QUERY_IDX,
                     name: NAME,
                     action: {
                         type: 'string',
@@ -391,17 +424,17 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                 },
             },
             async handler(args) {
-                const { ticketId, entry = 0, name = 'default', action = 'set', ids = [], fromName,
+                const { ticketId, queryIdx = 0, name = 'default', action = 'set', ids = [], fromName,
                     maxEntries = 25 } = args;
                 refuseForeign(args, ['columns', 'ranges', 'motif'], 'select_hits');
 
-                const table = await client.getResultTable(ticketId, { entry });
+                const table = await client.getResultTable(ticketId, { queryIdx });
                 if (action === 'list') return { ticketId, selections: await table.listSelections() };
-                if (action === 'delete') return { ticketId, name, deleted: await table.deleteSelection(name) };
+                if (action === 'delete') return { name, deleted: await table.deleteSelection(name) };
                 if (action === 'copy') {
                     if (!fromName) throw coded('INVALID_INPUT', 'copy needs fromName and name');
                     const record = await client.copySelection(ticketId, fromName, name);
-                    return { ticketId, name, copiedFrom: fromName, size: record.ids?.length ?? 0 };
+                    return { name, size: record.ids?.length ?? 0 };
                 }
 
                 const existing = await table.loadSelection(name);
@@ -480,7 +513,7 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                 if (action === 'copy') {
                     if (!fromName) throw coded('INVALID_INPUT', 'copy needs fromName and name');
                     const record = await client.copySelection(ticketId, fromName, name);
-                    return { ticketId, name, copiedFrom: fromName, size: record.columns?.length ?? 0 };
+                    return { name, size: record.columns?.length ?? 0 };
                 }
 
                 const existing = await client.loadMsaSelection(ticketId, name);
@@ -512,8 +545,15 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
 
                 if (residues !== undefined) selection.setResidueAa(residues);
                 await selection.save(name);
+                const full = selection.describe();
                 return {
-                    ...selection.describe(),
+                    name: full.name,
+                    entryName: full.entryName,
+                    selectedColumns: full.selectedColumns,
+                    residueCount: full.residueCount,
+                    gapColumns: full.gapColumns,
+                    residueMapping: full.residueMapping,
+                    motif: full.motif,
                     ...(orphaned.length ? { droppedSubstitutions: orphaned } : {}),
                 };
             },
@@ -534,7 +574,7 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                         properties: {
                             type: { type: 'string', enum: ['row', 'selection', 'msaColumns'] },
                             ticketId: TICKET,
-                            entry: ENTRY,
+                            queryIdx: QUERY_IDX,
                             rowId: { type: 'string', description: 'row: "dbIndex#rowIndex".' },
                             name: NAME,
                         },
@@ -543,7 +583,7 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                     databases: DATABASES,
                     mode: { type: 'string' },
                     motif: { type: 'string', description: 'FoldDisco, only when the source carries none.' },
-                    taxFilter: { type: 'string' },
+                    taxFilter: TAX_FILTER,
                     iterativeSearch: { type: 'boolean' },
                     includeQuery: {
                         type: 'boolean',
@@ -556,6 +596,14 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                 if (!DESTINATIONS.includes(tool)) {
                     throw coded('INVALID_INPUT', `unknown destination ${JSON.stringify(tool)}`);
                 }
+                // The destination decides which options exist, and the same fields the typed tools
+                // refuse are refused here — a forwarded job must not lose a filter in transit.
+                const foreign = {
+                    multimer: ['iterativeSearch'],
+                    folddisco: ['taxFilter', 'mode', 'iterativeSearch'],
+                    foldmason: ['taxFilter', 'mode', 'iterativeSearch', 'motif'],
+                }[tool] ?? [];
+                refuseForeign(opts, foreign, `send_to ${tool}`);
                 const sender = await resolveSource(from);
                 const ticket = await sender.sendTo({ tool, ...opts });
                 return {
@@ -563,6 +611,9 @@ export function createTools(client, { inputDirs = [], urlHosts = [], touchDirs =
                     status: ticket.status ?? 'PENDING',
                     ...(ticket.derivedFrom ? { derivedFrom: ticket.derivedFrom } : {}),
                     ...(ticket.skipped?.length ? { skipped: ticket.skipped } : {}),
+                    ...(ticket.taxonomy ? { taxFilter: ticket.taxonomy.filter,
+                        taxonomy: ticket.taxonomy.resolved.map(({ name, taxId, negated }) => (
+                            { name, taxId, ...(negated ? { negated } : {}) })) } : {}),
                 };
             },
         },
@@ -585,7 +636,9 @@ export async function runTool(tools, name, args = {}) {
                 error: err.message, unsupportedTool: err.tool,
             };
         }
-        const code = err.code ?? (err.status === 404 ? 'UNKNOWN_TICKET' : undefined);
-        return { isError: true, ...(code ? { code } : {}), error: err.message };
+        // Always a code. It used to be conditional, so a plain `new Error` — the FoldMason arity
+        // check, among others — produced { isError, error } and refuted the documented shape.
+        const code = err.code ?? (err.status === 404 ? 'UNKNOWN_TICKET' : 'INTERNAL_ERROR');
+        return { isError: true, code, error: err.message };
     }
 }

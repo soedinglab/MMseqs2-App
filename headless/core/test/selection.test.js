@@ -112,7 +112,7 @@ async function tableFor(stateDir, fetchImpl = stubFetch()) {
     const client = createClient({
         baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir, fetchImpl,
     });
-    const table = new ResultTable(parsed(), { ticket: 'TICKET42', entry: 0, app: 'foldseek', client });
+    const table = new ResultTable(parsed(), { ticket: 'TICKET42', queryIdx: 0, app: 'foldseek', client });
     return { client, table, fetchImpl };
 }
 

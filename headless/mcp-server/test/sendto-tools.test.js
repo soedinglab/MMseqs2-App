@@ -137,7 +137,7 @@ test('select_hits saves what a filter selected, and reads it back on the next ca
     const made = await runTool(tools, 'select_hits', { ticketId: 'TICKET1', ids: ['0#0', '0#1'] });
     assert.equal(made.size, 2);
     assert.equal(made.name, 'default');
-    assert.ok(made.savedAt, 'a selection is saved as soon as it is made — the next call is a new process');
+    assert.equal(made.size, 2, 'the confirmation says how many members it now has');
 
     // Nothing is passed between calls but the ticket and the name.
     const again = await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'describe' });
@@ -178,7 +178,7 @@ test('select_hits keeps several named selections per ticket, and deletes them', 
     assert.deepEqual(selections.map(s => [s.name, s.size]).sort(), [['narrow', 1], ['wide', 3]]);
 
     assert.deepEqual(await runTool(tools, 'select_hits', { ticketId: 'TICKET1', name: 'wide', action: 'delete' }),
-        { ticketId: 'TICKET1', name: 'wide', deleted: true });
+        { name: 'wide', deleted: true });
     const after = await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'list' });
     assert.deepEqual(after.selections.map(s => s.name), ['narrow']);
 });
@@ -201,7 +201,6 @@ test('select_msa_columns takes ranges in the form the summary prints them', asyn
 
     assert.deepEqual(out.selectedColumns, ['0-2', '6']);
     assert.equal(out.motif, 'A1, A2, A3, A7');
-    assert.ok(out.savedAt);
 });
 
 test('select_msa_columns can move to another entry, and the motif follows the columns', async () => {
@@ -209,7 +208,6 @@ test('select_msa_columns can move to another entry, and the motif follows the co
     await runTool(tools, 'select_msa_columns', { ticketId: 'FMTICKET1', entry: 1, columns: [0, 1, 4] });
 
     const moved = await runTool(tools, 'select_msa_columns', { ticketId: 'FMTICKET1', action: 'add', entry: 0, columns: [] });
-    assert.equal(moved.entry, 0);
     assert.equal(moved.motif, 'A1, A2, B1', 'the same columns, read off the dimer');
 
     // `motif` is not an argument here, and is refused rather than dropped: an agent that thought it
@@ -352,15 +350,12 @@ test('only one structure input is accepted at a time', async () => {
         { query: 'ATOM', accession: '1ABC' },
         { query: 'ATOM', queryRef: '/tmp/x.pdb' },
         { queryRef: '/tmp/x.pdb', accession: '1ABC' },
-        { query: 'ATOM', queryUrl: 'https://x.test/a.cif' },
-        { queryUrl: 'https://x.test/a.cif', accession: '1ABC' },
-        { queryRef: '/tmp/x.pdb', queryUrl: 'https://x.test/a.cif' },
-        { query: 'ATOM', queryRef: '/tmp/x.pdb', queryUrl: 'https://x.test/a.cif', accession: '1ABC' },
+        { query: 'ATOM', queryRef: '/tmp/x.pdb', accession: '1ABC' },
     ];
     for (const given of pairs) {
         const out = await runTool(tools, 'foldseek_search', { ...given, databases: ['afdb50'] });
         assert.equal(out.isError, true, JSON.stringify(given));
-        assert.match(out.error, /pass one of query, queryRef, queryUrl, accession/);
+        assert.match(out.error, /pass exactly one of query, queryRef, accession/);
         for (const key of Object.keys(given)) assert.ok(out.error.includes(key), key);
     }
 });
@@ -453,7 +448,6 @@ test('select_hits copies a selection, and never overwrites one', async () => {
 
     const copied = await runTool(tools, 'select_hits',
         { ticketId: 'TICKET1', action: 'copy', fromName: 'draft', name: 'to-foldmason__001' });
-    assert.equal(copied.copiedFrom, 'draft');
     assert.equal(copied.size, 1);
 
     const collision = await runTool(tools, 'select_hits',
@@ -473,7 +467,6 @@ test('select_msa_columns copies, clears, and reports a bad name with its code', 
 
     const copied = await runTool(tools, 'select_msa_columns',
         { ticketId: 'FMTICKET1', action: 'copy', fromName: 'draft', name: 'to-folddisco__001' });
-    assert.equal(copied.copiedFrom, 'draft');
     assert.equal(copied.size, 2);
 
     const cleared = await runTool(tools, 'select_msa_columns',

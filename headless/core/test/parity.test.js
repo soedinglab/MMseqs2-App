@@ -58,7 +58,7 @@ function runCases({ rawFile, expectedFile, parse, tool }) {
     for (const { opts, table } of expected) {
         const label = `${tool} getTable(${JSON.stringify(opts)})`;
         test(label, () => {
-            const headless = new ResultTable(parsed, { ticket: 'fixture', entry: 0, tool }).getTable(opts);
+            const headless = new ResultTable(parsed, { ticket: 'fixture', queryIdx: 0, tool }).getTable(opts);
             assert.deepEqual(normalize(headless), normalize(table));
         });
     }

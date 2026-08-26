@@ -39,7 +39,7 @@ import {
     loadAccession, loadAccessions, ensureStructureExtension,
 } from './structures.js';
 import { SubmittableQuery } from './submit.js';
-import { TERMINAL_STATUSES, kindForJobType, normalizeEntry } from './facts.js';
+import { TERMINAL_STATUSES, kindForJobType, toolForJobType, normalizeQueryIdx } from './facts.js';
 import { resultSummary, notReadySummary } from './summary.js';
 import { createArtifactStore, artifactCacheKey, artifactWriter, serverNamespaceFor } from './artifacts.js';
 import {
@@ -48,6 +48,7 @@ import {
     DEFAULT_RESULT_TTL_SECONDS,
 } from './gc.js';
 import { DEFAULT_INPUT_TTL_SECONDS, sharedPaths } from './inputs.js';
+import { resolveTaxFilter, taxFilterHasNames } from './taxonomy.js';
 import { getChainName } from '../../../frontend/lib/targetName.js';
 import { listChains } from '../../../frontend/lib/structureText.js';
 import { mockPDB, encodeMultimer } from '../../../frontend/lib/pdbAssembly.js';
@@ -64,7 +65,7 @@ const GC_MIN_INTERVAL_SECONDS = 600;
 
 const VALID_TAX_FILTER = /^[0-9]+(,!?[0-9]+)*$|^$/;
 
-export { TERMINAL_STATUSES, kindForJobType };
+export { TERMINAL_STATUSES, kindForJobType, toolForJobType };
 
 /** A 404 on a job type this deployment does not serve, told apart from a genuinely missing ticket. */
 export class UnsupportedOnDeploymentError extends Error {
@@ -96,6 +97,12 @@ export class Ticket {
 
     wait(opts) { return this.client.waitForCompletion(this.id, opts); }
     getResult(entry = 0) { return this.client.getResult(this.id, entry); }
+}
+
+function coded(code, message) {
+    const err = new Error(message);
+    err.code = code;
+    return err;
 }
 
 export function assertTaxFilter(taxFilter) {
@@ -283,12 +290,13 @@ export function createClient({
             query, databases, mode = '3diaa', multimer = false,
             email = '', iterativeSearch = false, taxFilter = '',
         }) {
-            if (!query) throw new Error('submitFoldseekSearch({ query }) is required');
+            if (!query) throw coded('INVALID_INPUT', 'submitFoldseekSearch({ query }) is required');
             const isComplex = multimer || mode.split('-').includes('complex');
             if (isComplex && iterativeSearch) {
                 throw new Error('multimer (complex) search does not support iterative search');
             }
-            const tax = assertTaxFilter(taxFilter);
+            const { filter, resolved } = await resolveTaxFilter(taxFilter, { fetchImpl });
+            const tax = assertTaxFilter(filter);
             const effectiveMode = multimer && !mode.split('-').includes('complex')
                 ? `complex-${mode}` : mode;
             const kind = isComplex ? 'complexsearch' : 'search';
@@ -301,7 +309,11 @@ export function createClient({
             form.set('iterativesearch', iterativeSearch ? 'true' : 'false');
             form.set('taxfilter', tax);
             const result = await request('/ticket', { method: 'POST', form });
-            return recordSubmission(result, kind, { query, databases, mode: effectiveMode, taxFilter: tax });
+            const ticket = await recordSubmission(result, kind,
+                { query, databases, mode: effectiveMode, taxFilter: tax });
+            // Only when a name was resolved: the ids are the one thing the caller did not pass in.
+            if (resolved.length) ticket.taxonomy = { filter: tax, resolved };
+            return ticket;
         },
 
         /** Convenience wrapper for FS-MM; identical to submitFoldseekSearch({ multimer: true }). */
@@ -396,7 +408,7 @@ export function createClient({
                 await store.writeResult(ticket, 'search', entry, value);
                 return value;
             });
-            return new ResultTable(data, { ticket, entry, app, client });
+            return new ResultTable(data, { ticket, queryIdx: entry, app, client });
         },
 
         getFoldMasonResult(ticket) {
@@ -450,15 +462,15 @@ export function createClient({
         deleteSelection(ticket, name = 'default') { return store.deleteSelection(ticket, name); },
         copySelection(ticket, fromName, toName) { return store.copySelection(ticket, fromName, toName); },
 
-        async getResultTable(ticket, { entry = 0 } = {}) {
+        async getResultTable(ticket, { queryIdx = 0 } = {}) {
             const { type } = await client.getTicketType(ticket);
             return type === 'folddisco'
                 ? client.getFoldDiscoResult(ticket)
-                : client.getResult(ticket, entry);
+                : client.getResult(ticket, queryIdx);
         },
 
-        async getTaxonomy(ticket, { entry = 0, db = null, ...opts } = {}) {
-            const table = await client.getResultTable(ticket, { entry });
+        async getTaxonomy(ticket, { queryIdx = 0, db = null, ...opts } = {}) {
+            const table = await client.getResultTable(ticket, { queryIdx });
             return table.getTaxonomy(db, opts);
         },
 
@@ -487,13 +499,13 @@ export function createClient({
          *
          * @returns {Promise<{ca: string, seq: string, chain: string, target: string}[]>}
          */
-        async getHitChains(ticket, { entry = 0, db, idx, signal } = {}) {
+        async getHitChains(ticket, { queryIdx = 0, db, idx, signal } = {}) {
             if (db === undefined || idx === undefined) {
                 throw new Error('getHitChains({ db, idx }) is required');
             }
             const qs = new URLSearchParams({ format: 'brief', index: String(idx), database: String(db) });
             const rows = await request(
-                `/result/${encodeURIComponent(ticket)}/${encodeURIComponent(entry)}?${qs}`, { signal });
+                `/result/${encodeURIComponent(ticket)}/${encodeURIComponent(queryIdx)}?${qs}`, { signal });
             if (!Array.isArray(rows) || rows.length === 0) {
                 throw new Error(`no hit at index ${idx} in ${db} for ticket ${ticket}`);
             }
@@ -547,6 +559,7 @@ export function createClient({
          */
         async validateSubmission({ tool, query, databases, motif, mode = '3diaa', files, iterativeSearch = false, taxFilter = '' }) {
             const problems = [];
+            let taxonomy = null;
             const record = (fn) => { try { fn(); } catch (err) { problems.push(err.message); } };
 
             if (tool === 'foldmason') {
@@ -569,7 +582,15 @@ export function createClient({
             if (tool === 'folddisco') {
                 record(() => assertMotif(motif, query));
             } else {
-                record(() => assertTaxFilter(taxFilter));
+                if (taxFilterHasNames(taxFilter)) {
+                    try {
+                        const { filter, resolved } = await resolveTaxFilter(taxFilter, { fetchImpl });
+                        assertTaxFilter(filter);
+                        taxonomy = { filter, resolved };
+                    } catch (err) { problems.push(`taxonomy: ${err.message}`); }
+                } else {
+                    record(() => assertTaxFilter(taxFilter));
+                }
                 if (isComplex && iterativeSearch) {
                     problems.push('multimer (complex) search does not support iterative search');
                 }
@@ -589,9 +610,11 @@ export function createClient({
                 would: {
                     endpoint: tool === 'folddisco' ? '/ticket/folddisco' : '/ticket',
                     databases: databases ?? [],
-                    ...(tool === 'folddisco' ? { motif } : { mode: effectiveMode, taxFilter, iterativeSearch }),
+                    ...(tool === 'folddisco' ? { motif }
+                        : { mode: effectiveMode, taxFilter: taxonomy?.filter ?? taxFilter, iterativeSearch }),
                     queryBytes: query ? Buffer.byteLength(query) : 0,
                 },
+                ...(taxonomy?.resolved.length ? { taxonomy: taxonomy.resolved } : {}),
             };
         },
 
@@ -601,10 +624,22 @@ export function createClient({
          * Status comes from the cache when it is already terminal, and otherwise from exactly one
          * poll: a caller asking what a result holds has not asked to wait for it.
          */
-        async resolveUnit(ticket, entry = 0) {
+        async resolveUnit(ticket, queryIdx = 0) {
             const { type: jobType } = await client.getTicketType(ticket);
-            const normalized = normalizeEntry(jobType, entry);
+            const { queryIdx: index } = normalizeQueryIdx(jobType, queryIdx);
             const kind = kindForJobType(jobType);
+
+            // Only when a caller actually navigates: the backend answers an out-of-range index with an
+            // empty-but-COMPLETE result, which reads as "this query found nothing".
+            if (index > 0) {
+                const list = await client.getQueries(ticket, { limit: 1000 }).catch(() => null);
+                const count = list?.lookup?.length ?? null;
+                if (count !== null && index >= count) {
+                    throw coded('QUERY_IDX_OUT_OF_RANGE',
+                        `queryIdx ${index} is past the end of ${ticket}: it holds ${count} `
+                        + `quer${count === 1 ? 'y' : 'ies'}, so valid values are 0..${count - 1}`);
+                }
+            }
 
             const cached = await store.readTicket(ticket).catch(() => null);
             const status = TERMINAL_STATUSES.has(cached?.lastStatus)
@@ -613,8 +648,7 @@ export function createClient({
 
             const unit = {
                 ticket, jobType, kind, status,
-                entry: normalized.entry,
-                entryNormalized: normalized.normalized,
+                queryIdx: index,
                 record: cached,
             };
             if (status !== 'COMPLETE') return unit;
@@ -624,15 +658,15 @@ export function createClient({
             } else if (kind === 'folddisco') {
                 unit.table = await client.getFoldDiscoResult(ticket);
             } else {
-                unit.table = await client.getResult(ticket, normalized.entry);
+                unit.table = await client.getResult(ticket, index);
             }
             unit.record = await store.readTicket(ticket).catch(() => cached);
             return unit;
         },
 
-        /** Bounded orientation for one result unit. Takes a ticket and an entry, and nothing else. */
-        async getResultSummary(ticket, entry = 0) {
-            const unit = await client.resolveUnit(ticket, entry);
+        /** Bounded orientation for one result unit. Takes a ticket and a query index, nothing else. */
+        async getResultSummary(ticket, queryIdx = 0) {
+            const unit = await client.resolveUnit(ticket, queryIdx);
             if (unit.status !== 'COMPLETE') return notReadySummary(unit);
 
             const [catalog, selections] = await Promise.all([
@@ -649,8 +683,8 @@ export function createClient({
          * The complete factual export for one result unit, as files. Returns a descriptor — the
          * resource URI and what is in the bundle — never the data.
          */
-        async exportResult(ticket, entry = 0, { mountRoot = null } = {}) {
-            const unit = await client.resolveUnit(ticket, entry);
+        async exportResult(ticket, queryIdx = 0, { mountRoot = null } = {}) {
+            const unit = await client.resolveUnit(ticket, queryIdx);
             if (unit.status !== 'COMPLETE') {
                 const err = new Error(`ticket ${ticket} is ${unit.status}; nothing to export yet`);
                 err.code = unit.status === 'COMPLETE' ? 'EXPORT_FAILED' : 'RESULT_NOT_READY';
@@ -659,7 +693,7 @@ export function createClient({
             }
 
             const artifactId = artifactCacheKey({
-                serverNamespace, ticketId: ticket, normalizedEntry: unit.entry,
+                serverNamespace, ticketId: ticket, queryIdx: unit.queryIdx,
             });
 
             const hit = await artifactStore.read(artifactId);
@@ -679,7 +713,7 @@ export function createClient({
                 artifactId,
                 serverNamespace,
                 ticket,
-                entry: unit.entry,
+                queryIdx: unit.queryIdx,
                 jobType: unit.jobType,
                 table: unit.table ?? null,
                 foldMasonResult: unit.foldMasonResult ?? null,

@@ -2,13 +2,14 @@ export {
     createClient,
     assertTaxFilter,
     idForHit,
-    kindForJobType,
+    kindForJobType, toolForJobType,
     Ticket,
     HttpError,
     UnsupportedOnDeploymentError,
     TERMINAL_STATUSES,
     FOLDMASON_MIN_FILES,
 } from './client.js';
+export { resolveTaxFilter, taxFilterHasNames, TAX_CANDIDATE_CAP } from './taxonomy.js';
 
 export { ResultTable, Row, Selection, SELECT_MAX } from './results.js';
 export {
@@ -18,7 +19,7 @@ export {
     compressRanges, expandRanges, COLUMN_METRICS, MsaColumnSelection,
 } from './msa.js';
 export {
-    SUMMARY_SCHEMA, ARTIFACT_SCHEMA, RESULT_KINDS, STATUSES, CAP_SOURCES, INTEGRITY_CODES,
+    SUMMARY_SCHEMA, ARTIFACT_SCHEMA, TOOLS, STATUSES, INTEGRITY_CODES,
     SELECTION_KINDS, validateResultSummary, validateArtifactManifest, unsafeRelativePath,
 } from './schemas.js';
 export {
@@ -35,12 +36,12 @@ export {
     DEFAULT_TTL_SECONDS, DEFAULT_RESULT_TTL_SECONDS,
 } from './gc.js';
 export {
-    normalizeEntry, resultCounts, resultRowCap, completenessOf, databaseProvenance,
+    normalizeQueryIdx, resultCounts, resultRowCap, completenessOf, databaseProvenance,
     taxonomyExport, serializeRow, motifPatternExport, isComplexResult,
 } from './facts.js';
 export { Store, defaultStateDir, summarizeRequest, assertSelectionName } from './store.js';
 export {
-    containedRealPath, resolveInputPath, resolveInputUrl, parseInputDirs, parseUrlHosts,
+    containedRealPath, resolveInputPath, parseInputDirs,
     treeBytes, sharedPaths, ensureSharedDirs, DROP_MARKER, LISTED_NAMES,
     MAX_INPUT_BYTES, DEFAULT_INPUT_TTL_SECONDS,
 } from './inputs.js';

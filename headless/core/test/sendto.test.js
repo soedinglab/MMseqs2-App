@@ -394,7 +394,7 @@ test('getHitChains asks the brief route and reads the chain out of each target n
         baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
     });
 
-    const chains = await client.getHitChains('T1', { entry: 0, db: 'pdb100', idx: 7 });
+    const chains = await client.getHitChains('T1', { queryIdx: 0, db: 'pdb100', idx: 7 });
     assert.deepEqual(chains.map(c => c.chain), ['A', 'B']);
     assert.equal(chains[0].ca, CA_A);
 
@@ -468,14 +468,14 @@ test('a forwarded job records the ticket, row and origin it came from', async ()
     const client = createClient({
         baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
     });
-    const table = new ResultTable(PARSED, { ticket: 'SOURCETICKET', entry: 2, app: 'foldseek', client });
+    const table = new ResultTable(PARSED, { ticket: 'SOURCETICKET', queryIdx: 2, app: 'foldseek', client });
 
     const ticket = await table.row('0#0').sendTo({ tool: 'foldseek', databases: ['afdb50'] });
 
     // On the ticket that was just created...
     assert.deepEqual(ticket.derivedFrom, {
         ticket: 'SOURCETICKET', origin: 'chains', tool: 'foldseek',
-        entry: 2, rowId: '0#0', db: 'afdb50', from: '1abc_A', name: '1abc',
+        queryIdx: 2, rowId: '0#0', db: 'afdb50', from: '1abc_A', name: '1abc',
     });
     // ...and in the cache, which is what a later process reads.
     const record = await client.store.readTicket('TICKET1');
@@ -491,7 +491,7 @@ test('a FoldMason batch records which entries went into it', async () => {
     const client = createClient({
         baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
     });
-    const table = new ResultTable(PARSED, { ticket: 'SOURCETICKET', entry: 0, app: 'foldseek', client });
+    const table = new ResultTable(PARSED, { ticket: 'SOURCETICKET', queryIdx: 0, app: 'foldseek', client });
 
     const ticket = await table.select(['0#0'], { name: 'shortlist' }).sendTo({ tool: 'foldmason' });
 
@@ -551,21 +551,21 @@ test('every forwarding origin records the facts a lineage walk needs', async () 
     });
 
     // origin: chains — a Foldseek hit
-    const table = new ResultTable(PARSED, { ticket: 'SRCTICKET', entry: 3, app: 'foldseek', client });
+    const table = new ResultTable(PARSED, { ticket: 'SRCTICKET', queryIdx: 3, app: 'foldseek', client });
     const fromRow = await table.row('0#0').sendTo({ tool: 'foldseek', databases: ['afdb50'] });
-    for (const key of ['ticket', 'entry', 'origin', 'tool', 'rowId', 'db']) {
+    for (const key of ['ticket', 'queryIdx', 'origin', 'tool', 'rowId', 'db']) {
         assert.ok(fromRow.derivedFrom[key] !== undefined, `a row origin needs ${key}`);
     }
     assert.equal(fromRow.derivedFrom.origin, 'chains');
     assert.equal(fromRow.derivedFrom.tool, 'foldseek', 'tool is the destination — there is no alias');
-    assert.equal(fromRow.derivedFrom.entry, 3, 'the source entry, not the destination');
+    assert.equal(fromRow.derivedFrom.queryIdx, 3, 'the source query, not the destination');
 
     // origin: fm-entry — an MSA column selection, reconstructed for FoldDisco
     const alignment = {
         entries: [{ name: '1abc_AB-_-_-_A_3_0-B_6_3', aa: 'MAC-MAC', ca: CA_A + ',' + CA_A }],
     };
     const columns = new MsaColumnSelection(client, alignment, {
-        ticket: 'MSASRC', entry: 0, columns: [0, 1], name: 'to-folddisco__001',
+        ticket: 'MSASRC', queryIdx: 0, columns: [0, 1], name: 'to-folddisco__001',
     });
     const fromColumns = await columns.sendTo({ tool: 'folddisco', databases: ['pdb_folddisco'] });
     assert.equal(fromColumns.derivedFrom.ticket, 'MSASRC');
@@ -586,7 +586,7 @@ test('derivedFrom.selection still names the source after the client moves to the
     const client = createClient({
         baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
     });
-    const table = new ResultTable(PARSED, { ticket: 'SRCTICKET', entry: 0, app: 'foldseek', client });
+    const table = new ResultTable(PARSED, { ticket: 'SRCTICKET', queryIdx: 0, app: 'foldseek', client });
 
     // Build a draft, copy it to the serial name the job will use, forward that.
     await table.select(['0#0'], { name: 'draft' }).save('draft');

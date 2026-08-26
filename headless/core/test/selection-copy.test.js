@@ -18,18 +18,18 @@ async function store() {
 
 test('a copy is independent in both directions', async () => {
     const s = await store();
-    await s.writeSelection(TICKET, 'draft', { page: 'foldseek', entry: 0, ids: ['0#1', '0#2'] });
+    await s.writeSelection(TICKET, 'draft', { page: 'foldseek', queryIdx: 0, ids: ['0#1', '0#2'] });
 
     const copy = await s.copySelection(TICKET, 'draft', 'to-foldmason__001');
     assert.deepEqual(copy.ids, ['0#1', '0#2']);
     assert.equal(copy.name, 'to-foldmason__001');
     assert.notEqual(copy.createdAt, undefined);
 
-    await s.writeSelection(TICKET, 'draft', { page: 'foldseek', entry: 0, ids: ['0#9'] });
+    await s.writeSelection(TICKET, 'draft', { page: 'foldseek', queryIdx: 0, ids: ['0#9'] });
     assert.deepEqual((await s.readSelection(TICKET, 'to-foldmason__001')).ids, ['0#1', '0#2'],
         'editing the source must not reach the copy');
 
-    await s.writeSelection(TICKET, 'to-foldmason__001', { page: 'foldseek', entry: 0, ids: ['0#5'] });
+    await s.writeSelection(TICKET, 'to-foldmason__001', { page: 'foldseek', queryIdx: 0, ids: ['0#5'] });
     assert.deepEqual((await s.readSelection(TICKET, 'draft')).ids, ['0#9'],
         'and editing the copy must not reach the source');
 });
@@ -37,7 +37,7 @@ test('a copy is independent in both directions', async () => {
 test('nested members are deep-copied, not shared', async () => {
     const s = await store();
     await s.writeSelection(TICKET, 'draft', {
-        page: 'foldseek', entry: 0, ids: ['0#1'], note: { tags: ['keep'] },
+        page: 'foldseek', queryIdx: 0, ids: ['0#1'], note: { tags: ['keep'] },
     });
     await s.copySelection(TICKET, 'draft', 'copy');
 
@@ -68,12 +68,12 @@ test('copying never overwrites, and never invents a source', async () => {
 test('a column selection copies its columns, its entry and its motif override', async () => {
     const s = await store();
     await s.writeSelection(TICKET, 'default', {
-        page: 'foldmason', entry: 2, columns: [12, 13, 14], motif: 'A31, A32',
+        page: 'foldmason', queryIdx: 2, columns: [12, 13, 14], motif: 'A31, A32',
     });
 
     const copy = await s.copySelection(TICKET, 'default', 'to-folddisco__001');
     assert.deepEqual(copy.columns, [12, 13, 14]);
-    assert.equal(copy.entry, 2);
+    assert.equal(copy.queryIdx, 2);
     assert.equal(copy.motif, 'A31, A32', 'the override is part of the choice, so it travels');
     assert.equal(copy.page, 'foldmason');
 });
@@ -117,9 +117,9 @@ test('selections survive a fresh Store on the same directory', async () => {
     const dir = await tmpDir();
     const first = new Store(dir);
     await first.writeSelection(TICKET, 'to-foldmason__001', {
-        page: 'foldmason', entry: 1, columns: [4, 5, 6], motif: 'B1, B2',
+        page: 'foldmason', queryIdx: 1, columns: [4, 5, 6], motif: 'B1, B2',
     });
-    await first.writeSelection(TICKET, 'draft', { page: 'foldseek', entry: 0, ids: ['0#1', '0#2', '0#3'] });
+    await first.writeSelection(TICKET, 'draft', { page: 'foldseek', queryIdx: 0, ids: ['0#1', '0#2', '0#3'] });
 
     const second = new Store(dir);
     const listed = await second.listSelections(TICKET);
@@ -131,7 +131,7 @@ test('selections survive a fresh Store on the same directory', async () => {
 test('listing reports metadata and an exact size, never the membership', async () => {
     const s = await store();
     const ids = Array.from({ length: 1000 }, (_, i) => `0#${i}`);
-    await s.writeSelection(TICKET, 'big', { page: 'foldseek', entry: 0, ids });
+    await s.writeSelection(TICKET, 'big', { page: 'foldseek', queryIdx: 0, ids });
 
     const listed = await s.listSelections(TICKET);
     assert.equal(listed[0].size, 1000, 'exact, not capped');
@@ -145,10 +145,10 @@ test('the serial forwarding convention round-trips, and the used name stays read
     const s = await store();
     // The convention: edit `draft`, copy it to a serial name for each forwarding job, then leave that
     // name alone — it is what the job's derivedFrom.selection points at.
-    await s.writeSelection(TICKET, 'draft', { page: 'foldseek', entry: 0, ids: ['0#1', '0#2'] });
+    await s.writeSelection(TICKET, 'draft', { page: 'foldseek', queryIdx: 0, ids: ['0#1', '0#2'] });
     await s.copySelection(TICKET, 'draft', 'to-foldmason__001');
 
-    await s.writeSelection(TICKET, 'draft', { page: 'foldseek', entry: 0, ids: ['0#1', '0#2', '0#7'] });
+    await s.writeSelection(TICKET, 'draft', { page: 'foldseek', queryIdx: 0, ids: ['0#1', '0#2', '0#7'] });
     await s.copySelection(TICKET, 'draft', 'to-foldmason__002');
 
     assert.deepEqual((await s.readSelection(TICKET, 'to-foldmason__001')).ids, ['0#1', '0#2'],

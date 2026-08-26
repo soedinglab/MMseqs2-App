@@ -44,7 +44,7 @@ export function createResources(client, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
             const artifacts = await store.list({ limit });
             return artifacts.map(({ artifactId, manifest }) => ({
                 uri: store.uriFor(artifactId, MANIFEST),
-                name: `${manifest.state.resultKind} ${manifest.state.ticket} manifest`,
+                name: `${manifest.state.tool} ${manifest.state.ticket} manifest`,
                 description: `${manifest.files.length} file(s), ${manifest.counts.exportedRows} row(s), ` +
                              `built ${manifest.createdAt}`,
                 mimeType: 'application/json',

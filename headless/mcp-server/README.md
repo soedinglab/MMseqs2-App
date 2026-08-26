@@ -8,10 +8,13 @@ deployment such as [search.foldseek.com](https://search.foldseek.com).
 
 - Structure search: monomer, complex, and structural-motif queries
 - Multiple structure alignment with FoldMason
-- Queries by PDB / AlphaFold DB accession, local file, or URL — no need to paste a structure
+- Queries by PDB / AlphaFold DB / BFVD accession, or by a file the server can read — no need to paste
+  a structure
+- Taxon filtering by scientific name as well as id: `taxFilter: "Bacteria,!Escherichia coli"`
 - Complete results written to local files, so alignments and taxonomy stay out of the conversation
 - Named hit and alignment-column selections, forwardable into follow-up jobs
 - Every derived job records the ticket it came from
+- Bounded replies: nothing echoes an argument back, and no tool returns a row
 
 ## Installation
 
@@ -81,8 +84,8 @@ front of anything not on loopback.
 - **list_databases**
   - Databases this deployment offers
   - Inputs:
-    - `jobType` (string, optional): `foldseek_search` | `multimer_search` | `folddisco_search` — only
-      the databases that tool accepts
+    - `tool` (string, optional): `foldseek` | `multimer` | `folddisco` — only the databases that tool
+      accepts
 
 - **foldseek_search**
   - Search one monomer structure against structure databases
@@ -90,18 +93,20 @@ front of anything not on loopback.
     - `databases` (string[]): paths from `list_databases`
     - `query` (string, optional): PDB or mmCIF text
     - `accession` (string | object, optional): an id, or `{ id, source, autoMotif }`
-    - `queryRef` (string, optional): a path as the **server** sees it
-    - `queryUrl` (string, optional): https URL the server downloads
-    - `mode` (string, optional): `3diaa` (default) | `3di` | `tmalign` | `lolalign`
+    - `queryRef` (string, optional): a name the **server** resolves — see [Paths](#paths)
+    - `mode` (string, optional): `3diaa` (default) | `tmalign` | `lolalign`
     - `iterativeSearch` (boolean, optional)
-    - `taxFilter` (string, optional): taxon ids, comma separated; `!` negates
+    - `taxFilter` (string, optional): taxon ids **or scientific names**, comma separated; `!` negates
+      — e.g. `"Bacteria,!Escherichia coli"`. A name is resolved against NCBI Datasets; an ambiguous one
+      is refused with its candidates, and the ids used come back on the ticket
     - `email` (string, optional), `validateOnly` (boolean, optional)
-  - Exactly one of `query`, `accession`, `queryRef`, `queryUrl`
+  - Exactly one of `query`, `accession`, `queryRef`
   - Returns a ticket immediately; nothing blocks
 
 - **multimer_search**
   - Search a complex against complex-capable databases
-  - Same inputs, minus `iterativeSearch` and `taxFilter`, which do not apply
+  - Same inputs, minus `iterativeSearch`, which does not apply. `taxFilter` does — a complex search
+    can be restricted by taxon, though its *result* carries no taxonomy report
 
 - **folddisco_search**
   - Search for a structural motif — a residue list like `A123, A156, W201`
@@ -109,6 +114,8 @@ front of anything not on loopback.
     - `databases` (string[]): motif-capable paths from `list_databases`
     - `motif` (string, optional): required unless an accession supplies one
     - the same structure inputs as above, plus `email` and `validateOnly`
+  - No `mode` and no `taxFilter`: `FoldDiscoJob` has neither field, so both are refused rather than
+    silently dropped
   - A token may carry a substitution: `A123:W`
   - Every residue must exist in the query, checked before submission
 
@@ -117,30 +124,39 @@ front of anything not on loopback.
   - Inputs:
     - `files` (object[], optional): `[{ name, content }]`
     - `fileRefs` (string[], optional): local files the server reads
-    - `fileUrls` (string[], optional): https URLs the server downloads
+    - `accessions` (string[] | object[], optional): ids the server fetches, e.g. `["1abc",
+      { "id": "P0DTC2", "source": "AlphaFoldDB" }]`
     - `email` (string, optional), `validateOnly` (boolean, optional)
-  - Exactly one of the three, at least two structures
+  - The three combine, in that order; at least two structures in total
 
 - **get_ticket_status**
   - Status of a submitted job
   - Inputs:
     - `ticketId` (string)
-  - `PENDING` | `RUNNING` | `COMPLETE` | `ERROR` | `UNKNOWN`, the job type, and its source ticket if any
+  - `PENDING` | `RUNNING` | `COMPLETE` | `ERROR` | `UNKNOWN`, the tool, and its source ticket if any
 
 - **get_result_summary**
   - What a finished result holds, without the rows
   - Inputs:
     - `ticketId` (string)
-    - `entry` (number, optional): query index, default 0
-  - Per database: hit counts, the top hit, taxonomy availability. Plus the ranking metric, whether
-    results were truncated, and any saved selections
+    - `queryIdx` (number, optional): which query of a multi-query ticket, default 0. Foldseek and
+      multimer only — FoldMason and FoldDisco serve one result per ticket, and passing a non-zero
+      value is **refused** rather than collapsed. An index past the last query is refused too
+  - Per database: hit counts, the top hit, `taxonomyTree`. Plus the ranking metric, whether results
+    were truncated, and any saved selections. One `tool` field, not a job type and a result kind
+  - `ranking.field` is the field **the server sorted the rows by**, so it is also the order
+    `export_result` writes them in — `eval` under `tmalign`/`lolalign`, where that column holds a
+    TM/LoL score. Read `metricSemantics` per ticket: the same `eval` is an E-value under `3diaa`
+  - `taxonomyTree` says whether a taxonomy report came back for that database, so it predicts
+    `db-N.taxonomy.json` exactly. It is not a database capability: `afdb-swissprot` rows carry
+    `taxId: 0` / `"unclassified"` and produce no tree
   - A couple of kilobytes even on a nine-database search — start here
 
 - **export_result**
   - Write the complete result to files and return their locations
   - Inputs:
     - `ticketId` (string)
-    - `entry` (number, optional)
+    - `queryIdx` (number, optional)
     - `mountRoot` (string, optional): where you see the shared folder, if not at the server's path.
       Paths come back in that space
   - Every hit row, taxonomy node and alignment column, as JSONL / JSON / FASTA. Returns a directory
@@ -155,9 +171,11 @@ front of anything not on loopback.
       `list` | `delete`
     - `ids` (string[], optional): `"dbIndex#rowIndex"`, e.g. `["8#0", "8#5"]`
     - `name` (string, optional): default `"default"`
-    - `entry` (number, optional), `fromName` (string, optional): for `copy`
+    - `queryIdx` (number, optional), `fromName` (string, optional): for `copy`
     - `maxEntries` (number, optional): entries listed by `describe`, default 25
-  - Saved against the ticket and durable across restarts
+  - Saved against the ticket and durable across restarts. The reply carries the name and the new
+    size; `action: "describe"` is how you read a selection back. In the summary's `selections[]`, a hit
+    selection carries `queryIdx` and a column selection carries `entry`
 
 - **select_msa_columns**
   - Name alignment columns in a FoldMason result and get the motif they map to
@@ -165,7 +183,9 @@ front of anything not on loopback.
     - `ticketId` (string)
     - `action` (string, optional): the same eight as `select_hits`
     - `columns` (number[], optional) or `ranges` (string[], optional): e.g. `["12-28"]`
-    - `entry` (number, optional): which alignment entry the residues are read off, default 0
+    - `entry` (number, optional): which **alignment row** the residues are read off, default 0 — this
+      is the one place `entry` keeps its FoldMason meaning; everywhere else the ticket-level index is
+      `queryIdx`
     - `residues` (object[], optional): `[{ column, aa }]` — ask for a different amino acid at a column;
       `aa: null` clears
     - `name` (string, optional), `fromName` (string, optional)
@@ -176,14 +196,38 @@ front of anything not on loopback.
 - **send_to**
   - Forward a hit, a saved selection, or saved alignment columns into a new job
   - Inputs:
-    - `from` (object): `{ type, ticketId, entry?, rowId?, name? }`, `type` being `row` | `selection` |
+    - `from` (object): `{ type, ticketId, queryIdx?, rowId?, name? }`, `type` being `row` | `selection` |
       `msaColumns`
     - `tool` (string): `foldseek` | `multimer` | `foldmason` | `folddisco`
-    - `databases` (string[], optional), `mode`, `taxFilter`, `iterativeSearch`, `email` as above
+    - `databases` (string[], optional), `mode`, `taxFilter`, `iterativeSearch`, `email` as above —
+      each refused when the destination has no such field, rather than dropped: FoldDisco takes no
+      `taxFilter` or `mode`, multimer no `iterativeSearch`
     - `motif` (string, optional): FoldDisco, when the source carries none
     - `includeQuery` (boolean, optional): FoldMason from a selection also sends the original query,
       default true
   - The structure is reassembled for the destination, and the new ticket records its source
+
+### Responses
+
+Every reply is one JSON object. **There are two failure channels, and `isError` is not the only one:**
+
+- a call that failed → `{ isError: true, code, error }`. `code` is always present
+- a `validateOnly` dry run that *succeeded* and found problems → `{ ok: false, problems[] }`, with no
+  `isError`. Branch on `isError` first, then on `ok`; a caller checking only `isError` reads an
+  unusable database as a passing validation
+
+| call | comes back |
+|---|---|
+| a submit | `ticketId`, `status`, and only what you could not know: `loaded` for a fetched structure, `motif` when one was derived, `taxFilter` + `taxonomy` when a name was resolved |
+| `validateOnly: true` | `ok`, `problems[]`, `would` — the request that would have been sent |
+| `get_ticket_status` | `ticketId`, `status`, `tool`, `resultUrl`, `derivedFrom` if forwarded |
+| `get_result_summary` | a bounded orientation payload, ~1–2.5 KB (§Tools) |
+| `export_result` | a descriptor and one resource link per file, never file contents |
+| `select_hits` | `name` and the new `size`, plus `rejected` when ids did not resolve |
+| `select_msa_columns` | the derived `motif`, `residueMapping`, and the column counts |
+
+Arguments are not echoed: the ticket, entry and name you passed do not come back, and
+`action: "describe"` is how you read state you did not just set.
 
 ### The shared folder
 
@@ -226,7 +270,6 @@ Environment variables only.
 | `FOLDSEEK_SERVER_STATE_DIR` | `~/.foldseek-server` | cached results and selections |
 | `FOLDSEEK_SERVER_SHARED_DIR` | empty | one folder shared with the client: `exports/` out, `imports/` in |
 | `FOLDSEEK_SERVER_INPUT_DIRS` | empty | further directories `queryRef` may read, never swept (`:` separated, `;` on Windows) |
-| `FOLDSEEK_SERVER_URL_HOSTS` | empty | hostnames `queryUrl` may download from (comma separated) |
 | `FOLDSEEK_SERVER_INPUT_TTL` | `1h` | how long a file in `imports/` is kept after last use |
 | `FOLDSEEK_SERVER_RESOURCE_MAX_BYTES` | `16k` | cap on one resource read |
 | `FOLDSEEK_SERVER_ARTIFACT_TTL` | `30m` | how long exported files are kept after last use |

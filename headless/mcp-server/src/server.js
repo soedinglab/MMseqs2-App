@@ -12,7 +12,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 
-import { createClient, parseInputDirs, parseUrlHosts, ensureSharedDirs } from 'foldseek-server-lib';
+import { createClient, parseInputDirs, ensureSharedDirs } from 'foldseek-server-lib';
 
 import { createTools, runTool } from './tools.js';
 import { createResources } from './resources.js';
@@ -120,9 +120,8 @@ export function readConfigFromEnv(env = process.env) {
         // Small on purpose: manifests fit, row files do not and belong on the file system.
         resourceMaxBytes: sizeFromEnv(env, 'FOLDSEEK_SERVER_RESOURCE_MAX_BYTES',
             { fallback: 16 * 1024, min: 1024, max: 32 * 1024 * 1024 }),
-        // Both empty by default: the alternatives are an arbitrary-file reader and an open proxy.
+        // Empty by default: the alternative is an arbitrary-file reader.
         inputDirs: parseInputDirs(env.FOLDSEEK_SERVER_INPUT_DIRS),
-        urlHosts: parseUrlHosts(env.FOLDSEEK_SERVER_URL_HOSTS),
         inputTtlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_INPUT_TTL',
             { fallback: 3600, min: 300, max: 604800 }),
         resultTtlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_RESULT_TTL',
@@ -151,7 +150,6 @@ export function createServer(config, transport = { kind: 'stdio' }) {
     const client = createClient(config);
     const tools = createTools(client, {
         inputDirs: readRoots(client, config, transport),
-        urlHosts: config.urlHosts ?? [],
         // Reading a dropped file postpones its expiry; a curated directory is never written to.
         touchDirs: client.sharedDirs ? [client.sharedDirs.importsDir] : [],
     });

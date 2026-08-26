@@ -34,13 +34,12 @@ answers a different question.
 
 **Getting bytes to the server.** MCP has no upload channel — client capabilities are `sampling`,
 `elicitation` (primitives only) and `roots` (directory URIs, deprecated), and tool arguments are JSON the
-model produces. So `queryRef` (the server opens a local file) and `queryUrl` (the server downloads one)
-exist because there is no protocol answer. A `POST /input` route was built and removed: no agent on any
-host could reach it, and the hosts that could had the filesystem already. `queryRef` is refused when `--http` binds a non-loopback
-address: a remote caller's path names a file on the *server's* disk. For `queryUrl` the host allowlist is
-the boundary; https-only, private-address refusal, two re-checked redirects and a counted body are defence
-against a mistyped entry, not against someone controlling DNS for a listed host. Neither is recorded — a
-URL can carry a presigned signature.
+model produces. So `accession` (the server fetches a known id) and `queryRef` (the server opens a file
+the caller placed) exist because there is no protocol answer. A `POST /input` route was built and
+removed: no agent on any host could reach it, and the hosts that could had the filesystem already. A
+URL argument existed too, and went with its host allowlist — `accession` needs no configuration and
+covers the same ground. `queryRef` is refused when `--http` binds a non-loopback address: a remote
+caller's path names a file on the *server's* disk.
 
 **Selections** are named, durable, and copy-on-write. The convention is to edit `draft` and copy it to
 `to-<destination>__NNN` per forwarding job, because that name is what `derivedFrom.selection` points at
@@ -101,6 +100,42 @@ test failure.
 - **A motif is derived, never dictated.** `msa/residue-map.jsonl` plus `derivedFrom.{columns,residueAa}`
   must reproduce the submitted motif with no server involved. Anything that lets the two diverge is a
   regression, whatever it enables.
+- **`queryIdx` is refused, never normalised.** FoldMason calls its alignment rows "entries", so a
+  caller passing `entry: 3` to a FoldMason ticket means something real; collapsing it to 0 returned a
+  valid-looking summary of a different unit. A non-zero index on FoldMason/FoldDisco is refused, and so
+  is one past the last query of a search — the backend answers an out-of-range index with an
+  empty-but-`COMPLETE` result, which reads as "this query found nothing". The query list is fetched
+  only when `queryIdx > 0`, so the default path costs nothing. The name `entry` now means exactly one
+  thing on the tool surface: an alignment row in `select_msa_columns`.
+- **A selection reports its own index under its own name.** A hit selection belongs to a query and
+  carries `queryIdx`; a column selection belongs to an alignment row and carries `entry`. One field
+  serving both, which is what `entry` used to do, made the summary's selection list ambiguous by kind.
+- **`ranking.field` names the order the rows are in.** It is the server's sort, not the frontend
+  table's default — those differ under `tmalign`/`lolalign`, where the server orders by `eval` (a
+  TM/LoL score) while `ResultView.vue` defaults to `score` whatever the mode. Borrowing the display
+  default described a sort the file did not have, and made row 0 not the best hit. One definition,
+  `defaultSortKey`, is shared by the manifest, `getTable` and `getTableSummary` so they cannot drift; a
+  live test asserts the declared field really orders the exported rows, per mode.
+- **Every tool failure carries a `code`.** It used to be conditional on the thrown error having one, so
+  a plain `new Error` produced `{isError, error}`. `validateOnly` is a *separate channel*: a dry run
+  that finds problems is a successful call and returns `{ok: false, problems[]}` with no `isError`.
+- **`taxonomyTree` is about the result, not the database.** `parseResults` sets its `hasTaxonomy` from
+  key presence — `"taxId" in item` — so `afdb-swissprot`, whose rows carry `taxId: 0` and
+  `taxName: "unclassified"`, declared taxonomy it does not have. The flag now reports whether a report
+  came back, which is exactly what decides `db-N.taxonomy.json`.
+- **An option the destination does not have is refused, not dropped.** `FoldDiscoJob` carries no
+  `TaxFilter` or `Mode`, and a complex search has no iterative mode. Accepting those arguments and
+  discarding them would leave a caller believing they had filtered. The same list is enforced on
+  `send_to`, per destination.
+- **A malformed filter reaches the validator intact.** Name resolution must not normalise a syntax
+  error away: `"9606,"` stays `"9606,"` and is refused, because repairing `"9606,!"` to `"9606"` would
+  silently drop an exclusion the caller was writing.
+- **A taxon name is resolved, never guessed.** `taxFilter` accepts scientific names, looked up against
+  NCBI Datasets `taxon_suggest` with `tax_rank_filter=higher_taxon` — which is load-bearing, not
+  cosmetic: without it "Bacteria" returns *Exercitatus varius* and never taxid 2. An exact `sci_name`
+  match wins; anything else with more than one candidate is refused and lists them, because the
+  dropdown a person picked from does not exist here. Numeric tokens never reach the network, so a
+  caller passing ids is unaffected.
 - **`queryRef` reads the server's disk.** Safe over stdio and loopback HTTP. A configured `INPUT_DIRS`
   plus a non-loopback bind is refused at startup; `imports/` is dropped from the read roots instead,
   because nobody configured it and refusing would break a deployment that only wanted exports. Adding
@@ -111,9 +146,6 @@ test failure.
   `SHARED_DIR` pointed at a folder with an `imports/` of its own would otherwise put those files on the
   input TTL. `exports/` needs no such rule, because the artifact-id pattern filters it as well. `INPUT_DIRS` is never swept, and may not nest with the shared folder in either direction: one
   way puts a curated library on a 1 h timer, the other hides drops behind a root that outlives them.
-- **`queryUrl` makes the server fetch.** The host allowlist is the boundary; the scheme, address, redirect
-  and size checks are defence against a mistyped entry. Adding another URL-taking argument means going
-  through `resolveInputUrl`, never a bare `fetch`.
 - **The artifact sweep only touches roots it created.** `FOLDSEEK_SERVER_SHARED_DIR` can name any
   folder, so a typo would otherwise aim it at one we have never written to — and the name allowlist alone
   would still delete a 64-hex directory belonging to something else. A build writes

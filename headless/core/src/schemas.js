@@ -3,9 +3,8 @@
 export const SUMMARY_SCHEMA = 'foldseek-server/result-summary@1';
 export const ARTIFACT_SCHEMA = 'foldseek-server/result-artifact@1';
 
-export const RESULT_KINDS = ['search', 'complexsearch', 'foldmason', 'folddisco'];
+export const TOOLS = ['foldseek', 'multimer', 'foldmason', 'folddisco'];
 export const STATUSES = ['PENDING', 'RUNNING', 'COMPLETE', 'ERROR', 'UNKNOWN'];
-export const CAP_SOURCES = ['worker-fixed', 'deployment-default', 'configured', 'not-applicable'];
 export const INTEGRITY_CODES = [
     'ROSTER_MISMATCH', 'REFERENCE_GAP', 'TAXONOMY_DEPTH_JUMP', 'EXPORTED_ROW_MISMATCH',
 ];
@@ -97,12 +96,10 @@ function run(value, shape) {
 const RANKING = {
     allowExtra: false,
     fields: {
-        sortKey: { type: 'string', required: true },
         field: { type: 'string', required: true },
         label: { type: 'string', required: true },
         direction: { type: 'string', required: true, enum: ['higher', 'lower'] },
         crossDatabaseComparable: { type: 'boolean', required: true, nullable: true },
-        sortOrder: { type: 'int', required: true, enum: [1, -1] },
     },
 };
 
@@ -111,7 +108,6 @@ const COMPLETENESS = {
     fields: {
         complete: { type: 'boolean', required: true, nullable: true },
         saturated: { type: 'boolean', required: true },
-        capSource: { type: 'string', required: true, enum: CAP_SOURCES },
         rowCap: { type: 'int', nullable: true, min: 1 },
     },
 };
@@ -138,7 +134,7 @@ const ARTIFACT_DATABASE = {
         version: { type: 'string', nullable: true },
         status: { type: 'string', nullable: true },
         taxonomy: { type: 'boolean', required: true },
-        hasTaxonomy: { type: 'boolean', required: true },
+        taxonomyTree: { type: 'boolean', required: true },
         hasDescription: { type: 'boolean', required: true },
         serverAlignments: { type: 'int', required: true, min: 0 },
         parsedRows: { type: 'int', required: true, min: 0 },
@@ -152,7 +148,7 @@ const SUMMARY_DATABASE = {
         id: { type: 'string', required: true },
         display: { type: 'string', nullable: true },
         version: { type: 'string', nullable: true },
-        hasTaxonomy: { type: 'boolean', required: true },
+        taxonomyTree: { type: 'boolean', required: true },
         parsedRows: { type: 'int', required: true, min: 0 },
         topHit: {
             type: 'object',
@@ -176,7 +172,9 @@ const SELECTION = {
         name: { type: 'string', required: true },
         kind: { type: 'string', required: true, enum: SELECTION_KINDS },
         size: { type: 'int', required: true, min: 0 },
-        entry: { type: 'int', nullable: true, min: 0 },
+        // One index each, under its own name: rows belong to a query, columns to an alignment row.
+        queryIdx: { type: 'int', min: 0 },
+        entry: { type: 'int', min: 0 },
         createdAt: { type: 'string', required: true, nullable: true },
         updatedAt: { type: 'string', required: true, nullable: true },
     },
@@ -185,10 +183,9 @@ const SELECTION = {
 const SUMMARY_HEAD = {
     schema: { type: 'string', required: true, enum: [SUMMARY_SCHEMA] },
     ticket: { type: 'string', required: true },
-    entry: { type: 'int', required: true, min: 0 },
-    entryNormalized: { type: 'boolean' },
+    // Omitted for FoldMason and FoldDisco: one result per ticket, so there is no query to index.
+    queryIdx: { type: 'int', min: 0 },
     status: { type: 'string', required: true, enum: STATUSES },
-    jobType: { type: 'string', nullable: true },
 };
 
 // Two variants rather than one shape of optional fields: a not-ready summary must not be able to
@@ -197,6 +194,7 @@ const SUMMARY_NOT_READY = {
     allowExtra: false,
     fields: {
         ...SUMMARY_HEAD,
+        tool: { type: 'string', required: true, nullable: true, enum: TOOLS },
         code: { type: 'string', required: true, enum: ['RESULT_NOT_READY', 'RESULT_FAILED'] },
         next: { type: 'string', required: true },
     },
@@ -207,7 +205,7 @@ const SUMMARY_READY = {
     fields: {
         ...SUMMARY_HEAD,
         mode: { type: 'string', nullable: true },
-        resultKind: { type: 'string', required: true, enum: RESULT_KINDS },
+        tool: { type: 'string', required: true, enum: TOOLS },
         submission: { type: 'object', required: true, nullable: true },
         derivedFrom: { type: 'object', required: true, nullable: true },
         databases: { type: 'array', required: true, items: { type: 'object', shape: SUMMARY_DATABASE } },
@@ -228,7 +226,6 @@ const SUMMARY_READY = {
         },
         msa: { type: 'object', nullable: true },
         selections: { type: 'array', required: true, items: { type: 'object', shape: SELECTION } },
-        exportAvailable: { type: 'boolean', required: true },
     },
 };
 
@@ -245,10 +242,9 @@ const MANIFEST = {
                 fields: {
                     serverNamespace: { type: 'string', required: true },
                     ticket: { type: 'string', required: true },
-                    entry: { type: 'int', required: true, min: 0 },
-                    jobType: { type: 'string', required: true },
+                    queryIdx: { type: 'int', required: true, min: 0 },
                     mode: { type: 'string', nullable: true },
-                    resultKind: { type: 'string', required: true, enum: RESULT_KINDS },
+                    tool: { type: 'string', required: true, enum: TOOLS },
                 },
             },
         },

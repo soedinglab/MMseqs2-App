@@ -1,5 +1,5 @@
 // One reproducible file bundle per result unit: complete factual data, addressed by a cache key that
-// depends only on (server, ticket, entry, schema version).
+// depends only on (server, ticket, queryIdx, schema version).
 //
 // Build order is data files -> manifest -> READY, into a scratch directory on the same filesystem,
 // then one atomic rename. A directory without READY is therefore never a half-written artifact that
@@ -13,7 +13,7 @@ import zlib from 'node:zlib';
 import { ARTIFACT_SCHEMA, validateArtifactManifest, unsafeRelativePath } from './schemas.js';
 import { defaultRankingSemantics, metricSemantics, NUMERIC_METRIC_FIELDS } from './metrics.js';
 import {
-    kindForJobType, resultCounts, completenessOf, databaseProvenance,
+    kindForJobType, toolForJobType, resultCounts, completenessOf, databaseProvenance,
     taxonomyExport, serializeRow, motifPatternExport,
 } from './facts.js';
 import { foldMasonColumns, foldMasonEntries, foldMasonFasta, msaResidueMap } from './msa.js';
@@ -51,8 +51,8 @@ export function serverNamespaceFor({ baseUrl, apiPath = '/api' } = {}) {
     return `${origin}${String(apiPath ?? '').replace(/\/+$/, '')}`;
 }
 
-export function artifactCacheKey({ serverNamespace, ticketId, normalizedEntry }) {
-    const parts = [serverNamespace, ticketId, String(normalizedEntry), ARTIFACT_SCHEMA];
+export function artifactCacheKey({ serverNamespace, ticketId, queryIdx }) {
+    const parts = [serverNamespace, ticketId, String(queryIdx), ARTIFACT_SCHEMA];
     return crypto.createHash('sha256').update(parts.join('\0')).digest('hex');
 }
 
@@ -242,9 +242,8 @@ export function createArtifactStore({
                 uri: store.uriFor(id),
                 manifestUri: store.uriFor(id, MANIFEST),
                 ticket: manifest.state.ticket,
-                entry: manifest.state.entry,
-                jobType: manifest.state.jobType,
-                resultKind: manifest.state.resultKind,
+                queryIdx: manifest.state.queryIdx,
+                tool: manifest.state.tool,
                 counts: manifest.counts,
                 completeness: manifest.completeness,
                 files: manifest.files.map(({ role, path: p, mime, bytes, rows, uncompressedBytes }) => ({
@@ -455,7 +454,7 @@ async function writeFoldMasonFiles(collector, { result, issues }) {
  * @returns {(scratch: string) => Promise<object>} the writer `store.build` expects
  */
 export function artifactWriter({
-    artifactId, serverNamespace, ticket, entry, jobType, table = null, foldMasonResult = null,
+    artifactId, serverNamespace, ticket, queryIdx, jobType, table = null, foldMasonResult = null,
     record = null, catalog = null, configuredCap = null, clock = () => new Date(),
 }) {
     return async (scratch) => {
@@ -515,7 +514,7 @@ export function artifactWriter({
         return {
             schema: ARTIFACT_SCHEMA,
             artifactId,
-            state: { serverNamespace, ticket, entry, jobType, mode, resultKind: kind === 'complexsearch' ? 'complexsearch' : (kind === 'search' ? 'search' : kind) },
+            state: { serverNamespace, ticket, queryIdx, mode, tool: toolForJobType(jobType) },
             derivedFrom: record?.derivedFrom ?? null,
             createdAt: clock().toISOString(),
             builtBy: BUILT_BY,

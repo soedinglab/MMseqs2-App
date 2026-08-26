@@ -90,10 +90,10 @@ test('a folddisco export adds motif patterns and records saturation', async () =
     const out = await client.exportResult('T2abcd');
 
     assert.deepEqual(roles(out), ['databases', 'motif-patterns', 'rows']);
-    assert.equal(out.resultKind, 'folddisco');
+    assert.equal(out.tool, 'folddisco');
     assert.equal(fileOf(out, 'rows').rows, 1000);
     assert.deepEqual(out.completeness,
-        { complete: false, saturated: true, capSource: 'worker-fixed', rowCap: 1000 });
+        { complete: false, saturated: true, rowCap: 1000 });
 
     const patterns = JSON.parse(readFile(out, 'motif-patterns'));
     assert.equal(patterns.patterns.reduce((a, p) => a + p.hits, 0), 1000, 'every hit is accounted for');
@@ -150,7 +150,7 @@ test('a complex export keeps chain-level facts and reports the grouping', async 
     });
     const out = await client.exportResult('T4abcd');
 
-    assert.equal(out.resultKind, 'complexsearch');
+    assert.equal(out.tool, 'multimer');
     assert.equal(out.counts.serverAlignments, 3);
     assert.equal(out.counts.parsedRows, 2);
     assert.equal(out.counts.grouping, 'complexid');
@@ -162,20 +162,20 @@ test('a complex export keeps chain-level facts and reports the grouping', async 
 
 test('the cache key separates servers, entries and schema versions', () => {
     const key = (over = {}) => artifactCacheKey({
-        serverNamespace: 'https://a.test/api', ticketId: 'T1', normalizedEntry: 0, ...over,
+        serverNamespace: 'https://a.test/api', ticketId: 'T1', queryIdx: 0, ...over,
     });
     const ids = new Set([
         key(),
         key({ serverNamespace: 'https://b.test/api' }),
-        key({ normalizedEntry: 1 }),
+        key({ queryIdx: 1 }),
         key({ ticketId: 'T2' }),
     ]);
     assert.equal(ids.size, 4, 'each component must move the key');
     assert.equal(key(), key(), 'and the same inputs must give the same key');
 
     // The separator is what stops ("T1", 11) and ("T11", 1) colliding.
-    assert.notEqual(key({ ticketId: 'T1', normalizedEntry: 11 }),
-        key({ ticketId: 'T11', normalizedEntry: 1 }));
+    assert.notEqual(key({ ticketId: 'T1', queryIdx: 11 }),
+        key({ ticketId: 'T11', queryIdx: 1 }));
 
     assert.equal(serverNamespaceFor({ baseUrl: 'https://Example.TEST/', apiPath: '/api/' }),
         'https://example.test/api');
@@ -264,9 +264,9 @@ test('the manifest is valid, self-consistent, and uses safe index-based paths', 
 
     assert.deepEqual(validateArtifactManifest(manifest), { ok: true, errors: [] });
     assert.equal(manifest.state.serverNamespace, 'https://example.test/api');
-    assert.equal(manifest.ranking.sortKey, 'score');
+    assert.equal(manifest.ranking.field, 'score');
     assert.deepEqual(Object.keys(manifest.metricSemantics.eval).sort(),
-        ['crossDatabaseComparable', 'direction', 'label', 'sortOrder'],
+        ['crossDatabaseComparable', 'direction', 'label'],
         'the map key is the field, so the value does not repeat it');
     assert.equal(manifest.metricSemantics.eval.label, 'E-Value');
 
@@ -382,7 +382,6 @@ test('a search that found nothing still exports, and says so', async () => {
     assert.deepEqual(out.integrityIssues, []);
 
     const summary = await client.getResultSummary('T9abcd');
-    assert.equal(summary.exportAvailable, false, 'nothing worth fetching beyond the manifest');
 });
 
 test('a manifest that fails its own schema is never published', async () => {

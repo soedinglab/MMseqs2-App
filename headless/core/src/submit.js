@@ -34,6 +34,12 @@ import {
     DatabaseNotResolvableError,
 } from './structures.js';
 
+function coded(code, message) {
+    const err = new Error(message);
+    err.code = code;
+    return err;
+}
+
 export const ORIGINS = ['chains', 'fm-entry', 'structure'];
 export const DESTINATIONS = ['foldseek', 'multimer', 'foldmason', 'folddisco'];
 
@@ -76,7 +82,7 @@ export class SubmittableQuery {
      */
     constructor(client, spec, { label = null } = {}) {
         if (typeof spec !== 'function' && !ORIGINS.includes(spec?.kind)) {
-            throw new Error(`unknown query origin: ${JSON.stringify(spec?.kind)} ` +
+            throw coded('INVALID_INPUT', `unknown query origin: ${JSON.stringify(spec?.kind)} ` +
                             `(expected one of ${ORIGINS.join(', ')})`);
         }
         this.client = client;
@@ -90,7 +96,7 @@ export class SubmittableQuery {
         if (this.spec) return this.spec;
         const spec = await this._resolver();
         if (!ORIGINS.includes(spec?.kind)) {
-            throw new Error(`unknown query origin: ${JSON.stringify(spec?.kind)} ` +
+            throw coded('INVALID_INPUT', `unknown query origin: ${JSON.stringify(spec?.kind)} ` +
                             `(expected one of ${ORIGINS.join(', ')})`);
         }
         this.spec = spec;
@@ -118,7 +124,7 @@ export class SubmittableQuery {
      */
     async build(tool, { signal } = {}) {
         if (!DESTINATIONS.includes(tool)) {
-            throw new Error(`unknown destination: ${JSON.stringify(tool)} ` +
+            throw coded('INVALID_INPUT', `unknown destination: ${JSON.stringify(tool)} ` +
                             `(expected one of ${DESTINATIONS.join(', ')})`);
         }
         const spec = await this.resolve();
@@ -152,7 +158,7 @@ export class SubmittableQuery {
 
         // kind === 'chains'
         const chains = spec.chains ?? [];
-        if (chains.length === 0) throw new Error('this query has no chains to build from');
+        if (chains.length === 0) throw coded('INVALID_INPUT', 'this query has no chains to build from');
         const parts = chains.map(c => ({ pdb: mockPDB(c.ca, c.seq ?? '', c.chain), chain: c.chain }));
         const multi = parts.length > 1;
         const base = this._baseName(spec);
@@ -207,7 +213,7 @@ export class SubmittableQuery {
             });
         } catch (err) {
             if (err?.name === 'AbortError') throw err;      // the caller's own cancellation
-            throw new Error(`could not reconstruct ${name}: ${err.message}`);
+            throw coded('UPSTREAM_FAILED', `could not reconstruct ${name}: ${err.message}`);
         }
     }
 
@@ -232,7 +238,7 @@ export class SubmittableQuery {
         iterativeSearch = false, remark = true, signal = undefined,
     } = {}) {
         if (MULTI_INPUT_DESTINATIONS.has(tool)) {
-            throw new Error('FoldMason requires two or more structures');
+            throw coded('INVALID_INPUT', 'FoldMason requires two or more structures');
         }
         const built = await this.build(tool, { signal });
         if (tool === 'folddisco' && motif && built.motif) {
@@ -291,11 +297,11 @@ export class SubmittableQuery {
  * Several queries, submitted together - for FoldMason job.
  */
 export class QuerySet {
-    constructor(client, queries, { ticket = null, entry = 0, description = null } = {}) {
+    constructor(client, queries, { ticket = null, queryIdx = 0, description = null } = {}) {
         this.client = client;
         this.queries = queries;
         this.ticket = ticket;
-        this.entry = entry;
+        this.queryIdx = queryIdx;
         this.description = description;
     }
 
@@ -310,7 +316,7 @@ export class QuerySet {
     async sendTo({ tool, includeQuery = true, concurrency = 8, email = '', signal, ...rest } = {}) {
         if (tool !== 'foldmason') {
             if (this.queries.length !== 1) {
-                throw new Error(`${tool} takes one query; this selection has ${this.queries.length}. ` +
+                throw coded('INVALID_INPUT', `${tool} takes one query; this selection has ${this.queries.length}. ` +
                                 'Narrow it to one row, or send to foldmason.');
             }
             return this.queries[0].sendTo({ tool, email, signal, ...rest });
@@ -345,7 +351,7 @@ export class QuerySet {
         }
 
         if (includeQuery && this.ticket) {
-            const original = await this.client.getQueryStructure(this.ticket, { entry: this.entry })
+            const original = await this.client.getQueryStructure(this.ticket)
                 .catch(err => {
                     skipped.push({ index: -1, name: 'query', reason: err.message });
                     return null;
@@ -360,7 +366,7 @@ export class QuerySet {
         if (this.ticket) {
             const derivedFrom = {
                 ticket: this.ticket,
-                entry: this.entry,
+                queryIdx: this.queryIdx,
                 origin: 'selection',
                 tool: 'foldmason',
                 ...(this.description?.name ? { selection: this.description.name } : {}),

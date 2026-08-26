@@ -14,7 +14,7 @@ import {
     FOLDSEEK_SORT_KEYS, FOLDDISCO_SORT_KEYS,
 } from '../../../frontend/lib/resultSort.js';
 
-const MODES = ['3di', '3diaa', 'tmalign', 'lolalign'];
+const MODES = ['3diaa', '3diaa', 'tmalign', 'lolalign'];
 
 test('every registry entry carries a label, a direction, and a cross-database verdict', () => {
     for (const [key, entry] of Object.entries(METRIC_SEMANTICS)) {
@@ -29,7 +29,7 @@ test('every registry entry carries a label, a direction, and a cross-database ve
 test('the returned semantics are facts only — no parser prose, no echoed inputs', () => {
     const s = metricSemantics({ mode: 'lolalign', field: 'eval' });
     assert.deepEqual(Object.keys(s).sort(),
-        ['crossDatabaseComparable', 'direction', 'known', 'label', 'sortOrder']);
+        ['crossDatabaseComparable', 'direction', 'known', 'label']);
     for (const echoed of ['field', 'mode', 'tool', 'key', 'parserTransform']) {
         assert.equal(s[echoed], undefined, `${echoed} is something the caller already has`);
     }
@@ -38,8 +38,7 @@ test('the returned semantics are facts only — no parser prose, no echoed input
 test('the default ranking is flat, and repeats nothing', () => {
     const r = defaultRankingSemantics({ mode: '3diaa' });
     assert.deepEqual(r, {
-        sortKey: 'score', field: 'score', label: 'Score',
-        direction: 'higher', crossDatabaseComparable: true, sortOrder: -1,
+        field: 'score', label: 'Score', direction: 'higher', crossDatabaseComparable: true,
     });
     assert.equal(r.semantics, undefined, 'the facts are the ranking, not a nested object');
     assert.equal(r.known, undefined, 'a default ranking key is registered by construction');
@@ -82,8 +81,10 @@ test('direction agrees with the sorter for every mode and metric', () => {
     for (const { tool = 'foldseek', mode = '', field } of cases) {
         const s = metricSemantics({ tool, mode, field });
         assert.equal(s.known, true, `${mode || tool}.${field} must be registered`);
-        assert.equal(s.sortOrder, s.direction === 'higher' ? -1 : 1,
-            `${mode || tool}.${field}: ${s.direction} is better but the table sorts ${s.sortOrder}`);
+        const sortKey = SORT_KEY_FOR_FIELD[field];
+        const order = defaultSortOrder(sortKey, { mode: mode.replace(/^complex-/, '') });
+        assert.equal(order, s.direction === 'higher' ? -1 : 1,
+            `${mode || tool}.${field}: ${s.direction} is better but the table sorts ${order}`);
     }
     // The sorter's own rule, restated here so a change on either side fails this test.
     assert.equal(defaultSortOrder('eval', { mode: 'tmalign' }), -1);
@@ -159,7 +160,7 @@ test('folddisco metrics keep their own direction and labels', () => {
     const rmsd = metricSemantics({ tool: 'folddisco', field: 'rmsd' });
     assert.equal(rmsd.direction, 'lower');
     assert.equal(rmsd.label, 'RMSD');
-    assert.equal(rmsd.sortOrder, 1, 'lower is better, so the table sorts ascending');
+    assert.equal(defaultSortOrder('rmsd', {}), 1, 'lower is better, so the table sorts ascending');
 });
 
 test('an unregistered field says so instead of inventing semantics', () => {
@@ -167,17 +168,24 @@ test('an unregistered field says so instead of inventing semantics', () => {
     assert.equal(s.known, false);
     assert.equal(s.label, 'bogus');
     assert.equal(s.crossDatabaseComparable, null);
-    assert.equal(s.sortOrder, null, 'an unknown field has no sort key to ask about');
 });
 
-test('default ranking mirrors what the result table would choose', () => {
-    const pick = r => ({ sortKey: r.sortKey, field: r.field });
-    assert.deepEqual(pick(defaultRankingSemantics({ mode: '3diaa' })), { sortKey: 'score', field: 'score' });
-    assert.deepEqual(pick(defaultRankingSemantics({ mode: 'complex-3diaa', isComplex: true })),
-        { sortKey: 'qtm', field: 'complexqtm' });
-    assert.deepEqual(pick(defaultRankingSemantics({ tool: 'folddisco' })),
-        { sortKey: 'idf', field: 'idfscore' });
+test('default ranking names the field the server actually sorted on', () => {
+    const pick = r => r.field;
+    assert.equal(pick(defaultRankingSemantics({ mode: '3diaa' })), 'score');
+    assert.equal(pick(defaultRankingSemantics({ mode: 'complex-3diaa', isComplex: true })), 'complexqtm');
+    assert.equal(pick(defaultRankingSemantics({ tool: 'folddisco' })), 'idfscore');
     assert.equal(defaultRankingSemantics({ tool: 'folddisco' }).label, 'IDF-score');
+
+    // tmalign and lolalign put a TM/LoL score in `eval` and the server orders by it. The frontend's
+    // table defaults to `score` whatever the mode; a manifest that copied that described a sort the
+    // exported file does not have.
+    for (const [mode, label] of [['tmalign', 'TM-score'], ['lolalign', 'LOL-score']]) {
+        const r = defaultRankingSemantics({ mode });
+        assert.equal(r.field, 'eval', mode);
+        assert.equal(r.label, label, mode);
+        assert.equal(r.direction, 'higher', mode);
+    }
 });
 
 test('numericMetric recovers numbers from display strings and refuses junk', () => {
