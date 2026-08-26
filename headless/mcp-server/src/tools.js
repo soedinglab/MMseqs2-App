@@ -8,8 +8,7 @@ import {
 const TICKET = { type: 'string', description: 'Ticket id.' };
 const QUERY_IDX = {
     type: 'number',
-    description: 'Which query of a multi-query ticket; default 0. Foldseek and multimer only — '
-               + 'FoldMason and FoldDisco serve one result per ticket.',
+    description: 'Which query of a multi-query ticket; default 0. Foldseek and multimer only',
 };
 const QUERY = { type: 'string', description: 'Structure as PDB or mmCIF text.' };
 function pathArg(dirs, { many = false } = {}) {
