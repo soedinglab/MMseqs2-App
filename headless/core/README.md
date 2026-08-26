@@ -240,5 +240,5 @@ one for something the server already has. Its length and a hash prefix are kept 
 
 ## Testing
 
-`npm test` runs 307 tests and touches nothing outside the process. The live tests are described in
-[`../README.md`](../README.md).
+`npm test` runs 350 tests — 336 of them offline, the rest skipped without a live server — and touches
+nothing outside the process. The live tests are described in [`../README.md`](../README.md).

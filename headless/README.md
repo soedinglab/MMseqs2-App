@@ -56,23 +56,6 @@ inlined into a tool result.
 For the MCP server: [`mcp-server/README.md`](mcp-server/README.md) is the full user documentation and
 the page npm publishes; [`mcp-server/REFERENCE.md`](mcp-server/REFERENCE.md) is for contributors.
 
-## Examples
-
-Two runnable scripts in [`examples/`](examples/), both of which submit real jobs:
-
-```bash
-node headless/examples/binding-site-search.mjs     # one job
-node headless/examples/streptavidin-chain.mjs      # three jobs, ~20s end to end
-```
-
-`binding-site-search.mjs` searches the PDB for streptavidin's biotin-binding site in a single call —
-the accession is fetched, Q-BioLiP is asked for the site, its residues are resolved against the
-receptor assembly, and the assembly's chain names are rewritten so the motif can address them.
-
-`streptavidin-chain.mjs` is the whole layer: search → survey → select → align → find the
-best-superposing region → search again for that region as a motif. Worth reading for how little
-crosses between steps — a ticket id, a few row ids, a column range, and no structure text at all.
-
 ## Tests
 
 ```bash
