@@ -1,7 +1,7 @@
 // Phase 2B — the capabilities the browser page API had and this layer did not (api-parity.md).
 //
-// `*-summary-expected.json` was captured the same way 1.7.2 was: real
-// window.resultsApi.getTableSummary() calls in a browser on the live validation tickets. Page-only
+// `*-summary-expected.json` is a frozen capture taken the same way 1.7.2 was: real
+// window.resultsApi.getTableSummary() calls in a browser, before that API was removed. Page-only
 // fields are excluded by name, as in parity.test.js.
 
 import { test } from 'node:test';

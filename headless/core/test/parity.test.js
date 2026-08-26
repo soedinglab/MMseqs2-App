@@ -1,7 +1,8 @@
 // Golden-file parity: the headless getTable() must produce the same table as the mounted page.
 //
-// `*.expected.json` was captured from a real browser by calling window.resultsApi.getTable() on the
-// live validation tickets (see claude-plan/headless-agent-layer/checklist.md 1.7). `*.raw.json` is
+// `*.expected.json` is a frozen capture of the browser page API, taken by calling
+// window.resultsApi.getTable() on the live validation tickets before that API was removed
+// (see claude-plan/headless-agent-layer/checklist.md 1.7). `*.raw.json` is
 // the backend response those pages were showing, trimmed two ways, each verified not to change the
 // table output before being applied:
 //   - databases other than the one under test keep their entry but lose their alignments, so

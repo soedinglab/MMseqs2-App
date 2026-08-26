@@ -538,7 +538,7 @@ export default {
             return this.sortedIndices.reduce(
                 (n, g) => n + (this.isRowVisible(g) ? 1 : 0), 0)
         },
-        // Shared with the getTable() API via lib/resultSort.js so the two cannot sort
+        // Shared with the headless layer via lib/resultSort.js so the two cannot sort
         // differently. Verified byte-identical to the previous inline implementation across
         // every sort key on three real results.
         comparator() {

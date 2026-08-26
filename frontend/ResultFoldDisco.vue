@@ -188,20 +188,14 @@ import StructureViewerMotif from './StructureViewerMotif.vue';
 // import makeZip from './lib/zip.js'
 // import SankeyDiagram from './SankeyDiagram.vue';
 import { debounce } from './lib/debounce.js';
-import { registerResultApi, normalizeId, splitId } from './lib/resultsApi.js';
+import { normalizeId, splitId } from './lib/hitId.js';
 
 // See ResultView: hits per database entering a merged ranking, before the 100-row cap.
-const MERGE_POOL_PER_DB = 100;
-import { defaultSortOrder, isValidSortKey, FOLDDISCO_SORT_KEYS, rowFieldForSortKey,
-    createSortMemo } from './lib/resultSort.js';
-import { expandDescendants, findTaxonRow, findTaxonByName,
-    summarizeTaxonomy } from './lib/taxonomyFilter.js';
 // import { thresholdScott } from 'd3';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
 import NavigationButton from './NavigationButton.vue';
 import ResultFoldDiscoDB from './ResultFoldDiscoDB.vue';
 import SelectToSendPanel from './SelectToSendPanel.vue';
-import SendToMixin from './SendToMixin.vue';
 import NameField from './NameField.vue';
 import TopHits from './TopHits.vue';
 import Top100Folddisco from './Top100Folddisco.vue';
@@ -229,7 +223,7 @@ export default {
         Top100Folddisco,
     },
     // components: { ResultView },
-    mixins: [ ResultMixin, ResultSankeyMixin, SendToMixin ],
+    mixins: [ ResultMixin, ResultSankeyMixin ],
     data() {
         return {
             ticket: "",
@@ -258,7 +252,6 @@ export default {
         }
     },
     created() {
-        this._sortMemo = createSortMemo();
         window.addEventListener("resize", this.handleAlignmentBoxResize, { passive: true });
         this.getSingleSelectionInfo = this.getSingleSelectionInfo.bind(this)
         this.getMultipleSelectionInfo = this.getMultipleSelectionInfo.bind(this)
@@ -268,7 +261,6 @@ export default {
     },
     beforeDestroy() {
         window.removeEventListener("resize", this.handleAlignmentBoxResize);
-        this._disposeApi?.();
     },
     computed: {
         // mode() {
@@ -357,28 +349,6 @@ export default {
             })
         }
 
-        this._disposeApi = registerResultApi('folddisco', {
-            getTable: this.getTable,
-            getTableSummary: this.getTableSummary,
-            getState: this.getState,
-            selectAll: this.selectAll,
-            selectVisible: this.selectVisible,
-            setSelection: this.setSelection,
-            select: this.select,
-            deselect: this.deselect,
-            getSelection: this.getSelection,
-            clearSelection: this.clearSelection,
-            selectDatabase: this.selectDatabase,
-            getTaxonomy: this.getTaxonomy,
-            setTaxonomyFilter: this.setTaxonomyFilter,
-            getMotifPatterns: this.getMotifPatterns,
-            setMotifFilter: this.setMotifFilter,
-            getFilters: this.getFilters,
-            clearFilters: this.clearFilters,
-            sendTo: this.sendTo,
-            describePage: this.describePage,
-            _vm: this,   // unstable escape hatch; see describe()
-        });
         this.$root.$on('downloadJSON', () => {
             let data;
             if (this.ticket.startsWith('user-')) {
@@ -434,265 +404,10 @@ export default {
         },
     },
     methods: {
-        // ---------------------------------------------------------------------------------
-        // Public API (also exposed as window.resultsApi — see lib/resultsApi.js)
-        // ---------------------------------------------------------------------------------
-        _resolveDb(db) {
-            if (db === undefined || db === null) return null;
-            if (typeof db === 'number') return this.hits?.results?.[db] ? db : null;
-            if (/^\d+$/.test(String(db))) {
-                const i = Number(db);
-                return this.hits?.results?.[i] ? i : null;
-            }
-            if (this.dbToIdx?.[db] !== undefined) return this.dbToIdx[db];
-            // Tabs display the db name with the _folddisco suffix stripped; accept either form.
-            const i = this.hits?.results?.findIndex(
-                r => r.db.replace(/_folddisco$/, '') === String(db));
-            return i === undefined || i < 0 ? null : i;
-        },
         _activeChild() {
             if (!this.selectedDatabases) return null;
             const refs = this.$refs['dbComponent' + (this.selectedDatabases - 1)];
             return Array.isArray(refs) ? refs[0] : refs || null;
-        },
-        getTable(opts = {}) {
-            if (!this.hits?.results) return { page: 'folddisco', error: 'no results loaded' };
-            const { db = null, sortKey = null, sortOrder = null,
-                offset = 0, limit = 20, fields = null } = opts;
-
-            let targets;
-            if (db === '*' || db === 'all') {
-                targets = this.hits.results.map((_, i) => i);
-            } else if (db === null || db === undefined) {
-                const active = this.selectedDatabases ? this.selectedDatabases - 1 : null;
-                if (active === null) {
-                    return { page: 'folddisco',
-                        error: 'no database tab is open; pass db, or db:"*" for all',
-                        available: this.hits.results.map(r => r.db) };
-                }
-                targets = [active];
-            } else {
-                const i = this._resolveDb(db);
-                if (i === null) {
-                    return { page: 'folddisco', error: `unknown database: ${db}`,
-                        available: this.hits.results.map(r => r.db) };
-                }
-                targets = [i];
-            }
-
-            const child = this._activeChild();
-            const activeIdx = this.selectedDatabases ? this.selectedDatabases - 1 : null;
-
-            const databases = targets.map(dbIdx => {
-                const entry = this.hits.results[dbIdx];
-                const alignments = entry.alignments || {};
-                const isActive = dbIdx === activeIdx && !!child;
-                const key = sortKey || (isActive ? child.sortKey : 'idf');
-                if (!isValidSortKey(key, 'folddisco')) {
-                    return { db: entry.db, dbIndex: dbIdx, error: `invalid sortKey: ${key}`,
-                        validSortKeys: FOLDDISCO_SORT_KEYS };
-                }
-                const order = sortOrder != null ? Number(sortOrder)
-                    : (isActive && !sortKey ? child.sortOrder : defaultSortOrder(key));
-
-                // Clustering lives in the mounted child (FolddiscoHitCluster). For a closed tab
-                // there is no cluster assignment at all, so say so rather than inventing one.
-                let ordered, clustered = false, clusterOf = null;
-                if (isActive && child.sortedIndices && Object.keys(child.sortedIndices).length) {
-                    clustered = true;
-                    clusterOf = {};
-                    ordered = [];
-                    for (const [cluKey, ids] of Object.entries(child.sortedIndices)) {
-                        for (const id of ids) { clusterOf[id] = cluKey; ordered.push(id); }
-                    }
-                } else {
-                    ordered = this._sortMemo.get(`${dbIdx}`, alignments, key, order,
-                        { tool: 'folddisco' });
-                }
-
-                const page = ordered.slice(offset, offset + limit);
-                return {
-                    db: entry.db, dbIndex: dbIdx, sortKey: key, sortOrder: order,
-                    total: ordered.length, offset, returned: page.length,
-                    hasDescription: !!entry.hasDescription,
-                    hasTaxonomy: !!entry.hasTaxonomy,
-                    clustered,
-                    filtersApplied: isActive,
-                    rows: page.map((gid, i) => this._rowFor(
-                        dbIdx, gid, entry, offset + i, isActive ? child : null,
-                        clusterOf, fields)),
-                };
-            });
-
-            return {
-                page: 'folddisco',
-                motif: this.hits.motif ?? null,
-                query: this.hits.query?.header ?? null,
-                activeDatabase: activeIdx === null ? null : this.hits.results[activeIdx]?.db,
-                databases,
-            };
-        },
-        _rowFor(dbIdx, groupId, entry, rank, child, clusterOf, fields) {
-            const head = entry.alignments[groupId][0];
-            const row = {
-                id: `${dbIdx}#${groupId}`,
-                entryIndex: Number(groupId),
-                rank,
-                cluster: clusterOf ? (clusterOf[groupId] ?? null) : null,
-                selected: !!this.selectedStates?.[dbIdx]?.[groupId],
-                visible: child ? child.isRowVisible(groupId) : true,
-                target: head.target,
-                targetName: head.targetname,
-                dbkey: head.dbkey,
-                idfscore: head.idfscore,
-                rmsd: head.rmsd,
-                nodecount: head.nodecount,
-                targetresidues: head.targetresidues,
-                // Per-query-residue bitmask: "1" matched, "0" missing. This is what the
-                // "Query residues" filter selects on — see setMotifFilter().
-                motifPattern: head.gaps,
-            };
-            if (entry.hasDescription) row.description = head.description;
-            if (entry.hasTaxonomy) { row.taxId = head.taxId; row.taxName = head.taxName; }
-            if (!fields) return row;
-            const picked = {};
-            for (const f of ['id', 'entryIndex', 'rank', ...fields]) {
-                if (f in row) picked[f] = row[f];
-            }
-            return picked;
-        },
-        /** See ResultView.selectAll. Note FoldDisco is single-selection unless ?d2m=1. */
-        selectAll(db = null) {
-            const i = db == null
-                ? (this.selectedDatabases ? this.selectedDatabases - 1 : null)
-                : this._resolveDb(db);
-            const entry = i === null ? null : this.hits?.results?.[i];
-            if (!entry) {
-                return { ok: false, reason: db == null ? 'no database tab is open' : `unknown database: ${db}` };
-            }
-            const ids = Object.keys(entry.alignments || {}).map(g => `${i}#${g}`);
-            return this._bulkSelectionResult(this._applySelection(ids, true));
-        },
-        selectVisible(db = null) {
-            const got = this._requireActiveChild(db);
-            if (got.error) return { ok: false, reason: got.error };
-            const i = this.selectedDatabases - 1;
-            const entry = this.hits.results[i];
-            const ids = Object.keys(entry.alignments || {})
-                .filter(g => got.child.isRowVisible(Number(g)))
-                .map(g => `${i}#${g}`);
-            return this._bulkSelectionResult(this._applySelection(ids, true));
-        },
-        // Counts, not id lists — see ResultView._bulkSelectionResult.
-        _bulkSelectionResult(r) {
-            const reasons = [...new Set(r.rejected.map(x => x.reason))];
-            return {
-                ok: r.rejected.length === 0,
-                count: r.selectedCount ?? this.selectedCounts,
-                added: r.changed.length,
-                rejected: r.rejected.length,
-                ...(reasons.length ? { reasons } : {}),
-            };
-        },
-        /** See ResultView.getTableSummary. */
-        getTableSummary(opts = {}) {
-            if (!this.hits?.results) return { ok: false, page: 'folddisco', error: 'no results loaded' };
-            const { db = '*', topN = 3, merged = false } = opts;
-            const activeIdx = this.selectedDatabases ? this.selectedDatabases - 1 : null;
-            const child = this._activeChild();
-
-            let targets;
-            if (db === '*' || db === 'all') targets = this.hits.results.map((_, i) => i);
-            else {
-                const i = this._resolveDb(db);
-                if (i === null) {
-                    return { ok: false, page: 'folddisco', error: `unknown database: ${db}`,
-                        available: this.hits.results.map(r => r.db) };
-                }
-                targets = [i];
-            }
-            const num = v => {
-                const n = typeof v === 'string' ? Number(v) : v;
-                return Number.isFinite(n) ? n : null;
-            };
-            const all = [];
-            const databases = targets.map(dbIdx => {
-                const entry = this.hits.results[dbIdx];
-                const alignments = entry.alignments || {};
-                const isActive = dbIdx === activeIdx && !!child;
-                const key = isActive ? child.sortKey : 'idf';
-                const order = isActive ? child.sortOrder : defaultSortOrder(key);
-                const sorted = this._sortMemo.get(`${dbIdx}`, alignments, key, order,
-                    { tool: 'folddisco' });
-                // _rowFor here is (dbIdx, groupId, entry, rank, child, clusterOf, fields).
-                const row = (gid, f) => this._rowFor(dbIdx, gid, entry, 0, null, null, f);
-                const field = rowFieldForSortKey(key, 'folddisco');
-                const valAt = gid => num(row(gid, [field])?.[field]);
-                const summary = {
-                    db: entry.db, dbIndex: dbIdx,
-                    total: sorted.length,
-                    visibleCount: isActive
-                        ? Object.keys(alignments).filter(g => child.isRowVisible(Number(g))).length
-                        : sorted.length,
-                    selectedCount: this.selectedCountPerDb?.[dbIdx] ?? 0,
-                    sortKey: key, sortOrder: order,
-                    sortKeySource: isActive ? 'active' : 'default',
-                    hasTaxonomy: !!entry.hasTaxonomy,
-                    metrics: { [key]: sorted.length
-                        ? { best: valAt(sorted[0]),
-                            median: valAt(sorted[Math.floor(sorted.length / 2)]),
-                            worst: valAt(sorted[sorted.length - 1]) }
-                        : null },
-                    ...(topN > 0
-                        ? { top: sorted.slice(0, topN).map(gid => row(gid, ['target', field])) }
-                        : {}),
-                };
-                // Independent of topN — see ResultView.getTableSummary.
-                if (merged) {
-                    for (const gid of sorted.slice(0, MERGE_POOL_PER_DB)) {
-                        const r = row(gid, ['target', field]);
-                        all.push({ ...r, db: entry.db, _v: num(r[field]) });
-                    }
-                }
-                return summary;
-            });
-            const out = { ok: true, page: 'folddisco',
-                activeDatabase: activeIdx === null ? null : this.hits.results[activeIdx]?.db,
-                databases };
-            if (merged) {
-                // One ranking across every database, mirroring what Top100Folddisco.vue builds
-                // internally (db_idx + '#' + k over all hits.results) and never returns.
-                const key = databases[0]?.sortKey;
-                const order = databases[0]?.sortOrder ?? 1;
-                const ranked = all.filter(r => r._v !== null)
-                    .sort((a, b) => (a._v - b._v) * (order < 0 ? -1 : 1))
-                    .slice(0, 100)
-                    .map(({ _v, ...r }) => r);
-                out.merged = { sortKey: key, sortOrder: order, count: ranked.length, topN: ranked };
-            }
-            return out;
-        },
-        /** See ResultView.getState. No `query`/`entry`: this route has no :entry param. */
-        getState() {
-            const child = this._activeChild();
-            const activeIdx = this.selectedDatabases ? this.selectedDatabases - 1 : null;
-            const sel = this.getSelection();
-            return {
-                ok: true,
-                page: 'folddisco',
-                ticket: this.ticket || this.$route?.params?.ticket || null,
-                ready: !!this.hits?.results,
-                multiSelectEnabled: child?.multipleSelectionEnabled ?? false,
-                activeDatabase: activeIdx === null ? null : this.hits?.results?.[activeIdx]?.db,
-                databases: (this.hits?.results ?? []).map((r, i) => ({
-                    db: r.db, dbIndex: i,
-                    hits: r.alignments ? Object.keys(r.alignments).length : 0,
-                    hasTaxonomy: !!r.hasTaxonomy,
-                    selectedCount: this.selectedCountPerDb?.[i] ?? 0,
-                })),
-                selection: { count: sel.count, upperbound: sel.upperbound },
-                filters: child ? this.getFilters() : null,
-            };
         },
         _applySelection(ids, value) {
             const changed = [], rejected = [];
@@ -750,260 +465,6 @@ export default {
         // Replaces the selection: after this, exactly `ids` are selected. The old name promised
         // this and the old behaviour was additive, so a caller paging through results accumulated
         // instead of replacing while every count it read back looked right.
-        setSelection(ids, ...rest) {
-            if (rest.length > 0) {
-                // Ignoring a stale `value` would turn setSelection(ids, false) — a deselect — into a
-                // replace. Refuse loudly rather than do the opposite of what was meant.
-                return { ok: false, count: this.selectedCounts, applied: [], rejected: [],
-                    reason: 'setSelection takes only ids and replaces the selection; '
-                        + 'use select(ids) to add or deselect(ids) to remove' };
-            }
-            const list = Array.isArray(ids) ? ids : [ids];
-            // Diff rather than clear-and-reselect: _applySelection mirrors `.selected` onto DOM
-            // nodes, so replacing a 1000-row selection with a near-identical one would otherwise do
-            // ~2000 pointless class toggles.
-            const target = new Set();
-            const rejected = [];
-            for (const raw of list) {
-                const id = normalizeId(raw, this.dbToIdx);
-                if (!id) rejected.push({ id: raw, reason: 'unresolvable id' });
-                else target.add(id);
-            }
-            const remove = [...this.selectedSets].filter(id => !target.has(id));
-            const add = [...target].filter(id => !this.selectedSets.has(id));
-            const off = remove.length ? this._applySelection(remove, false)
-                : { changed: [], rejected: [] };
-            const on = add.length ? this._applySelection(add, true)
-                : { changed: [], rejected: [] };
-            // Report the two directions separately. A flat `applied` here would mix ids that were
-            // just selected with ids that were just deselected — indistinguishable to the caller.
-            return {
-                ok: rejected.length + off.rejected.length + on.rejected.length === 0,
-                count: this.selectedCounts,
-                applied: on.changed,
-                removed: off.changed,
-                rejected: [...rejected, ...off.rejected, ...on.rejected],
-            };
-        },
-        /** Additive — leaves entries outside `ids` alone. */
-        select(ids) {
-            return this._selectionResult(
-                this._applySelection(Array.isArray(ids) ? ids : [ids], true));
-        },
-        deselect(ids) {
-            return this._selectionResult(
-                this._applySelection(Array.isArray(ids) ? ids : [ids], false));
-        },
-        // _applySelection already builds `rejected` with per-id reasons; the old count-only return
-        // threw it away. `applied` is not "input minus rejected" — entries already in the requested
-        // state are skipped as no-ops.
-        _selectionResult(r) {
-            return {
-                ok: r.rejected.length === 0,
-                count: r.selectedCount ?? this.selectedCounts,
-                applied: r.changed,
-                rejected: r.rejected,
-            };
-        },
-        getSelection() {
-            const ids = [...this.selectedSets];
-            const byDb = {};
-            for (const id of ids) {
-                const { dbIdx } = splitId(id);
-                const name = this.hits?.results?.[dbIdx]?.db ?? String(dbIdx);
-                (byDb[name] ||= []).push(id);
-            }
-            return { count: this.selectedCounts, upperbound: this.selectUpperbound, ids, byDb };
-        },
-        clearSelection() {
-            const cleared = this.selectedCounts;
-            this.clearAllEntries();
-            return { ok: true, count: this.selectedCounts, cleared };
-        },
-        selectDatabase(db) {
-            const i = this._resolveDb(db);
-            if (i === null) {
-                return { ok: false, reason: `unknown database: ${db}`,
-                    available: this.hits?.results?.map(r => r.db) ?? [] };
-            }
-            this.selectedDatabases = i + 1;
-            return { ok: true, activeDatabase: this.hits.results[i].db, dbIndex: i };
-        },
-        _requireActiveChild(db) {
-            const child = this._activeChild();
-            if (!child) return { error: 'no database tab is open; call selectDatabase(db) first' };
-            if (db != null) {
-                const i = this._resolveDb(db);
-                if (i === null) return { error: `unknown database: ${db}` };
-                if (i !== this.selectedDatabases - 1) {
-                    return { error: `"${this.hits.results[i].db}" is not the open tab; `
-                        + `call selectDatabase("${this.hits.results[i].db}") first` };
-                }
-            }
-            return { child };
-        },
-        _afterFilterChange(child, entry) {
-            // Recompute synchronously before counting: FoldDisco's visibilityTable is only
-            // rebuilt inside updateVisibility(), so reading isRowVisible() before it runs
-            // reports the pre-filter counts. The $nextTick pass repairs the DOM after re-render.
-            child.updateVisibility();
-            child.$nextTick(() => child.syncRenderedState?.());
-            const total = Object.keys(entry.alignments || {}).length;
-            const visible = Object.keys(entry.alignments || {})
-                .filter(g => child.isRowVisible(Number(g))).length;
-            return { applied: true, db: entry.db,
-                taxIdCount: (child.filteredHitsTaxIds ?? []).length,
-                visibleCount: visible, totalCount: total };
-        },
-        getTaxonomy(db = null, opts = {}) {
-            const i = db == null ? (this.selectedDatabases - 1) : this._resolveDb(db);
-            const entry = this.hits?.results?.[i];
-            if (!entry) return { error: `unknown database: ${db}` };
-            const report = entry.taxonomyreports?.[0];
-            if (!report?.length) {
-                return { db: entry.db, available: false,
-                    reason: 'no taxonomy data for this database' };
-            }
-            return { db: entry.db, available: true, totalNodes: report.length,
-                taxa: summarizeTaxonomy(report, opts) };
-        },
-        setTaxonomyFilter(taxon, { includeDescendants = true, db = null } = {}) {
-            const got = this._requireActiveChild(db);
-            if (got.error) return { applied: false, reason: got.error };
-            const child = got.child;
-            const entry = this.hits.results[this.selectedDatabases - 1];
-            const report = entry.taxonomyreports?.[0];
-
-            let taxIds;
-            if (taxon == null || (Array.isArray(taxon) && !taxon.length)) {
-                taxIds = [];
-            } else if (Array.isArray(taxon)) {
-                taxIds = taxon.map(Number);
-            } else {
-                if (!report?.length) {
-                    return { applied: false, db: entry.db,
-                        reason: 'no taxonomy data for this database' };
-                }
-                let id = taxon;
-                if (typeof taxon === 'string' && !/^\d+$/.test(taxon)) {
-                    id = findTaxonByName(report, taxon);
-                    resolvedId = id;
-                    if (id === null) {
-                        return { applied: false, db: entry.db,
-                            reason: `no taxon named "${taxon}" in this database` };
-                    }
-                }
-                if (resolvedId === null) resolvedId = Number(id);
-                if (!findTaxonRow(report, id)) {
-                    return { applied: false, db: entry.db, reason: `taxon ${id} not in report` };
-                }
-                taxIds = (includeDescendants ? expandDescendants(report, id) : [id]).map(Number);
-            }
-            child.localSelectedTaxId = taxIds.length ? Number(resolvedId ?? taxIds[0]) : null;
-            child.apiSelectedTaxon = taxIds.length ? taxon : null;
-            child.filteredHitsTaxIds = taxIds;
-            child.selectedDb = entry.db;
-            return this._afterFilterChange(child, entry);
-        },
-        getMotifPatterns(db = null) {
-            const i = db == null ? (this.selectedDatabases - 1) : this._resolveDb(db);
-            const entry = this.hits?.results?.[i];
-            if (!entry) return { error: `unknown database: ${db}` };
-            const counts = {};
-            for (const g of Object.values(entry.alignments || {})) {
-                const p = g[0].gaps;
-                counts[p] = (counts[p] || 0) + 1;
-            }
-            return {
-                db: entry.db,
-                queryResidues: entry.queryresidues ?? null,
-                note: 'one character per query residue: "1" matched, "0" missing',
-                patterns: Object.entries(counts)
-                    .map(([pattern, hits]) => ({ pattern, hits }))
-                    .sort((a, b) => b.hits - a.hits),
-            };
-        },
-        // NOT setGapFilter: this selects a matched-query-residue pattern, not sequence gaps.
-        // The child's variable is called gapFilter only because the derived field is `gaps`.
-        setMotifFilter(pattern, { db = null } = {}) {
-            const got = this._requireActiveChild(db);
-            if (got.error) return { applied: false, reason: got.error };
-            const child = got.child;
-            const entry = this.hits.results[this.selectedDatabases - 1];
-            const value = pattern == null ? '' : String(pattern);
-            if (value !== '') {
-                const known = new Set(Object.values(entry.alignments || {}).map(g => g[0].gaps));
-                if (!known.has(value)) {
-                    return { applied: false, db: entry.db,
-                        reason: `no hits with pattern "${value}"`,
-                        available: [...known] };
-                }
-            }
-            child.gapFilter = value;
-            return { ...this._afterFilterChange(child, entry), motifPattern: value || null };
-        },
-        getFilters() {
-            const child = this._activeChild();
-            if (!child) return { activeDatabase: null, taxonomy: null, motif: null };
-            const entry = this.hits.results[this.selectedDatabases - 1];
-            const total = Object.keys(entry.alignments || {}).length;
-            const visible = Object.keys(entry.alignments || {})
-                .filter(g => child.isRowVisible(Number(g))).length;
-            const taxIds = child.filteredHitsTaxIds ?? [];
-            return {
-                activeDatabase: entry.db,
-                taxonomy: {
-                    // `selected` records what was asked for — including a name — and
-                    // `selectedTaxId` the id it resolved to. Previously a name filter left
-                    // `selected: null` while 193 rows were hidden, so anything testing `selected`
-                    // for truthiness got the wrong answer; `active` is still the authority.
-                    selected: child.apiSelectedTaxon ?? child.localSelectedTaxId ?? null,
-                    selectedTaxId: child.localSelectedTaxId ?? null,
-                    taxIdCount: taxIds.length,
-                    active: taxIds.length > 0,
-                },
-                motif: { pattern: child.gapFilter || null, active: !!child.gapFilter },
-                visibleCount: visible,
-                totalCount: total,
-            };
-        },
-        clearFilters() {
-            const child = this._activeChild();
-            if (!child) return { cleared: false, reason: 'no database tab is open' };
-            const entry = this.hits.results[this.selectedDatabases - 1];
-            child.localSelectedTaxId = null;
-            child.filteredHitsTaxIds = [];
-            child.apiSelectedTaxon = null;
-            child.gapFilter = '';
-            // `applied` dropped — see ResultView.clearFilters.
-            const { applied, ...rest } = this._afterFilterChange(child, entry);
-            return { ok: true, cleared: true, active: false, ...rest };
-        },
-        describePage() {
-            return {
-                tool: 'folddisco',
-                validSortKeys: FOLDDISCO_SORT_KEYS,
-                selectionUpperbound: this.selectUpperbound,
-                multiSelectEnabled: this._activeChild()?.multipleSelectionEnabled ?? false,
-                databases: this.hits?.results?.map((r, i) => ({
-                    db: r.db, dbIndex: i,
-                    hits: r.alignments ? Object.keys(r.alignments).length : 0,
-                    hasTaxonomy: !!r.hasTaxonomy,
-                })) ?? [],
-                idFormat: 'dbIdx#entryIdx — also accepts {db, idx} or [dbIdx, entryIdx]',
-                filters: ['taxonomy (subtree)', 'motif (matched-query-residue pattern)'],
-                sendTargets: { foldseek: '1 entry', folddisco: '1 entry',
-                    foldmason: '1+ entries; opt includeQuery:bool prepends the query structure' },
-                notes: [
-                    'getTable() is read-only and defaults to the open tab; db:"*" for all.',
-                    '`cluster` is populated only for the open tab.',
-                    'Single-selection unless the URL carries ?d2m=1.',
-                    'setMotifFilter() matches a query-residue bitmask, not sequence gaps.',
-                    'sendTo() is side-effectful: writes IndexedDB and navigates away.',
-                    '_vm is the live component — unstable.',
-                ],
-            };
-        },
         log(args) {
             console.log(args);
             return args;
