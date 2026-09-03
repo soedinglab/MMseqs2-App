@@ -3,24 +3,22 @@
     v-if="entry"
     elevation="2"
     outlined
-    width="320"
-    max-width="320"
-    min-height="360"
+    :max-width="$vuetify.breakpoint.width < 960 ? 320 : 900"
     class="hit-card"
     :style="{'--active-color': entry.color}"
     >
-        <v-tooltip bottom nudge-top="18px" :color="entry.color">
-            <template v-slot:activator="{on}">
-                <v-card-title class="card-title" v-on="on" @click.stop="$emit('jump')">
-                    <span style="font-weight: 700; text-transform: uppercase;" class="card-title-content">{{db}}</span>
-                    <div class="hit-arrow"></div>
-                </v-card-title>
-            </template>
-            <span>Jump to {{ db.toUpperCase() }}</span>
-        </v-tooltip>
-        <template v-if="entry.topHit">
-            <div class="thumbnail-container" style="margin-left: 16px; margin-right: 16px;" @click="$emit('activate')">
-                <div v-if="isActive" ref="viewerSlot" class="viewer-slot" @click.stop>
+        <div class="thumbnail-column">
+            <v-tooltip bottom nudge-top="18px" :color="entry.color">
+                <template v-slot:activator="{on}">
+                    <v-card-title class="card-title" v-on="on" @click.stop="$emit('jump')">
+                        <span style="font-weight: 700; text-transform: uppercase;" class="card-title-content">{{db}}</span>
+                        <div class="hit-arrow"></div>
+                    </v-card-title>
+                </template>
+                <span>Jump to {{ db.toUpperCase() }}</span>
+            </v-tooltip>
+            <div class="thumbnail-container" style="margin: 16px;" @click="$emit('activate')">
+                <div v-if="isActive" ref="viewerSlot" class="viewer-slot" @click.stop @dblclick="$emit('activate')">
                     <StructureViewerToolbar
                         :isFullscreen="false"
                         :isSpinning="isSpinning"
@@ -39,6 +37,9 @@
                 <img v-else-if="thumbnailUrl" class="thumbnail-img" :src="thumbnailUrl" alt="" />
                 <v-skeleton-loader height="240" v-else type="image" />
             </div>
+        </div>
+        <v-divider v-if="$vuetify.breakpoint.mdAndUp" vertical class="hit-card-divider"></v-divider>
+        <div class="card-content-container">
             <v-card-text>
                 <div class="card-content-entry" :data-label="searchType === 'interfacesearch' ? 'Query Interface TM-score' : 'Query TM-score'" v-if="entry.qTM">
                     <span>{{ entry.qTM }}</span>
@@ -47,15 +48,26 @@
                     <span>{{ entry.tTM }}</span>
                 </div>
                 <div class="card-content-entry" :data-label="mode == 1 ? 'Chain Pairing' : 'Target'">
-                    <v-select v-if="mode == 1 && entry.topHit.length > 1"
-                        v-model="selectedObject" :items="entry.topHit"
-                        class="multichain-select"
-                        item-text="title" return-object dense 
-                        :item-color="entry.color"
-                        hide-details
-                        style="font-size: 12px; max-width: 187px;"
-                        flat solo single-line
-                    ></v-select>
+                    <v-menu v-if="mode == 1 && entry.topHit.length > 1" offset-y left :nudge-bottom="4">
+                        <template v-slot:activator="{on, attrs, value}">
+                            <button type="button" class="pairing-picker"
+                                :class="{'pairing-picker--open': value}"
+                                :title="selectedObject.title"
+                                v-bind="attrs" v-on="on" @click.stop
+                            >
+                                <span>{{ selectedObject.title }}</span>
+                                <v-icon size="18">{{ $MDI.ChevronDown }}</v-icon>
+                            </button>
+                        </template>
+                        <v-list dense>
+                            <v-list-item v-for="pair in entry.topHit" :key="pair.title"
+                                :input-value="pair === selectedObject" :color="entry.color"
+                                @click="selectedObject = pair"
+                            >
+                                <v-list-item-title>{{ pair.title }}</v-list-item-title>
+                            </v-list-item>
+                        </v-list>
+                    </v-menu>
                     <span v-else>
                         {{ mode == 1 
                             ? selectedObject.title 
@@ -95,22 +107,7 @@
                     </div>
                 </template>
             </v-card-text>
-        </template>
-        <template v-else>
-            <v-card-text style="
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 1rem;
-                height: 296px;
-            ">
-            <span
-                style="
-                    transform: translateY(-24px);
-                "
-            >No hit :(</span>
-            </v-card-text>
-        </template>
+        </div>
     </v-card>
 </template>
 
@@ -163,6 +160,13 @@ export default {
         if (this.entry?.topHit) {
             this.selectedObject = this.entry.topHit[0]
         }
+    },
+    watch: {
+        entry(entry) {
+            if (entry?.topHit && !entry.topHit.includes(this.selectedObject)) {
+                this.selectedObject = entry.topHit[0]
+            }
+        },
     },
     computed: {
         db() {
@@ -222,10 +226,7 @@ export default {
     60% { transform: translateX(0); }
     100% { transform: translateX(0); }
 }
-        
-/* .hit-arrow:hover {
-    animation: wiggle-and-pause 3.2s infinite;
-} */
+
 
 .card-title {
     cursor: pointer;
@@ -297,8 +298,82 @@ export default {
     word-wrap: anywhere;
 }
 
+.card-content-entry > .pairing-picker {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.pairing-picker > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pairing-picker:hover > span, .pairing-picker--open > span {
+    text-decoration-style: solid;
+    text-decoration-color: var(--active-color);
+}
+
+.theme--dark .pairing-picker > span {
+    text-decoration-color: rgba(255, 255, 255, 0.35);
+}
+
+.pairing-picker .v-icon {
+    color: var(--active-color);
+    transition: transform 0.2s cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+.pairing-picker--open .v-icon {
+    transform: rotate(180deg);
+}
+
+.pairing-picker:focus-visible {
+    outline: 2px solid var(--active-color);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
 .hit-card {
     transition: box-shadow 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+.thumbnail-column {
+    width: 320px;
+    flex-shrink: 0;
+}
+
+.card-content-container {
+    flex-grow: 1;
+}
+
+.hit-card-divider.v-divider--vertical {
+    align-self: stretch;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    margin: 16px 0;
+}
+
+@media screen and (max-width: 959px) {
+    .hit-card {
+        flex-direction: column;
+    }
+    .card-content-container {
+        flex-grow: 0;
+    }
 }
 
 .hit-card:hover {
@@ -333,10 +408,6 @@ export default {
 </style>
 
 <style>
-
-.multichain-select > .v-input__control > .v-input__slot {
-    padding: 0px !important;
-}
 
 .hit-card div.ruler {
     margin: 10px 0;

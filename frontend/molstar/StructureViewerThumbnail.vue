@@ -21,18 +21,16 @@ export default {
         return {
             plugin: null,
             sceneState: {},
-            isRendering: false,
-            currentQueueIndex: 0,
-            activeId: null,
+            thumbnailRendered: false,
+            renderScheduled: false,
+            isActive: false,
             destroyed: false,
             isSpinning: false,
-            queuePaused: false,
-            queueScheduled: false,
             operationQueue: Promise.resolve(),
         };
     },
     props: {
-        thumbnailQueue: { type: Array, default: () => [] },
+        thumbnailItem: { type: Object, default: null },
         hits: { type: Object },
         thumbWidth: { type: Number, default: 286 },
         thumbHeight: { type: Number, default: 240 },
@@ -51,6 +49,13 @@ export default {
             if (this.searchType === 'interfacesearch') return 'interface';
             if (this.mode === 1) return 'multimer';
             return 'alignment';
+        },
+        alignments() {
+            if (!this.thumbnailItem) return [];
+            return (this.thumbnailItem.alignments || []).map(alignment => ({
+                ...alignment,
+                db: alignment.db || this.thumbnailItem.db,
+            }));
         },
     },
     methods: {
@@ -76,13 +81,12 @@ export default {
             this.plugin?.canvas3d?.handleResize();
         },
 
-        async prepareInput(item) {
-            const alignments = this.alignmentsForItem(item);
+        async prepareInput() {
             if (this.mode === 2) {
-                const alignment = alignments[0];
+                const alignment = this.alignments[0];
                 if (!alignment || !this.queryPdb) return null;
 
-                const targetPdb = await this.fetchFolddiscoTargetPdb(alignment, item.db);
+                const targetPdb = await this.fetchFolddiscoTargetPdb(alignment);
                 if (!targetPdb) return null;
 
                 return {
@@ -95,7 +99,7 @@ export default {
             }
 
             return prepareFoldseekStructureInput({
-                alignments,
+                alignments: this.alignments,
                 hits: this.hits,
                 axios: this.$axios,
                 route: this.$route,
@@ -105,14 +109,8 @@ export default {
             });
         },
 
-        alignmentsForItem(item) {
-            return (item.alignments || []).map(alignment => ({
-                ...alignment,
-                db: alignment.db || item.db,
-            }));
-        },
-
-        async fetchFolddiscoTargetPdb(alignment, db) {
+        async fetchFolddiscoTargetPdb(alignment) {
+            const db = this.thumbnailItem.db;
             const target = db?.startsWith('pdb') ? alignment.target : alignment.dbkey;
             if (!target) return null;
 
@@ -138,12 +136,12 @@ export default {
             };
         },
 
-        async renderSceneForItem(item) {
-            if (!item?.alignments?.length || !this.plugin) return false;
+        async renderScene() {
+            if (!this.alignments.length || !this.plugin) return false;
             await this.plugin.clear();
             this.sceneState = {};
 
-            const input = await this.prepareInput(item);
+            const input = await this.prepareInput();
             if (!input || (!input.query && !input.target && (!input.queryPdb || !input.targetPdb))) return false;
 
             const scene = this.mode === 2 ? folddiscoResult : foldseekResult;
@@ -212,76 +210,101 @@ export default {
             this.$refs.canvas?.removeEventListener('pointerdown', this.handlePointerInteraction);
         },
 
-        canProcessQueue() {
-            return !this.destroyed
-                && !this.queuePaused
+        canRender() {
+            return Boolean(this.plugin)
+                && !this.destroyed
+                && !this.isActive
                 && !document.hidden
+                && Boolean(this.thumbnailItem)
                 && (this.mode !== 2 || Boolean(this.queryPdb));
         },
 
-        scheduleProcessQueue() {
-            if (this.queueScheduled || this.destroyed) return;
-            this.queueScheduled = true;
+        scheduleRender() {
+            if (this.renderScheduled || this.thumbnailRendered || this.destroyed) return;
+            this.renderScheduled = true;
 
             const schedule = window.requestIdleCallback || ((callback) => setTimeout(callback, 250));
             schedule(() => {
-                this.queueScheduled = false;
-                this.processQueue();
+                this.renderScheduled = false;
+                this.renderThumbnail();
             }, { timeout: 2000 });
         },
 
-        handlePageActivityChange() {
-            if (this.canProcessQueue()) {
-                this.scheduleProcessQueue();
-            }
+        handleVisibilityChange() {
+            if (!document.hidden) this.scheduleRender();
         },
 
-        async setActiveViewer(id, alignments, targetEl) {
-            if (!this.plugin) return;
+        enqueueOperation(operation) {
+            this.operationQueue = this.operationQueue
+                .catch(() => {})
+                .then(operation);
+            return this.operationQueue;
+        },
+
+        async renderThumbnail() {
+            if (!this.canRender() || this.thumbnailRendered) return;
             this.enqueueOperation(async () => {
-                if (this.activeId === id) return;
-                this.stopActiveViewerInteraction();
-                await this.mountActiveViewer(id, alignments, targetEl);
+                if (!this.canRender() || this.thumbnailRendered) return;
+                try {
+                    const rendered = await this.renderScene();
+                    if (!this.canRender()) return; // hidden or taken over mid-render, retry later
+                    if (rendered) {
+                        this.$emit('thumbnail-ready', await this.captureThumbnail());
+                    }
+                    this.thumbnailRendered = true;
+                } catch (e) {
+                    console.warn('Mol* thumbnail generation failed', e);
+                    this.thumbnailRendered = true;
+                } finally {
+                    await this.clearPlugin();
+                }
             });
             await this.operationQueue;
         },
 
-        async mountActiveViewer(id, alignments, targetEl) {
+        async setActiveViewer(targetEl) {
+            if (!this.plugin) return;
+            this.enqueueOperation(async () => {
+                if (this.isActive) return;
+                this.stopActiveViewerInteraction();
+                await this.mountActiveViewer(targetEl);
+            });
+            await this.operationQueue;
+        },
+
+        async mountActiveViewer(targetEl) {
             if (!this.plugin || this.destroyed) return;
-            this.queuePaused = true;
-            this.activeId = id;
+            this.isActive = true;
             this.moveViewportTo(targetEl, '100%', '100%');
 
             try {
-                const rendered = await this.renderSceneForItem({ id, db: id, alignments });
+                const rendered = await this.renderScene();
                 if (!rendered || this.destroyed || !this.plugin) {
-                    await this.restoreOffscreenViewer(id);
+                    await this.restoreOffscreenViewer();
                     return;
                 }
                 this.setActiveSpin(true);
                 this.$refs.canvas.addEventListener('pointerdown', this.handlePointerInteraction, { passive: true });
                 this.$emit('viewer-ready');
             } catch (e) {
-                console.warn('Interactive Mol* viewer failed for', id, e);
-                await this.restoreOffscreenViewer(id);
+                console.warn('Interactive Mol* viewer failed', e);
+                await this.restoreOffscreenViewer();
             }
         },
 
-        async restoreOffscreenViewer(id) {
-            if (this.activeId !== id) return;
+        async restoreOffscreenViewer() {
+            if (!this.isActive) return;
             this.stopActiveViewerInteraction();
             await this.clearPlugin();
             this.restoreThumbnailViewport();
-            this.activeId = null;
-            this.queuePaused = false;
+            this.isActive = false;
             this.$emit('spin-change', false);
-            this.scheduleProcessQueue();
+            this.scheduleRender();
         },
 
         clearActiveViewer() {
-            if (this.activeId === null || !this.plugin) return;
-            const id = this.activeId;
-            this.enqueueOperation(() => this.restoreOffscreenViewer(id));
+            if (!this.isActive || !this.plugin) return;
+            this.enqueueOperation(() => this.restoreOffscreenViewer());
         },
 
         handlePointerInteraction() {
@@ -308,86 +331,26 @@ export default {
         handleResetView() {
             this.plugin?.managers?.camera?.reset();
         },
-
-        nextQueueItem() {
-            if (!this.canProcessQueue() || this.isRendering) return null;
-            return this.thumbnailQueue[this.currentQueueIndex] || null;
-        },
-
-        enqueueOperation(operation) {
-            this.operationQueue = this.operationQueue
-                .catch(() => {})
-                .then(operation);
-            return this.operationQueue;
-        },
-
-        async processQueue() {
-            if (!this.nextQueueItem()) return;
-            this.enqueueOperation(() => this.processQueueItem());
-            await this.operationQueue;
-        },
-
-        async processQueueItem() {
-            const item = this.nextQueueItem();
-            if (!item) return;
-
-            this.isRendering = true;
-            let advanceQueue = true;
-
-            try {
-                const rendered = await this.renderSceneForItem(item);
-                if (!this.canProcessQueue()) {
-                    advanceQueue = false;
-                    return;
-                }
-                if (rendered) {
-                    const blob = await this.captureThumbnail();
-                    this.$emit('thumbnail-ready', { id: item.id, blob });
-                }
-            } catch (e) {
-                console.warn('Mol* thumbnail generation failed for', item.id, e);
-            } finally {
-                await this.clearPlugin();
-                this.isRendering = false;
-
-                if (advanceQueue) {
-                    this.currentQueueIndex++;
-                    if (!this.destroyed) {
-                        this.$nextTick(() => this.scheduleProcessQueue());
-                    }
-                }
-            }
-        },
     },
     watch: {
-        thumbnailQueue: {
-            handler(newQueue, oldQueue) {
-                if (newQueue !== oldQueue) {
-                    this.currentQueueIndex = 0;
-                }
-                if (!oldQueue || newQueue !== oldQueue || newQueue.length > oldQueue.length) {
-                    this.scheduleProcessQueue();
-                }
-            },
+        thumbnailItem() {
+            this.thumbnailRendered = false;
+            this.scheduleRender();
         },
         queryPdb() {
             if (this.mode === 2) {
-                this.scheduleProcessQueue();
+                this.scheduleRender();
             }
         },
     },
     async mounted() {
         await this.initPlugin();
-        document.addEventListener('visibilitychange', this.handlePageActivityChange);
-        window.addEventListener('focus', this.handlePageActivityChange);
-        window.addEventListener('blur', this.handlePageActivityChange);
-        this.scheduleProcessQueue();
+        document.addEventListener('visibilitychange', this.handleVisibilityChange);
+        this.scheduleRender();
     },
     async beforeDestroy() {
         this.destroyed = true;
-        document.removeEventListener('visibilitychange', this.handlePageActivityChange);
-        window.removeEventListener('focus', this.handlePageActivityChange);
-        window.removeEventListener('blur', this.handlePageActivityChange);
+        document.removeEventListener('visibilitychange', this.handleVisibilityChange);
         this.$refs.canvas?.removeEventListener('pointerdown', this.handlePointerInteraction);
         try {
             await this.operationQueue;
