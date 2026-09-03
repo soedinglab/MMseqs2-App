@@ -1,7 +1,7 @@
 // Fetch a structure by accession from a third-party service.
 //
 // Uses the platform fetch rather than a HTTP library: every browser this app supports has it, Node 18
-// has it, and it was the one import that stopped `headless/` from being publishable without a runtime
+// has it, and it was the one import that stopped `mcp/` from being publishable without a runtime
 // dependency. The two helpers restore what was relied on — a rejection on a non-2xx status, and a
 // parsed body — with the difference that the call site states which body it expects.
 

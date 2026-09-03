@@ -563,8 +563,6 @@ export default {
         sortKeyCache() {
             return buildSortCache(this.entry.alignments, { tool: 'folddisco' })
         },
-        // Shared with the headless layer via lib/resultSort.js. Verified identical to the
-        // previous inline implementation across all sort keys on a real 3-database result.
         comparator() {
             return makeComparator(this.entry.alignments, this.sortKey, this.sortOrder, this.sortKeyCache)
         },

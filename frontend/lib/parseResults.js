@@ -1,7 +1,7 @@
-// Result parsing shared by the mounted frontend and the headless agent layer under headless/.
+// Result parsing shared by the mounted frontend and the mcp agent layer under mcp/.
 // Extracted from Utilities.js
 
-// Needed for support on both frontend and headless layer
+// Needed for support on both frontend and mcp layer
 const APP = typeof __APP__ !== 'undefined' ? __APP__ : (globalThis.__MMSEQS_APP__ ?? 'foldseek');
 
 function tryLinkTargetToDB(target, db) {

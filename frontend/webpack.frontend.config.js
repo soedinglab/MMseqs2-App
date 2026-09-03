@@ -76,10 +76,6 @@ module.exports = (env, argv) => {
                     test: /\.js$/,
                     loader: 'babel-loader',
                     options: {
-                        // frontend/lib has its own package.json ({"type":"module"}, so Node can load
-                        // those files directly — see headless/). That package.json is also a Babel
-                        // package boundary: without listing frontend/lib as a babelrc root, Babel
-                        // finds no config for anything under it and silently ships it untranspiled.
                         babelrcRoots: [path.resolve(__dirname, '..'), path.resolve(__dirname, 'lib')],
                     },
                     include: [

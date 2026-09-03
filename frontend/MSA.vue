@@ -316,9 +316,6 @@ export default {
         }, 400),
     },
     beforeMount() {
-        // parseSuffix/chainToOffset/indexToChainAndOrigResn used to be defined inline here; they now
-        // live in lib/alignmentColumns.js as one function, because the headless send-to path builds
-        // motifs from the same map and two copies could disagree about a residue's chain.
         for (let entry of this.entries) {
             if (/-_-_-_/.test(entry.name)) {
                 entry.suffix = entry.name.split("-_-_-_")[1];

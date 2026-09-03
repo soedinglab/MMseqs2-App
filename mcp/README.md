@@ -1,4 +1,4 @@
-# `headless/` — Foldseek, FoldMason and FoldDisco without a browser
+# `mcp/` — Foldseek, FoldMason and FoldDisco without a browser
 
 Two packages that let a script or an agent submit jobs to this repo's Go backend, poll them, decode
 the results, and forward a hit or an alignment region into the next search — all without a page
@@ -7,7 +7,7 @@ being mounted anywhere.
 | package | what it is |
 |---|---|
 | [`core`](core/) | the library: an HTTP client plus the result objects (`ResultTable`, `Selection`, `MsaColumnSelection`, …) |
-| [`mcp-server`](mcp-server/) | an MCP server exposing 11 tools plus result artifacts as resources, for agents that speak the protocol |
+| [`server`](server/) | an MCP server exposing 11 tools plus result artifacts as resources, for agents that speak the protocol |
 
 Both are npm workspaces of the repo root; `npm install` there installs them.
 
@@ -30,7 +30,7 @@ Two consequences:
 
 ```bash
 npm install                                   # from the repo root
-cd headless/core && npm test                  # no network, nothing submitted
+cd mcp/core && npm test                  # no network, nothing submitted
 ```
 
 ```js
@@ -53,8 +53,8 @@ for. The **artifact** is the complete factual export, written to files and addre
 analysis happens locally, as many times as wanted, without another round trip. Nothing large is ever
 inlined into a tool result.
 
-For the MCP server: [`mcp-server/README.md`](mcp-server/README.md) is the full user documentation and
-the page npm publishes; [`mcp-server/REFERENCE.md`](mcp-server/REFERENCE.md) is for contributors.
+For the MCP server: [`server/README.md`](server/README.md) is the full user documentation and
+the page npm publishes; [`server/REFERENCE.md`](server/REFERENCE.md) is for contributors.
 
 ## Tests
 

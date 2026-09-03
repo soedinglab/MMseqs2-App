@@ -15,11 +15,11 @@
     "structural-biology",
     "alignment"
   ],
-  "homepage": "https://github.com/soedinglab/MMseqs2-App/tree/master/headless/mcp-server",
+  "homepage": "https://github.com/soedinglab/MMseqs2-App/tree/master/mcp/server",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/soedinglab/MMseqs2-App.git",
-    "directory": "headless/mcp-server"
+    "directory": "mcp/server"
   },
   "bugs": {
     "url": "https://github.com/soedinglab/MMseqs2-App/issues"
