@@ -12,6 +12,14 @@ const DEFAULT_SPIN_SPEED = 0.05;
 
 const DefaultSsaoParams = PD.getDefaultValues(SsaoParams);
 
+function ignoreZeroSizeResize(plugin, viewport) {
+    const handleResize = plugin.handleResize;
+    plugin.handleResize = () => {
+        if (!viewport || !viewport.offsetWidth || !viewport.offsetHeight) return;
+        handleResize();
+    };
+}
+
 export async function createStructurePlugin(canvas, viewport, options = {}) {
     const plugin = new PluginContext({
         actions: [],
@@ -29,6 +37,7 @@ export async function createStructurePlugin(canvas, viewport, options = {}) {
         ],
     });
     await plugin.init();
+    ignoreZeroSizeResize(plugin, viewport);
 
     const ok = await plugin.initViewerAsync(canvas, viewport);
     if (ok === false) {

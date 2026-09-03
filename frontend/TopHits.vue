@@ -3,49 +3,40 @@
         <v-sheet class="pa-1 sticky-sheet" :style="{'background-color': $vuetify.theme.dark ? '#1e1e1e' : '#fff'}">
             <h2 style="margin-top: 0.5em; margin-bottom: 1em;">
                 <div style="display: inline-block; width: 24px;"></div>
-                <span>Top Hits</span>
+                <span>Best Hit</span>
             </h2>
         </v-sheet>
         <div
         class="mt-3"
         style="display: flex;
-               flex-direction: row;
-               flex-wrap: wrap;
                justify-content: center;
-               align-items: start;
-               gap: 24px 24px;
                padding-bottom: 32px;
                ">
-            <template v-if="topHits">
-                <template v-for="(hit, idx) in topHits"
-                >
-                    <TopHitEntries
-                            :entry="hit"
-                            :key="hit.db"
-                            :ref="hitRef(hit.db)"
-                            :mode="mode"
-                            :columnName="columnName"
-                            :thumbnailUrl="thumbnailCache[hit.db]"
-                            :isActive="activeCardId === hit.db"
-                            :isSpinning="activeCardId === hit.db && viewerSpinning"
-                            :searchType="searchType"
-                            @activate="handleCardActivate(hit)"
-                            @resetView="handleToolbarResetView"
-                            @toggleSpin="handleToolbarToggleSpin"
-                            @jump="$emit('jumpTo', idx)"
-                            />
-                </template>
-            </template>
+            <TopHitEntries
+                v-if="bestHit && bestHit.topHit"
+                :entry="bestHit"
+                ref="bestHit"
+                :mode="mode"
+                :columnName="columnName"
+                :thumbnailUrl="thumbnailUrl"
+                :isActive="isActive"
+                :isSpinning="isActive && viewerSpinning"
+                :searchType="searchType"
+                @activate="handleCardActivate"
+                @resetView="handleToolbarResetView"
+                @toggleSpin="handleToolbarToggleSpin"
+                @jump="$emit('jumpTo', bestHitIndex)"
+                />
         </div>
         <StructureViewerThumbnail
-            v-if="thumbnailQueue.length > 0"
+            v-if="thumbnailItem"
             ref="thumbnailViewer"
-            :thumbnailQueue="thumbnailQueue"
+            :thumbnailItem="thumbnailItem"
             :hits="hits"
             :mode="mode"
             :searchType="searchType"
             :queryPdb="queryPdb"
-            @thumbnail-ready="handleThumbnailReady"
+            @thumbnail-ready="setThumbnail"
             @viewer-ready="handleViewerReady"
             @spin-change="viewerSpinning = $event"
         />
@@ -61,11 +52,11 @@ export default {
     components: { TopHitEntries, StructureViewerThumbnail },
     data() {
         return {
-            topHits: null,
+            bestHit: null,
+            bestHitIndex: -1,
             columnName: "",
-            thumbnailCache: {},
-            activeCardId: null,
-            thumbnailQueue: [],
+            thumbnailUrl: "",
+            isActive: false,
             viewerSpinning: false,
         }
     },
@@ -91,17 +82,35 @@ export default {
             default: "",
         },
     },
-    methods: {
-        clearThumbnailCache() {
-            Object.values(this.thumbnailCache).forEach(url => {
-                URL.revokeObjectURL(url);
-            });
-            this.thumbnailCache = {};
+    computed: {
+        thumbnailItem() {
+            if (!this.bestHit || !this.bestHit.topHit || this.bestHit.topHit.length == 0) return null;
+            return { db: this.bestHit.db, alignments: this.bestHit.topHit };
         },
-        rebuildTopHits() {
-            this.activeCardId = null;
+    },
+    methods: {
+        clearThumbnail() {
+            if (this.thumbnailUrl) {
+                URL.revokeObjectURL(this.thumbnailUrl);
+                this.thumbnailUrl = "";
+            }
+        },
+        setThumbnail(blob) {
+            if (!blob) return;
+            this.clearThumbnail();
+            this.thumbnailUrl = URL.createObjectURL(blob);
+        },
+        hitScore(hit) {
+            if (!hit.topHit) return -Infinity;
+            const first = hit.topHit[0]
+            return this.mode == 0 ? first.score
+                : this.mode == 1 ? first.complexqtm
+                : first.idfscore
+        },
+        rebuildBestHit() {
+            this.isActive = false;
             this.viewerSpinning = false;
-            this.topHits = this.hits.results.map(
+            const topHits = this.hits.results.map(
                 ({alignments, db, color, hasTaxonomy, hasDescription}) => {
                     const minKey = alignments && Object.keys(alignments).length > 0
                         ? Object.keys(alignments).map(i => Number(i))[0] : -1
@@ -123,20 +132,10 @@ export default {
                     }
             })
 
-            this.thumbnailQueue = this.topHits
-                .filter(hit => hit.topHit && hit.topHit.length > 0)
-                .map(hit => ({
-                    id: hit.db,
-                    alignments: hit.topHit,
-                    db: hit.db,
-                }));
-        },
-        handleThumbnailReady({ id, blob }) {
-            if (!blob) return;
-            if (this.thumbnailCache[id]) {
-                URL.revokeObjectURL(this.thumbnailCache[id]);
-            }
-            this.$set(this.thumbnailCache, id, URL.createObjectURL(blob));
+            // Ties keep the earlier database, matching the tab order.
+            this.bestHitIndex = topHits.reduce(
+                (best, hit, idx) => this.hitScore(hit) > this.hitScore(topHits[best]) ? idx : best, 0)
+            this.bestHit = topHits[this.bestHitIndex] || null
         },
         handleViewerReady() {
             this.viewerSpinning = true;
@@ -151,20 +150,12 @@ export default {
                 this.$refs.thumbnailViewer.handleToggleSpin();
             }
         },
-        hitRef(id) {
-            return `topHit:${id}`;
-        },
-        hitComponent(id) {
-            const ref = this.$refs[this.hitRef(id)];
-            return Array.isArray(ref) ? ref[0] : ref;
-        },
-        handleCardActivate(hit) {
-            if (!hit.topHit) return;
-            const cardId = hit.db;
+        handleCardActivate() {
+            if (!this.thumbnailItem) return;
 
-            if (this.activeCardId === cardId) {
-                // Clicking same card deactivates
-                this.activeCardId = null;
+            if (this.isActive) {
+                // Clicking the card again deactivates
+                this.isActive = false;
                 this.viewerSpinning = false;
                 this.$nextTick(() => {
                     if (this.$refs.thumbnailViewer) {
@@ -174,21 +165,17 @@ export default {
                 return;
             }
 
-            this.activeCardId = cardId;
+            this.isActive = true;
 
             this.$nextTick(() => {
-                const targetEntry = this.hitComponent(cardId);
-                if (!targetEntry || !targetEntry.$refs.viewerSlot) return;
-                const targetEl = targetEntry.$refs.viewerSlot;
-
-                if (this.$refs.thumbnailViewer) {
-                    this.$refs.thumbnailViewer.setActiveViewer(cardId, hit.topHit, targetEl);
-                }
+                const targetEl = this.$refs.bestHit?.$refs.viewerSlot;
+                if (!targetEl || !this.$refs.thumbnailViewer) return;
+                this.$refs.thumbnailViewer.setActiveViewer(targetEl);
             });
         },
     },
     beforeMount() {
-        this.rebuildTopHits();
+        this.rebuildBestHit();
 
         if (this.alignMode != "") {
             if (__APP__ == 'foldseek') {
@@ -209,16 +196,16 @@ export default {
     },
     watch: {
         hits() {
-            this.clearThumbnailCache();
-            this.rebuildTopHits();
+            this.clearThumbnail();
+            this.rebuildBestHit();
         },
         '$route.params.entry'() {
-            this.clearThumbnailCache();
-            this.rebuildTopHits();
+            this.clearThumbnail();
+            this.rebuildBestHit();
         },
     },
     beforeDestroy() {
-        this.clearThumbnailCache();
+        this.clearThumbnail();
     },
 }
 </script>
