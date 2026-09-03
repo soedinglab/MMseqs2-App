@@ -386,18 +386,10 @@ export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
             inputSchema: {
                 type: 'object',
                 required: ['ticketId'],
-                properties: {
-                    ticketId: TICKET,
-                    queryIdx: QUERY_IDX,
-                    mountRoot: {
-                        type: 'string',
-                        description: 'Where you see the export directory, if not at the server\'s path. ' +
-                                     'Paths come back in that space.',
-                    },
-                },
+                properties: { ticketId: TICKET, queryIdx: QUERY_IDX },
             },
-            handler({ ticketId, queryIdx = 0, mountRoot = null }) {
-                return client.exportResult(ticketId, queryIdx, { mountRoot });
+            handler({ ticketId, queryIdx = 0 }) {
+                return client.exportResult(ticketId, queryIdx);
             },
         },
 

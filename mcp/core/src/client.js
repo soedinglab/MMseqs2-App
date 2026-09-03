@@ -684,7 +684,7 @@ export function createClient({
          * The complete factual export for one result unit, as files. Returns a descriptor — the
          * resource URI and what is in the bundle — never the data.
          */
-        async exportResult(ticket, queryIdx = 0, { mountRoot = null } = {}) {
+        async exportResult(ticket, queryIdx = 0) {
             const unit = await client.resolveUnit(ticket, queryIdx);
             if (unit.status !== 'COMPLETE') {
                 const err = new Error(`ticket ${ticket} is ${unit.status}; nothing to export yet`);
@@ -700,7 +700,7 @@ export function createClient({
             const hit = await artifactStore.read(artifactId);
             if (hit.ok) {
                 await artifactStore.touch(artifactId);
-                return artifactStore.descriptor(hit.manifest, { cacheHit: true, mountRoot });
+                return artifactStore.descriptor(hit.manifest, { cacheHit: true });
             }
             if (hit.reason !== 'ABSENT') {
                 // Anything present that did not read back is a failed build or a damaged artifact:
@@ -725,7 +725,7 @@ export function createClient({
             }));
             await client.collectGarbage({ minIntervalSeconds: GC_MIN_INTERVAL_SECONDS })
                 .catch(err => onWarning?.(`GC failed: ${err.message}`));
-            return artifactStore.descriptor(manifest, { cacheHit, mountRoot });
+            return artifactStore.descriptor(manifest, { cacheHit });
         },
 
         /**

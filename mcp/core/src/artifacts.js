@@ -232,7 +232,7 @@ export function createArtifactStore({
         },
 
         /** Small by construction: roles, sizes and counts, never file contents. */
-        descriptor(manifest, { cacheHit = false, mountRoot = null } = {}) {
+        descriptor(manifest, { cacheHit = false } = {}) {
             const id = manifest.artifactId;
             const accessed = clock();
             const out = {
@@ -255,29 +255,19 @@ export function createArtifactStore({
             };
             if (exposeLocalPaths) {
                 const dir = dirFor(id);
-                // A caller that knows where it sees the export directory gets paths in its own space:
-                // it is the only party that can know, and the arithmetic is ours to do.
-                // mountRoot is where the caller sees the shared folder, so the prefix is ours to add.
-                const base = mountRoot
-                    ? (pathPrefix ? path.join(mountRoot, pathPrefix) : mountRoot)
-                    : root;
                 if (!path.relative(root, dir).startsWith('..')) {
                     // exportRoot and its basename, because a sandboxed caller sees the export directory
                     // at a mount of its own and must rebuild the path rather than use ours. The server
                     // cannot discover that view: there is no channel for it, and `roots` is deprecated
                     // and unimplemented by the hosts that sandbox.
                     const seen = mountName ?? path.basename(root);
-                    out.exportRoot = base;
+                    out.exportRoot = root;
                     out.mountName = seen;
                     out.pathFromMount = pathPrefix ? path.join(pathPrefix, id) : id;
-                    out.artifactRoot = path.join(base, id);
-                    out.localPath = path.join(base, id, MANIFEST);
+                    out.artifactRoot = path.join(root, id);
+                    out.localPath = path.join(root, id, MANIFEST);
                     out.localPathVerified = false;
-                    if (mountRoot) out.pathsRemapped = true;
-                    out.ifUnreadable = mountRoot
-                        ? 'paths are already in the space you named; if they still do not open, the '
-                          + 'mountRoot was wrong'
-                        : insideStateDir
+                    out.ifUnreadable = insideStateDir
                         ? 'these files are inside this server\'s private state directory, so a client '
                           + 'that does not share its filesystem cannot read them at any path — use the '
                           + 'uri, or ask the operator to set FOLDSEEK_SERVER_SHARED_DIR to a folder '

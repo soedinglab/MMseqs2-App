@@ -201,10 +201,9 @@ test('the summary and export tools pass through the ticket and queryIdx, and not
     const tools = createTools(client);
 
     // The intent is that neither tool grows a query language: no fields, sorting, filtering or limits.
-    // `mountRoot` is not a query — it says where the caller sees the files, which only it can know.
     const allowed = {
         get_result_summary: ['ticketId', 'queryIdx'],
-        export_result: ['ticketId', 'queryIdx', 'mountRoot'],
+        export_result: ['ticketId', 'queryIdx'],
     };
     for (const [name, keys] of Object.entries(allowed)) {
         const tool = tools.find(t => t.name === name);

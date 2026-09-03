@@ -454,13 +454,6 @@ test('exports go to the shared folder, and it may not hold the state directory',
     assert.equal(fs.existsSync(out.localPath), true);
     assert.equal(fs.existsSync(path.join(stateDir, 'artifacts')), false, 'and not in the state dir');
 
-    // mountRoot names the shared folder as the caller sees it; the exports/ prefix is ours to add.
-    const remapped = await elsewhere.exportResult('T1abcd', 0,
-        { mountRoot: '/sessions/x/mnt/foldseek-shared' });
-    assert.equal(remapped.artifactRoot,
-        `/sessions/x/mnt/foldseek-shared/exports/${remapped.artifactId}`);
-    assert.equal(remapped.pathsRemapped, true);
-
     // The sweep is aimed inside that folder, so one holding the state directory is refused outright.
     for (const bad of [stateDir, path.dirname(stateDir), path.join(stateDir, '..')]) {
         assert.throws(() => createClient({ baseUrl: 'https://example.test', stateDir, sharedDir: bad }),

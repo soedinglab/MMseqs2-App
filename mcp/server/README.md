@@ -157,8 +157,6 @@ front of anything not on loopback.
   - Inputs:
     - `ticketId` (string)
     - `queryIdx` (number, optional)
-    - `mountRoot` (string, optional): where you see the shared folder, if not at the server's path.
-      Paths come back in that space
   - Every hit row, taxonomy node and alignment column, as JSONL / JSON / FASTA. Returns a directory
     path, a manifest, and one resource link per file — no file contents
   - Repeat calls return the same artifact without rebuilding
@@ -257,8 +255,8 @@ the path to open instead.
 
 Without a shared folder they sit in the state directory, which the client usually cannot read. A sandboxed
 client sees the shared folder at a mount of its own, so the descriptor carries `mountName`, `pathFromMount`
-and `ifUnreadable` to rebuild the path — join them to the mount — or pass `mountRoot` and the server
-rewrites them. Grants are per session, and `localPathVerified` is always `false`.
+and `ifUnreadable` to rebuild the path — join them to the mount. Grants are per session, and
+`localPathVerified` is always `false`.
 
 ## Configuration
 
