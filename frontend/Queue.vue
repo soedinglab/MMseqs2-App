@@ -30,6 +30,7 @@
 </template>
 
 <script>
+import { registerPageApi } from './lib/resultsApi.js';
 import { routeForTicket } from './lib/ticketRoute.js';
 import { setJobType } from './lib/HistoryMixin';
 import Panel from './Panel.vue';
@@ -45,10 +46,78 @@ export default {
     created() {
         this.fetchData();
     },
+    mounted() {
+        this._disposeApi = registerPageApi('queue', 'queue', {
+            getStatus: this.getStatus,
+            getResultRoute: this.getResultRoute,
+            waitForResult: this.waitForResult,
+            describePage: this.describePage,
+            _vm: this,
+        });
+    },
+    beforeDestroy() {
+        this._disposeApi?.();
+    },
     watch: {
         '$route': 'fetchData'
     },
     methods: {
+        // ---- API (window.queueApi) ----
+        getStatus() {
+            return {
+                ticket: this.$route?.params?.ticket ?? null,
+                status: this.status,
+                error: this.error || null,
+                terminal: ['COMPLETE', 'FAILED', 'ERROR'].includes(this.status),
+            };
+        },
+        async getResultRoute() {
+            const ticket = this.$route?.params?.ticket;
+            if (!ticket) return { ok: false, reason: 'no ticket in route' };
+            try {
+                const r = await this.$axios.get('api/ticket/type/' + ticket);
+                const type = r.data?.type;
+                // This page is the authority on a ticket's type; share it so History and
+                // goToTicket() do not have to ask again.
+                setJobType(ticket, type);
+                const route = routeForTicket(ticket, type);
+                return route.viaQueue
+                    ? { ok: false, reason: `unmapped job type: ${type}`, type }
+                    : { ok: true, type, route: route.name, params: route.params, ticket };
+            } catch {
+                return { ok: false, reason: 'could not query job type' };
+            }
+        },
+        // Queue.vue polls every second and $router.replace()s to the result route on COMPLETE,
+        // so the *arrival of a result page* is the completion signal. Race that against this
+        // page's own terminal failure states rather than assuming success.
+        async waitForResult({ timeoutMs = 600000, pollMs = 500 } = {}) {
+            const ticket = this.$route?.params?.ticket ?? null;
+            const t0 = Date.now();
+            while (Date.now() - t0 < timeoutMs) {
+                if (typeof window !== 'undefined' && window.resultsApi) {
+                    return { ok: true, ticket, status: 'COMPLETE',
+                        waitedMs: Date.now() - t0 };
+                }
+                if (['FAILED', 'ERROR'].includes(this.status)) {
+                    return { ok: false, ticket, status: this.status,
+                        reason: this.error || 'job failed' };
+                }
+                await new Promise(r => setTimeout(r, pollMs));
+            }
+            return { ok: false, ticket, status: this.status, reason: `timed out after ${timeoutMs}ms` };
+        },
+        describePage() {
+            return {
+                kind: 'queue',
+                ticket: this.$route?.params?.ticket ?? null,
+                status: this.status,
+                notes: [
+                    'waitForResult() resolves when a result page registers and fails on '
+                        + 'FAILED/ERROR — no polling needed on your side.',
+                ],
+            };
+        },
         fetchData() {
             const ticket = this.$route.params.ticket;
             if (typeof (ticket) === "undefined") {
@@ -80,8 +149,8 @@ export default {
                                     return;
                                 }
                                 // Route table lives in lib/ticketRoute.js, shared with
-                                // History.vue. viaQueue means unmapped — redirecting back
-                                // here would loop, so fail instead.
+                                // History.vue and goToTicket(). viaQueue means unmapped —
+                                // redirecting back here would loop, so fail instead.
                                 const route = routeForTicket(ticket, type);
                                 if (route.viaQueue) {
                                     this.status = "FAILED";

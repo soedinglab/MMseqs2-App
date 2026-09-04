@@ -145,13 +145,14 @@ import { StorageWrapper, HistoryMixin } from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
+import SearchApiMixin from "./SearchApiMixin.vue";
 const db = BlobDatabase();
 const storage = new StorageWrapper("complex");
 
 export default {
     name: "multimer",
     tool: "foldseek-multimer",
-    mixins: [ HistoryMixin ],
+    mixins: [ HistoryMixin, SearchApiMixin ],
     components: { 
         Panel,
         FileButton,
@@ -230,6 +231,16 @@ export default {
         },
     },
     methods: {
+        searchApiConfig() {
+            return {
+                tool: 'multimer',
+                modeInfix: '', modeValuePrefix: 'complex-',
+                accessionExtras: [], sendsMode: true,
+                needsQueryStructure: false,
+                supportsTaxonomy: true,
+                supportsIterative: false,
+            };
+        },
         async search() {
             var request = {
                 q: this.query,

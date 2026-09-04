@@ -1,30 +1,194 @@
 import { ungzip } from "pako";
-import { parseResults, parseResultsRiboseek } from "./lib/parseResults.js";
 
-export {
-  parseResults,
-  parseResultsFoldDisco,
-  parseResultsRiboseek,
-  tryFixName,
-  splitAlphaNum,
-} from "./lib/parseResults.js";
+function tryLinkTargetToDB(target, db) {
+  try {
+    var res = db.toLowerCase();
+    if (res.startsWith("pfam")) {
+      return "https://www.ebi.ac.uk/interpro/entry/pfam/" + target;
+    } else if (res.startsWith("pdb")) {
+      return (
+        "https://www.rcsb.org/structure/" +
+        target
+          .replaceAll(/-assembly[0-9]+/g, "")
+          .replaceAll(/\.(cif|pdb|ent)(\.gz)?/g, "")
+          .replaceAll(/[0-9]+DI_/g, "") // For interface cluster, should we link to cluster web?
+          .split("_")[0]
+      );
+    } else if (res.startsWith("humanppi")) {
+      return (
+        "http://prodata.swmed.edu/humanPPI/results/" +
+        target
+          .split("__")
+          .map((half) => half.split("_")[0])
+          .join("_")
+      );
+    } else if (
+      res.startsWith("uniclust") ||
+      res.startsWith("uniprot") ||
+      res.startsWith("sprot") ||
+      res.startsWith("swissprot")
+    ) {
+      return "https://www.uniprot.org/uniprot/" + target;
+    } else if (res.startsWith("eggnog_")) {
+      return "http://eggnogdb.embl.de/#/app/results?target_nogs=" + target;
+    } else if (res.startsWith("cdd")) {
+      return (
+        "https://www.ncbi.nlm.nih.gov/Structure/cdd/cddsrv.cgi?uid=" + target
+      );
+    }
 
-export {
-  oneToThree,
-  threeToOne,
-  mockPDB,
-  mergePdbs,
-  concatenatePdbs,
-  encodeMultimer,
-  decodeMultimer,
-  splitMultimer,
-  mergeMultimer,
-  storeChains,
-  revertChainInfo,
-} from "./lib/pdbAssembly.js";
-export { getChainName, getAccession } from "./lib/targetName.js";
-export { getResidueIndices, getResnoWithChain } from "./lib/alignmentColumns.js";
+    if (__APP__ == "foldseek") {
+      if (target.startsWith("AF-")) {
+        // Old: AF-<uniprot>-F1-model_v4, entry keyed on the bare accession.
+        // New: AF-<id>-model_v1, entry keyed on the whole AF-<id>, no UniProt.
+        // Interface entries append _<chain1>_<chain2>_<side>.
+        const stem = target.replaceAll(
+          /-(F[0-9]+-)?model_v[0-9]+(\.(cif|pdb))?(\.gz)?(_[A-Za-z0-9]+){0,3}$/g,
+          "",
+        );
+        const isUniProt = /-F[0-9]+-model_v/.test(target);
+        const accession = isUniProt ? stem.substring(3) : stem;
+        const links = [
+          {
+            label: "AFDB",
+            accession: accession,
+            href: "https://www.alphafold.ebi.ac.uk/entry/" + accession,
+          },
+        ];
+        if (isUniProt) {
+          links.push({
+            label: "UniProt",
+            accession: accession,
+            href: "https://www.uniprot.org/uniprot/" + accession,
+          });
+        }
+        return links;
+      } else if (target.startsWith("GMGC")) {
+        return (
+          "https://gmgc.embl.de/search.cgi?search_id=" +
+          target.replaceAll(/\.(cif|pdb)(\.gz)?/g, "")
+        );
+      } else if (target.startsWith("MGYP")) {
+        return (
+          "https://esmatlas.com/explore/detail/" +
+          target.replaceAll(/\.(cif|pdb)(\.gz)?/g, "")
+        );
+      } else if (target.startsWith("LevyLab_")) {
+        let accession = target.split("_")[1];
+        return [
+          {
+            label: "AFDB",
+            accession: accession,
+            href: "https://www.alphafold.ebi.ac.uk/entry/" + accession,
+          },
+          {
+            label: "UniProt",
+            accession: accession,
+            href: "https://www.uniprot.org/uniprot/" + accession,
+          },
+        ];
+      } else if (target.startsWith("ProtVar_")) {
+        let accession1 = target.split("_")[1];
+        let accession2 = target.split("_")[2];
+        let result = [
+          {
+            label: "AFDB",
+            accession: accession1,
+            href: "https://www.alphafold.ebi.ac.uk/entry/" + accession1,
+          },
+          {
+            label: "UniProt",
+            accession: accession1,
+            href: "https://www.uniprot.org/uniprot/" + accession1,
+          },
+        ];
+        if (accession1 != accession2) {
+          result.push({
+            label: "AFDB",
+            accession: accession2,
+            href: "https://www.alphafold.ebi.ac.uk/entry/" + accession2,
+          });
+          result.push({
+            label: "UniProt",
+            accession: accession2,
+            href: "https://www.uniprot.org/uniprot/" + accession2,
+          });
+        }
+        return result;
+      } else if (target.startsWith("ModelArchive_")) {
+        return "https://modelarchive.org/doi/10.5452/" + target.split("_")[1];
+      } else if (target.startsWith("Predictome_")) {
+        return "https://predictomes.org/summary/" + target.split("_")[1];
+      }
+      if (res.startsWith("cath")) {
+        if (target.startsWith("af_")) {
+          const cath = target.substring(target.lastIndexOf("_") + 1);
+          return "https://www.cathdb.info/version/latest/superfamily/" + cath;
+        } else {
+          return "https://www.cathdb.info/version/latest/domain/" + target;
+        }
+      } else if (res.startsWith("bfvd")) {
+        const bfvd = target.replaceAll(/_.*/g, "");
+        return [
+          {
+            label: "BFVD",
+            accession: bfvd,
+            href: "https://bfvd.foldseek.com/cluster/" + bfvd,
+          },
+          {
+            label: "UniRef",
+            accession: bfvd,
+            href: "https://www.uniprot.org/uniref/UniRef100_" + bfvd,
+          },
+        ];
+      }
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
 
+function tryFixTargetName(target, db) {
+  var res = db.toLowerCase();
+  if (__APP__ == "foldseek") {
+    if (target.startsWith("AF-")) {
+      return target.replaceAll(/\.(cif|pdb)(\.gz)?(_[A-Z0-9]+)?$/g, "");
+    } else if (
+      res.startsWith("pdb") ||
+      res.startsWith("gmgc") ||
+      res.startsWith("mgyp") ||
+      res.startsWith("mgnify")
+    ) {
+      return target.replaceAll(/\.(cif|pdb|ent)(\.gz)?/g, "");
+    } else if (res.startsWith("bfvd")) {
+      return target.replaceAll(/_unrelaxed.*/g, "");
+    }
+    if (res.startsWith("cath")) {
+      if (target.startsWith("af_")) {
+        const match = target.match(
+          /^af_([A-Z0-9]+)_(\d+)_(\d+)_(\d+\.\d+\.\d+\.\d+)$/,
+        );
+        if (match && match.length == 5) {
+          return match[4] + " " + match[1] + " " + match[2] + "-" + match[3];
+        }
+      }
+    }
+  }
+  return target;
+}
+
+// Process e.g. AF-{uniprot ID}-F1_model_v4.cif.pdb.gz to just uniprot ID
+export function tryFixName(name) {
+  if (/-_-_-_/.test(name)) {
+    name = name.split("-_-_-_")[0];
+  }
+
+  if (name.startsWith("AF-")) {
+    name = name.replaceAll(/(AF[-_]|[-_]F[0-9]+[-_]model[-_]v[0-9]+)/g, "");
+  }
+  return name.replaceAll(/\.(cif|pdb|gz)/g, "");
+}
 
 export async function readUploadedText(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -33,6 +197,262 @@ export async function readUploadedText(file) {
       ? ungzip(bytes)
       : bytes;
   return new TextDecoder().decode(data);
+}
+
+export function parseResults(data) {
+  let empty = 0;
+  let total = 0;
+  for (let i in data.results) {
+    let result = data.results[i];
+    let db = result.db;
+    result.hasDescription = false;
+    result.hasTaxonomy = false;
+    if (result.alignments == null) {
+      empty++;
+    }
+    total++;
+    const isGrouped =
+      result.alignments != null && !Array.isArray(result.alignments);
+    const grouped = isGrouped ? result.alignments : {};
+    for (let j in result.alignments) {
+      for (let k in result.alignments[j]) {
+        let item = result.alignments[j][k];
+        if (item.description === undefined) {
+          let split = item.target.split(" ");
+          item.description = split.slice(1).join(" ");
+          item.href = tryLinkTargetToDB(split[0], db);
+          item.target = tryFixTargetName(split[0], db);
+        }
+        if (item.description.length > 1) {
+          result.hasDescription = true;
+        }
+        item.id = "result-" + i + "-" + j;
+        item.active = false;
+        if (__APP__ != "foldseek" || data.mode != "tmalign") {
+          item.eval =
+            typeof item.eval === "string"
+              ? item.eval
+              : item.eval.toExponential(2);
+        }
+        if (__APP__ == "foldseek") {
+          item.prob =
+            typeof item.prob === "string" ? item.prob : item.prob.toFixed(2);
+          if (data.mode == "tmalign") {
+            item.eval =
+              typeof item.eval === "string" ? item.eval : item.eval.toFixed(3);
+          } else if (data.mode == "lolalign") {
+            item.eval = item.eval * 100;
+            item.eval = parseFloat(item.eval.toFixed(2)).toString();
+          }
+        }
+        if ("taxId" in item) {
+          result.hasTaxonomy = true;
+        }
+        if (!isGrouped) {
+          let groupId = item.complexid ?? k;
+          if (!grouped[groupId]) {
+            grouped[groupId] = [];
+          }
+          grouped[groupId].push(item);
+        }
+      }
+    }
+    result.alignments = grouped;
+  }
+  return total != 0 && empty / total == 1
+    ? { results: [], mode: data.mode }
+    : data;
+}
+
+export function splitAlphaNum(str) {
+  const len = str.length;
+  let i = 0;
+
+  while (i < len) {
+    const cc = str.charCodeAt(i);
+    if (cc >= 48 && cc <= 57) {
+      break;
+    }
+    i++;
+  }
+  const alpha = str.slice(0, i);
+
+  let j = i;
+  while (j < len) {
+    const cc = str.charCodeAt(j);
+    if (cc < 48 || cc > 57) {
+      break;
+    }
+    j++;
+  }
+  const numeric = str.slice(i, j);
+
+  let substitution = "";
+  if (j < len && str.charCodeAt(j) === 58 /* ':' */) {
+    substitution = str.slice(j);
+  }
+
+  return [alpha, numeric, substitution];
+}
+
+function computeInterresidueDist(splitTarget) {
+  const dist = [];
+  let lastChain = null;
+  let lastPos = null;
+
+  for (let i = 1; i < splitTarget.length; ++i) {
+    const curr = splitTarget[i];
+
+    if (curr === "_") {
+      dist.push(null);
+      continue;
+    }
+
+    let [currChain, currPos] = splitAlphaNum(curr);
+    currPos = currPos | 0;
+
+    // Find last valid residue before current
+    let j = i - 1;
+    while (j >= 0 && splitTarget[j] === "_") {
+      j--;
+    }
+    if (j < 0) {
+      dist.push(null);
+      lastChain = currChain;
+      lastPos = currPos;
+      continue;
+    }
+
+    let [prevChain, prevPos] = splitAlphaNum(splitTarget[j]);
+    prevPos = prevPos | 0;
+
+    const delta = currChain === prevChain ? currPos - prevPos : currPos;
+    dist.push(delta);
+
+    // Update last valid residue
+    lastChain = currChain;
+    lastPos = currPos;
+  }
+
+  return dist;
+}
+
+export function parseResultsRiboseek(data) {
+  let empty = 0;
+  let total = 0;
+  for (let i in data.results) {
+    let result = data.results[i];
+    let db = result.db;
+    result.hasDescription = false;
+    result.hasTaxonomy = false;
+    if (result.alignments == null) {
+      empty++;
+    }
+    total++;
+    const raw = result.alignments || [];
+    const groups = raw.length > 0 && Array.isArray(raw[0]) ? raw : [raw];
+    const hits = [];
+    for (const group of groups) {
+      for (const item of group) {
+        if (item.description === undefined) {
+          const split = item.target.split(" ");
+          item.target = tryFixTargetName(split[0], db);
+          item.description = split.slice(1).join(" ");
+          item.href = tryLinkTargetToDB(split[0], db);
+        }
+        if (item.description.length > 1) {
+          result.hasDescription = true;
+        }
+        item.id = "result-" + i + "-" + hits.length;
+        item.evalStr = typeof item.eval === "string" ? item.eval : item.eval.toExponential(2);
+        item.strand = item.qStartPos > item.qEndPos ? "-" : "+";
+        if ("taxId" in item) {
+          result.hasTaxonomy = true;
+        }
+        hits.push(item);
+      }
+    }
+    result.alignments = hits;
+  }
+  return total != 0 && empty / total == 1
+    ? { results: [], mode: data.mode }
+    : data;
+}
+
+export function parseResultsFoldDisco(data) {
+  let empty = 0;
+  let total = 0;
+  for (let i in data.results) {
+    let result = data.results[i];
+    let db = result.db;
+    result.hasDescription = false;
+    result.hasTaxonomy = false;
+    if (result.alignments == null) {
+      empty++;
+    }
+    total++;
+    result.queryresidues = {};
+    const grouped = {};
+    let meta = null;
+    if ("meta" in result) {
+      meta = {};
+      for (let j in result.meta) {
+        let entry = result.meta[j];
+        meta[entry.key] = entry;
+      }
+    }
+    result.meta = null;
+    for (let j in result.alignments) {
+      let item = result.alignments[j];
+      let split = item.target.split("/");
+      item.target = split[split.length - 1];
+
+      const splitTarget = item.targetresidues.split(",");
+      item.gaps = splitTarget.reduce((acc, s) => {
+        return acc + (s == "_" ? "0" : "1");
+      }, "");
+      item.interresiduedist = computeInterresidueDist(splitTarget);
+      item.idfscore = item.idfscore.toFixed(3);
+      item.rmsd = item.rmsd.toFixed(3);
+
+      item.queryresidues.split(",").map((r) => {
+        let [chain, pos, _] = splitAlphaNum(r);
+        if (!(chain in result.queryresidues)) {
+          result.queryresidues[chain] = new Set();
+        }
+        result.queryresidues[chain].add(pos - 0);
+      });
+
+      item.href = tryLinkTargetToDB(item.target, db);
+      item.targetname = tryFixTargetName(item.target, db).toUpperCase();
+      item.id = "result-" + i + "-" + j;
+      if (meta != null) {
+        let header = meta[item.dbkey].header;
+        let split = header.split(" ");
+        item.description = split.slice(1).join(" ");
+        if (item.description.length > 1) {
+          result.hasDescription = true;
+        }
+        if ("taxId" in meta[item.dbkey]) {
+          item.taxId = meta[item.dbkey].taxId;
+          item.taxName = meta[item.dbkey].taxName;
+          result.hasTaxonomy = true;
+        }
+      }
+      let groupId = j;
+      if (!grouped[groupId]) {
+        grouped[groupId] = [];
+      }
+      grouped[j].push(item);
+    }
+    result.alignments = grouped;
+    Object.keys(result.queryresidues).forEach(function (key, _) {
+      result.queryresidues[key] = Array.from(result.queryresidues[key]);
+    });
+  }
+  return total != 0 && empty / total == 1
+    ? { results: [], mode: data.mode }
+    : data;
 }
 
 export function dateTime() {
@@ -104,6 +524,57 @@ export function makePositionMap(realStart, alnString) {
   return map;
 }
 
+export const oneToThree = {
+  A: "ALA",
+  R: "ARG",
+  N: "ASN",
+  D: "ASP",
+  C: "CYS",
+  E: "GLU",
+  Q: "GLN",
+  G: "GLY",
+  H: "HIS",
+  I: "ILE",
+  L: "LEU",
+  K: "LYS",
+  M: "MET",
+  F: "PHE",
+  P: "PRO",
+  S: "SER",
+  T: "THR",
+  W: "TRP",
+  Y: "TYR",
+  V: "VAL",
+  U: "SEC",
+  O: "PHL",
+  X: "XAA",
+};
+
+export const threeToOne = {
+  ALA: "A",
+  ARG: "R",
+  ASN: "N",
+  ASP: "D",
+  CYS: "C",
+  GLU: "E",
+  GLN: "Q",
+  GLY: "G",
+  HIS: "H",
+  ILE: "I",
+  LEU: "L",
+  LYS: "K",
+  MET: "M",
+  PHE: "F",
+  PRO: "P",
+  SER: "S",
+  THR: "T",
+  TRP: "W",
+  TYR: "Y",
+  VAL: "V",
+  SEC: "U",
+  PHL: "O",
+  XAA: "X",
+};
 
 export function makeCgPDBFromText(text) {
   const pdb = [];
@@ -126,6 +597,217 @@ export function makeCgPDBFromText(text) {
   return pdb.join("\n");
 }
 
+/**
+ * Create a mock PDB from Ca data
+ * Follows the spacing spec from https://www.wwpdb.org/documentation/file-format-content/format33/sect9.html#ATOM
+ * Will have to change if/when swapping to fuller data
+ */
+export function mockPDB(ca, seq, chain) {
+  const atoms = ca.split(",");
+  const pdb = new Array();
+  let j = 1;
+  for (let i = 0; i < atoms.length; i += 3, j++) {
+    let [x, y, z] = atoms.slice(i, i + 3).map((element) => parseFloat(element));
+    // if (x == 0 && y == 0 && z == 0) continue;
+    pdb.push(
+      "ATOM  " +
+        j.toString().padStart(5) +
+        "  CA  " +
+        oneToThree[
+          seq != "" && atoms.length / 3 == seq.length ? seq[i / 3] : "A"
+        ] +
+        chain.toString().padStart(2) +
+        j.toString().padStart(4) +
+        "    " +
+        x.toFixed(3).padStart(8) +
+        y.toFixed(3).padStart(8) +
+        z.toFixed(3).padStart(8) +
+        "  1.00  0.00           C  ",
+    );
+  }
+  return pdb.join("\n");
+}
+
+export function mergePdbs(chainPdbs /* [{pdb, chain}] */) {
+  let serial = 1;
+  const out = [];
+
+  for (const { pdb, chain } of chainPdbs) {
+    const lines = pdb.split(/\r?\n/);
+    for (const line of lines) {
+      if (/^(ATOM  |HETATM)/.test(line)) {
+        // reassign atom serial no.
+        let s = serial.toString().padStart(5, " ");
+        let l = line.padEnd(80, " ");
+        l = l.slice(0, 6) + s + l.slice(11);
+
+        // change chain_id
+        l = l.substring(0, 21) + (chain[0] || "A") + l.substring(22);
+
+        out.push(l);
+        serial++;
+      }
+    }
+    out.push("TER");
+  }
+
+  out.push("END");
+  return out.join("\n");
+}
+
+/**
+ *
+ * @param {*} chainPdbs : Ca only pdb files with chain information in [{pdb, chain}] format
+ * @returns concatenated pdb string
+ * @abstract Concatenate multiple chains into one pdb files with single chain A
+ */
+export function concatenatePdbs(chainPdbs /* [{pdb, chain}] */) {
+  let serial = 1;
+  const out = [];
+
+  for (const { pdb, chain } of chainPdbs) {
+    const lines = pdb.split(/\r?\n/);
+    for (const line of lines) {
+      if (/^(ATOM  |HETATM)/.test(line)) {
+        // reassign atom serial no. and residue sequence no.
+        let s = serial.toString().padStart(5, " ");
+        let rs = serial.toString().padStart(4, " ");
+        let l = line.padEnd(80, " ");
+        l = l.slice(0, 6) + s + l.slice(11, 21) + "A" + rs + l.slice(26);
+        out.push(l);
+        serial++;
+      }
+    }
+  }
+  out.push("TER");
+  out.push("END");
+  return out.join("\n");
+}
+
+/**
+ *
+ * @param {*} chainPdbs : Ca only pdb files with chain information in [{pdb, chain}] format
+ * @returns concatenated pdb strings with suffix containing the chain informations
+ * @abstract Concatenate multiple chains into one pdb files with single chain A, preserving the chain information in the suffix as well
+ */
+export function encodeMultimer(chainPdbs /* [{pdb, chain}] */) {
+  const out = [];
+  const chainInfoArr = [];
+  const delimiter = "-_-_-_";
+  let atomSerial = 1;
+
+  for (const { pdb, chain } of chainPdbs) {
+    const lines = pdb.split(/\r?\n/);
+    const arr = [];
+
+    for (const line of lines) {
+      if (/^(ATOM  |HETATM)/.test(line)) {
+        // reassign atom serial no. and residue sequence no.
+        let l = line.padEnd(80, " ");
+        let s = atomSerial.toString().padStart(5, " ");
+        let rs = atomSerial.toString().padStart(4, " ");
+        l = l.slice(0, 6) + s + l.slice(11, 21) + "A" + rs + l.slice(26);
+        arr.push(l);
+        atomSerial++;
+      }
+    }
+
+    let firstResn = Number(arr.at(0).slice(22, 26));
+    let lastResn = Number(arr.at(-1).slice(22, 26));
+
+    const info = {};
+    info.chain = chain;
+    info.end = lastResn;
+    info.offset = firstResn - 1;
+    chainInfoArr.push(info);
+
+    out.push(arr.join("\n"));
+  }
+  out.push("TER");
+  out.push("END");
+
+  let suffix =
+    delimiter +
+    chainInfoArr
+      .map((e) => {
+        return e.chain + "_" + e.end + "_" + e.offset;
+      })
+      .join("-");
+
+  return {
+    pdb: out.join("\n"),
+    suffix: suffix,
+  };
+}
+
+/**
+ *
+ * @param {*} pdb : Ca only pdb file merged by encodeMultimer()
+ * @param {*} suffix : String containing chain information encoded by encodedMultimer()
+ * @returns Recovered pdb with original multimer information encoded beforehand
+ * @abstract Revert back the merged pdb into multimeric pdbs using multiple chain information encoded in suffix.
+ * Make sure to call this function with Ca only pdb, before running pulchra
+ */
+export function decodeMultimer(pdb, suffix) {
+  if (!suffix || suffix.length == 0) return pdb;
+
+  const chainInfos = suffix.split("-").map((s) => {
+    const out = {};
+    const info = s.split("_");
+
+    if (info.length != 3) return out;
+
+    out.chain = info[0];
+    out.end = Number(info[1]);
+    out.offset = Number(info[2]);
+    return out;
+  });
+
+  let index = 0;
+  const out = [];
+
+  for (const line of pdb.split("\n")) {
+    if (line.startsWith("ATOM")) {
+      const rs = Number(line.slice(22, 26));
+      const result =
+        line.slice(0, 21) +
+        chainInfos[index].chain +
+        (rs - chainInfos[index].offset).toString().padStart(4, " ") +
+        line.slice(26);
+      out.push(result);
+      if (rs == chainInfos[index].end) {
+        index++;
+        out.push("TER");
+      }
+    }
+  }
+  out.push("END");
+
+  return out.join("\n");
+}
+
+export function splitMultimer(pdb) {
+  const arr = pdb.split("\nTER\n");
+  const processed = arr.slice(0, -1).map((s) => s + "\nTER\nEND");
+  return processed;
+}
+
+export function mergeMultimer(arr) {
+  let serial = 1;
+  const merged = arr.map((s) => s.split("\nEND")[0]).join("\n") + "\nEND";
+  const out = [];
+  for (const line of merged.split("\n")) {
+    if (line.startsWith("ATOM")) {
+      const result =
+        line.slice(0, 6) + serial.toString().padStart(5, " ") + line.slice(11);
+      out.push(result);
+      serial++;
+    } else if (line.startsWith("TER") || line.startsWith("END")) {
+      out.push(line);
+    }
+  }
+  return out.join("\n");
+}
 
 /* ------ The rotation matrix to rotate Chain_1 to Chain_2 ------ */
 /* m               t[m]        u[m][0]        u[m][1]        u[m][2] */
@@ -271,6 +953,42 @@ export const calculateStrSize = (v) => {
   }
 };
 
+export function storeChains(pdb) {
+  const arr = [];
+  let c = "";
+  for (let line of pdb.split("\n")) {
+    if (line.startsWith("ATOM")) {
+      c = line.charAt(21);
+    } else if (line.startsWith("TER")) {
+      arr.push(c);
+    }
+  }
+  if (arr.length == 0) {
+    arr.push(c);
+  }
+  return arr;
+}
+
+export function revertChainInfo(pdb, chains) {
+  if (chains.length == 0 || chains[0] == "") {
+    return pdb;
+  }
+
+  const arr = [];
+  let i = 0;
+
+  for (let line of pdb.split("\n")) {
+    if (line.startsWith("ATOM")) {
+      line = line.slice(0, 21) + chains[i] + line.slice(22);
+    } else if (line.startsWith("TER")) {
+      i++;
+    }
+
+    arr.push(line);
+  }
+
+  return arr.join("\n");
+}
 
 export function getAbsOffsetTop($el) {
   var sum = 0;
@@ -281,6 +999,52 @@ export function getAbsOffsetTop($el) {
   return sum;
 }
 
+export const getChainName = (name) => {
+  if (/_v[0-9]+$/.test(name) || /^AF-\W+-/.test(name)) {
+    return "A";
+  }
+  
+  if (name.includes(' ')) {
+    name = name.split(' ')[0]
+  }
+
+  let pos = name.lastIndexOf("_");
+  if (pos != -1) {
+    let match = name.substring(pos + 1);
+    return match.length >= 1 && isNaN(Number(match[0])) ? match[0] : "A";
+  }
+  // fallback
+  return "A";
+};
+
+export const getAccession = (name) => {
+  if (/-_-_-_/.test(name)) {
+    name = name.split("-_-_-_")[0];
+  }
+  
+  if (name.includes(' ')) {
+    name = name.split(' ')[0]
+  }
+
+  if (/^AF-\w+-/.test(name)) {
+    name = name.split("-")[1];
+  }
+
+  // name = name.replaceAll(/-assembly[0-9]/g, "");
+  name = name.replaceAll(/\.(cif|pdb|gz)/g, "");
+
+  if (/_v[0-9]+$/.test(name)) {
+    return name;
+  }
+
+  if (/_unrelaxed_rank_/.test(name)) {
+    let pos = name.indexOf("_unrelaxed_rank_");
+    return pos != -1 ? name.substring(0, pos) : name;
+  }
+
+  let pos = name.lastIndexOf("_");
+  return pos != -1 ? name.substring(0, pos) : name;
+};
 
 /**
  * Throttle function
@@ -303,3 +1067,63 @@ export function throttle(func, delay) {
 }
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function getResidueIndices(
+  seq,
+  alnPoses /* array of highlighted columns */,
+) {
+  const result = [];
+
+  if (alnPoses.length == 0) {
+    return result;
+  }
+
+  const selectedColumns = new Set(alnPoses);
+  let resno = 0;
+  for (let i = 0; i < seq.length; i++) {
+    if (seq[i] == "-") {
+      continue;
+    }
+    if (selectedColumns.has(i)) {
+      result.push(resno);
+    }
+    resno++;
+  }
+  return result;
+}
+
+export function getResnoWithChain(
+  seq,
+  alnPoses /* array of highlighted columns */,
+  chains,
+  offsets,
+) {
+  const result = [];
+
+  if (alnPoses.length == 0) {
+    return result;
+  }
+
+  let resi = 0;
+  let startPos = 0;
+  const sorted = [...alnPoses].sort((a, b) => a - b);
+  const isMultimer = Object.keys(offsets).length > 1;
+
+  for (let p of sorted) {
+    for (let i = startPos; i <= p && i < seq.length; i++) {
+      if (seq[i] != "-") {
+        if (i == p) {
+          const resno = resi + 1;
+          const chain = isMultimer ? chains[resno] : "A";
+          const offset = isMultimer ? offsets[chain] : 0;
+          result.push(chain + String(resno - offset));
+          resi++;
+          startPos = i + 1;
+          break;
+        }
+        resi++;
+      }
+    }
+  }
+  return result;
+}

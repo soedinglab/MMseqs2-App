@@ -1,4 +1,13 @@
 // Sorting for the Foldseek / FoldDisco result tables.
+//
+// This lives outside the table components because only the active tab's child is mounted
+// (ResultView.vue renders ResultFoldseekDB with `v-if="(entryidx + 1) == selectedDatabases"`),
+// so `getTable({db})` for any other database has no child to ask. Both the mounted table and
+// the API import from here, which is the point: they cannot drift into sorting differently.
+//
+// `alignments` is always the post-parseResults grouped object — keys are group ids
+// (complexid for complex searches, the hit index otherwise) and values are arrays of
+// chain-level hits. Group ids are NOT guaranteed to be dense; never treat a key as a position.
 
 export const FOLDSEEK_SORT_KEYS = [
     'qtm', 'ttm', 'target', 'desc', 'tax', 'prob', 'seqId', 'eval', 'score',
@@ -12,6 +21,11 @@ const FOLDDISCO_NUMERIC = { idf: 'idfscore', rmsd: 'rmsd', node: 'nodecount' };
 // Keys sorted by a string field on the group's first chain.
 const STRING_FIELD = { target: 'target', desc: 'description', tax: 'taxName' };
 
+/**
+ * The row field a sort key reads, which is NOT always the key itself: `idf` lives in `idfscore`,
+ * `qtm` in `complexqtm`, `desc` in `description`. Exported because getTableSummary() needs to report
+ * a value for the active sort key, and hardcoding the key name there produced silent nulls.
+ */
 export function rowFieldForSortKey(sortKey, tool = 'foldseek') {
     if (STRING_FIELD[sortKey]) return STRING_FIELD[sortKey];
     if (tool === 'folddisco') return FOLDDISCO_NUMERIC[sortKey] ?? sortKey;
@@ -20,6 +34,10 @@ export function rowFieldForSortKey(sortKey, tool = 'foldseek') {
     return FOLDSEEK_NUMERIC.includes(sortKey) ? sortKey : sortKey;
 }
 
+/**
+ * Per-group numeric reductions, mirroring ResultFoldseekDB.sortKeyCache.
+ * `eval` reduces with max under tmalign/lolalign (higher is better) and min otherwise.
+ */
 export function buildSortCache(alignments, { mode = '', isComplex = false, tool = 'foldseek' } = {}) {
     const cache = {};
     if (!alignments) return cache;
@@ -89,6 +107,11 @@ export function isValidSortKey(sortKey, tool = 'foldseek') {
     return keys.includes(sortKey);
 }
 
+/**
+ * Memoised sortIndices, keyed by (cacheKey, sortKey, sortOrder). The mounted table gets this
+ * free from Vue's computed caching; the API path calls sortIndices directly and would otherwise
+ * re-sort tens of thousands of rows on every getTable().
+ */
 export function createSortMemo() {
     let store = new Map();
     return {

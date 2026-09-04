@@ -142,6 +142,8 @@ import { HistoryMixin } from './lib/HistoryMixin.js';
 import Databases from './Databases.vue';
 import DragUploadBox from "./DragUploadBox.vue";
 import { BlobDatabase } from "./lib/BlobDatabase.js";
+import { registerPageApi } from './lib/resultsApi.js';
+import { sourcesFor, fetchAccession } from './lib/accession.js';
 
 const db = BlobDatabase();
 
@@ -172,11 +174,30 @@ export default {
         };
     },
     async mounted() {
+        this._disposeApi = registerPageApi('search', 'foldmason', {
+            getState: this.getState,
+            validate: this.validate,
+            getQueries: this.getQueries,
+            addQuery: this.addQuery,
+            addQueries: this.addQueries,
+            removeQuery: this.apiRemoveQuery,
+            clearQueries: this.clearQueries,
+            getAccessionSources: this.getAccessionSources,
+            loadAccessions: this.loadAccessions,
+            submit: this.submit,
+            describePage: this.describePage,
+            _vm: this,
+        });
         if (this.preloadAccessions.length > 0) {
             this.queries = [];
         }
         this.retrieveAndClean()
         return;
+    },
+    beforeDestroy() {
+        // FoldMasonSearch registers directly rather than through SearchApiMixin, so it needs its
+        // own disposer — without it window.searchApi survives navigation to the result page.
+        this._disposeApi?.();
     },
     computed: {
         alignDisabled() {
@@ -205,6 +226,135 @@ export default {
         }
     },
     methods: {
+        // ---------------------------------------------------------------------------------
+        // API (window.searchApi). Deliberately NOT the SearchApiMixin: the input here is a
+        // list of files and validation is a count bound, so sharing would mean a mixin full
+        // of conditionals. See claude-plan/ai-friendly-search/context.md §3.
+        // ---------------------------------------------------------------------------------
+        getQueries() {
+            return (this.queries ?? []).map((q, index) => ({
+                index,
+                name: q.name,
+                length: q.text ? q.text.length : (q.file?.size ?? null),
+                source: q.file ? 'file' : 'text',
+            }));
+        },
+        // Accepts (name, text) or ({name, text}). addQueries takes objects, so passing one here
+        // failed with "name and text are both required" when both *were* supplied — a message that
+        // read as a lie.
+        addQuery(name, text) {
+            if (name && typeof name === 'object' && text === undefined) {
+                ({ name, text } = name);
+            }
+            if (!name || !text) return { ok: false, reason: 'name and text are both required' };
+            this.queries.push({ name: String(name), text: String(text) });
+            return { ok: true, count: this.queries.length };
+        },
+        addQueries(list) {
+            const added = [], rejected = [];
+            for (const item of (Array.isArray(list) ? list : [list])) {
+                if (item?.name && item?.text) {
+                    this.queries.push({ name: String(item.name), text: String(item.text) });
+                    added.push(item.name);
+                } else {
+                    rejected.push({ item, reason: 'needs { name, text }' });
+                }
+            }
+            return { ok: rejected.length === 0, added, rejected, count: this.queries.length };
+        },
+        // Wrapper, not an override: the page already has removeQuery() and the template binds
+        // it (@click:close). A same-named method here would silently win the object literal and
+        // change what the close button does.
+        async apiRemoveQuery(index) {
+            const i = Number(index);
+            if (!Number.isInteger(i) || i < 0 || i >= this.queries.length) {
+                return { ok: false, reason: `index ${index} out of range (0..${this.queries.length - 1})` };
+            }
+            await this.removeQuery(i);
+            return { ok: true, count: this.queries.length };
+        },
+        clearQueries() {
+            this.queries = [];
+            return { ok: true, count: 0 };
+        },
+        getAccessionSources() {
+            return sourcesFor([]).map(s => ({ value: s.value, text: s.text }));
+        },
+        // The `multiple` path: appends, mirroring @select="queries.push(...$event)".
+        async loadAccessions(list, source = 'PDB') {
+            const valid = this.getAccessionSources().map(s => s.value);
+            if (!valid.includes(source)) {
+                return { ok: false, reason: `unknown source: ${source}`, valid };
+            }
+            const wanted = (Array.isArray(list) ? list : String(list).split(/[,\s]+/))
+                .map(x => String(x).trim()).filter(Boolean);
+            if (wanted.length === 0) return { ok: false, reason: 'no accessions given' };
+            const settled = await Promise.allSettled(
+                wanted.map(a => fetchAccession(a, source)));
+            const added = [], failed = [];
+            settled.forEach((r, i) => {
+                if (r.status === 'fulfilled') {
+                    this.queries.push({ name: r.value.name, text: r.value.text });
+                    added.push({ requested: wanted[i], resolved: r.value.name });
+                } else {
+                    failed.push(wanted[i]);
+                }
+            });
+            return { ok: failed.length === 0, added, failed, count: this.queries.length };
+        },
+        validate() {
+            const reasons = [];
+            const n = this.queries?.length ?? 0;
+            if (this.inSearch) reasons.push('a search is already running');
+            if (n <= 1) reasons.push(`FoldMason needs at least 2 structures; ${n} provided`);
+            if (n >= 5000) reasons.push(`too many structures: ${n} (limit is 4999)`);
+            return { ok: reasons.length === 0, reasons, count: n, bounds: { min: 2, max: 4999 } };
+        },
+        getState() {
+            return {
+                tool: 'foldmason',
+                queries: this.getQueries(),
+                count: this.queries?.length ?? 0,
+                inSearch: !!this.inSearch,
+                skippedEntries: this.skippedEntries ?? 0,
+                valid: this.validate(),
+            };
+        },
+        // Delegates to the page's own search() so the multipart body is never duplicated.
+        async submit() {
+            const v = this.validate();
+            if (!v.ok) return { ok: false, reason: 'validation failed', reasons: v.reasons };
+            this.errorMessage = { type: null, message: '' };
+            const before = this.$route?.fullPath ?? null;
+            try {
+                await this.search();
+            } catch (e) {
+                return { ok: false, status: 'ERROR', reason: `request failed: ${e?.message ?? e}` };
+            }
+            const msg = this.errorMessage?.message ?? '';
+            if (msg) {
+                const status = /rate limit/i.test(msg) ? 'RATELIMIT'
+                    : /maintenance/i.test(msg) ? 'MAINTENANCE' : 'ERROR';
+                return { ok: false, status, reason: msg };
+            }
+            return { ok: true, ticket: this.$route?.params?.ticket ?? null,
+                route: this.$route?.name ?? null,
+                navigated: (this.$route?.fullPath ?? null) !== before };
+        },
+        describePage() {
+            return {
+                kind: 'search',
+                tool: 'foldmason',
+                count: this.queries?.length ?? 0,
+                bounds: { min: 2, max: 4999 },
+                accessionSources: this.getAccessionSources().map(s => s.value),
+                notes: [
+                    'Input is a list of structures; validation is a count bound (2..4999).',
+                    'submit() POSTs multipart, consumes rate limit and navigates away.',
+                    'No mode, taxonomy or motif on this page.',
+                ],
+            };
+        },
         async handleLoadExample() {
             let response = null;
             try {

@@ -397,6 +397,8 @@ export default {
                 this.toggleSourceKey = ""
                 this.toggleSourceIdx = -1
                 this.toggleSourceValue = true
+                // Recompute visibility first: nextRenderLimit() reads the visibility table,
+                // so sizing the window before the table is rebuilt would use stale data.
                 this.updateVisibility()
                 this.renderLimit = this.nextRenderLimit(0)
                 this.$nextTick(() => {
@@ -534,6 +536,8 @@ export default {
             }
             return count
         },
+        // Rows actually on screen, out of rows surviving the filter — the previous footer
+        // reported rendered-vs-unfiltered, which misleads whenever a filter is active.
         shownCount() {
             let n = 0
             for (const key in this.visibleSortedIndices) {
@@ -559,6 +563,8 @@ export default {
         sortKeyCache() {
             return buildSortCache(this.entry.alignments, { tool: 'folddisco' })
         },
+        // Shared with the getTable() API via lib/resultSort.js. Verified identical to the
+        // previous inline implementation across all sort keys on a real 3-database result.
         comparator() {
             return makeComparator(this.entry.alignments, this.sortKey, this.sortOrder, this.sortKeyCache)
         },
@@ -642,6 +648,9 @@ export default {
                 }
             })
         },
+        // Advance until a full batch of *visible* rows is on screen — see the matching
+        // comment in ResultFoldseekDB. Stepping by rendered rows starves the view under a
+        // motif or taxonomy filter and keeps the sentinel permanently in view.
         nextRenderLimit(from = this.renderLimit) {
             let shown = 0, i = 0, limit = from
             for (const key in this.sortedIndices) {
@@ -699,9 +708,15 @@ export default {
             console.log(a)
             return a
         },
+        // FoldDisco group ids are always dense (parseResultsFoldDisco keys by loop index), so
+        // the positional visibilityTable is safe here — unlike Foldseek complex, where ids are
+        // backend complexids. Routed through a helper anyway so an unseen key defaults to
+        // visible rather than silently hiding a row.
         isRowVisible(groupId) {
             return this.visibilityTable[groupId] !== false
         },
+        // Both `.selected` and `.invisible` are imperative, so every path that changes the
+        // rendered window must re-apply both. See claude-plan/ai-friendly-results.
         syncRenderedState() {
             this.reflectSelectionState()
             this.updateVisibility()
@@ -709,6 +724,9 @@ export default {
         updateVisibility() {
             if (!this.entry) return
 
+            // Keyed by group id and assigned wholesale, so it is reactive: the shownCount /
+            // filteredTotal computeds depend on it. Index-assignment into an array is
+            // unobservable in Vue 2 and left the footer counts stale.
             const filtering = this.isTaxAvailable || this.isGapFilterAvailable
             const table = {}
             for (const groupId of Object.keys(this.entry.alignments || {})) {
@@ -925,6 +943,9 @@ export default {
                 this.setupObserver()
                 setTimeout(() => {
                     this.reflectSelectionState()
+                    // Re-sorting pulls rows into the render window that were never mounted
+                    // before; Vue builds those fresh, so the imperative `.invisible` class
+                    // has to be re-applied or filtered-out hits reappear.
                     this.updateVisibility()
                 }, 0)
             })

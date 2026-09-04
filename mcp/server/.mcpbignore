@@ -1,6 +1,0 @@
-# Only the bundle and the entry point ship: src/ is inlined into dist/server.mjs.
-src/
-test/
-build.mjs
-node_modules/
-*.tgz
