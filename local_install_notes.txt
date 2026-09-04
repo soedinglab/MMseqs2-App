@@ -1,0 +1,28 @@
+# for MacOS local development I did the following
+conda create -n mmseqs2-app -c conda-forge nodejs=18 go=1.22 wget
+conda activate mmseqs2-app
+
+
+# then using npm for dependencies
+npm ci
+FRONTEND_APP=mmseqs npm run electron:deps
+FRONTEND_APP=mmseqs npm run electron:dev
+
+# for running and testing the backend, after it's all compiled we can create some database tmp and jobs directories
+mkdir -p /private/tmp/mmseqs-api/{databases,jobs,tmp}
+
+# then we can test with
+./resources/mac/arm64/mmseqs-web-backend \
+    -local \
+    -app mmseqs \
+    -server.address 127.0.0.1:8081 \
+    -server.pathprefix /api \
+    -server.cors true \
+    -paths.mmseqs "$PWD/resources/mac/arm64/mmseqs" \
+    -paths.databases /private/tmp/mmseqs-api/databases \
+    -paths.results /private/tmp/mmseqs-api/jobs \
+    -paths.temporary /private/tmp/mmseqs-api/tmp
+
+
+# and in another terminal once can test the backend
+curl http://127.0.0.1:8081/api/queue
