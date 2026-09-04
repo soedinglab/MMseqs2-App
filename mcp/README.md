@@ -43,15 +43,6 @@ inlined into a tool result.
 ```bash
 npm test --prefix mcp/core                    # no network, nothing submitted
 npm test --prefix mcp/server
-
-FOLDSEEK_SERVER_LIVE_TESTS=1 \
-FOLDSEEK_SERVER_BASE_URL=https://search.foldseek.com \
-  npm test --prefix mcp/server                # + read-only live checks
-
-FOLDSEEK_SERVER_LIVE_TESTS=1 FOLDSEEK_SERVER_LIVE_SUBMIT=1 \
-FOLDSEEK_SERVER_BASE_URL=http://localhost:3000 \
-  npm test --prefix mcp/server                # + a real submitted job
 ```
 
-The submit flag is separate from the read flag on purpose: reading a completed ticket costs a
-request, submitting occupies a queue slot and a worker.
+Both suites are offline. Verify a real deployment separately when changing its network contract.

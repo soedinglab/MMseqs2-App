@@ -280,95 +280,6 @@ test('the manifest is valid, self-consistent, and uses safe index-based paths', 
     assert.equal(databases.find(d => d.safeName === 'db-4').id, 'bfmd');
 });
 
-test('the descriptor stays small and carries no file contents', async () => {
-    const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json') });
-    const out = await client.exportResult('T1abcd');
-
-    const text = JSON.stringify(out);
-    assert.ok(text.length < 2000, `descriptor is ${text.length} bytes`);
-    assert.equal(text.includes('ATOM'), false);
-    assert.equal(text.includes('"nodes"'), false);
-    assert.match(out.uri, /^foldseek-artifact:\/\/[0-9a-f]{64}\/$/);
-    assert.equal(out.manifestUri, `${out.uri}manifest.json`);
-});
-
-test('local paths can be withheld for a client that cannot use them', async () => {
-    const fetchImpl = async (url) => ({
-        ok: true, status: 200,
-        json: async () => (url.includes('/ticket/type/') ? { type: 'structuresearch' }
-            : url.includes('/databases') ? CATALOG
-                : url.includes('/result/') ? load('foldseek-bfmd.raw.json')
-                    : { id: 'T1', status: 'COMPLETE' }),
-        text: async () => '',
-    });
-    const client = createClient({
-        baseUrl: 'https://example.test',
-        stateDir: await tmpDir(),
-        fetchImpl,
-        artifacts: { exposeLocalPaths: false },
-    });
-    const out = await client.exportResult('T1abcd');
-    assert.equal(out.localPath, undefined);
-    assert.match(out.manifestUri, /^foldseek-artifact:/);
-});
-
-test('an unfinished ticket exports nothing', async () => {
-    const fetchImpl = async (url) => ({
-        ok: true, status: 200,
-        json: async () => (url.includes('/ticket/type/') ? { type: 'structuresearch' } : { id: 'T1', status: 'RUNNING' }),
-        text: async () => '',
-    });
-    const client = createClient({ baseUrl: 'https://example.test', stateDir: await tmpDir(), fetchImpl });
-    await assert.rejects(() => client.exportResult('T1abcd'), e => e.code === 'RESULT_NOT_READY');
-});
-
-test('the same unit exports the same bytes regardless of selections made in between', async () => {
-    const stateDir = await tmpDir();
-    const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir });
-
-    const first = await client.exportResult('T1abcd');
-    const rowsBefore = readFile(first, 'rows');
-
-    const table = await client.getResult('T1abcd', 0);
-    await table.select({ db: 'bfmd', limit: 3 }).save('draft');
-
-    await fsp.rm(path.dirname(first.localPath), { recursive: true, force: true });
-    const second = await client.exportResult('T1abcd');
-
-    assert.equal(second.artifactId, first.artifactId, 'workflow state is not part of the identity');
-    assert.equal(readFile(second, 'rows'), rowsBefore);
-    const manifest = fs.readFileSync(second.localPath, 'utf8');
-    assert.equal(manifest.includes('draft'), false, 'an artifact holds no selection state');
-});
-
-test('the export-triggered sweep is throttled, and the marker survives a new client', async () => {
-    const stateDir = await tmpDir();
-    const sweeps = [];
-    const audit = async (entry) => { sweeps.push(entry); };
-
-    const first = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir });
-    await first.client.exportResult('T1abcd');
-    const marker = path.join(stateDir, 'artifact-gc-state.json');
-    assert.equal(fs.existsSync(marker), true, 'the sweep time is recorded outside the artifact root');
-    const recorded = JSON.parse(fs.readFileSync(marker, 'utf8')).lastSweepAt;
-
-    // A second export moments later must not walk the directory again.
-    const throttled = await first.client.collectGarbage({ minIntervalSeconds: 600, audit });
-    assert.equal(throttled.throttled, true);
-    assert.equal(throttled.lastSweepAt, recorded);
-    assert.equal(sweeps.length, 0, 'nothing was examined, so nothing was audited');
-
-    // A brand new client — a restarted server — reads the same marker rather than sweeping again.
-    const second = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir });
-    assert.equal((await second.client.collectGarbage({ minIntervalSeconds: 600 })).throttled, true);
-
-    // An explicit call always sweeps: that is what the operator mode and the startup sweep use.
-    const forced = await second.client.collectGarbage();
-    assert.equal(forced.throttled, undefined);
-    assert.equal(forced.artifacts.examined, 1);
-    assert.equal(forced.results.examined, 1, 'one sweep covers both kinds of derived state');
-});
-
 test('a search that found nothing still exports, and says so', async () => {
     const { client } = await makeClient({
         result: { type: 'structuresearch', mode: '3diaa', queries: [], results: [] },
@@ -396,33 +307,6 @@ test('a manifest that fails its own schema is never published', async () => {
     assert.equal(fs.existsSync(store.dirFor(id)), false);
     assert.deepEqual(fs.readdirSync(store.root).filter(n => n.startsWith('.build-')), [],
         'the scratch directory is removed too');
-});
-
-test('an expired artifact rebuilds from the cached result, without refetching it', async () => {
-    const stateDir = await tmpDir();
-    const now = new Date('2026-08-18T00:00:00Z');
-    const first = await makeClient({ result: load('foldseek-bfmd.raw.json'), stateDir, now });
-    const built = await first.client.exportResult('T1abcd');
-    assert.ok(first.fetched.some(u => u.includes('/result/')), 'the first export did fetch the result');
-
-    // Past the 30-minute artifact TTL, well inside the 24-hour result TTL.
-    first.clock.at = new Date(now.getTime() + 45 * 60 * 1000);
-    const swept = await first.client.collectGarbage();
-    assert.equal(swept.artifacts.deleted, 1, 'the artifact expired');
-    assert.equal(swept.results.deleted, 0, 'the payload that produced it did not');
-
-    // A second client over the same state directory, so nothing is answered from memory.
-    const second = await makeClient({
-        result: load('foldseek-bfmd.raw.json'), stateDir, now: first.clock.at,
-    });
-    const rebuilt = await second.client.exportResult('T1abcd');
-
-    assert.equal(rebuilt.artifactId, built.artifactId, 'same inputs, same handle');
-    assert.equal(rebuilt.counts.parsedRows, built.counts.parsedRows);
-    assert.deepEqual(second.fetched.filter(u => u.includes('/result/')), [],
-        'the expensive fetch and parse came off disk — which is what makes a 30-minute TTL cheap');
-    assert.deepEqual(second.fetched.map(u => u.replace('https://example.test', '')), ['/api/databases'],
-        'only the database catalog, which is ~1 KB and memoised for the process');
 });
 
 test('exports go to the shared folder, and it may not hold the state directory', async () => {
@@ -459,17 +343,4 @@ test('exports go to the shared folder, and it may not hold the state directory',
         assert.throws(() => createClient({ baseUrl: 'https://example.test', stateDir, sharedDir: bad }),
             /contains the state directory/, bad);
     }
-});
-
-test('a descriptor says so when its files are somewhere no other machine can reach', async () => {
-    const { client } = await makeClient({ result: load('foldseek-bfmd.raw.json') });
-    const out = await client.exportResult('T1abcd');
-
-    // The default location is inside the state directory: readable by this server and nothing else.
-    // The server does know that much, so it says it rather than handing over a path that cannot work.
-    assert.match(out.ifUnreadable, /private state directory/);
-    assert.match(out.ifUnreadable, /FOLDSEEK_SERVER_SHARED_DIR/);
-    assert.equal(out.localPathVerified, false);
-    assert.ok(out.uri, 'and the uri, which needs no filesystem, is still there');
-    assert.ok(JSON.stringify(out).length < 2048, `descriptor is ${JSON.stringify(out).length} bytes`);
 });

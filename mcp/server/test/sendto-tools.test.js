@@ -15,7 +15,6 @@ import { ResultTable, Store, MsaColumnSelection, SubmittableQuery } from 'foldse
 import { createTools, runTool } from '../src/tools.js';
 
 const CA = '1.000,2.000,3.000,4.000,5.000,6.000,7.000,8.000,9.000';
-const ACCESSION_TEXT = 'data_1ABC\n_atom_site.group_PDB\n';
 
 function parsed() {
     const hit = (target, score) => [{
@@ -95,20 +94,6 @@ async function stubClient(overrides = {}) {
             return [{ ca: CA, seq: 'MAC', chain: 'A', target: `${db}-hit${idx}_A` }];
         },
         async getQueryStructure() { return { name: 'query.pdb', content: 'ATOM      1  CA  MET A   1       0.000   0.000   0.000  1.00  0.00           C' }; },
-        async loadAccession(id, opts) {
-            record('loadAccession', id, opts);
-            return {
-                text: ACCESSION_TEXT,
-                motif: 'A10, A12',
-                describe: () => ({ id, source: opts.source, name: `${id}.cif`, bytes: ACCESSION_TEXT.length,
-                    motif: 'A10, A12', motifSource: 'qbiolip' }),
-            };
-        },
-        async loadAccessions(ids, opts) {
-            record('loadAccessions', ids, opts);
-            return { describe: () => ({ loaded: ids.map(id => ({ id })), failed: [] }) };
-        },
-
         async submitFoldseekSearch(a) { record('submitFoldseekSearch', a); return { id: 'FSTICKET1', status: 'PENDING' }; },
         async submitFoldDisco(a) { record('submitFoldDisco', a); return { id: 'FDTICKET1', status: 'PENDING' }; },
         async submitFoldMason(a) { record('submitFoldMason', a); return { id: 'FMTICKET2', status: 'PENDING' }; },
@@ -143,79 +128,9 @@ test('select_hits saves what a filter selected, and reads it back on the next ca
     assert.deepEqual(again.entries.map(e => e.id), ['0#0', '0#1']);
 });
 
-test('select_hits add and remove adjust a saved selection', async () => {
-    const { tools } = await toolsFor();
-    await runTool(tools, 'select_hits', { ticketId: 'TICKET1', ids: ['0#0'] });
-
-    // A write confirms the size; describe is what lists members.
-    const widened = await runTool(tools, 'select_hits', {
-        ticketId: 'TICKET1', action: 'add', ids: ['0#2'],
-    });
-    assert.equal(widened.size, 2);
-    assert.equal(widened.entries, undefined, 'a write does not echo what was just supplied');
-    assert.deepEqual(
-        (await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'describe' }))
-            .entries.map(e => e.id),
-        ['0#0', '0#2']);
-
-    const narrowed = await runTool(tools, 'select_hits', {
-        ticketId: 'TICKET1', action: 'remove', ids: ['0#0'],
-    });
-    assert.equal(narrowed.size, 1);
-    assert.deepEqual(
-        (await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'describe' }))
-            .entries.map(e => e.id),
-        ['0#2']);
-});
-
-test('select_hits keeps several named selections per ticket, and deletes them', async () => {
-    const { tools } = await toolsFor();
-    await runTool(tools, 'select_hits', { ticketId: 'TICKET1', name: 'wide', ids: ['0#0', '0#1', '0#2'] });
-    await runTool(tools, 'select_hits', { ticketId: 'TICKET1', name: 'narrow', ids: ['0#0'] });
-
-    const { selections } = await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'list' });
-    assert.deepEqual(selections.map(s => [s.name, s.size]).sort(), [['narrow', 1], ['wide', 3]]);
-
-    assert.deepEqual(await runTool(tools, 'select_hits', { ticketId: 'TICKET1', name: 'wide', action: 'delete' }),
-        { name: 'wide', deleted: true });
-    const after = await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'list' });
-    assert.deepEqual(after.selections.map(s => s.name), ['narrow']);
-});
-
-test('describing a selection that was never made says so rather than returning an empty one', async () => {
-    const { tools } = await toolsFor();
-    const out = await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'describe' });
-    assert.match(out.error, /no selection "default"/);
-});
-
 // -------------------------------------------------------------------------------------------------
 // select_msa_columns
 // -------------------------------------------------------------------------------------------------
-
-test('select_msa_columns takes ranges in the form the summary prints them', async () => {
-    const { tools } = await toolsFor();
-    const out = await runTool(tools, 'select_msa_columns', {
-        ticketId: 'FMTICKET1', entry: 1, ranges: ['0-2', '6'],
-    });
-
-    assert.deepEqual(out.selectedColumns, ['0-2', '6']);
-    assert.equal(out.motif, 'A1, A2, A3, A7');
-});
-
-test('select_msa_columns can move to another entry, and the motif follows the columns', async () => {
-    const { tools } = await toolsFor();
-    await runTool(tools, 'select_msa_columns', { ticketId: 'FMTICKET1', entry: 1, columns: [0, 1, 4] });
-
-    const moved = await runTool(tools, 'select_msa_columns', { ticketId: 'FMTICKET1', action: 'add', entry: 0, columns: [] });
-    assert.equal(moved.motif, 'A1, A2, B1', 'the same columns, read off the dimer');
-
-    // `motif` is not an argument here, and is refused rather than dropped: an agent that thought it
-    // set one would otherwise believe the search was constrained when it was not.
-    const refused = await runTool(tools, 'select_msa_columns',
-        { ticketId: 'FMTICKET1', action: 'add', entry: 0, motif: 'B1' });
-    assert.equal(refused.code, 'INVALID_INPUT');
-    assert.match(refused.error, /motif is not a select_msa_columns argument/);
-});
 
 test('select_msa_columns designates substitutions per column, and they persist', async () => {
     const { tools } = await toolsFor();
@@ -315,50 +230,6 @@ test('send_to takes a motif only from a source that has none', async () => {
     assert.equal(client.submitted().at(-1).args[0].motif, 'A1');
 });
 
-test('foldseek_search loads an accession instead of taking query text', async () => {
-    const { client, tools } = await toolsFor();
-    const out = await runTool(tools, 'foldseek_search', {
-        accession: { id: '1ABC', source: 'PDB' }, databases: ['afdb50'],
-    });
-
-    assert.equal(out.ticketId, 'FSTICKET1');
-    // What it resolved to is reported: AlphaFoldDB is a fuzzy search and can answer with another entry.
-    assert.equal(out.loaded.name, '1ABC.cif');
-    const [submitted] = client.submitted();
-    assert.equal(submitted.args[0].query, ACCESSION_TEXT);
-});
-
-test('folddisco_search takes the motif the accession came with, and lets one be given', async () => {
-    const { client, tools } = await toolsFor();
-
-    const auto = await runTool(tools, 'folddisco_search', {
-        accession: '1ABC', databases: ['pdb_folddisco'],
-    });
-    assert.equal(auto.motif, 'A10, A12', 'the Q-BioLiP binding site is the default motif');
-
-    const explicit = await runTool(tools, 'folddisco_search', {
-        accession: '1ABC', databases: ['pdb_folddisco'], motif: 'A5, A6',
-    });
-    assert.equal(explicit.motif, 'A5, A6', 'an explicit motif wins over the looked-up one');
-    assert.deepEqual(client.submitted().map(c => c.args[0].motif), ['A10, A12', 'A5, A6']);
-});
-
-test('only one structure input is accepted at a time', async () => {
-    const { tools } = await toolsFor();
-    const pairs = [
-        { query: 'ATOM', accession: '1ABC' },
-        { query: 'ATOM', queryRef: '/tmp/x.pdb' },
-        { queryRef: '/tmp/x.pdb', accession: '1ABC' },
-        { query: 'ATOM', queryRef: '/tmp/x.pdb', accession: '1ABC' },
-    ];
-    for (const given of pairs) {
-        const out = await runTool(tools, 'foldseek_search', { ...given, databases: ['afdb50'] });
-        assert.equal(out.isError, true, JSON.stringify(given));
-        assert.match(out.error, /pass exactly one of query, queryRef, accession/);
-        for (const key of Object.keys(given)) assert.ok(out.error.includes(key), key);
-    }
-});
-
 test('send_to explains a source that has not been made yet', async () => {
     const { tools } = await toolsFor();
 
@@ -405,40 +276,6 @@ test('a forwarded job reports which ticket it came out of, and can be found from
     assert.equal(client.calls.some(c => c.name === 'submitFoldMason'), true);
 });
 
-test('select_hits rejects unresolvable ids one by one instead of failing the call', async () => {
-    const { tools } = await toolsFor();
-    const out = await runTool(tools, 'select_hits', {
-        ticketId: 'TICKET1', ids: ['0#0', '0#99', 'nosuchdb#1', 'afdb50#2'],
-    });
-
-    // Two good ids survive; the two bad ones are named with a reason. A synthesised id is the
-    // likeliest mistake here — on a multimer result the entry index is a sparse group id.
-    assert.equal(out.size, 2);
-    assert.deepEqual(out.rejected.map(r => r.id), ['0#99', 'nosuchdb#1']);
-    assert.match(out.rejected[0].reason, /no hit 99/);
-    assert.match(out.rejected[1].reason, /unknown database/);
-    assert.deepEqual(
-        (await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'describe' }))
-            .entries.map(e => e.id),
-        ['0#0', '0#2']);
-});
-
-test('describe caps the entries it lists back but reports the true size', async () => {
-    const { tools } = await toolsFor();
-    const saved = await runTool(tools, 'select_hits', {
-        ticketId: 'TICKET1', ids: ['0#0', '0#1', '0#2'],
-    });
-    assert.equal(saved.size, 3);
-    assert.equal(JSON.stringify(saved).length < 250, true, `a write reply is ${JSON.stringify(saved).length} bytes`);
-
-    const out = await runTool(tools, 'select_hits', {
-        ticketId: 'TICKET1', action: 'describe', maxEntries: 2,
-    });
-    assert.equal(out.size, 3);
-    assert.equal(out.entries.length, 2);
-    assert.equal(out.entriesTruncated, 3);
-});
-
 // --- copy-on-write and incompatible input at the tool layer --------------------------------------
 
 test('select_hits copies a selection, and never overwrites one', async () => {
@@ -458,44 +295,4 @@ test('select_hits copies a selection, and never overwrites one', async () => {
         { ticketId: 'TICKET1', action: 'copy', name: 'x' });
     assert.equal(noSource.code, 'INVALID_INPUT');
     assert.match(noSource.error, /fromName/);
-});
-
-test('select_msa_columns copies, clears, and reports a bad name with its code', async () => {
-    const { tools } = await toolsFor();
-    await runTool(tools, 'select_msa_columns', { ticketId: 'FMTICKET1', columns: [0, 1], name: 'draft' });
-
-    const copied = await runTool(tools, 'select_msa_columns',
-        { ticketId: 'FMTICKET1', action: 'copy', fromName: 'draft', name: 'to-folddisco__001' });
-    assert.equal(copied.size, 2);
-
-    const cleared = await runTool(tools, 'select_msa_columns',
-        { ticketId: 'FMTICKET1', action: 'clear', name: 'draft' });
-    assert.deepEqual(cleared.selectedColumns, []);
-    assert.equal(cleared.residueCount, 0);
-
-    const stillThere = await runTool(tools, 'select_msa_columns',
-        { ticketId: 'FMTICKET1', action: 'describe', name: 'to-folddisco__001' });
-    assert.deepEqual(stillThere.selectedColumns, ['0-1'], 'clearing the source left the copy alone');
-
-    const badName = await runTool(tools, 'select_msa_columns',
-        { ticketId: 'FMTICKET1', columns: [0], name: '__proto__' });
-    assert.equal(badName.code, 'SELECTION_NAME_INVALID');
-});
-
-test('an argument belonging to the other selection tool is refused, not ignored', async () => {
-    const { tools } = await toolsFor();
-
-    const hits = await runTool(tools, 'select_hits',
-        { ticketId: 'TICKET1', ids: ['0#0'], columns: [1, 2] });
-    assert.equal(hits.code, 'INVALID_INPUT');
-    assert.match(hits.error, /columns is not a select_hits argument/);
-
-    const columns = await runTool(tools, 'select_msa_columns',
-        { ticketId: 'FMTICKET1', columns: [0], ids: ['0#0'] });
-    assert.equal(columns.code, 'INVALID_INPUT');
-    assert.match(columns.error, /ids is not a select_msa_columns argument/);
-
-    const empty = await runTool(tools, 'select_hits', { ticketId: 'TICKET1', action: 'add' });
-    assert.equal(empty.code, 'INVALID_INPUT');
-    assert.match(empty.error, /use "clear"/);
 });

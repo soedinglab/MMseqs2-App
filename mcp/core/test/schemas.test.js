@@ -70,9 +70,19 @@ const paths = value => value.errors.map(e => e.path);
 test('a valid summary and a valid manifest pass', () => {
     assert.deepEqual(validateResultSummary(summary()), { ok: true, errors: [] });
     assert.deepEqual(validateArtifactManifest(manifest()), { ok: true, errors: [] });
+    assert.equal(validateArtifactManifest(manifest({
+        state: { serverNamespace: 'https://search.foldseek.com/api', ticket: 'T2', queryIdx: 0,
+            mode: null, tool: 'foldmason' },
+        counts: { serverAlignments: 0, parsedRows: 15, exportedRows: 15, grouping: 'none' },
+        completeness: { complete: true, saturated: false, rowCap: null },
+        ranking: null,
+        metricSemantics: {},
+        databases: [],
+        files: [{ role: 'msa-entries', path: 'msa/entries.json', mime: 'application/json', bytes: 40, rows: 15 }],
+    })).ok, true);
 });
 
-test('a not-ready summary is its own shape, and cannot smuggle result data', () => {
+test('summary lifecycle shapes require their fields and reject result data before completion', () => {
     const notReady = {
         schema: SUMMARY_SCHEMA, ticket: 'T1', queryIdx: 0, status: 'RUNNING', tool: 'foldseek',
         code: 'RESULT_NOT_READY', next: 'get_ticket_status',
@@ -86,28 +96,21 @@ test('a not-ready summary is its own shape, and cannot smuggle result data', () 
 
     const missingCode = validateResultSummary({ ...notReady, code: undefined });
     assert.equal(missingCode.ok, false);
-});
 
-test('a complete summary cannot omit a required field, one at a time', () => {
-    const required = [
+    for (const field of [
         'schema', 'ticket', 'status', 'submission', 'derivedFrom',
         'databases', 'counts', 'completeness', 'ranking', 'selections',
-    ];
-    for (const field of required) {
+    ]) {
         const broken = summary();
         delete broken[field];
         const result = validateResultSummary(broken);
         assert.equal(result.ok, false, `${field} should be required`);
         assert.ok(paths(result).includes(field), `${field} should be named in the error path`);
     }
-});
-
-test('a manifest cannot omit a required field, one at a time', () => {
-    const required = [
+    for (const field of [
         'schema', 'artifactId', 'state', 'derivedFrom', 'createdAt', 'builtBy', 'counts',
         'completeness', 'ranking', 'metricSemantics', 'databases', 'files', 'integrityIssues',
-    ];
-    for (const field of required) {
+    ]) {
         const broken = manifest();
         delete broken[field];
         const result = validateArtifactManifest(broken);
@@ -116,37 +119,29 @@ test('a manifest cannot omit a required field, one at a time', () => {
     }
 });
 
-test('wrong types, bad enums and unexpected keys are all refused', () => {
-    assert.deepEqual(paths(validateResultSummary(summary({ queryIdx: '0' }))), ['queryIdx']);
-    assert.deepEqual(paths(validateResultSummary(summary({ queryIdx: -1 }))), ['queryIdx']);
-    assert.deepEqual(paths(validateResultSummary(summary({ queryIdx: 1.5 }))), ['queryIdx']);
-    assert.deepEqual(paths(validateResultSummary(summary({ resultKind: 'msa' }))), ['resultKind']);
-    assert.deepEqual(paths(validateResultSummary(summary({ ranking: { ...RANKING, label: undefined } }))),
-        ['ranking.label']);
-    assert.deepEqual(paths(validateResultSummary(summary({ schema: 'foldseek-server/result-summary@2' }))), ['schema']);
-    assert.deepEqual(paths(validateResultSummary(summary({ surprise: 1 }))), ['surprise']);
+test('summary values reject wrong types, enums, extra keys and invalid completeness', () => {
+    const cases = [
+        [{ queryIdx: '0' }, 'queryIdx'], [{ queryIdx: -1 }, 'queryIdx'],
+        [{ queryIdx: 1.5 }, 'queryIdx'], [{ resultKind: 'msa' }, 'resultKind'],
+        [{ ranking: { ...RANKING, label: undefined } }, 'ranking.label'],
+        [{ schema: 'foldseek-server/result-summary@2' }, 'schema'], [{ surprise: 1 }, 'surprise'],
+        [{ completeness: { complete: 'maybe', saturated: false } }, 'completeness.complete'],
+        [{ completeness: { complete: null } }, 'completeness.saturated'],
+    ];
+    for (const [patch, expected] of cases) {
+        assert.deepEqual(paths(validateResultSummary(summary(patch))), [expected]);
+    }
     assert.equal(validateResultSummary('not an object').ok, false);
     assert.equal(validateResultSummary(null).ok, false);
-});
-
-test('tri-state completeness accepts null but not a third value', () => {
     assert.equal(validateResultSummary(summary({
         completeness: { complete: null, saturated: false },
     })).ok, true);
     assert.equal(validateResultSummary(summary({
         completeness: { complete: true, saturated: false },
     })).ok, true);
-
-    const bad = validateResultSummary(summary({
-        completeness: { complete: 'maybe', saturated: false },
-    }));
-    assert.deepEqual(paths(bad), ['completeness.complete']);
-
-    const missing = validateResultSummary(summary({ completeness: { complete: null } }));
-    assert.deepEqual(paths(missing), ['completeness.saturated']);
 });
 
-test('nested errors carry the full path', () => {
+test('manifest errors preserve nested paths and constrained identifiers', () => {
     const broken = manifest();
     delete broken.files[1].rows;
     assert.deepEqual(paths(validateArtifactManifest(broken)), ['files[1].rows']);
@@ -158,12 +153,17 @@ test('nested errors carry the full path', () => {
     const badState = manifest();
     badState.state.resultKind = 'nonsense';
     assert.deepEqual(paths(validateArtifactManifest(badState)), ['state.resultKind']);
-});
 
-test('an artifact id must be a full sha256 hex digest', () => {
     for (const id of ['A'.repeat(64), 'a'.repeat(63), 'a'.repeat(65), '../etc', 'zz']) {
         assert.deepEqual(paths(validateArtifactManifest(manifest({ artifactId: id }))), ['artifactId'], id);
     }
+
+    assert.equal(validateArtifactManifest(manifest({
+        integrityIssues: [{ code: 'ROSTER_MISMATCH', detail: 'entry 3 has no ca' }],
+    })).ok, true);
+    assert.deepEqual(paths(validateArtifactManifest(manifest({
+        integrityIssues: [{ code: 'WEIRD', detail: 'x' }],
+    }))), ['integrityIssues[0].code']);
 });
 
 test('manifest file paths must be relative and free of traversal', () => {
@@ -175,29 +175,4 @@ test('manifest file paths must be relative and free of traversal', () => {
     }
     assert.equal(unsafeRelativePath('search/db-0.rows.jsonl'), null);
     assert.equal(unsafeRelativePath('msa/coordinates.json.gz'), null);
-});
-
-test('integrity issues are limited to the defined codes', () => {
-    assert.equal(validateArtifactManifest(manifest({
-        integrityIssues: [{ code: 'ROSTER_MISMATCH', detail: 'entry 3 has no ca' }],
-    })).ok, true);
-    assert.deepEqual(
-        paths(validateArtifactManifest(manifest({ integrityIssues: [{ code: 'WEIRD', detail: 'x' }] }))),
-        ['integrityIssues[0].code'],
-    );
-});
-
-test('foldmason shapes: no ranking, no databases, complete is true', () => {
-    assert.equal(validateArtifactManifest(manifest({
-        state: {
-            serverNamespace: 'https://search.foldseek.com/api',
-            ticket: 'T2', queryIdx: 0, mode: null, tool: 'foldmason',
-        },
-        counts: { serverAlignments: 0, parsedRows: 15, exportedRows: 15, grouping: 'none' },
-        completeness: { complete: true, saturated: false, rowCap: null },
-        ranking: null,
-        metricSemantics: {},
-        databases: [],
-        files: [{ role: 'msa-entries', path: 'msa/entries.json', mime: 'application/json', bytes: 40, rows: 15 }],
-    })).ok, true);
 });

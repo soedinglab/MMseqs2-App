@@ -189,9 +189,8 @@ columns.motif;                                    // 'A31, A32, A33' — chain +
 await columns.sendTo({ tool: 'folddisco', databases: ['pdb_folddisco'] });
 ```
 
-Quality and conservation come from a CPU port of the page's WGSL compute shader, checked column for
-column against real GPU output (`test/fixtures/msa-gpu-metrics.json`). LDDT does not come from the
-shader at all — the backend ships it per column, and `-1` means *absent*, reported as `null`.
+Quality and conservation come from a CPU port of the page's WGSL compute shader. LDDT does not come
+from the shader — the backend ships it per column, and `-1` means *absent*, reported as `null`.
 
 `foldMasonSummary` is the cheap way in — entry and column counts, which metrics exist, and the spread
 of each — and it is bounded, so it costs the same on a 149-column alignment and a 5,000-column one.
@@ -240,4 +239,4 @@ one for something the server already has. Its length and a hash prefix are kept 
 
 ## Testing
 
-`npm test` runs offline tests by default; live tests are opt-in.
+`npm test` runs the offline contract suite.

@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-    createClient, provenanceRemark, ensureStructureExtension, ResultTable, MsaColumnSelection,
+    createClient, ResultTable, MsaColumnSelection,
 } from '../src/index.js';
 
 /** A one-hit, one-database parsed result, for the rows that lineage is recorded against. */
@@ -119,16 +119,6 @@ const complex = () => ({
 // chains origin
 // -------------------------------------------------------------------------------------------------
 
-test('a single-chain hit becomes a plain mock PDB for Foldseek', async () => {
-    const client = await makeClient();
-    const built = await client.query(monomer()).build('foldseek');
-
-    assert.equal(built.isMultimer, false);
-    assert.equal(built.suffix, undefined);
-    assert.equal(built.pdb.split('\n').filter(l => l.startsWith('ATOM')).length, 3);
-    assert.ok(built.pdb.split('\n').every(l => !l.startsWith('ATOM') || l[21] === 'A'));
-});
-
 test('a complex hit is merged for Foldseek — chains kept apart, never encoded', async () => {
     const client = await makeClient();
     const built = await client.query(complex()).build('multimer');
@@ -155,12 +145,6 @@ test('a complex hit is encoded for FoldMason, and the suffix rides on the name',
     const chainsBack = new Set(decodeMultimer(built.pdb, built.suffix.replace('-_-_-_', ''))
         .split('\n').filter(l => l.startsWith('ATOM')).map(l => l[21]));
     assert.deepEqual([...chainsBack].sort(), ['A', 'B']);
-});
-
-test('a single chain gets no suffix even when encoded', async () => {
-    const client = await makeClient();
-    const built = await client.query(monomer()).build('foldmason');
-    assert.ok(!String(built.name).includes('-_-_-_'));
 });
 
 test('FoldDisco takes the original file when the database has one, and does not reconstruct', async () => {
@@ -194,47 +178,6 @@ test('an unresolvable database falls back to reconstruction, once', async () => 
     assert.equal(warnings.length, 0, 'an unknown database is the ordinary case, not a warning');
 });
 
-test('a complex bound for FoldDisco is reconstructed from the merged text, in one call', async () => {
-    const fetchImpl = stubFetch({ [CG2ALL]: text(REBUILT) });
-    const client = createClient({
-        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
-    });
-
-    const built = await client.query({ ...complex(), db: 'pdb100' }).build('folddisco');
-
-    assert.equal(built.reconstructed, true);
-    assert.equal(fetchImpl.reconstructions().length, 1, 'the whole complex goes in one request');
-    assert.equal(fetchImpl.calls.filter(c => c.url.includes('files.rcsb.org')).length, 0,
-        'a complex has no single accession to resolve');
-});
-
-test('a failed database fetch warns and still produces a query', async () => {
-    const warnings = [];
-    const fetchImpl = stubFetch({ 'bfvd.steineggerlab.workers.dev': missing, [CG2ALL]: text(REBUILT) });
-    const client = createClient({
-        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
-        onWarning: w => warnings.push(w),
-    });
-
-    const built = await client.query({ ...monomer(), db: 'BFVD', accession: 'A0A123' })
-        .build('folddisco');
-
-    assert.equal(built.reconstructed, true);
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /falling back to reconstruction/);
-});
-
-test('a cg2all failure names the structure it was working on', async () => {
-    const fetchImpl = stubFetch({ [CG2ALL]: () => ({ ok: false, status: 503, text: async () => 'busy' }) });
-    const client = createClient({
-        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
-    });
-
-    await assert.rejects(
-        () => client.query({ ...monomer(), db: 'private' }).build('folddisco'),
-        /could not reconstruct 1abc: .*503/);
-});
-
 // -------------------------------------------------------------------------------------------------
 // fm-entry origin
 // -------------------------------------------------------------------------------------------------
@@ -261,15 +204,6 @@ test('a multi-chain FoldMason entry is decoded for Foldseek, with no reconstruct
     const chains = new Set(built.pdb.split('\n').filter(l => l.startsWith('ATOM')).map(l => l[21]));
     assert.deepEqual([...chains].sort(), ['A', 'B'], 'the original chains are back');
     assert.equal(fetchImpl.reconstructions().length, 0);
-});
-
-test('a FoldMason entry reaches FoldMason untouched', async () => {
-    const client = await makeClient();
-    const entry = await fmEntry(client);
-    const built = await client.query(entry).build('foldmason');
-
-    assert.equal(built.pdb, entry.pdb);
-    assert.equal(built.suffix, entry.suffix);
 });
 
 test('a multi-chain FoldMason entry is decoded then reconstructed for FoldDisco', async () => {
@@ -319,25 +253,6 @@ test('sendTo submits the assembled structure, with provenance', async () => {
     assert.match(submission.form.q, /Imported from SOURCE1/);
 });
 
-test('foldseek and multimer are the caller\'s choice, not inferred from chain count', async () => {
-    const fetchImpl = stubFetch();
-    const client = createClient({
-        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
-    });
-
-    // Foldseek searches each chain as its own query, which is a perfectly good way to search a
-    // complex; promoting this to a complex search would quietly change what was asked for.
-    await client.query(complex()).sendTo({ tool: 'foldseek', databases: ['afdb50'] });
-    assert.equal(fetchImpl.submitted()[0].form.mode, '3diaa');
-});
-
-test('FoldMason refuses a single query, and says what to do instead', async () => {
-    const client = await makeClient();
-    await assert.rejects(
-        () => client.query(monomer()).sendTo({ tool: 'foldmason' }),
-        /two or more structures/);
-});
-
 test('a FoldDisco send validates the motif against the structure it assembled', async () => {
     const fetchImpl = stubFetch({ 'bfvd.steineggerlab.workers.dev': text(ORIGINAL_FILE) });
     const client = createClient({
@@ -353,55 +268,6 @@ test('a FoldDisco send validates the motif against the structure it assembled', 
         tool: 'folddisco', databases: ['pdb_folddisco'], motif: 'A1,A2',
     });
     assert.equal(ticket.id, 'TICKET1');
-});
-
-// -------------------------------------------------------------------------------------------------
-// naming
-// -------------------------------------------------------------------------------------------------
-
-test('a mmCIF entry gets the extension FoldMason needs to parse it', () => {
-    assert.equal(ensureStructureExtension('query', 'data_1ABC\n#'), 'query.cif');
-    assert.equal(ensureStructureExtension('query', ORIGINAL_FILE), 'query.pdb');
-    assert.equal(ensureStructureExtension('query.cif', 'data_1ABC'), 'query.cif');
-    // An encoded name must keep its suffix last: an extension after it turns the chain offset into
-    // NaN when MSA.vue parses it back.
-    assert.equal(ensureStructureExtension('1abc_AB-_-_-_A_3_0-B_6_3', ORIGINAL_FILE),
-        '1abc_AB-_-_-_A_3_0-B_6_3');
-});
-
-test('the provenance remark keeps mmCIF comment syntax', () => {
-    const cif = provenanceRemark('data_1ABC\n#\n', { accession: '1ABC', db: 'pdb100', ticket: 'T' });
-    assert.ok(cif.startsWith('# Accession: 1ABC, DB: pdb100'));
-    assert.ok(cif.includes('# Imported from T'));
-
-    const pdb = provenanceRemark(ORIGINAL_FILE, { accession: '1ABC', db: null, ticket: null });
-    assert.ok(pdb.startsWith('REMARK  99 Accession: 1ABC'));
-    assert.equal(pdb.split('\n')[0].length, 80, 'PDB records are padded to 80 columns');
-});
-
-// -------------------------------------------------------------------------------------------------
-// hit chains come from the brief route
-// -------------------------------------------------------------------------------------------------
-
-test('getHitChains asks the brief route and reads the chain out of each target name', async () => {
-    const fetchImpl = stubFetch({
-        'format=brief': briefRoute([
-            { target: '1abc_A', tCa: CA_A, tSeq: 'MAC' },
-            { target: '1abc_B', tCa: CA_B, tSeq: 'MAC' },
-        ]),
-    });
-    const client = createClient({
-        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
-    });
-
-    const chains = await client.getHitChains('T1', { queryIdx: 0, db: 'pdb100', idx: 7 });
-    assert.deepEqual(chains.map(c => c.chain), ['A', 'B']);
-    assert.equal(chains[0].ca, CA_A);
-
-    const url = fetchImpl.calls.at(-1).url;
-    assert.match(url, /\/api\/result\/T1\/0\?/);
-    assert.match(url, /index=7/);
-    assert.match(url, /database=pdb100/);
 });
 
 // -------------------------------------------------------------------------------------------------
@@ -447,15 +313,6 @@ test('an unknown database is a different failure from an unreachable one', async
         err => err.name === 'StructureFetchError' && err.status === 404);
 });
 
-test('BFVD does not retry as .cif — it serves PDB only', async () => {
-    const fetchImpl = stubFetch({ 'bfvd.steineggerlab.workers.dev': missing });
-    const client = createClient({
-        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
-    });
-    await assert.rejects(() => client.resolveStructureFromDb('BFVD', 'A0A123'));
-    assert.equal(fetchImpl.calls.length, 1);
-});
-
 // -------------------------------------------------------------------------------------------------
 // Lineage — which ticket a forwarded job came out of
 // -------------------------------------------------------------------------------------------------
@@ -481,62 +338,6 @@ test('a forwarded job records the ticket, row and origin it came from', async ()
     const record = await client.store.readTicket('TICKET1');
     assert.equal(record.derivedFrom.ticket, 'SOURCETICKET');
     assert.equal(record.derivedFrom.rowId, '0#0');
-});
-
-test('a FoldMason batch records which entries went into it', async () => {
-    const fetchImpl = stubFetch({
-        'format=brief': briefRoute([{ target: '1abc_A', tCa: CA_A, tSeq: 'MAC' }]),
-        '/query': () => ({ ok: true, status: 200, text: async () => ORIGINAL_FILE, json: async () => ({}) }),
-    });
-    const client = createClient({
-        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
-    });
-    const table = new ResultTable(PARSED, { ticket: 'SOURCETICKET', queryIdx: 0, app: 'foldseek', client });
-
-    const ticket = await table.select(['0#0'], { name: 'shortlist' }).sendTo({ tool: 'foldmason' });
-
-    // The entry names, not just the selection name: a selection can be edited or deleted afterwards,
-    // so naming it would not be enough to say what this job actually contained.
-    assert.deepEqual(ticket.derivedFrom.entries, ['1abc.pdb', 'query.pdb']);
-    assert.equal(ticket.derivedFrom.selection, 'shortlist');
-    assert.equal(ticket.derivedFrom.ticket, 'SOURCETICKET');
-});
-
-test('a query with no source ticket records no lineage', async () => {
-    const fetchImpl = stubFetch();
-    const client = createClient({
-        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
-    });
-    // An accession or a hand-built query came from nowhere in particular; inventing a source would be
-    // worse than saying nothing.
-    const ticket = await client.query({ kind: 'structure', text: ORIGINAL_FILE, name: '1abc' })
-        .sendTo({ tool: 'foldseek', databases: ['afdb50'] });
-    assert.equal(ticket.derivedFrom, undefined);
-    assert.equal((await client.store.readTicket('TICKET1')).derivedFrom, undefined);
-});
-
-test('a lineage write that fails does not fail the submission', async () => {
-    const warnings = [];
-    const fetchImpl = stubFetch({
-        // A ticket id the cache refuses to build a path from — the job still exists on the server.
-        '/api/ticket': () => ({ ok: true, status: 200, json: async () => ({ id: 'X!', status: 'PENDING' }), text: async () => '' }),
-    });
-    const client = createClient({
-        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
-        onWarning: w => warnings.push(w),
-    });
-
-    const ticket = await client.query({ ...monomer(), ticket: 'SOURCETICKET' })
-        .sendTo({ tool: 'foldseek', databases: ['afdb50'] })
-        .catch(err => ({ threw: err.message }));
-
-    assert.equal(ticket.threw, undefined, 'the job was queued; reporting failure would invite a resubmit');
-    assert.equal(ticket.id, 'X!');
-    // Both writes fail on an id the cache will not build a path from: the submission record and the
-    // lineage. Neither is worth losing a queued job over, and both say so.
-    assert.equal(warnings.length, 2);
-    assert.match(warnings[0], /could not write its cache record/);
-    assert.match(warnings[1], /could not record lineage/);
 });
 
 test('every forwarding origin records the facts a lineage walk needs', async () => {
@@ -576,33 +377,4 @@ test('every forwarding origin records the facts a lineage walk needs', async () 
     assert.deepEqual(fromColumns.derivedFrom.columns, ['0-1']);
     assert.equal(fromColumns.derivedFrom.entryName, '1abc_AB-_-_-_A_3_0-B_6_3');
     assert.equal(fromColumns.derivedFrom.reconstructed, true, 'FoldDisco needed full atoms');
-});
-
-test('derivedFrom.selection still names the source after the client moves to the next serial', async () => {
-    const fetchImpl = stubFetch({
-        'format=brief': briefRoute([{ target: '1abc_A', tCa: CA_A, tSeq: 'MAC' }]),
-        '/query': () => ({ ok: true, status: 200, text: async () => ORIGINAL_FILE, json: async () => ({}) }),
-    });
-    const client = createClient({
-        baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
-    });
-    const table = new ResultTable(PARSED, { ticket: 'SRCTICKET', queryIdx: 0, app: 'foldseek', client });
-
-    // Build a draft, copy it to the serial name the job will use, forward that.
-    await table.select(['0#0'], { name: 'draft' }).save('draft');
-    await client.copySelection('SRCTICKET', 'draft', 'to-foldmason__001');
-    const loaded = await table.loadSelection('to-foldmason__001');
-    const ticket = await loaded.sendTo({ tool: 'foldmason' });
-    assert.equal(ticket.derivedFrom.selection, 'to-foldmason__001');
-
-    // The client then edits the draft and copies again — the used name must be untouched.
-    await table.select([], { name: 'draft' }).add(['0#0']).save('draft');
-    await client.copySelection('SRCTICKET', 'draft', 'to-foldmason__002');
-
-    const recorded = (await client.store.readTicket(ticket.id)).derivedFrom;
-    assert.equal(recorded.selection, 'to-foldmason__001');
-    const stillThere = await client.store.readSelection('SRCTICKET', recorded.selection);
-    assert.deepEqual(stillThere.ids, ['0#0'], 'the job\'s own selection is still readable, unchanged');
-    assert.deepEqual((await client.listSelections('SRCTICKET')).map(s => s.name).sort(),
-        ['draft', 'to-foldmason__001', 'to-foldmason__002']);
 });

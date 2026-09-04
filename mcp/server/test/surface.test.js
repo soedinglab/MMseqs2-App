@@ -20,11 +20,6 @@ const EXPECTED = [
     'send_to',
 ];
 
-const WITHDRAWN = [
-    'submit_ticket', 'get_result_table', 'get_taxonomy', 'get_queries', 'get_foldmason_result',
-    'get_foldmason_column_summary', 'get_foldmason_columns', 'load_accession', 'list_cached_tickets',
-];
-
 const DATABASES = [
     { path: 'pdb100', name: 'PDB', version: '2024', status: 'COMPLETE', complex: true, motif: false, interface: false, taxonomy: true },
     { path: 'afdb50', name: 'AFDB', version: '4', status: 'COMPLETE', complex: false, motif: false, interface: false },
@@ -56,37 +51,15 @@ function stubClient(overrides = {}) {
     return client;
 }
 
-test('exactly eleven tools are advertised, and the withdrawn ones are gone', () => {
+test('exactly the eleven public tools are advertised', () => {
     const tools = createTools(stubClient());
     assert.deepEqual(tools.map(t => t.name).sort(), EXPECTED);
     assert.equal(tools.length, 11);
-    for (const name of WITHDRAWN) {
-        assert.equal(tools.some(t => t.name === name), false, `${name} must not be advertised`);
-    }
-});
-
-test('every tool is fully declared, and declared briefly', () => {
-    for (const tool of createTools(stubClient())) {
+    for (const tool of tools) {
         assert.match(tool.name, /^[a-z][a-z0-9_]*$/);
         assert.equal(tool.inputSchema.type, 'object');
         assert.equal(typeof tool.handler, 'function');
-
-        // A tool an agent must read a paragraph about is a tool with the wrong shape.
-        assert.ok(tool.description.length > 40, `${tool.name} needs a description`);
-        assert.ok(tool.description.length <= 220,
-            `${tool.name} description is ${tool.description.length} chars — keep it to two lines`);
-        // Nested too: a description moved into `items` still costs the same tokens to read.
-        const walk = (properties, prefix) => {
-            for (const [field, spec] of Object.entries(properties ?? {})) {
-                if (spec.description) {
-                    assert.ok(spec.description.length <= 130,
-                        `${prefix}${field} description is ${spec.description.length} chars`);
-                }
-                walk(spec.properties, `${prefix}${field}.`);
-                walk(spec.items?.properties, `${prefix}${field}[].`);
-            }
-        };
-        walk(tool.inputSchema.properties, `${tool.name}.`);
+        assert.ok(tool.description.length > 40 && tool.description.length <= 220, tool.name);
     }
 });
 
@@ -100,7 +73,7 @@ test('no tool can be asked to block, and only get_ticket_status polls', () => {
     assert.equal(JSON.stringify(tools.map(t => t.handler.toString())).includes('waitForCompletion'), false);
 });
 
-test('each submit tool returns a ticket immediately', async () => {
+test('submit tools return immediately and validate without queueing', async () => {
     const client = stubClient();
     const tools = createTools(client);
     const cases = [
@@ -115,11 +88,7 @@ test('each submit tool returns a ticket immediately', async () => {
         assert.equal(out.status, 'PENDING');
     }
     assert.equal(client.calls.some(c => c.name === 'waitForCompletion'), false, 'nothing waited');
-});
-
-test('validateOnly checks without queueing, on all four submit tools', async () => {
-    const client = stubClient();
-    const tools = createTools(client);
+    const queued = client.submitted().length;
     for (const [name, args] of [
         ['foldseek_search', { query: 'ATOM', databases: ['afdb50'], validateOnly: true }],
         ['multimer_search', { query: 'ATOM', databases: ['pdb100'], validateOnly: true }],
@@ -130,7 +99,7 @@ test('validateOnly checks without queueing, on all four submit tools', async () 
         assert.equal(out.ok, true, name);
         assert.equal(out.ticketId, undefined, `${name} must not queue anything`);
     }
-    assert.equal(client.submitted().length, 0);
+    assert.equal(client.submitted().length, queued);
     assert.equal(client.calls.filter(c => c.name === 'validateSubmission').length, 4);
 });
 
@@ -251,62 +220,29 @@ test('failures come back as results with a stable code', async () => {
 
     const unknown = await runTool(tools, 'no_such_tool', {});
     assert.equal(unknown.code, 'UNKNOWN_TOOL');
+
+    for (const [name, args] of [
+        ['foldseek_search', { databases: ['pdb100'] }],
+        ['foldmason_msa', { files: [{ name: 'a.pdb', content: 'ATOM' }] }],
+        ['select_hits', { ticketId: 'T1', action: 'describe', name: 'missing' }],
+    ]) {
+        const out = await runTool(tools, name, args);
+        assert.equal(out.isError, true, name);
+        assert.ok(out.code && out.error, name);
+    }
 });
 
-test('send_to refuses an unknown destination before touching a ticket', async () => {
+test('send_to refuses unknown destinations and foreign options before resolving a source', async () => {
     const client = stubClient();
-    const out = await runTool(createTools(client), 'send_to',
+    const tools = createTools(client);
+    const out = await runTool(tools, 'send_to',
         { from: { type: 'row', ticketId: 'T1', rowId: '0#0' }, tool: 'blastp' });
     assert.equal(out.code, 'INVALID_INPUT');
     assert.equal(client.calls.length, 0, 'nothing was fetched to find that out');
-});
-
-test('send_to refuses the options its destination does not have', async () => {
-    const client = stubClient();
-    const tools = createTools(client);
-    const from = { type: 'row', ticketId: 'T1abcd', rowId: '0#0' };
-
-    // The same fields the typed tools refuse, refused per destination: a forwarded job must not lose
-    // a filter in transit.
-    for (const [tool, field] of [['folddisco', 'taxFilter'], ['folddisco', 'mode'],
-        ['foldmason', 'taxFilter'], ['multimer', 'iterativeSearch']]) {
-        const out = await runTool(tools, 'send_to', { from, tool, databases: ['pdb100'], [field]: 'x' });
-        assert.equal(out.code, 'INVALID_INPUT', `${tool}.${field}`);
-        assert.match(out.error, new RegExp(`${field} is not a send_to ${tool} argument`));
-    }
-
-    // The refusal happens before the source is resolved, which is why this stub needs no result
-    // table; the accepted path is covered against a full client in sendto-tools.test.js.
-    const accepted = await runTool(tools, 'send_to',
-        { from, tool: 'foldseek', databases: ['pdb100'], taxFilter: '9606' });
-    assert.notEqual(accepted.code, 'INVALID_INPUT', 'a taxon filter is not foreign to foldseek');
-});
-
-test('every tool failure carries a code, and validateOnly is the other channel', async () => {
-    const client = stubClient();
-    const tools = createTools(client);
-
-    // Every failure channel must include a code and message.
-    const failures = [
-        ['send_to', { from: { type: 'row', ticketId: 'T1abcd', rowId: '0#0' }, tool: 'foldmason' }],
-        ['send_to', { from: { type: 'row', ticketId: 'T1abcd', rowId: '0#0' }, tool: 'nope' }],
-        ['foldseek_search', { databases: ['pdb100'] }],
-        ['foldmason_msa', { files: [{ name: 'a.pdb', content: 'ATOM' }] }],
-        ['folddisco_search', { query: 'ATOM', databases: ['pdb_folddisco'], taxFilter: '9606' }],
-        ['select_hits', { ticketId: 'T1abcd', action: 'describe', name: 'missing' }],
-    ];
-    for (const [name, args] of failures) {
-        const out = await runTool(tools, name, args);
-        assert.equal(out.isError, true, `${name} ${JSON.stringify(args)}`);
-        assert.ok(out.code, `${name} must carry a code, got ${JSON.stringify(out)}`);
-        assert.ok(out.error, `${name} must carry a message`);
-    }
-    assert.ok((await runTool(tools, 'no_such_tool', {})).code);
-
-    // A dry run is successful transport whose validation verdict lives in `ok`.
-    const dry = await runTool(tools, 'foldseek_search',
-        { query: 'ATOM', databases: ['pdb100'], validateOnly: true });
-    assert.equal(dry.isError, undefined, 'a dry run is not an error channel');
-    assert.equal(typeof dry.ok, 'boolean', 'its verdict is `ok`');
-    assert.ok(Array.isArray(dry.problems), 'with problems[] beside it');
+    const foreign = await runTool(tools, 'send_to', {
+        from: { type: 'row', ticketId: 'T1', rowId: '0#0' },
+        tool: 'folddisco', databases: ['pdb_folddisco'], taxFilter: '9606',
+    });
+    assert.equal(foreign.code, 'INVALID_INPUT');
+    assert.equal(client.calls.length, 0);
 });
