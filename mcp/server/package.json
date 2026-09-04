@@ -34,7 +34,8 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "foldseek-server-lib": "file:../core"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

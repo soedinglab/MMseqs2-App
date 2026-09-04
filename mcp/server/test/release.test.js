@@ -47,7 +47,7 @@ test('the staged release runtime serves the full MCP surface outside the reposit
     { skip: !RUN }, async () => {
         const { dir, bin } = await stageRuntime();
         const manifest = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8'));
-        assert.equal(manifest.private, true, 'the workspace is not an npm distribution');
+        assert.equal(manifest.private, true, 'the package is not an npm distribution');
         assert.deepEqual(Object.keys(manifest.dependencies), ['@modelcontextprotocol/sdk']);
         for (const absent of ['src', 'test', 'CONTRIBUTING.md']) {
             assert.equal(await fs.access(path.join(dir, absent)).then(() => true).catch(() => false),
@@ -90,7 +90,7 @@ test('the release entry point reports a missing module mode on stderr', { skip: 
     assert.match(stderr, /Cannot use import statement|Unexpected token 'export'|To load an ES module/);
 });
 
-test('the release graph is private and has one external runtime dependency', async () => {
+test('the release graph is private and declares its local core dependency', async () => {
     const core = JSON.parse(await fs.readFile(path.join(SERVER, '..', 'core', 'package.json'), 'utf8'));
     assert.equal(core.dependencies, undefined, 'shared frontend dependencies are bundled');
     assert.equal(core.name, 'foldseek-server-lib');
@@ -99,9 +99,14 @@ test('the release graph is private and has one external runtime dependency', asy
     const server = JSON.parse(await fs.readFile(path.join(SERVER, 'package.json'), 'utf8'));
     assert.equal(server.name, 'foldseek-server-mcp');
     assert.equal(server.private, true, 'the server is distributed as release artifacts, not through npm');
-    assert.deepEqual(Object.keys(server.dependencies), ['@modelcontextprotocol/sdk']);
+    assert.deepEqual(Object.keys(server.dependencies), ['@modelcontextprotocol/sdk', 'foldseek-server-lib']);
+    assert.equal(server.dependencies['foldseek-server-lib'], 'file:../core');
     assert.equal(server.files, undefined, 'there is no npm package allowlist');
     assert.equal(server.scripts.prepublishOnly, undefined, 'publishing is not a build path');
+
+    const root = JSON.parse(await fs.readFile(path.resolve(SERVER, '../..', 'package.json'), 'utf8'));
+    assert.equal(root.workspaces, undefined, 'MCP dependencies must not rewrite the application lockfile');
+    await fs.access(path.join(SERVER, 'package-lock.json'));
 });
 
 test('the Desktop packer reuses the self-contained plugin runtime', async () => {

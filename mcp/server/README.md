@@ -33,12 +33,12 @@ register the same tools twice.
 
 ### Claude Code
 
-Clone this repository, install its workspace dependencies, then register the checkout's entry point:
+Clone this repository, install the server dependencies, then register the checkout's entry point:
 
 ```bash
 git clone https://github.com/soedinglab/MMseqs2-App.git
 cd MMseqs2-App
-npm install
+npm ci --prefix mcp/server
 
 claude mcp add foldseek -e FOLDSEEK_SERVER_BASE_URL=https://search.foldseek.com \
   -- node /absolute/path/to/MMseqs2-App/mcp/server/bin/foldseek-server-mcp.js
@@ -53,12 +53,12 @@ plugin's installation instructions instead of registering the checkout separatel
 From the repository root:
 
 ```bash
-npm install
-npm run build:mcpb --workspace mcp/server
+npm ci --prefix mcp/server
+npm run build:mcpb --prefix mcp/server
 ```
 
 The bundle is written to `mcp/server/dist/foldseek-server.mcpb`. Building uses npm as the repository's
-dependency and task runner; it does not publish either workspace package. The MCPB reuses the same
+dependency and task runner; it does not publish either package. The MCPB reuses the same
 self-contained runtime as the Claude plugin, so it contains no installed `node_modules` tree.
 
 ### Over HTTP

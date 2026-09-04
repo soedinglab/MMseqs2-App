@@ -9,12 +9,13 @@ being mounted anywhere.
 | [`core`](core/) | the library: an HTTP client plus the result objects (`ResultTable`, `Selection`, `MsaColumnSelection`, …) |
 | [`server`](server/) | an MCP server exposing 11 tools plus result artifacts as resources, for agents that speak the protocol |
 
-Both are npm workspaces of the repo root; `npm install` there installs their development dependencies.
+The server owns the MCP dependency lock; the core library has no external npm dependencies.
+
 ## Quick start
 
 ```bash
-npm install                                   # from the repo root
-cd mcp/core && npm test                  # no network, nothing submitted
+npm ci --prefix mcp/server                    # from the repo root
+npm test --prefix mcp/core                    # no network, nothing submitted
 ```
 
 ```js
@@ -40,13 +41,16 @@ inlined into a tool result.
 ## Tests
 
 ```bash
-npm test                                      # in either package; no network, nothing submitted
+npm test --prefix mcp/core                    # no network, nothing submitted
+npm test --prefix mcp/server
 
 FOLDSEEK_SERVER_LIVE_TESTS=1 \
-FOLDSEEK_SERVER_BASE_URL=https://search.foldseek.com npm test     # + read-only live checks
+FOLDSEEK_SERVER_BASE_URL=https://search.foldseek.com \
+  npm test --prefix mcp/server                # + read-only live checks
 
 FOLDSEEK_SERVER_LIVE_TESTS=1 FOLDSEEK_SERVER_LIVE_SUBMIT=1 \
-FOLDSEEK_SERVER_BASE_URL=http://localhost:3000 npm test           # + a real submitted job
+FOLDSEEK_SERVER_BASE_URL=http://localhost:3000 \
+  npm test --prefix mcp/server                # + a real submitted job
 ```
 
 The submit flag is separate from the read flag on purpose: reading a completed ticket costs a

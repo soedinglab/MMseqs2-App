@@ -26,7 +26,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+          cache-dependency-path: mcp/server/package-lock.json
+      - run: npm ci --prefix mcp/server
 
       - name: Verify the MCP tag and package version
         id: version
@@ -41,10 +42,10 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Test the MCP server
-        run: npm test --workspace mcp/server
+        run: npm test --prefix mcp/server
 
       - name: Build the minimal plugin runtime
-        run: npm run build:plugin-runtime --workspace mcp/server
+        run: npm run build:plugin-runtime --prefix mcp/server
 
       - name: Write the artifact checksum
         id: artifact
