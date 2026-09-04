@@ -22,11 +22,11 @@
   ],
   "server": {
     "type": "node",
-    "entry_point": "bin/foldseek-server-mcp.js",
+    "entry_point": "scripts/foldseek-server-mcp.js",
     "mcp_config": {
       "command": "node",
       "args": [
-        "${__dirname}/bin/foldseek-server-mcp.js"
+        "${__dirname}/scripts/foldseek-server-mcp.js"
       ],
       "env": {
         "FOLDSEEK_SERVER_BASE_URL": "${user_config.base_url}",

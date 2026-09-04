@@ -43,7 +43,7 @@ async function thirdPartyNotices(inputs) {
 }
 
 try {
-    await fs.mkdir(path.join(stage, 'bin'), { recursive: true });
+    await fs.mkdir(path.join(stage, 'scripts'), { recursive: true });
     await fs.mkdir(path.join(stage, 'dist'), { recursive: true });
 
     const result = await build({
@@ -60,8 +60,8 @@ try {
     });
 
     await fs.copyFile(path.join(HERE, 'bin', 'foldseek-server-mcp.js'),
-        path.join(stage, 'bin', 'foldseek-server-mcp.js'));
-    await fs.copyFile(path.join(HERE, 'LICENSE'), path.join(stage, 'LICENSE'));
+        path.join(stage, 'scripts', 'foldseek-server-mcp.js'));
+    await fs.copyFile(path.join(ROOT, 'LICENSE'), path.join(stage, 'LICENSE'));
     await fs.writeFile(path.join(stage, 'THIRD_PARTY_NOTICES.md'),
         await thirdPartyNotices(Object.keys(result.metafile.inputs)));
     await fs.writeFile(path.join(stage, 'package.json'), `${JSON.stringify({
@@ -71,20 +71,20 @@ try {
         description: sourcePackage.description,
         license: sourcePackage.license,
         type: 'module',
-        bin: sourcePackage.bin,
+        bin: { 'foldseek-server-mcp': 'scripts/foldseek-server-mcp.js' },
         engines: sourcePackage.engines,
     }, null, 2)}\n`);
 
     const files = [
         'LICENSE',
         'THIRD_PARTY_NOTICES.md',
-        'bin/foldseek-server-mcp.js',
+        'scripts/foldseek-server-mcp.js',
         'dist/server.mjs',
         'package.json',
     ];
     for (const relative of files) {
         const file = path.join(stage, relative);
-        await fs.chmod(file, relative.startsWith('bin/') ? 0o755 : 0o644);
+        await fs.chmod(file, relative.startsWith('scripts/') ? 0o755 : 0o644);
         await fs.utimes(file, fixedTime, fixedTime);
     }
 

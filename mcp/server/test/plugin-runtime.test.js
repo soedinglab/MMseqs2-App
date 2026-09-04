@@ -25,7 +25,7 @@ test('the plugin runtime is minimal, deterministic and serves the complete tool 
     assert.deepEqual(listing, [
         'LICENSE',
         'THIRD_PARTY_NOTICES.md',
-        'bin/foldseek-server-mcp.js',
+        'scripts/foldseek-server-mcp.js',
         'dist/server.mjs',
         'package.json',
     ]);
@@ -42,7 +42,7 @@ test('the plugin runtime is minimal, deterministic and serves the complete tool 
 
     const state = path.join(temp, 'state');
     const transport = new StdioClientTransport({
-        command: path.join(unpacked, 'bin', 'foldseek-server-mcp.js'),
+        command: path.join(unpacked, 'scripts', 'foldseek-server-mcp.js'),
         env: { ...process.env, FOLDSEEK_SERVER_BASE_URL: 'http://127.0.0.1:9',
             FOLDSEEK_SERVER_STATE_DIR: state },
         stderr: 'pipe',

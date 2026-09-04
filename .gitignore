@@ -2,7 +2,6 @@
 dist/*
 mcp/server/dist/
 mcp/server/*.tgz
-mcp/server/LICENSE
 build/*
 node_modules/
 npm-debug.log

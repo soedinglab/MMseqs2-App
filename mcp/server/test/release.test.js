@@ -123,7 +123,7 @@ test('the mcpb manifest matches the tools it ships and has usable configuration 
     const actual = createTools({}).map(tool => tool.name).sort();
 
     assert.deepEqual(manifest.tools.map(tool => tool.name).sort(), actual);
-    assert.equal(manifest.server.entry_point, 'bin/foldseek-server-mcp.js');
+    assert.equal(manifest.server.entry_point, 'scripts/foldseek-server-mcp.js');
 
     const pkg = JSON.parse(await fs.readFile(path.join(SERVER, 'package.json'), 'utf8'));
     assert.equal(manifest.version, pkg.version);
