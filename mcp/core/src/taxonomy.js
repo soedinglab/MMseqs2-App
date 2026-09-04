@@ -49,8 +49,7 @@ async function resolveName(name, { fetchImpl, signal }) {
 }
 
 /**
- * Turn a filter that may contain names into one of ids. Numeric tokens never touch the network, so a
- * caller passing ids behaves exactly as before.
+ * Resolve scientific names to ids without fetching for numeric tokens.
  *
  * @returns {Promise<{filter: string, resolved: object[]}>}
  */

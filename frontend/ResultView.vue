@@ -212,10 +212,6 @@ export default {
             alignment: null,
             selectedDatabases: 0,
             selectedStates: null,
-            // Was declared as `selectedCountsPerDb` (extra "s") while every use is
-            // `selectedCountPerDb`, so the real field was undeclared and non-reactive and the
-            // child's :selectedCounts prop never updated. Safe to make reactive: `selectedCounts`
-            // appears nowhere in either table template, so nothing re-renders on change.
             selectedCountPerDb: null,
             selectedCounts: 0,
             selectedSets: new Set(),
@@ -374,23 +370,17 @@ export default {
                 delta += value ? 1 : -1;
             }
 
-            // Each db gets its own share. The previous Top100 handler added the grand total to
-            // every touched db, which is what made the per-tab counters drift.
             for (const [dbIdx, d] of Object.entries(deltaPerDb)) {
                 const next = (this.selectedCountPerDb[dbIdx] || 0) + d;
                 this.selectedCountPerDb[dbIdx] = next;
                 const el = document.getElementById(dbIdx + '#select-all');
                 if (el) {
-                    // Group count from the data, not `selectedStates[dbIdx].length` — that is a
-                    // plain object, so `.length` was undefined and "all selected" never lit.
                     const total = Object.keys(this.hits?.results?.[dbIdx]?.alignments ?? {}).length;
                     el.classList.toggle('any-selected', next > 0);
                     el.classList.toggle('all-selected', total > 0 && next === total);
                 }
             }
             this.selectedCounts += delta;
-            // Recompute Top100's own counter from scratch instead of tracking a delta into it.
-            // Incremental counters kept in two places are precisely what drifted before.
             this.$refs.top100?.reflectSelectionState?.();
         },
         log(args) {
@@ -425,9 +415,6 @@ export default {
         handleChangeDatabase() {
             this.closeAlignment();
         },
-        // The three handlers below are the click paths from ResultFoldseekDB and Top100Foldseek.
-        // Thin adapters over _applySelection: previously three near-identical copies that had
-        // drifted apart — see claude-plan.
         handleToggleSelection(db, idx, value) {
             this._applySelection([`${db}#${idx}`], value)
         },
@@ -511,11 +498,6 @@ export default {
 
             return arr
         },
-        // `combine` picks how a multi-chain hit is assembled:
-        //   'encode' — one chain + a name suffix recording the boundaries. What FoldMason needs
-        //              (MSA.vue parseSuffix/decodeMultimer reads it back).
-        //   'merge'  — a genuine multi-chain PDB, chain ids preserved, TER per chain. What
-        //              Multimer search needs; encoding here would hand it a monomer.
         async getMockPdb (info /* info: {db, idx} */, signal, { combine = 'encode' } = {}) {
             if (signal?.aborted) { 
                 throw new DOMException('Aborted', 'AbortError')
@@ -577,9 +559,6 @@ export default {
             }
             return { pdb: out, isMultimer: arr.length > 1, name: name}
         },
-        // Used for "send to Foldseek": a complex selection lands on Multimer search, which
-        // needs the chains kept apart. Previously this shared getMockPdb's FoldMason encoding
-        // and forwarded a concatenated single chain.
         async getMultimerPdb (info, signal) {
             return await this.getMockPdb(info, signal, { combine: 'merge' })
         },
@@ -620,8 +599,8 @@ export default {
                     const url = `https://bfvd.steineggerlab.workers.dev/pdb/${accession}.pdb`
                     return await fetchWithURL(url, false)
                 } else if (db.startsWith('afdb')) {
-                    // First attempt pdb, then cif.
                     const url = `https://alphafold.ebi.ac.uk/files/${accession}.pdb`
+                    // First attempt pdb, then cif.
                     return await fetchWithURL(url, true)
                 } else if (db.includes('esm')) {
                     const url = `https://api.esmatlas.com/fetchPredictedStructure/${ accession }.pdb`

@@ -627,8 +627,7 @@ export async function runTool(tools, name, args = {}) {
                 error: err.message, unsupportedTool: err.tool,
             };
         }
-        // Always a code. It used to be conditional, so a plain `new Error` — the FoldMason arity
-        // check, among others — produced { isError, error } and refuted the documented shape.
+        // Every error response carries a stable code.
         const code = err.code ?? (err.status === 404 ? 'UNKNOWN_TICKET' : 'INTERNAL_ERROR');
         return { isError: true, code, error: err.message };
     }

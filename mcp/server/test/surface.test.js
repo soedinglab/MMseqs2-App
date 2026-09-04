@@ -286,8 +286,7 @@ test('every tool failure carries a code, and validateOnly is the other channel',
     const client = stubClient();
     const tools = createTools(client);
 
-    // `code` was conditional on the thrown error having one, so a plain Error — the FoldMason arity
-    // check — produced { isError, error } and refuted the documented shape.
+    // Every failure channel must include a code and message.
     const failures = [
         ['send_to', { from: { type: 'row', ticketId: 'T1abcd', rowId: '0#0' }, tool: 'foldmason' }],
         ['send_to', { from: { type: 'row', ticketId: 'T1abcd', rowId: '0#0' }, tool: 'nope' }],
@@ -304,10 +303,7 @@ test('every tool failure carries a code, and validateOnly is the other channel',
     }
     assert.ok((await runTool(tools, 'no_such_tool', {})).code);
 
-    // The second channel: a dry run is a *successful* call whose verdict lives in `ok`, so it carries
-    // no isError even when it found problems. A caller branching only on isError reads an unusable
-    // database as a passing validation. (The stub always passes; the shape is the point here, and
-    // live.test.js exercises a real refusal.)
+    // A dry run is successful transport whose validation verdict lives in `ok`.
     const dry = await runTool(tools, 'foldseek_search',
         { query: 'ATOM', databases: ['pdb100'], validateOnly: true });
     assert.equal(dry.isError, undefined, 'a dry run is not an error channel');

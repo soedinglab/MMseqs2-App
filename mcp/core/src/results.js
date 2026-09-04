@@ -566,7 +566,7 @@ export class ResultTable {
      * The row ids a spec selects.
      *
      * A spec is either an explicit list of ids — an array, or `{ids: [...]}` — or any getTable filter:
-     * database, sort key, limit, taxon filter, motif filter. 
+     * database, sort key, limit, taxon filter, motif filter.
      */
     selectIds(spec = {}) {
         if (Array.isArray(spec)) return this.rows(spec).map(r => r.id);

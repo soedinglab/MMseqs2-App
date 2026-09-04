@@ -572,7 +572,7 @@ test('every forwarding origin records the facts a lineage walk needs', async () 
     assert.equal(fromColumns.derivedFrom.origin, 'fm-entry');
     assert.equal(fromColumns.derivedFrom.tool, 'folddisco');
     assert.equal(fromColumns.derivedFrom.selection, 'to-folddisco__001',
-        'the historical reference: which named selection this job was submitted from');
+        'the source selection name is preserved in lineage');
     assert.deepEqual(fromColumns.derivedFrom.columns, ['0-1']);
     assert.equal(fromColumns.derivedFrom.entryName, '1abc_AB-_-_-_A_3_0-B_6_3');
     assert.equal(fromColumns.derivedFrom.reconstructed, true, 'FoldDisco needed full atoms');

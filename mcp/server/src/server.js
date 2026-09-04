@@ -57,8 +57,7 @@ function durationFromEnv(env, name, { fallback, min, max }) {
 
 const SIZE_UNITS = { b: 1, k: 1024, m: 1024 * 1024, g: 1024 * 1024 * 1024 };
 
-/** `16k`, `2m`, `1g`, or a plain integer of bytes. `g` is unused today; a size parser may as
- * well know gigabytes. */
+/** Parse byte counts with optional b/k/m/g units. */
 export function parseSize(raw, { min, max, name = 'size' }) {
     const refuse = () => {
         throw new Error(`${name}=${JSON.stringify(raw)} is not usable — expected a size like 16k, 2m ` +

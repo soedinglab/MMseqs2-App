@@ -65,9 +65,9 @@ await client.exportResult(id, entry);       // the complete result as files; ret
 ```
 
 `getResultSummary` takes a ticket and an entry and nothing else — no fields, sorting, filtering or
-limits. It is bounded by construction (~1.7 KB on a nine-database search, 1.2 KB on a 1000-hit
-FoldDisco result) and validated against `foldseek-server/result-summary@1` before it is returned. An
-unfinished ticket comes back as `RESULT_NOT_READY` after a single status read — never a wait loop.
+limits. It is bounded by construction and validated against `foldseek-server/result-summary@1` before
+it is returned. An unfinished ticket comes back as `RESULT_NOT_READY` after a single status read —
+never a wait loop.
 
 `exportResult` writes one reproducible bundle per result unit and returns roles, byte counts and row
 counts, never contents:
@@ -214,8 +214,8 @@ client.normalizeChainNames(text, { motif });               // single-character c
 ```
 
 `loadAccession` on a PDB id also asks Q-BioLiP for binding sites and, if one exists, comes back with
-`.motif` already set — so a motif search on a known binding site is one call. Two things it repairs on
-the way, both found by measuring real responses rather than reading code:
+`.motif` already set — so a motif search on a known binding site is one call. It normalizes two
+Q-BioLiP conventions:
 
 - Q-BioLiP reports its sites in *auth* numbering for some entries and *label* numbering for others
   (1A4G is the latter). A residue that resolves only under label numbering is translated to auth
@@ -240,5 +240,4 @@ one for something the server already has. Its length and a hash prefix are kept 
 
 ## Testing
 
-`npm test` runs 350 tests — 336 of them offline, the rest skipped without a live server — and touches
-nothing outside the process. The live tests are described in [`../README.md`](../README.md).
+`npm test` runs offline tests by default; live tests are opt-in.

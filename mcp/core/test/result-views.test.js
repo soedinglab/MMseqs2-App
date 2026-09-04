@@ -1,8 +1,4 @@
-// Phase 2B — the capabilities the browser page API had and this layer did not (api-parity.md).
-//
-// `*-summary-expected.json` is a frozen capture taken the same way 1.7.2 was: real
-// window.resultsApi.getTableSummary() calls in a browser, before that API was removed. Page-only
-// fields are excluded by name, as in parity.test.js.
+// Current result-table summary, taxonomy, and FoldDisco motif contracts over captured server data.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,7 +8,6 @@ import { fileURLToPath } from 'node:url';
 
 import { parseResults, parseResultsFoldDisco } from '../../../frontend/lib/parseResults.js';
 import { ResultTable } from '../src/results.js';
-import { foldMasonFasta, foldMasonCoordinates, foldMasonEntries, foldMasonColumns } from '../src/msa.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = name => JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', name), 'utf8'));
@@ -20,42 +15,8 @@ const fixture = name => JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', n
 const FOLDSEEK = new ResultTable(parseResults(fixture('foldseek-bfmd.raw.json')), { ticket: 'fs', tool: 'foldseek' });
 const FOLDDISCO = new ResultTable(parseResultsFoldDisco(fixture('folddisco-pdb.raw.json')), { ticket: 'fd', tool: 'folddisco' });
 
-/** `visibleCount`/`selectedCount` read the mounted table; `sortKeySource` differs by design. */
-const PAGE_ONLY = ['visibleCount', 'selectedCount', 'sortKeySource'];
-
-function normalizeDb(db) {
-    const copy = { ...db };
-    for (const f of PAGE_ONLY) delete copy[f];
-    delete copy.motifPatterns;      // headless addition; the page has it as a separate call
-    return copy;
-}
-
-// -------------------------------------------------------------------------------------------
-// 2B.1 — getTableSummary
-// -------------------------------------------------------------------------------------------
-
-test('getTableSummary reproduces the browser summary', () => {
-    for (const { opts, summary } of fixture('fs-summary-expected.json')) {
-        const mine = FOLDSEEK.getTableSummary(opts);
-        assert.equal(mine.ok, true, JSON.stringify(opts));
-        assert.deepEqual(
-            mine.databases.map(normalizeDb),
-            summary.databases.map(normalizeDb),
-            `getTableSummary(${JSON.stringify(opts)})`,
-        );
-    }
-});
-
-test('getTableSummary reproduces the browser summary for FoldDisco', () => {
-    for (const { opts, summary } of fixture('fd-summary-expected.json')) {
-        const mine = FOLDDISCO.getTableSummary(opts);
-        assert.deepEqual(mine.databases.map(normalizeDb), summary.databases.map(normalizeDb));
-    }
-});
-
 test('sortKeySource is always default headlessly, and says so', () => {
-    // The page reports 'active' for its open tab. There is no open tab here, so claiming 'active'
-    // would present a built-in default as a choice someone made.
+    // With no UI state, a built-in ranking is a default rather than a user choice.
     for (const db of FOLDSEEK.getTableSummary({ db: 'bfmd' }).databases) {
         assert.equal(db.sortKeySource, 'default');
     }
@@ -67,8 +28,7 @@ test('metrics cover the sort key with best, median and worst', () => {
     assert.ok(stats.best >= stats.median && stats.median >= stats.worst,
         `expected best >= median >= worst for a descending sort, got ${JSON.stringify(stats)}`);
 
-    // The same three values read off the sorted rows, which is what the sort cache holds.
-    const all = FOLDSEEK.getTable({ db: 'bfmd', limit: 0 ? 0 : db.total, fields: ['score'] }).rows;
+    const all = FOLDSEEK.getTable({ db: 'bfmd', limit: db.total, fields: ['score'] }).rows;
     assert.equal(stats.best, all[0].score);
     assert.equal(stats.worst, all.at(-1).score);
 });
@@ -85,8 +45,6 @@ test('the merged pool is independent of topN, but the returned length follows it
     assert.equal(three.merged.pooledPerDatabase, 100);
     assert.equal(three.merged.ranked, none.merged.ranked, 'the pool must not depend on topN');
     assert.deepEqual(three.merged.topN[0], none.merged.topN[0], 'nor must the ordering');
-
-    // The page returns up to 100 regardless, handing a caller who asked for 3 a hundred rows.
     assert.equal(three.merged.returned, 3);
     assert.equal(three.merged.topN.length, 3);
     assert.equal(FOLDSEEK.getTableSummary({ db: '*', merged: true, mergedLimit: 7 }).merged.returned, 7);
@@ -101,17 +59,12 @@ test('a merged ranking is ordered by the sort key', () => {
 });
 
 test('an e-value merge carries the comparability caveat', () => {
-    // eval is not comparable across databases: the denominators differ by search-space size.
     const table = new ResultTable(parseResults(fixture('foldseek-bfmd.raw.json')), { ticket: 'fs', tool: 'foldseek' });
-    table.raw.mode = 'eval-forced';                        // only to reach the branch deterministically
+    table.raw.mode = 'eval-forced';
     const summary = table.getTableSummary({ db: '*', merged: true });
     if (summary.merged.sortKey === 'eval') assert.match(summary.merged.caveat, /search-space/);
     else assert.equal(summary.merged.caveat, undefined, 'no caveat for a comparable key');
 });
-
-// -------------------------------------------------------------------------------------------
-// 2B.2 — taxonomy
-// -------------------------------------------------------------------------------------------
 
 test('taxonFilter resolves a taxon name within the database tree', () => {
     const report = FOLDSEEK.raw.results.find(r => r.db === 'bfmd').taxonomyreports[0];
@@ -160,9 +113,33 @@ test('getTaxonomy lists the tree, and reports absence rather than erroring', () 
     assert.match(none.reason, /no taxonomy data/);
 });
 
-// -------------------------------------------------------------------------------------------
-// 2B.3 — FoldDisco motif patterns
-// -------------------------------------------------------------------------------------------
+test('taxonFilter total matches the taxonomy report clade_reads', () => {
+    const report = FOLDSEEK.raw.results.find(r => r.db === 'bfmd').taxonomyreports?.[0] ?? [];
+    const leaf = report.find(r => r.rank === 'species' && r.clade_reads > 1 && r.taxon_reads === r.clade_reads);
+    assert.ok(leaf, 'fixture should contain a species whose clade is exactly its own reads');
+
+    const filtered = FOLDSEEK.getTable({ db: 'bfmd', limit: 1000, taxonFilter: { taxId: leaf.taxon_id } });
+    assert.equal(filtered.total, leaf.clade_reads);
+    assert.ok(filtered.taxonFiltered);
+    for (const row of filtered.rows) assert.equal(String(row.taxId), String(leaf.taxon_id));
+
+    const unfiltered = FOLDSEEK.getTable({ db: 'bfmd', limit: 1 });
+    assert.ok(filtered.total < unfiltered.total, 'filtering should remove hits');
+});
+
+test('taxonFilter with includeDescendants pulls in a whole subtree', () => {
+    const report = FOLDSEEK.raw.results.find(r => r.db === 'bfmd').taxonomyreports?.[0] ?? [];
+    const inner = report.find(r => r.clade_reads > r.taxon_reads && r.depth > 0);
+    assert.ok(inner, 'fixture should contain a clade with descendants');
+
+    const withKids = FOLDSEEK.getTable({ db: 'bfmd', limit: 1000, taxonFilter: { taxId: inner.taxon_id } });
+    const without = FOLDSEEK.getTable({
+        db: 'bfmd', limit: 1000,
+        taxonFilter: { taxId: inner.taxon_id, includeDescendants: false },
+    });
+    assert.equal(withKids.total, inner.clade_reads);
+    assert.equal(without.total, inner.taxon_reads);
+});
 
 test('the summary reports motif patterns, and they account for every hit', () => {
     const [db] = FOLDDISCO.getTableSummary({ db: 'pdb_folddisco', topN: 0 }).databases;
@@ -200,91 +177,4 @@ test('a pattern nothing matches gives an empty table, not an error', () => {
     const out = FOLDDISCO.getTable({ db: 'pdb_folddisco', motifFilter: '01010101010101' });
     assert.equal(out.ok, true);
     assert.equal(out.total, 0);
-});
-
-// -------------------------------------------------------------------------------------------
-// 2B.4 / 2B.5 — FoldMason entry data and column extras
-// -------------------------------------------------------------------------------------------
-
-const GPU = fixture('msa-gpu-metrics.json');
-const FM = {
-    entries: GPU.sequences.map((aa, i) => ({
-        name: `entry${i}`, aa, ss: aa, ca: '1.0,2.0,3.0,4.0,5.0,6.0',
-    })),
-    scores: GPU.expected.quality,
-};
-
-test('fasta keeps gaps, so every record is as long as the alignment', () => {
-    const out = foldMasonFasta(FM, { limit: 2 });
-    assert.equal(out.returned, 2);
-    assert.equal(out.totalEntries, FM.entries.length);
-    assert.equal(out.truncated, true);
-    const records = out.fasta.trim().split('\n');
-    assert.equal(records[0], '>entry0');
-    assert.equal(records[1].length, GPU.sequences[0].length);
-    assert.equal(out.bytes, Buffer.byteLength(out.fasta));
-});
-
-test('fasta can be scoped by entry list or paged', () => {
-    assert.deepEqual(
-        foldMasonFasta(FM, { entries: [0, 2] }).fasta.match(/>[^\n]+/g),
-        ['>entry0', '>entry2'],
-    );
-    const paged = foldMasonFasta(FM, { offset: 13, limit: 500 });
-    assert.equal(paged.returned, 2);
-    assert.equal(paged.truncated, false, 'the last page is not truncated');
-});
-
-test('fasta serves the 3di alignment too', () => {
-    assert.equal(foldMasonFasta(FM, { representation: '3di', limit: 1 }).alphabet, 'ss');
-    assert.match(foldMasonFasta(FM, { representation: 'dna' }).error, /unknown representation/);
-});
-
-test('coordinates default to one entry and keep residue and column counts apart', () => {
-    const one = foldMasonCoordinates(FM);
-    assert.equal(one.returned, 1, 'coordinates must not be handed over wholesale by default');
-    assert.equal(one.entries[0].residueCount, 2, 'two triplets');
-    assert.equal(one.entries[0].alignedLength, GPU.sequences[0].length);
-    assert.notEqual(one.entries[0].residueCount, one.entries[0].alignedLength);
-    assert.equal(typeof one.entries[0].ca, 'string', 'left as triplets, not parsed');
-
-    assert.equal(foldMasonCoordinates(FM, { entries: [0, 1, 2] }).returned, 3);
-});
-
-test('the entry roster reports lengths and which representations exist', () => {
-    const roster = foldMasonEntries(FM);
-    assert.equal(roster.totalEntries, FM.entries.length);
-    assert.equal(roster.columns, GPU.sequences[0].length);
-    const first = roster.entries[0];
-    assert.equal(first.alignedLength, GPU.sequences[0].length);
-    assert.equal(first.residueCount, GPU.sequences[0].replace(/-/g, '').length);
-    assert.deepEqual(first.has, ['aa', 'ss', 'ca']);
-});
-
-test('minOccupancy masks sparse columns and reports how many', () => {
-    const all = foldMasonColumns(FM, { metrics: ['occupancy'], limit: 0 });
-    const masked = foldMasonColumns(FM, { metrics: ['occupancy'], limit: 0, minOccupancy: 0.9 });
-
-    assert.ok(masked.returned < all.returned);
-    assert.equal(masked.minOccupancy, 0.9);
-    assert.equal(masked.maskedByOccupancy, all.returned - masked.returned);
-    for (const row of masked.rows) assert.ok(row.occupancy >= 0.9);
-});
-
-test('includeLetters adds capped residue composition', () => {
-    const plain = foldMasonColumns(FM, { metrics: ['consensus'], limit: 1 });
-    assert.equal(plain.rows[0].consensus.letters, undefined);
-
-    const withLetters = foldMasonColumns(FM, { metrics: ['consensus'], limit: 0, includeLetters: true });
-    const busiest = withLetters.rows.reduce((a, b) =>
-        (b.consensus.letters?.length ?? 0) > (a.consensus.letters?.length ?? 0) ? b : a);
-
-    assert.ok(busiest.consensus.letters.length <= 5, 'capped at 5 like the page');
-    assert.ok(busiest.consensus.nonGapCount > 0);
-    const fractions = busiest.consensus.letters.map(l => l.logoFraction);
-    for (let i = 1; i < fractions.length; i++) assert.ok(fractions[i - 1] >= fractions[i]);
-
-    const wider = foldMasonColumns(FM, { metrics: ['consensus'], limit: 0, includeLetters: true, maxLetters: 20 });
-    const same = wider.rows.find(r => r.column === busiest.column);
-    assert.ok(same.consensus.letters.length >= busiest.consensus.letters.length);
 });

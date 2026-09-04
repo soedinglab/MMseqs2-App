@@ -172,8 +172,7 @@ test('kindForJobType maps every readable backend job type to a cache kind', () =
     for (const t of ['structuresearch', 'search', undefined]) {
         assert.equal(kindForJobType(t), 'search');
     }
-    // interfacesearch used to be in that list. It is not search-shaped — the server returns it as
-    // [][]ComplexAlignmentEntry — so it refuses now. See facts.test.js for the full contract.
+    // Interface-search results are not search-shaped and must be refused explicitly.
     assert.throws(() => kindForJobType('interfacesearch'), { code: 'UNSUPPORTED_TOOL' });
 });
 

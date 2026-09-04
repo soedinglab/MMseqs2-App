@@ -106,7 +106,7 @@ function stubFetch(routes = {}) {
  *
  * Built directly rather than through getResult() because the fixture is already parsed — running it
  * through parseResults a second time would rewrite it. What is under test here is selection, not
- * parsing, which parity.test.js covers against real server output.
+ * parsing, which result-views.test.js covers against captured server output.
  */
 async function tableFor(stateDir, fetchImpl = stubFetch()) {
     const client = createClient({

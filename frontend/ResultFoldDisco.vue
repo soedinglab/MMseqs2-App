@@ -518,9 +518,6 @@ export default {
                 this.menuActivator.click(event);
             }
         },
-        // Thin adapters over _applySelection, the click paths from ResultFoldDiscoDB and
-        // Top100Folddisco. Previously three near-identical copies carrying the per-db-delta and
-        // `selectedStates[db].length` bugs; see claude-plan/ai-friendly-results.
         handleToggleSelection(db, idx, value) {
             this._applySelection([`${db}#${idx}`], value)
         },

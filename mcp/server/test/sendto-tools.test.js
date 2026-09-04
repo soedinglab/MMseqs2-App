@@ -1,5 +1,4 @@
-// The Phase 3 tools: selecting hits, selecting alignment columns, and forwarding either into a new
-// job.
+// Selecting hits, selecting alignment columns, and forwarding either into a new job.
 //
 // These use the *real* ResultTable, Selection and Store from the core package over a stubbed network,
 // rather than a hand-written stand-in. A fake selection object would agree with whatever the tool did

@@ -9,7 +9,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { foldMasonColumns, foldMasonSummary, compressRanges, COLUMN_METRICS } from '../src/msa.js';
+import {
+    foldMasonColumns, foldMasonSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
+    compressRanges, COLUMN_METRICS,
+} from '../src/msa.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GPU = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', 'msa-gpu-metrics.json'), 'utf8'));
@@ -26,6 +29,13 @@ function result({ withScores = true, withSs = false } = {}) {
         : undefined;
     return { entries, ...(scores ? { scores } : {}) };
 }
+
+const ENTRY_DATA = {
+    entries: GPU.sequences.map((aa, i) => ({
+        name: `entry${i}`, aa, ss: aa, ca: '1.0,2.0,3.0,4.0,5.0,6.0',
+    })),
+    scores: GPU.expected.quality,
+};
 
 test('compressRanges collapses runs and leaves singletons alone', () => {
     assert.deepEqual(compressRanges([1, 2, 3, 4, 5, 6, 8]), ['1-6', '8']);
@@ -142,4 +152,81 @@ test('a summary of an alignment without scores simply reports no lddt', () => {
 test('an unusable representation is refused by the summary too', () => {
     assert.match(foldMasonSummary(result(), { representation: 'dna' }).error, /unknown representation/);
     assert.match(foldMasonSummary(result({ withSs: false }), { representation: '3di' }).error, /no "ss"/);
+});
+
+test('fasta keeps gaps, so every record is as long as the alignment', () => {
+    const out = foldMasonFasta(ENTRY_DATA, { limit: 2 });
+    assert.equal(out.returned, 2);
+    assert.equal(out.totalEntries, ENTRY_DATA.entries.length);
+    assert.equal(out.truncated, true);
+    const records = out.fasta.trim().split('\n');
+    assert.equal(records[0], '>entry0');
+    assert.equal(records[1].length, GPU.sequences[0].length);
+    assert.equal(out.bytes, Buffer.byteLength(out.fasta));
+});
+
+test('fasta can be scoped by entry list or paged', () => {
+    assert.deepEqual(
+        foldMasonFasta(ENTRY_DATA, { entries: [0, 2] }).fasta.match(/>[^\n]+/g),
+        ['>entry0', '>entry2'],
+    );
+    const paged = foldMasonFasta(ENTRY_DATA, { offset: 13, limit: 500 });
+    assert.equal(paged.returned, 2);
+    assert.equal(paged.truncated, false, 'the last page is not truncated');
+});
+
+test('fasta serves the 3di alignment too', () => {
+    assert.equal(foldMasonFasta(ENTRY_DATA, { representation: '3di', limit: 1 }).alphabet, 'ss');
+    assert.match(foldMasonFasta(ENTRY_DATA, { representation: 'dna' }).error, /unknown representation/);
+});
+
+test('coordinates default to one entry and keep residue and column counts apart', () => {
+    const one = foldMasonCoordinates(ENTRY_DATA);
+    assert.equal(one.returned, 1, 'coordinates must not be handed over wholesale by default');
+    assert.equal(one.entries[0].residueCount, 2, 'two triplets');
+    assert.equal(one.entries[0].alignedLength, GPU.sequences[0].length);
+    assert.notEqual(one.entries[0].residueCount, one.entries[0].alignedLength);
+    assert.equal(typeof one.entries[0].ca, 'string', 'left as triplets, not parsed');
+
+    assert.equal(foldMasonCoordinates(ENTRY_DATA, { entries: [0, 1, 2] }).returned, 3);
+});
+
+test('the entry roster reports lengths and which representations exist', () => {
+    const roster = foldMasonEntries(ENTRY_DATA);
+    assert.equal(roster.totalEntries, ENTRY_DATA.entries.length);
+    assert.equal(roster.columns, GPU.sequences[0].length);
+    const first = roster.entries[0];
+    assert.equal(first.alignedLength, GPU.sequences[0].length);
+    assert.equal(first.residueCount, GPU.sequences[0].replace(/-/g, '').length);
+    assert.deepEqual(first.has, ['aa', 'ss', 'ca']);
+});
+
+test('minOccupancy masks sparse columns and reports how many', () => {
+    const all = foldMasonColumns(ENTRY_DATA, { metrics: ['occupancy'], limit: 0 });
+    const masked = foldMasonColumns(ENTRY_DATA, { metrics: ['occupancy'], limit: 0, minOccupancy: 0.9 });
+
+    assert.ok(masked.returned < all.returned);
+    assert.equal(masked.minOccupancy, 0.9);
+    assert.equal(masked.maskedByOccupancy, all.returned - masked.returned);
+    for (const row of masked.rows) assert.ok(row.occupancy >= 0.9);
+});
+
+test('includeLetters adds capped residue composition', () => {
+    const plain = foldMasonColumns(ENTRY_DATA, { metrics: ['consensus'], limit: 1 });
+    assert.equal(plain.rows[0].consensus.letters, undefined);
+
+    const withLetters = foldMasonColumns(ENTRY_DATA,
+        { metrics: ['consensus'], limit: 0, includeLetters: true });
+    const busiest = withLetters.rows.reduce((a, b) =>
+        (b.consensus.letters?.length ?? 0) > (a.consensus.letters?.length ?? 0) ? b : a);
+
+    assert.ok(busiest.consensus.letters.length <= 5, 'capped at 5 by default');
+    assert.ok(busiest.consensus.nonGapCount > 0);
+    const fractions = busiest.consensus.letters.map(l => l.logoFraction);
+    for (let i = 1; i < fractions.length; i++) assert.ok(fractions[i - 1] >= fractions[i]);
+
+    const wider = foldMasonColumns(ENTRY_DATA,
+        { metrics: ['consensus'], limit: 0, includeLetters: true, maxLetters: 20 });
+    const same = wider.rows.find(r => r.column === busiest.column);
+    assert.ok(same.consensus.letters.length >= busiest.consensus.letters.length);
 });

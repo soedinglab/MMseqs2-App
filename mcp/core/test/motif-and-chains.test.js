@@ -1,4 +1,4 @@
-// Phase 4: the default motif, motif validation that parses the way a consumer parses, and the
+// The default motif, motif validation that parses the way a consumer parses, and the
 // chain-grouped CA reader that multi-chain query forwarding needs.
 //
 // The validation tests are the interesting half. The page checks a motif token by *building*
@@ -198,9 +198,7 @@ test('a site reported in label numbering resolves, and comes back in auth number
         await import('../../../frontend/lib/accession.js');
     const map = parseCifResidueChainMap(OFFSET_CIF);
 
-    // Q-BioLiP reports "A2:A33 E34" — chain A2, residues 33 and 34 in *label* numbering. The
-    // auth-only lookup this replaced found neither and dropped both, leaving an empty motif that
-    // read as "this entry has no binding site".
+    // Label-numbered Q-BioLiP residues must resolve to the file's auth numbering.
     const resolved = qbiolipBsResidues('A2:A33 E34', map);
     assert.deepEqual(resolved.residues, ['A2108', 'A2109'], 'translated to the file\'s own numbering');
     assert.deepEqual(resolved.dropped, []);

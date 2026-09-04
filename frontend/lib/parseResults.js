@@ -152,7 +152,6 @@ function tryLinkTargetToDB(target, db) {
     return null;
   }
 }
-
 function tryFixTargetName(target, db) {
   var res = db.toLowerCase();
   if (APP == "foldseek") {
@@ -449,4 +448,3 @@ export function parseResultsFoldDisco(data) {
     ? { results: [], mode: data.mode }
     : data;
 }
-

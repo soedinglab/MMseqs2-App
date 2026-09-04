@@ -5,10 +5,7 @@ import { numericMetric, NUMERIC_METRIC_FIELDS } from './metrics.js';
 
 export const TERMINAL_STATUSES = new Set(['COMPLETE', 'ERROR', 'UNKNOWN']);
 
-/**
- * The tool a caller acts with, which is the one name a payload carries: `jobType` was the server's
- * spelling and `resultKind` collapsed the two search shapes, so three names described one fact.
- */
+/** Map backend job types to the tool name exposed to callers. */
 export function toolForJobType(jobType) {
     switch (kindForJobType(jobType)) {
         case 'foldmason': return 'foldmason';

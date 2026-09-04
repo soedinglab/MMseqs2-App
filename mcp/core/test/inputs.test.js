@@ -240,8 +240,7 @@ test('live: ranking.field is the field the exported rows are actually sorted by'
         const shared = await fsp.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-rank-'));
         const state = await fsp.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-rank-st-'));
 
-        // One ticket per mode. tmalign is the case that was wrong: the file is ordered by `eval`,
-        // which holds a TM-score there, while the frontend's table defaults to `score`.
+        // One ticket per mode; tmalign rows use `eval` for TM-score ordering.
         const cases = [
             ['https://search.foldseek.com', 'zXdtIy4ZBaW9CmHXTKyfeMdLSDBOlvftku3N5g'],
             ['https://search.foldseek.com', 'yLD2rYR4rmA9tZJJSYTMmicsGxn_GZGTPqk9-Q'],

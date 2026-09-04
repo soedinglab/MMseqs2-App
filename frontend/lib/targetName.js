@@ -4,7 +4,7 @@ export const getChainName = (name) => {
   if (/_v[0-9]+$/.test(name) || /^AF-\W+-/.test(name)) {
     return "A";
   }
-  
+
   if (name.includes(' ')) {
     name = name.split(' ')[0]
   }
@@ -22,7 +22,7 @@ export const getAccession = (name) => {
   if (/-_-_-_/.test(name)) {
     name = name.split("-_-_-_")[0];
   }
-  
+
   if (name.includes(' ')) {
     name = name.split(' ')[0]
   }

@@ -310,8 +310,7 @@ test('queryIdx is refused on a single-result job, and accepted on a search', asy
 });
 
 test('a selection made on a non-zero query records that query, not 0', async () => {
-    // getResult builds the table from the route's entry index; when the table's own field was renamed
-    // this silently reset to 0, so every selection claimed query 0.
+    // The table and its selections must preserve the routed query index.
     const { ResultTable } = await import('../src/results.js');
     const built = new ResultTable(FOLDSEEK, { ticket: 'T1abcd', queryIdx: 2, app: 'foldseek' });
     assert.equal(built.queryIdx, 2, 'the table keeps the query it was built for');

@@ -177,11 +177,7 @@ test('live: resolveStructureFromDb reaches the real databases', { skip: !LIVE },
     assert.match(small.url, /1CRN\.pdb$/, 'an entry that has a PDB-format file is taken as PDB');
 });
 
-/**
- * The entry that reproduces the numbering bug: Q-BioLiP reports its binding site in label_seq_id
- * numbering, which the auth-keyed lookup could not resolve, so all three residues were dropped and
- * the motif came back empty — indistinguishable from "no binding site".
- */
+/** An entry whose Q-BioLiP site uses label_seq_id numbering. */
 const LABEL_NUMBERED_PDB_ID = '1A4G';
 
 test('live: a binding site reported in label numbering is translated, not dropped', { skip: !LIVE }, async () => {
@@ -225,8 +221,7 @@ test('live: an assembly\'s chains are renamed so its motif becomes addressable',
 
 test('live: the entry with both problems at once comes back usable', { skip: !LIVE }, async () => {
     const client = await liveClient();
-    // 1A4G needs both repairs: its site is reported in label numbering (so it used to resolve to
-    // nothing), and its assembly chains are A2/B2 (so the resulting motif was unaddressable).
+    // This entry exercises label-to-auth numbering and multi-character chain normalization together.
     const loaded = await client.loadAccession(LABEL_NUMBERED_PDB_ID, { source: 'PDB' });
 
     assert.equal(loaded.motifRenumbered, 3);

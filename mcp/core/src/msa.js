@@ -316,12 +316,7 @@ function suffixOf(name) {
 }
 
 /**
- * Alignment column -> the entry's own residue and chain frame, with gaps stated rather than implied.
- *
- * Stored as two parallel lists rather than an object per column: `tokens[i]` is the motif form of the
- * i-th occupied column, and i is also that residue's 0-based offset into the entry's `ca` triplets.
- * The object-per-column form cost ~70 bytes a column, which on a 100x2000 alignment was 12 MB of the
- * 14 MB artifact; this is the same information in about a twelfth of the space.
+ * Map alignment columns to residue tokens and coordinate offsets using compact parallel lists.
  */
 export function msaResidueMap(foldMasonResult, entryIndex = 0) {
     const entries = foldMasonResult?.entries ?? [];

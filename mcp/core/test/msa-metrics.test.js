@@ -3,9 +3,6 @@
 //   2. against hand-computed columns, where the expected number is derived from the definition
 //      rather than from this implementation
 //   3. against the shader's edge cases, which is where a port is most likely to be subtly wrong
-//
-// The remaining check — real GPU output for a live alignment — is checklist 2.5 and lives outside
-// the default run, since it needs a browser with WebGPU.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -238,19 +235,7 @@ function popcountRef(n) {
     for (let i = 0; i < 32; i++) if (n & (1 << i)) count++;
     return count;
 }
-
-// -------------------------------------------------------------------------------------------
-// 5. Against real GPU output (checklist 2.5)
-//
-// msa-gpu-metrics.json holds the three arrays as computed by the WGSL shader on an Apple Metal
-// GPU, captured from the MSA page on the FoldMason validation ticket, together with the alignment
-// they were computed from. The capture refused to record anything unless the page reported
-// source === 'viewer', so this is genuinely shader output and not the fallback comparing to itself.
-//
-// Keeping it as a fixture turns a one-off manual check into a standing regression test: the port
-// can be re-verified on a machine with no GPU, which is where it will usually run.
-// -------------------------------------------------------------------------------------------
-
+// The fixture preserves WGSL output so the CPU implementation can be checked without WebGPU.
 test('the port reproduces real GPU output column for column', () => {
     const fixture = JSON.parse(fs.readFileSync(
         path.join(path.dirname(new URL(import.meta.url).pathname), 'fixtures', 'msa-gpu-metrics.json'), 'utf8'));

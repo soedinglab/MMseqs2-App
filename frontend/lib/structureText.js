@@ -11,12 +11,7 @@ function isCif(text) {
     return head.startsWith('data_') || head.startsWith('#') || head.includes('_atom_site.');
 }
 
-/**
- * Repair the column drift found in structures coming back from FoldDisco hits, where an extra
- * character is present at the residue-name and coordinate fields, pushing every later fixed column
- * one place right. Detected the way the page detects it: a non-blank at index 20 or 60, positions
- * that are padding in a well-formed record.
- */
+/** Normalize known one-column shifts in fixed-width ATOM records. */
 function repairAtomLine(line) {
     if (!line.startsWith('ATOM')) return line;
     let out = line;

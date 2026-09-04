@@ -1,7 +1,4 @@
-// Talks to the Go backend's HTTP API directly — no browser, no mounted page.
-//
-// Every request shape here was read off backend/server.go rather than inferred from the frontend's
-// calls, since the frontend is free to send more than a handler reads:
+// Request shapes follow the Go backend handlers directly:
 //   POST /api/ticket            q, database[], mode, email, iterativesearch, taxfilter
 //   POST /api/ticket/foldmason  multipart, one `queries[]` part per file (the part's filename
 //                               carries the entry name; `fileNames[]` exists only for back-compat)

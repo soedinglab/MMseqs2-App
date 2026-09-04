@@ -340,8 +340,7 @@ test('the residue map is the same convention MsaColumnSelection derives its moti
     assert.equal(dimer.tokens.length, dimer.residueCount);
 });
 
-// Two job types the server produces that this layer cannot read. Both used to fall through to
-// 'search', which returns a table that looks right and is not — so both refuse by name.
+// Job types with incompatible result shapes must be refused by name.
 test('unsupported job types refuse instead of being read as a search', () => {
     for (const [jobType, why] of [
         ['rnasearch', 'Riboseek'],
@@ -372,8 +371,7 @@ test('the job types that ARE search-shaped still resolve', () => {
     assert.equal(kindForJobType('folddisco'), 'folddisco');
 });
 
-// msa, pair, nuclmsa and index have no readable result route at all. They used to fall through to
-// 'search', which turned a clear server 400 into a request the layer had no business making.
+// Job types without a readable result route must be refused by name.
 test('job types with no readable result route refuse by name', () => {
     for (const jobType of ['msa', 'pair', 'nuclmsa', 'index']) {
         assert.throws(() => kindForJobType(jobType), err => {
