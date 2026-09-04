@@ -30,12 +30,6 @@
   "bin": {
     "foldseek-server-mcp": "bin/foldseek-server-mcp.js"
   },
-  "files": [
-    "dist/server.mjs",
-    "bin/",
-    "README.md",
-    "LICENSE"
-  ],
   "engines": {
     "node": ">=18"
   },
@@ -48,7 +42,7 @@
   "scripts": {
     "build": "node build.mjs",
     "build:mcpb": "node pack-mcpb.mjs",
-    "test": "node --test test/",
-    "prepublishOnly": "node build.mjs"
+    "build:plugin-runtime": "node pack-plugin-runtime.mjs",
+    "test": "node --test test/"
   }
 }

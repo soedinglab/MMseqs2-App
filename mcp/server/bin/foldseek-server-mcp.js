@@ -26,8 +26,8 @@
 // Startup errors go to stderr and exit non-zero: stdout is the MCP transport, so writing anything
 // human-readable there would corrupt the protocol stream.
 
-// src/ when it exists, dist/server.mjs otherwise. A checkout therefore always runs the source just
-// edited; the published package and the .mcpb ship no src/, so they run the bundle.
+// src/ when it exists, dist/server.mjs otherwise. A checkout runs the current source; release
+// artifacts ship no src/, so they run the bundle.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

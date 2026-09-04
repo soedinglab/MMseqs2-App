@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Bundle the server and core into one file, so the published package needs only the MCP SDK.
+// Bundle the server and core into one file for release artifacts.
 //
-// core cannot be published on its own: it imports frontend/lib by relative path, which is outside its
-// package. Inlining is what makes that graph shippable.
+// core cannot be distributed on its own: it imports frontend/lib by relative path, which is outside
+// its directory. Inlining is what makes that graph portable.
 
 import { build } from 'esbuild';
 import fs from 'node:fs/promises';

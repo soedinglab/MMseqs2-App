@@ -18,45 +18,57 @@ deployment such as [search.foldseek.com](https://search.foldseek.com).
 
 ## Installation
 
-```bash
-npx -y foldseek-server-mcp
-```
+The server is distributed as a Claude Desktop bundle and may also be bundled by a Claude plugin. It
+is not published to the npm registry. Requires Node.js 18+ when run from source.
 
-Requires Node.js 18+. `FOLDSEEK_SERVER_BASE_URL` is required and has no default.
+### Claude Desktop and local Cowork
+
+Install `foldseek-server.mcpb` as a Desktop extension. Until a public release channel is approved, obtain
+the bundle from the project maintainer or build it from source as described below. During installation,
+choose the Foldseek Server deployment and, optionally, a shared folder for exported results and input
+structures. Local Cowork can use the Desktop extension; cloud Cowork cannot run a local stdio server.
+
+Do not install the Desktop extension as well as a plugin that already bundles this server: that would
+register the same tools twice.
 
 ### Claude Code
 
+Clone this repository, install its workspace dependencies, then register the checkout's entry point:
+
 ```bash
+git clone https://github.com/soedinglab/MMseqs2-App.git
+cd MMseqs2-App
+npm install
+
 claude mcp add foldseek -e FOLDSEEK_SERVER_BASE_URL=https://search.foldseek.com \
-  -- npx -y foldseek-server-mcp
+  -- node /absolute/path/to/MMseqs2-App/mcp/server/bin/foldseek-server-mcp.js
 ```
 
-### Claude Desktop
+`FOLDSEEK_SERVER_BASE_URL` is required when running from source and has no default. Replace the
+absolute path with the checkout's real path. If a Claude plugin already bundles this server, use the
+plugin's installation instructions instead of registering the checkout separately.
 
-Add to `claude_desktop_config.json`:
+### Build the Desktop bundle from source
 
-```json
-{
-  "mcpServers": {
-    "foldseek": {
-      "command": "npx",
-      "args": ["-y", "foldseek-server-mcp"],
-      "env": { "FOLDSEEK_SERVER_BASE_URL": "https://search.foldseek.com" }
-    }
-  }
-}
+From the repository root:
+
+```bash
+npm install
+npm run build:mcpb --workspace mcp/server
 ```
 
-`~/Library/Application Support/Claude/` on macOS, `%APPDATA%\Claude\` on Windows. Cowork uses Desktop's
-servers, so this configures both.
+The bundle is written to `mcp/server/dist/foldseek-server.mcpb`. Building uses npm as the repository's
+dependency and task runner; it does not publish either workspace package. The MCPB reuses the same
+self-contained runtime as the Claude plugin, so it contains no installed `node_modules` tree.
 
 ### Over HTTP
 
-For clients that connect to a running server rather than starting one:
+For clients that connect to a running checkout rather than starting a local stdio server, run from the
+repository root:
 
 ```bash
 FOLDSEEK_SERVER_BASE_URL=https://search.foldseek.com \
-  npx foldseek-server-mcp --http --host 127.0.0.1 --port 8080
+  node mcp/server/bin/foldseek-server-mcp.js --http --host 127.0.0.1 --port 8080
 ```
 
 Streamable HTTP, bound to the address given. If the client does not share the server's filesystem, add

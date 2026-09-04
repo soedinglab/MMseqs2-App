@@ -9,23 +9,7 @@ being mounted anywhere.
 | [`core`](core/) | the library: an HTTP client plus the result objects (`ResultTable`, `Selection`, `MsaColumnSelection`, …) |
 | [`server`](server/) | an MCP server exposing 11 tools plus result artifacts as resources, for agents that speak the protocol |
 
-Both are npm workspaces of the repo root; `npm install` there installs them.
-
-## The one design decision worth knowing
-
-Nothing here reimplements the frontend's logic. `core` imports `frontend/lib/*.js` **by relative
-path** — the same `parseResults`, `resultSort`, `msaTracks`, `taxonomyFilter`, `pdbAssembly` and
-`structureText` modules the mounted page uses. `frontend/lib/resultSort.js` says why in its own
-header: the page's table and its API import from one file *because* they must not drift into sorting
-differently. A second copy for headless use would recreate exactly that.
-
-Two consequences:
-
-- These packages only run from inside a clone of this repo. Publishing to npm needs a bundling step
-  first, which is deliberately not done yet.
-- A change to `frontend/lib` changes both. `core/test/lib-loadable.test.js` fails if any module there
-  stops loading under Node, which is the invariant that makes the arrangement work.
-
+Both are npm workspaces of the repo root; `npm install` there installs their development dependencies.
 ## Quick start
 
 ```bash
@@ -52,9 +36,6 @@ Two operations carry the reading side. The **summary** is small, fixed-shape and
 for. The **artifact** is the complete factual export, written to files and addressed by URI — so
 analysis happens locally, as many times as wanted, without another round trip. Nothing large is ever
 inlined into a tool result.
-
-For the MCP server: [`server/README.md`](server/README.md) is the full user documentation and
-the page npm publishes; [`server/REFERENCE.md`](server/REFERENCE.md) is for contributors.
 
 ## Tests
 
