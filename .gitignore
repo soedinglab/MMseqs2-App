@@ -1,5 +1,8 @@
 .DS_Store
 dist/*
+mcp/server/dist/
+mcp/server/*.tgz
+mcp/server/LICENSE
 build/*
 node_modules/
 npm-debug.log
@@ -10,3 +13,8 @@ pkg/
 resources/
 backend/.cache/
 .vscode/
+*.md
+!README.md
+!readme.md
+!license.md
+!mcp/server/CONTRIBUTING.md

@@ -186,8 +186,6 @@ import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
 import MotifSelection from "./MotifSelection.vue";
 import LigandMotifSelection from "./LigandMotifSelection.vue";
-import SearchApiMixin from "./SearchApiMixin.vue";
-import { searchBindingSites, fetchBindingSite } from "./lib/accession.js";
 
 const db = BlobDatabase();
 const storage = new StorageWrapper("folddisco");
@@ -323,12 +321,11 @@ function setDefaultMotif(structure) {
 }
 
 // FoldDisco's backend caps a motif at 32 residues; single source for the check and the report.
-const MOTIF_RESIDUE_LIMIT = 32;
 
 export default {
     name: "FolddiscoSearch",
     tool: "folddisco",
-    mixins: [ HistoryMixin, SearchApiMixin ],
+    mixins: [ HistoryMixin ],
     components: { 
         Panel,
         FileButton,
@@ -473,112 +470,6 @@ export default {
         // },
     },
     methods: {
-        searchApiConfig() {
-            return {
-                tool: 'folddisco',
-                modeInfix: 'FOLDDISCO_', modeValuePrefix: '',
-                accessionExtras: ['QBioLip'],
-                sendsMode: false,          // search() has `mode` commented out
-                needsQueryStructure: true, // isMotifValid needs the parsed structure
-                supportsTaxonomy: false,   // taxfilter is commented out in search()
-                supportsIterative: false,
-            };
-        },
-        // ---- FoldDisco-specific API surface (see claude-plan/ai-friendly-search) ----
-        searchApiExtraValidation() {
-            const out = [];
-            if (!this.queryStructure) out.push('query structure has not parsed yet');
-            else if (!this.isMotifValid) out.push('motif is invalid for the loaded structure');
-            if (this.motifLen > 32) out.push(`motif has ${this.motifLen} residues; the limit is 32`);
-            return out;
-        },
-        // Metadata only, mirroring how `query` reports length-not-text: an auto-populated motif is
-        // the whole chain (801 residues for 4HHB = 914 tokens) and is by definition unsubmittable
-        // past 32, so shipping the string in an orientation call is pure cost. getMotif() has it.
-        searchApiExtraState() {
-            const { motif, ...meta } = this.getMotif();
-            return { motif: { ...meta, residues: 'call getMotif() for the residue list' } };
-        },
-        searchApiExtraNotes() {
-            return [
-                'The motif is auto-populated from the structure by setQuery(); setMotif() is an '
-                    + 'optional override and is order-independent.',
-                'searchBindingSites()/loadBindingSite() load a Q-BioLiP site and its motif '
-                    + 'together — the shortest path to a valid FoldDisco query.',
-            ];
-        },
-        searchApiExtraMethods() {
-            return {
-                getMotif: this.getMotif,
-                setMotif: this.setMotif,
-                searchBindingSites: this.apiSearchBindingSites,
-                loadBindingSite: this.apiLoadBindingSite,
-            };
-        },
-        // `valid` is gone rather than redefined. It meant "the residues resolve against the loaded
-        // structure", which is not what the word implies: an auto-populated 801-residue motif was
-        // `valid: true` while `error` said "Motif too long" and validate() refused to submit. A stale
-        // reader of a redefined field gets no warning, so the name is retired.
-        getMotif() {
-            const length = this.motifLen;
-            const withinLimit = length > 0 && length <= MOTIF_RESIDUE_LIMIT;
-            return {
-                motif: this.motif ?? '',
-                length,
-                limit: MOTIF_RESIDUE_LIMIT,
-                residuesResolved: !!this.isMotifValid,
-                withinLimit,
-                // The field a caller actually wants, and validate()-consistent by construction.
-                submittable: !!this.isMotifValid && withinLimit,
-                error: this.motifError || null,
-            };
-        },
-        // Order-independent by design. The query watcher calls setDefaultMotif() whenever the
-        // query changes, so a motif set *before* setQuery() would be silently discarded.
-        // pendingMotif is the component's own mechanism for exactly this race (onMotifSelect
-        // uses it for the accession flow), so reuse it rather than documenting an ordering rule.
-        setMotif(motif) {
-            const value = String(motif ?? '');
-            this.pendingMotif = { query: this.query, motif: value };
-            this.motif = value;
-            return this.getMotif();
-        },
-        async apiSearchBindingSites(pdbId) {
-            if (!pdbId) return { ok: false, reason: 'pdbId is empty' };
-            try {
-                const results = await searchBindingSites(pdbId);
-                this._bindingSites = results;
-                return { ok: true, pdbId: String(pdbId).toUpperCase(),
-                    sites: results.map((item, index) => ({
-                        index,
-                        ligand: item.Ligand?.ligname ?? null,
-                        assembly: item.Receptor?.assembly ?? null,
-                        relevant: item.Complex?.relvant === '1',
-                        residues: (item.Complex?.bs ?? '').trim().split(/\s+/).filter(Boolean),
-                    })) };
-            } catch {
-                return { ok: false, reason: `Q-BioLiP lookup failed for ${pdbId}` };
-            }
-        },
-        async apiLoadBindingSite(index) {
-            const sites = this._bindingSites ?? [];
-            const item = sites[Number(index)];
-            if (!item) {
-                return { ok: false, reason: 'no such binding site; call searchBindingSites() first',
-                    available: sites.length };
-            }
-            let got;
-            try {
-                got = await fetchBindingSite(item);
-            } catch {
-                return { ok: false, reason: 'failed to load the binding-site structure' };
-            }
-            // Same order the accession button uses: set the query, then hand over the motif via
-            // pendingMotif so the async query watcher restores it instead of defaulting.
-            await this.setQuery(got.text);
-            this.setMotif(got.motif);
-            return { ok: true, name: got.name, motif: this.getMotif() };
-        },
         async search() {
             var request = {
                 q: this.query,
