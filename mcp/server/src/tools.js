@@ -77,12 +77,11 @@ function describe(selection, maxEntries) {
 
 export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
     const readPath = p => resolveInputPath(p, { inputDirs, touchDirs });
-    // Advertised only when it can work. A schema offering a capability that always refuses is worse
-    // than one that never mentions it.
+    // Advertise path inputs only when at least one root is readable.
     const byPath = inputDirs.length ? { queryRef: pathArg(inputDirs) } : {};
     const byPaths = inputDirs.length ? { fileRefs: pathArg(inputDirs, { many: true }) } : {};
 
-    /** Accessions for an alignment: no motif lookup, and each name keeps a real extension. */
+    /** Load accession structures for FoldMason without motif lookup. */
     const fetched = async (specs) => {
         const ids = specs.map((spec) => {
             const s = typeof spec === 'string' ? { id: spec } : spec;
@@ -107,7 +106,7 @@ export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
         return out;
     };
 
-    // FoldMason brings `files` instead of a single query, so it opts out of the arity rule.
+    // FoldMason supplies files rather than a single query.
     const resolveQuery = async ({ query, queryRef, accession, motif }, { required = true } = {}) => {
         const all = { query, queryRef, accession };
         const given = Object.keys(all).filter(k => all[k]);
@@ -128,14 +127,13 @@ export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
             source: spec.source || 'PDB',
             autoMotif: spec.autoMotif !== undefined ? spec.autoMotif : true,
         });
-        // An explicit motif wins; a loaded one is a default.
+        // Explicit motifs override accession defaults.
         return { query: loaded.text, motif: motif ?? loaded.motif, loaded: loaded.describe() };
     };
 
     const submit = async (tool, args, run) => {
         const resolved = await resolveQuery(args, { required: tool !== 'foldmason' });
-        // Neither a local path nor a URL reaches the client: only the text it held. A URL can carry a
-        // presigned signature, so it is no more recordable than a path.
+        // Pass structure text onward without retaining its path or source URL.
         const { queryRef, ...rest } = args;
         const full = { ...rest, query: resolved.query, ...(resolved.motif ? { motif: resolved.motif } : {}) };
         if (args.validateOnly) {
@@ -146,10 +144,9 @@ export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
         const out = {
             ticketId: ticket.id,
             status: ticket.status ?? 'PENDING',
-            // Which motif was searched, when the caller did not supply it themselves.
+            // Echo the effective motif.
             ...(full.motif ? { motif: full.motif } : {}),
-            // Which taxa a name turned into. Only when one did: the ids are the material fact and the
-            // caller never passed them.
+            // Echo names resolved to taxon identifiers.
             ...(ticket.taxonomy ? { taxFilter: ticket.taxonomy.filter,
                 taxonomy: ticket.taxonomy.resolved.map(({ name, taxId, sciName, negated }) => (
                     { name, taxId, ...(sciName !== name ? { sciName } : {}),
@@ -304,7 +301,7 @@ export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
                     const file = await readPath(item);
                     return { name: file.name, content: file.text };
                 }));
-                // Order is declared, because an entry's index is what a column selection refers to.
+                // Preserve input order because column selections use entry indices.
                 const assembled = [
                     ...(files ?? []),
                     ...(fileRefs ? await read(fileRefs) : []),
@@ -338,8 +335,7 @@ export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
                 },
             },
             async handler(args) {
-                // FoldDiscoJob has no TaxFilter or Mode field, so these would be dropped in silence —
-                // and a caller who thought they had filtered would read an unfiltered result.
+                // Refuse options the FoldDisco job cannot represent.
                 refuseForeign(args, ['taxFilter', 'mode', 'iterativeSearch'], 'folddisco_search');
                 return submit('folddisco', args, a => client.submitFoldDisco(a));
             },
@@ -437,7 +433,7 @@ export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
                     throw coded('INVALID_INPUT', `${action} needs ids; use "clear" to empty a selection`);
                 }
 
-                // One bad id must not lose the others, and the caller deserves to know which.
+                // Accept valid row ids and report invalid ones individually.
                 const accepted = [];
                 const rejected = [];
                 for (const id of ids) {
@@ -518,8 +514,7 @@ export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
                 if (entry !== undefined) selection.setEntry(entry);
 
                 const picked = [...(columns ?? []), ...expandRanges(ranges ?? [])];
-                // An empty list is fine when the entry or a substitution is what changes; only a call
-                // that would do nothing at all is a mistake.
+                // Allow empty columns only when another selection field changes.
                 if (['set', 'add', 'remove'].includes(action) && picked.length === 0
                     && entry === undefined && residues === undefined) {
                     throw coded('INVALID_INPUT',
@@ -587,8 +582,7 @@ export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
                 if (!DESTINATIONS.includes(tool)) {
                     throw coded('INVALID_INPUT', `unknown destination ${JSON.stringify(tool)}`);
                 }
-                // The destination decides which options exist, and the same fields the typed tools
-                // refuse are refused here — a forwarded job must not lose a filter in transit.
+                // Refuse options the forwarding destination cannot represent.
                 const foreign = {
                     multimer: ['iterativeSearch'],
                     folddisco: ['taxFilter', 'mode', 'iterativeSearch'],
@@ -611,10 +605,7 @@ export function createTools(client, { inputDirs = [], touchDirs = [] } = {}) {
     ];
 }
 
-/**
- * Run a tool by name and normalise failure. A tool that ran and failed is a result the caller can act
- * on; the code says which kind so it can act without parsing prose.
- */
+/** Run a named tool and return failures with stable codes. */
 export async function runTool(tools, name, args = {}) {
     const tool = tools.find(t => t.name === name);
     if (!tool) return { isError: true, code: 'UNKNOWN_TOOL', error: `unknown tool: ${name}` };
@@ -627,7 +618,7 @@ export async function runTool(tools, name, args = {}) {
                 error: err.message, unsupportedTool: err.tool,
             };
         }
-        // Every error response carries a stable code.
+        // Preserve stable error classification.
         const code = err.code ?? (err.status === 404 ? 'UNKNOWN_TICKET' : 'INTERNAL_ERROR');
         return { isError: true, code, error: err.message };
     }

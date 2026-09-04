@@ -1,5 +1,4 @@
-// The bounded orientation payload: what this ticket is, what it holds, and what can be read next.
-// Fixed by the job — no field selection, sorting, filtering or sampling parameters.
+// Bounded result orientation: identity, contents and next action.
 
 import { SUMMARY_SCHEMA, validateResultSummary } from './schemas.js';
 import { defaultRankingSemantics } from './metrics.js';
@@ -9,19 +8,18 @@ import {
 } from './facts.js';
 import { foldMasonSummary } from './msa.js';
 
-// One result per ticket, so there is no query to index.
+// Single-unit jobs have no query index.
 const SINGLE_UNIT = new Set(['foldmason', 'folddisco']);
 
 const MOTIF_PATTERN_SAMPLE = 5;
 
-/** Names, sizes and timestamps. Membership belongs to the selection tools, not to an orientation. */
+/** Summarize saved selections without their members. */
 function selectionMetadata(records) {
     return (records ?? []).map(record => ({
         name: record.name,
         kind: record.page === 'foldmason' ? 'columns' : 'rows',
         size: record.size ?? 0,
-        // Each kind reports its own index under its own name: a hit selection belongs to a query,
-        // a column selection to an alignment row.
+        // Preserve each selection kind's own index name.
         ...(Number.isSafeInteger(record.queryIdx) ? { queryIdx: record.queryIdx } : {}),
         ...(Number.isSafeInteger(record.entry) ? { entry: record.entry } : {}),
         createdAt: record.createdAt ?? null,
@@ -29,10 +27,7 @@ function selectionMetadata(records) {
     }));
 }
 
-/**
- * Length and hash of the query, never the query. `mode` and `databases` are left out: the payload
- * already carries the mode at the top level and the databases as their own list.
- */
+/** Summarize query identity without retaining query text. */
 function submissionSummary(record, parsed) {
     const request = record?.request ?? null;
     const out = {};
@@ -47,7 +42,7 @@ function submissionSummary(record, parsed) {
     return Object.keys(out).length ? out : null;
 }
 
-/** Patterns pooled over every database, capped — a distinct count plus a sample stays bounded. */
+/** Pool motif patterns across databases and return a bounded sample. */
 function motifPatternSample(parsed) {
     const hits = new Map();
     let queryResidues = null;
@@ -96,13 +91,7 @@ export function notReadySummary({ ticket, queryIdx = 0, status, jobType = null }
     return out;
 }
 
-/**
- * @param {object} input
- * @param {import('./results.js').ResultTable} [input.table]  search / folddisco
- * @param {object} [input.foldMasonResult]                    foldmason
- * @param {object[]} [input.catalog]   /databases, when it was reachable
- * @param {object[]} [input.selections] store.listSelections output
- */
+/** Build a validated summary for one completed result unit. */
 export function resultSummary({
     ticket, queryIdx = 0, jobType, status = 'COMPLETE',
     table = null, foldMasonResult = null, record = null, catalog = null,
@@ -122,7 +111,7 @@ export function resultSummary({
     let out;
     if (kind === 'foldmason') {
         const entries = foldMasonResult?.entries ?? [];
-        // entryCount would repeat counts.parsedRows, which is the shared contract with the manifest.
+        // counts.parsedRows already carries the entry count.
         const { entryCount, ...msa } = foldMasonSummary(foldMasonResult);
         out = {
             ...head,
@@ -136,8 +125,7 @@ export function resultSummary({
             },
             completeness: completenessOf({ jobType, parsedRows: entries.length }),
             ranking: null,
-            // Whether an export carries data files beyond the manifest. An empty result still exports
-            // — recording that a search found nothing is a real answer.
+            // Empty results still export a manifest recording that outcome.
             msa,
         };
     } else {
@@ -147,12 +135,9 @@ export function resultSummary({
         const ranking = defaultRankingSemantics({
             tool: table.tool, mode: table.mode, isComplex: table.isComplex,
         });
-        const survey = table.getTableSummary({ db: '*', topN: 1 });
-        const topRow = new Map((survey.databases ?? []).map(d => [d.dbIndex, d.top?.[0]?.id ?? null]));
+        const topRow = table.topRowIds();
 
-        // Orientation, not the export record: safeName is derivable from dbIndex, the catalog's own
-        // taxonomy/status flags belong to list_databases, and per-database serverAlignments only ever
-        // differs from parsedRows under a grouping the top-level counts already report.
+        // Keep database orientation smaller than the complete export record.
         const databases = provenance.databases.map((db, i) => ({
             dbIndex: db.dbIndex,
             id: db.id,
@@ -163,8 +148,7 @@ export function resultSummary({
             topHit: topHitFor(parsed, db.dbIndex, topRow.get(db.dbIndex), table.tool, ranking.field),
         }));
 
-        // The row cap applies per database, so saturation is decided on the largest one. Summing
-        // across databases would report two half-full results as a truncated one.
+        // Saturation is per database, not across their sum.
         const largest = counts.databases.reduce((a, d) => Math.max(a, d.parsedRows), 0);
 
         out = {

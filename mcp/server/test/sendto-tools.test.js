@@ -97,10 +97,8 @@ async function stubClient(overrides = {}) {
         async submitFoldseekSearch(a) { record('submitFoldseekSearch', a); return { id: 'FSTICKET1', status: 'PENDING' }; },
         async submitFoldDisco(a) { record('submitFoldDisco', a); return { id: 'FDTICKET1', status: 'PENDING' }; },
         async submitFoldMason(a) { record('submitFoldMason', a); return { id: 'FMTICKET2', status: 'PENDING' }; },
-        async waitForCompletion(t) { return { id: t, status: 'COMPLETE' }; },
         async pollTicket(t) { return { id: t, status: 'COMPLETE' }; },
         async resultUrl(t) { return `https://example.test/result/${t}/0`; },
-        listCachedTickets(o) { return store.listTickets(o); },
         ...overrides,
     };
     return client;

@@ -39,7 +39,6 @@ function stubClient(overrides = {}) {
         async submitFoldMason(a) { record('submitFoldMason', a); return { id: 'FM1', status: 'PENDING' }; },
         async submitFoldDisco(a) { record('submitFoldDisco', a); return { id: 'FD1', status: 'PENDING' }; },
         async validateSubmission(a) { record('validateSubmission', a); return { ok: true, tool: a.tool, problems: [] }; },
-        async waitForCompletion(t) { record('waitForCompletion', t); return { id: t, status: 'COMPLETE' }; },
         async pollTicket(t) { record('pollTicket', t); return { id: t, status: 'COMPLETE' }; },
         async getTicketType(t) { record('getTicketType', t); return { type: 'structuresearch' }; },
         async resultUrl(t) { return `https://example.test/result/${t}/0`; },
@@ -87,7 +86,6 @@ test('submit tools return immediately and validate without queueing', async () =
         assert.equal(out.ticketId, id, name);
         assert.equal(out.status, 'PENDING');
     }
-    assert.equal(client.calls.some(c => c.name === 'waitForCompletion'), false, 'nothing waited');
     const queued = client.submitted().length;
     for (const [name, args] of [
         ['foldseek_search', { query: 'ATOM', databases: ['afdb50'], validateOnly: true }],

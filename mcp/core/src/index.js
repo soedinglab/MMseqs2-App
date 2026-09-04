@@ -3,7 +3,6 @@ export {
     assertTaxFilter,
     idForHit,
     kindForJobType, toolForJobType,
-    Ticket,
     HttpError,
     UnsupportedOnDeploymentError,
     TERMINAL_STATUSES,
@@ -11,10 +10,10 @@ export {
 } from './client.js';
 export { resolveTaxFilter, taxFilterHasNames, TAX_CANDIDATE_CAP } from './taxonomy.js';
 
-export { ResultTable, Row, Selection, SELECT_MAX } from './results.js';
+export { ResultTable, Row, Selection } from './results.js';
 export {
-    foldMasonColumns, foldMasonSummary, foldMasonFasta, foldMasonCoordinates, foldMasonEntries,
-    msaResidueMap, residueTokens, residueTokenPairs,
+    foldMasonColumns, foldMasonSummary, foldMasonFasta, foldMasonEntries,
+    msaResidueMap, residueTokenPairs,
     AMINO_ACIDS, SUBSTITUTION_CLASSES, substitutionKind,
     compressRanges, expandRanges, COLUMN_METRICS, MsaColumnSelection,
 } from './msa.js';
@@ -23,7 +22,7 @@ export {
     SELECTION_KINDS, validateResultSummary, validateArtifactManifest, unsafeRelativePath,
 } from './schemas.js';
 export {
-    METRIC_SEMANTICS, SORT_KEY_FOR_FIELD, NUMERIC_METRIC_FIELDS,
+    METRIC_SEMANTICS, NUMERIC_METRIC_FIELDS,
     metricSemantics, defaultRankingSemantics, numericMetric,
 } from './metrics.js';
 export { resultSummary, notReadySummary } from './summary.js';
@@ -46,7 +45,7 @@ export {
     MAX_INPUT_BYTES, DEFAULT_INPUT_TTL_SECONDS,
 } from './inputs.js';
 export {
-    checkMotif, validateMotif, assertMotif, computeDefaultMotif, motifFromTargetResidues,
+    checkMotif, assertMotif, motifFromTargetResidues,
     normalizeChainNames, MOTIF_MAX_RESIDUES,
 } from './motif.js';
 export {
@@ -55,7 +54,7 @@ export {
 export {
     reconstructFullAtom, resolveStructureFromDb, prependRemark, ensureStructureExtension,
     fetchFoldDiscoStructure, loadAccession, loadAccessions,
-    LoadedStructure, LoadedStructureList,
+    LoadedStructure,
     DatabaseNotResolvableError, StructureFetchError, ReconstructionError,
 } from './structures.js';
 

@@ -1,4 +1,4 @@
-// Motif validation for FoldDisco, and the default motif a query starts from.
+// FoldDisco motif parsing, validation and chain normalization.
 
 import {
     residueTokenSet, listResidues, listChains, planChainRenames, renameChains, isNameableChain,
@@ -22,12 +22,7 @@ function residueIndex(structureText) {
     return { byChain, anyChain, chains };
 }
 
-/**
- * @param {string} motif
- * @param {string} [structureText] query PDB/mmCIF; without it only syntax is checked
- * @returns {{valid: boolean, reason?: string, residues: string[], missing: string[],
- *            warnings?: string[], unnameableChains?: string[]}}
- */
+/** Validate motif syntax and, when provided, referenced structure residues. */
 export function checkMotif(motif, structureText) {
     if (typeof motif !== 'string' || motif.trim() === '') {
         return { valid: false, reason: 'motif is empty', residues: [], missing: [] };
@@ -129,50 +124,14 @@ export function assertMotif(motif, structureText) {
     if (!valid) throw new Error(`invalid FoldDisco motif: ${reason}`);
 }
 
-export const validateMotif = checkMotif;
-
-/**
- * The motif a FoldDisco query starts from — every residue, as `chain+resno`.
- * @returns {{motif: string, residueCount: number, chains: string[], exceedsLimit: boolean,
- *            unnameableChains?: string[]}}
- */
-export function computeDefaultMotif(structureText, { includeHetero = false, chains: only = null } = {}) {
-    const wanted = only ? new Set(Array.isArray(only) ? only : [only]) : null;
-    const tokens = new Set();
-    const chains = new Set();
-
-    for (const r of listResidues(structureText)) {
-        if (!includeHetero && r.hetero) continue;
-        if (wanted && !wanted.has(r.chain)) continue;
-        tokens.add(`${r.chain}${r.resno}`);
-        chains.add(r.chain);
-    }
-
-    const unnameable = [...chains].filter(c => c && !isNameableChain(c));
-    return {
-        motif: [...tokens].join(','),
-        residueCount: tokens.size,
-        chains: [...chains],
-        exceedsLimit: tokens.size > MOTIF_MAX_RESIDUES,
-        ...(unnameable.length ? { unnameableChains: unnameable } : {}),
-    };
-}
-
-/**
- * A FoldDisco hit's matched residues, as a motif.
- */
+/** Convert a FoldDisco hit's matched residues into a motif. */
 export function motifFromTargetResidues(targetResidues) {
     return String(targetResidues ?? '')
         .replace(/^_,(_,)*|(,_)*,_$/g, '')
         .replace(/,_,(_,)*/g, ',');
 }
 
-/**
- * Give a structure interpretable chain names, and rewrite a motif to match.
- * @param {string} structureText
- * @param {{motif?: string}} [opts]
- * @returns {{text: string, motif: string|null, renames: Record<string,string>, changed: boolean}}
- */
+/** Give a structure addressable chain names and rewrite its motif. */
 export function normalizeChainNames(structureText, { motif = null } = {}) {
     const chains = listChains(structureText).map(c => c.chain);
     const renames = planChainRenames(chains);
@@ -180,7 +139,7 @@ export function normalizeChainNames(structureText, { motif = null } = {}) {
         return { text: structureText, motif, renames: {}, changed: false };
     }
 
-    // Longest first: with chains A1 and A11 present, a token starting "A11" belongs to the latter.
+    // Match longer chain names first to avoid prefix collisions.
     const originals = [...renames.keys()].sort((a, b) => b.length - a.length);
     const rewriteToken = (token) => {
         const [identifier, substitution] = token.split(':');

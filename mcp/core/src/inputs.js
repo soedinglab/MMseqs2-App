@@ -1,7 +1,4 @@
-// Reading a query from a local file, inside an allowlist.
-//
-// Empty by default: without a list the server would be an arbitrary-file reader for anything that can
-// call a tool, including text that arrived inside a result.
+// Read local query files only through explicitly allowed roots.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -9,7 +6,7 @@ import path from 'node:path';
 export const MAX_INPUT_BYTES = 64 * 1024 * 1024;
 export const DEFAULT_INPUT_TTL_SECONDS = 3600;
 
-/** Total size of a tree. Shared with the collectors so there is one walker, not two. */
+/** Compute a directory tree's total file size. */
 export async function treeBytes(dir) {
     let total = 0;
     let entries;
@@ -18,7 +15,7 @@ export async function treeBytes(dir) {
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) total += await treeBytes(full);
         else {
-            try { total += (await fs.lstat(full)).size; } catch { /* vanished mid-walk */ }
+            try { total += (await fs.lstat(full)).size; } catch { /* Ignore vanished files. */ }
         }
     }
     return total;
@@ -30,11 +27,7 @@ function coded(code, message) {
     return err;
 }
 
-/**
- * The realpath of `candidate` if it resolves inside one of `roots`, else null.
- *
- * realpath on both sides, so a symlink anywhere along either path cannot land outside.
- */
+/** Resolve a candidate only when its real path stays inside an allowed root. */
 export async function containedRealPath(roots, candidate) {
     let real;
     try { real = await fs.realpath(candidate); } catch { return null; }
@@ -66,7 +59,7 @@ async function firstResolvable(inputDirs, relative) {
 
 export const LISTED_NAMES = 20;
 
-/** What is actually there, so one refused try is how a caller learns the contents. */
+/** Return a bounded listing to help resolve refused paths. */
 async function listing(dirs) {
     const parts = [];
     for (const dir of dirs) {
@@ -81,11 +74,7 @@ async function listing(dirs) {
     return parts.join('; ');
 }
 
-/**
- * @param {string} candidate  an absolute path, or one relative to an allowed directory
- * @param {{inputDirs: string[], touchDirs: string[]}} opts
- * @returns {Promise<{path: string, text: string, name: string, bytes: number}>}
- */
+/** Read an absolute or root-relative file after containment checks. */
 export async function resolveInputPath(candidate, { inputDirs = [], touchDirs = [] } = {}) {
     if (typeof candidate !== 'string' || candidate.trim() === '') {
         throw coded('INVALID_INPUT', 'a path is required');
@@ -110,8 +99,7 @@ export async function resolveInputPath(candidate, { inputDirs = [], touchDirs = 
     if (stat.size > MAX_INPUT_BYTES) {
         throw coded('INPUT_PATH_REFUSED', `${candidate} is ${stat.size} bytes, over ${MAX_INPUT_BYTES}`);
     }
-    // Only inside a swept root: the TTL runs from last use, so a file still being searched cannot
-    // expire mid-workflow. A never-swept directory is the user's, and is not written to.
+    // Refresh only managed drop-folder inputs.
     if (touchDirs.length && await containedRealPath(touchDirs, real)) {
         const at = new Date();
         await fs.utimes(real, at, at).catch(() => {});
@@ -120,30 +108,27 @@ export async function resolveInputPath(candidate, { inputDirs = [], touchDirs = 
         path: real,
         name: path.basename(real),
         bytes: stat.size,
-        // Which root answered: imports/ shadows the allowlist for a name that is in both.
+        // Report which root resolved a relative name.
         ...(found.root ? { root: found.root } : {}),
         text: await fs.readFile(real, 'utf8'),
     };
 }
 
-// --- the shared workspace ------------------------------------------------------------------------
-
 export const DROP_MARKER = '.foldseek-drop';
 
-/** Both halves derived from one directory, so neither can be aimed at the other. */
+/** Derive the shared import and export directories together. */
 export const sharedPaths = shared => ({
     exportsDir: path.join(shared, 'exports'),
     importsDir: path.join(shared, 'imports'),
 });
 
-/** The client needs somewhere to write before the server has written anything. */
+/** Create and safely claim the shared directories. */
 export async function ensureSharedDirs(shared) {
     const { exportsDir, importsDir } = sharedPaths(shared);
     await fs.mkdir(exportsDir, { recursive: true });
     await fs.mkdir(importsDir, { recursive: true });
 
-    // Only a directory we made, or one already ours. `imports/` is swept by age with no name pattern,
-    // so writing the marker into a directory that was already here would put its files on the timer.
+    // Never put an existing unclaimed directory under input expiry.
     const names = await fs.readdir(importsDir);
     if (names.length && !names.includes(DROP_MARKER)) {
         throw coded('SHARED_DIR_OCCUPIED',

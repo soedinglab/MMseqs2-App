@@ -1,11 +1,4 @@
-// Artifact files as MCP resources.
-//
-// Nothing here touches an arbitrary path: an id must be a full sha256 hex digest, and a relative path
-// must appear verbatim in that artifact's own manifest. A file sitting inside the directory but absent
-// from the manifest is not readable, so traversal has no surface to work on.
-//
-// A read spends model context, so a file over the cap is refused with its size. Resources carry what
-// belongs in context — manifest, database map, tree; row files are for a script to open by path.
+// Serve only manifest-listed artifact files and keep large row data out of model context.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -83,8 +76,7 @@ export function createResources(client, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
             // The stat, not the manifest's record: a .gz is measured compressed, as it crosses the wire.
             const bytes = await fs.stat(full).then(st => st.size).catch(() => null);
             if (bytes !== null && bytes > maxBytes) {
-                // Only point at paths a caller was actually given: with local paths withheld there is
-                // no filesystem answer, and naming one would send them looking for a missing field.
+                // Mention filesystem alternatives only when local paths were exposed.
                 const instead = store.exposeLocalPaths
                     ? 'Open it from the file system using artifactRoot or localPath from export_result, or'
                     : 'This deployment withholds local paths, so read it server-side, or';

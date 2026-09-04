@@ -1,15 +1,14 @@
 # `mcp/` — Foldseek, FoldMason and FoldDisco without a browser
 
-Two packages that let a script or an agent submit jobs to this repo's Go backend, poll them, decode
-the results, and forward a hit or an alignment region into the next search — all without a page
-being mounted anywhere.
+Two packages let an MCP client submit jobs to this repo's Go backend, inspect or export results, and
+forward a hit or alignment region into the next search without mounting the web application.
 
 | package | what it is |
 |---|---|
-| [`core`](core/) | the library: an HTTP client plus the result objects (`ResultTable`, `Selection`, `MsaColumnSelection`, …) |
+| [`core`](core/) | private implementation library used by the server |
 | [`server`](server/) | an MCP server exposing 11 tools plus result artifacts as resources, for agents that speak the protocol |
 
-The server owns the MCP dependency lock; the core library has no external npm dependencies.
+The server owns the complete distribution dependency graph; the core package is not installed alone.
 
 ## Quick start
 
@@ -18,25 +17,9 @@ npm ci --prefix mcp/server                    # from the repo root
 npm test --prefix mcp/core                    # no network, nothing submitted
 ```
 
-```js
-import { createClient } from 'foldseek-server-lib';
-
-const client = createClient({ baseUrl: 'https://search.foldseek.com' });
-const ticket = await client.submitFoldseekSearch({
-    query: await fs.readFile('1stp.cif', 'utf8'),
-    databases: ['pdb100'],
-});
-await ticket.wait();
-
-console.log(await client.getResultSummary(ticket.id));   // bounded: what came back
-const artifact = await client.exportResult(ticket.id);   // complete: every row, as files
-console.log(artifact.files);
-```
-
-Two operations carry the reading side. The **summary** is small, fixed-shape and always safe to ask
-for. The **artifact** is the complete factual export, written to files and addressed by URI — so
-analysis happens locally, as many times as wanted, without another round trip. Nothing large is ever
-inlined into a tool result.
+Run or install the server using [`server/README.md`](server/README.md). Its **summary** is small and
+fixed-shape; its **artifact** is the complete result written to files and addressed by URI. Nothing
+large is inlined into a tool result.
 
 ## Tests
 

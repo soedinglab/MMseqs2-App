@@ -1,9 +1,4 @@
-// One reproducible file bundle per result unit: complete factual data, addressed by a cache key that
-// depends only on (server, ticket, queryIdx, schema version).
-//
-// Build order is data files -> manifest -> READY, into a scratch directory on the same filesystem,
-// then one atomic rename. A directory without READY is therefore never a half-written artifact that
-// something else can read.
+// Build each result bundle in scratch and expose it only after an atomic READY-marked rename.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -23,7 +18,7 @@ export const DEFAULT_ARTIFACT_TTL_SECONDS = 1800;
 
 export const URI_SCHEME = 'foldseek-artifact';
 
-/** Written when we create an artifact root. The sweep refuses any root without it. */
+/** Marks an artifact root safe for cleanup. */
 export const ROOT_MARKER = '.foldseek-artifacts';
 
 const READY = 'READY';
@@ -40,14 +35,14 @@ const MIME = {
 
 const BUILT_BY = { package: 'foldseek-server-lib', version: '0.1.0' };
 
-/** The origin an artifact belongs to, normalized so the same server never yields two namespaces. */
+/** Normalize a server origin into one artifact namespace. */
 export function serverNamespaceFor({ baseUrl, apiPath = '/api' } = {}) {
     const trimmed = String(baseUrl ?? '').replace(/\/+$/, '');
     let origin = trimmed;
     try {
         const url = new URL(trimmed);
         origin = `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}`;
-    } catch { /* not a URL — use it as given rather than inventing one */ }
+    } catch { /* Preserve non-URL identifiers. */ }
     return `${origin}${String(apiPath ?? '').replace(/\/+$/, '')}`;
 }
 
@@ -72,7 +67,7 @@ async function countLines(file) {
     }
 }
 
-/** Cheap integrity probe: a JSONL file that was written whole ends in a newline. */
+/** Check a JSONL terminal newline without reading the whole file. */
 async function endsWithNewline(file, size) {
     if (size === 0) return true;
     const handle = await fs.open(file, 'r');
@@ -92,7 +87,7 @@ export function createArtifactStore({
     exposeLocalPaths = true,
     insideStateDir = true,
     verifyRows = false,
-    // What the caller sees this root as: the mount is the shared parent, not the export directory.
+    // Name the shared parent as the caller-visible mount.
     mountName = null,
     pathPrefix = null,
 } = {}) {
@@ -114,20 +109,13 @@ export function createArtifactStore({
         dirFor,
         isActive: id => building.has(id),
 
-        /**
-         * A hit only when READY is present, the manifest validates, and every file measures up.
-         *
-         * "Measures up" is a byte-size match plus a terminal newline on each JSONL file — O(1) per
-         * file. Counting every row costs a full read of the artifact on every hit (24 ms on a 3 MB
-         * search, 22 ms on a 14 MB alignment) and catches almost nothing size does not: a truncated or
-         * partial write changes the size. Pass verifyRows for the exhaustive check.
-         */
+        /** Validate READY, manifest, file sizes and JSONL endings; optionally recount rows. */
         async read(id, { verifyRows: verify = verifyRows } = {}) {
             let dir;
             try { dir = dirFor(id); } catch { return { ok: false, reason: 'INVALID_ID' }; }
 
             try { await fs.access(dir); } catch { return { ok: false, reason: 'ABSENT' }; }
-            // Present but unfinished: a failed or interrupted build, never something to read.
+            // Never read an unfinished build.
             try { await fs.access(path.join(dir, READY)); } catch { return { ok: false, reason: 'NOT_READY' }; }
 
             let manifest;
@@ -176,14 +164,11 @@ export function createArtifactStore({
             } catch { return null; }
         },
 
-        /**
-         * Build into scratch on the same filesystem, then rename. A lost race is not an error: the
-         * winner built the same bytes from the same source, so it is re-validated and used.
-         */
+        /** Build in same-filesystem scratch, atomically rename and reuse a valid race winner. */
         async build(id, write) {
             const dir = dirFor(id);
             await fs.mkdir(root, { recursive: true });
-            // Claims the root as ours, so a mistyped export directory is never swept.
+            // Claim the root before it becomes eligible for cleanup.
             await fs.writeFile(path.join(root, ROOT_MARKER), JSON.stringify({
                 kind: 'foldseek-server artifact root', createdAt: clock().toISOString(),
             })).catch(() => {});
@@ -217,7 +202,7 @@ export function createArtifactStore({
 
         uriFor(id, relPath = '') { return `${URI_SCHEME}://${id}/${relPath}`; },
 
-        /** READY artifacts, newest first. Bounded: a listing is for choosing one, not for auditing. */
+        /** List READY artifacts newest first, with a bound. */
         async list({ limit = 50 } = {}) {
             let names;
             try { names = await fs.readdir(root); } catch { return []; }
@@ -231,7 +216,7 @@ export function createArtifactStore({
             return found.slice(0, limit);
         },
 
-        /** Small by construction: roles, sizes and counts, never file contents. */
+        /** Describe roles, sizes and counts without file contents. */
         descriptor(manifest, { cacheHit = false } = {}) {
             const id = manifest.artifactId;
             const accessed = clock();
@@ -256,10 +241,7 @@ export function createArtifactStore({
             if (exposeLocalPaths) {
                 const dir = dirFor(id);
                 if (!path.relative(root, dir).startsWith('..')) {
-                    // exportRoot and its basename, because a sandboxed caller sees the export directory
-                    // at a mount of its own and must rebuild the path rather than use ours. The server
-                    // cannot discover that view: there is no channel for it, and `roots` is deprecated
-                    // and unimplemented by the hosts that sandbox.
+                    // Give sandboxed callers both server and mount-relative paths.
                     const seen = mountName ?? path.basename(root);
                     out.exportRoot = root;
                     out.mountName = seen;
@@ -282,7 +264,7 @@ export function createArtifactStore({
     return store;
 }
 
-/** Collects files as they are written, so the manifest can never disagree with the directory. */
+/** Record manifest entries while writing files. */
 function fileCollector(scratch) {
     const files = [];
     return {
@@ -370,13 +352,13 @@ async function writeSearchFiles(collector, { parsed, tool, counts, issues }) {
                 JSON.stringify({ db: entryData.db, dbIndex, totalNodes: nodes.length, nodes }),
                 { rows: nodes.length });
 
-            // A hit whose leaf taxon is absent from the report cannot be placed in the tree.
+            // Report hit taxa missing from the exported taxonomy tree.
             const known = new Set(nodes.map(n => n.taxId));
             const dangling = new Set();
             for (const group of Object.values(entryData.alignments ?? {})) {
                 const head = Array.isArray(group) ? group[0] : group;
                 const taxId = Number(head?.taxId);
-                // 0 is the "unclassified" sentinel: no assignment to dangle.
+                // Taxon 0 is unclassified, not a dangling assignment.
                 if (Number.isFinite(taxId) && taxId !== 0 && !known.has(taxId)) dangling.add(taxId);
             }
             if (dangling.size) {
@@ -414,7 +396,7 @@ async function writeFoldMasonFiles(collector, { result, issues }) {
 
     const maps = [];
     for (let i = 0; i < entries.length; i++) {
-        try { maps.push(msaResidueMap(result, i)); } catch { /* counted as a roster mismatch below */ }
+        try { maps.push(msaResidueMap(result, i)); } catch { /* Counted below. */ }
     }
     if (maps.length) await collector.writeJsonl('msa/residue-map.jsonl', 'msa-residue-map', maps);
     if (maps.length !== entries.length) {
@@ -439,10 +421,7 @@ async function writeFoldMasonFiles(collector, { result, issues }) {
     }
 }
 
-/**
- * Assemble the manifest and every data file for one unit.
- * @returns {(scratch: string) => Promise<object>} the writer `store.build` expects
- */
+/** Build the manifest and data files for one result unit. */
 export function artifactWriter({
     artifactId, serverNamespace, ticket, queryIdx, jobType, table = null, foldMasonResult = null,
     record = null, catalog = null, configuredCap = null, clock = () => new Date(),

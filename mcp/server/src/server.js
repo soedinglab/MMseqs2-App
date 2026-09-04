@@ -1,5 +1,4 @@
-// MCP wiring. Everything that decides what a tool *does* lives in tools.js; this file only moves
-// JSON between the SDK and those handlers.
+// MCP transport and protocol wiring around the tool handlers.
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -17,11 +16,7 @@ import { createClient, parseInputDirs, ensureSharedDirs } from 'foldseek-server-
 import { createTools, runTool } from './tools.js';
 import { createResources } from './resources.js';
 
-/**
- * A range-checked integer from the environment. Out of range fails at startup naming the variable and
- * the range it accepts: silently clamping a TTL is how an operator ends up with a cache that behaves
- * nothing like the number they set.
- */
+/** Parse a bounded integer without silently clamping it. */
 function intFromEnv(env, name, { fallback, min, max }) {
     const raw = env[name];
     if (raw === undefined || raw === '') return fallback;
@@ -92,8 +87,7 @@ export const RETIRED_ENV = {
 };
 
 export function readConfigFromEnv(env = process.env) {
-    // Removed variables are refused, not ignored: silently dropping ARTIFACT_DIR would move exports
-    // back into the state directory, which is what setting it was for.
+    // Refuse retired variables instead of silently changing storage behavior.
     for (const [gone, now] of Object.entries(RETIRED_ENV)) {
         if (env[gone]) throw new Error(`${gone} is no longer read — ${now}`);
     }
@@ -116,10 +110,10 @@ export function readConfigFromEnv(env = process.env) {
         basicAuth: user ? { user, pass: pass ?? '' } : null,
         resultRowCap: intFromEnv(env, 'FOLDSEEK_SERVER_RESULT_ROW_CAP',
             { fallback: null, min: 1, max: 1000000 }),
-        // Small on purpose: manifests fit, row files do not and belong on the file system.
+        // Keep manifests readable while large row files stay on disk.
         resourceMaxBytes: sizeFromEnv(env, 'FOLDSEEK_SERVER_RESOURCE_MAX_BYTES',
             { fallback: 16 * 1024, min: 1024, max: 32 * 1024 * 1024 }),
-        // Empty by default: the alternative is an arbitrary-file reader.
+        // Disable filesystem inputs unless roots are explicitly allowed.
         inputDirs: parseInputDirs(env.FOLDSEEK_SERVER_INPUT_DIRS),
         inputTtlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_INPUT_TTL',
             { fallback: 3600, min: 300, max: 604800 }),
@@ -133,7 +127,7 @@ export function readConfigFromEnv(env = process.env) {
     };
 }
 
-/** The protocol's own reference type: a pointer per exported file, contents not included. */
+/** Return one resource link per exported file. */
 export function resourceLinks(result) {
     if (result?.isError || !Array.isArray(result?.files) || !result.uri) return [];
     return result.files.map(file => ({
@@ -149,7 +143,7 @@ export function createServer(config, transport = { kind: 'stdio' }) {
     const client = createClient(config);
     const tools = createTools(client, {
         inputDirs: readRoots(client, config, transport),
-        // Reading a dropped file postpones its expiry; a curated directory is never written to.
+        // Touch only managed drop-folder inputs.
         touchDirs: client.sharedDirs ? [client.sharedDirs.importsDir] : [],
     });
     const resources = createResources(client, { maxBytes: config.resourceMaxBytes });
@@ -171,8 +165,7 @@ export function createServer(config, transport = { kind: 'stdio' }) {
         resourceTemplates: [resources.template],
     }));
 
-    // A resource read has no structured error channel, so a refusal is a protocol error carrying the
-    // stable code in its message.
+    // Resource refusals carry their stable code in the protocol error message.
     server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         try {
             return { contents: [await resources.read(request.params.uri)] };
@@ -200,10 +193,7 @@ export function createServer(config, transport = { kind: 'stdio' }) {
     return { server, client, tools, resources };
 }
 
-/**
- * `--http --host H --port N` selects Streamable HTTP; stdio otherwise. Host and port must both be
- * given: binding a guessed address is how a local-only server ends up reachable.
- */
+/** Select stdio or an explicitly bound Streamable HTTP transport. */
 export function readTransportFromArgv(argv = []) {
     if (!argv.includes('--http')) return { kind: 'stdio' };
     const value = (flag) => {
@@ -225,11 +215,7 @@ export function readTransportFromArgv(argv = []) {
 
 const LOOPBACK = /^(127\.\d+\.\d+\.\d+|::1|localhost)$/i;
 
-/**
- * `queryRef` reads the *server's* filesystem. That is the same machine as the caller over stdio, and
- * over HTTP only when the bind address is loopback. Anywhere else the path either means nothing or
- * means a different file, so the combination is refused rather than served.
- */
+/** Permit filesystem inputs only over stdio or loopback HTTP. */
 export function assertTransportAllows({ inputDirs = [] }, transport) {
     if (!inputDirs.length || transport.kind !== 'http' || LOOPBACK.test(transport.host)) return;
     throw new Error(
@@ -238,12 +224,7 @@ export function assertTransportAllows({ inputDirs = [] }, transport) {
         'bind 127.0.0.1.');
 }
 
-/**
- * Read roots for the tools: the shared imports/ first, then the configured allowlist.
- *
- * `imports/` is a root nobody asked for, so a non-loopback bind drops it rather than refusing to
- * start — exports/ still works, and the ref argument leaves the schema on its own.
- */
+/** Build readable roots, excluding shared imports from remote HTTP. */
 export function readRoots(client, config, transport = { kind: 'stdio' }) {
     const importsDir = client.sharedDirs?.importsDir;
     const remote = transport.kind === 'http' && !LOOPBACK.test(transport.host);
@@ -266,8 +247,7 @@ export async function listenHttp(server, { host, port }) {
         http.listen(port, host, resolve);
     });
 
-    // After binding, so the rebinding guard names the port actually in use rather than the one asked
-    // for — they differ whenever port 0 hands out an ephemeral one.
+    // Protect the actual bound port, including an ephemeral one.
     const bound = http.address().port;
     const allowedHosts = [host, `${host}:${bound}`];
     transport = new StreamableHTTPServerTransport({
@@ -286,10 +266,9 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
     assertNoNestedRoots(config);
     const { server, client } = createServer(config, transport);
 
-    // Before the handshake: the client has to be able to drop a file in, and the folder has to exist
-    // for a person to grant it.
+    // Create the shared folder before the host grants or uses it.
     if (client.sharedDirs) {
-        // Not fatal: unclaimed means never swept, so searching still works and nothing is at risk.
+        // Shared-folder failure does not block remote searches.
         await ensureSharedDirs(client.sharedDirs.shared)
             .catch(err => process.stderr.write(`foldseek-server: ${err.message}\n`));
     }
@@ -300,16 +279,15 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
             `foldseek-server: streamable http on http://${transport.host}:${transport.port}\n`);
     } else {
         await server.connect(new StdioServerTransport());
-        // Never stdout: that is the protocol stream in this mode.
+        // Keep stdout reserved for the protocol.
         process.stderr.write('foldseek-server: stdio\n');
     }
 
-    // After the transport is up, so a slow sweep never delays the handshake, and to stderr only —
-    // stdout is the protocol stream.
+    // Sweep after the handshake and report only to stderr.
     client.collectGarbage()
         .then(({ artifacts, results, inputs }) => {
             const errors = artifacts.errors + results.errors + (inputs.errors ?? 0);
-            // Dropped files are deleted inside a folder someone can see, so say when that happens.
+            // Report deletion from the user-visible drop folder.
             if (artifacts.deleted || results.deleted || inputs.deleted || errors) {
                 process.stderr.write(
                     `foldseek-server: startup GC removed ${artifacts.deleted} artifact(s), ` +
@@ -320,10 +298,7 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
         .catch(err => process.stderr.write(`foldseek-server: startup GC failed: ${err.message}\n`));
 }
 
-/**
- * `INPUT_DIRS` is never swept and `imports/` always is, so neither may contain the other: one nesting
- * puts a curated library on a 1 h timer, the other hides dropped files behind a root that outlives them.
- */
+/** Keep permanent input roots separate from the swept imports folder. */
 export function assertNoNestedRoots({ inputDirs = [], sharedDir = null }) {
     if (!sharedDir) return;
     const shared = path.resolve(sharedDir);
@@ -344,7 +319,7 @@ export function assertNoNestedRoots({ inputDirs = [], sharedDir = null }) {
 /** Operator maintenance: sweep and report, without starting a server. */
 export async function runGc(env = process.env, { dryRun = false } = {}) {
     const { client } = createServer(readConfigFromEnv(env));
-    // An operator asked, so report the routine keeps too — the running server never writes those.
+    // Operator runs include routine retained entries in the audit.
     const report = await client.collectGarbage({ dryRun, auditKeeps: true });
     process.stderr.write(`${JSON.stringify(report, null, 2)}\n`);
     return report;

@@ -1,29 +1,4 @@
-// One place where "this thing can be submitted as a query" is defined, for every origin and every
-// destination.
-//
-// A hit row, an MSA column selection and a loaded accession are three different things to have in
-// hand, and the page implements forwarding separately for each (SelectToSendPanel.vue,
-// SelectToSendPanelFoldMason.vue, LoadAcessionButton.vue). They agree on almost everything, which is
-// exactly the situation where three copies drift. Here each one only has to produce a
-// `SubmittableQuery` of the right *origin* shape; how a query becomes a job lives in `sendTo` alone.
-//
-// Three origins, not the two the plan first named:
-//   chains     — a Foldseek hit's per-chain CA coordinates: [{ca, seq, chain, target}], as the brief
-//                result endpoint returns them. Real data, nothing encoded.
-//   fm-entry   — a FoldMason entry's native pseudo-monomer form: {pdb, suffix}. FoldMason's MSA engine
-//                aligns one linear sequence per entry, so that is genuinely how it stores a complex;
-//                there is no per-chain data sitting beside it to use instead.
-//   structure  — an actual structure file. A **FoldDisco hit** arrives this way: the backend serves
-//                the original full-atom model for a hit, not CA coordinates, so it is
-//                not a `chains` origin at all. A loaded accession is the same shape.
-//
-// What varies by destination is how a multi-chain input is combined, and whether a full-atom
-// reconstruction is needed. Three rules worth stating because
-// getting them backwards produces a query the destination silently misreads:
-//   * Foldseek takes a real multi-chain PDB. Never encode for it.
-//   * Only FoldDisco needs full atoms. Foldseek and FoldMason both work on CA coordinates.
-//   * FoldMason reads a file's format from its name — a mmCIF entry whose name lacks `.cif` is
-//     dropped from the alignment without a word (ensureStructureExtension).
+// Build destination-specific submissions from chain hits, FoldMason entries, or structures.
 
 import {
     mockPDB, mergePdbs, encodeMultimer, decodeMultimer,
@@ -43,7 +18,7 @@ function coded(code, message) {
 export const ORIGINS = ['chains', 'fm-entry', 'structure'];
 export const DESTINATIONS = ['foldseek', 'multimer', 'foldmason', 'folddisco'];
 
-/** FoldMason is the one destination that takes several structures, so a lone query cannot reach it. */
+/** Destinations that require a query set. */
 const MULTI_INPUT_DESTINATIONS = new Set(['foldmason']);
 
 function isCif(text) {
@@ -51,10 +26,7 @@ function isCif(text) {
     return head.startsWith('#') || head.startsWith('data_');
 }
 
-/**
- * The provenance header the page writes onto a forwarded structure, from SelectToSendPanel.vue's
- * prependRemark: which entry it was and which ticket it came from.
- */
+/** Add source accession and ticket provenance to a structure. */
 export function provenanceRemark(text, { accession, db = null, ticket = null }) {
     const prefix = isCif(text) ? '# ' : 'REMARK  99 ';
     let firstline = `${prefix}Accession: ${accession}${db ? `, DB: ${db}` : ''}`;
@@ -68,18 +40,8 @@ export function provenanceRemark(text, { accession, db = null, ticket = null }) 
     return `${firstline.padEnd(80, ' ')}\n${second}${text}`;
 }
 
-/**
- * A query that knows how to become a job.
- *
- * `spec.kind` picks the origin; everything else on the spec is that origin's data plus optional
- * provenance (`db`, `accession`, `ticket`) and a default `motif`.
- */
+/** A lazily resolved query with origin data and optional provenance. */
 export class SubmittableQuery {
-    /**
-     * @param {object} client
-     * @param {object|(() => Promise<object>)} spec  the origin data, or a function producing it.
-     * @param {{label?: string}} [opts]  a name for diagnostics before the spec is resolved
-     */
     constructor(client, spec, { label = null } = {}) {
         if (typeof spec !== 'function' && !ORIGINS.includes(spec?.kind)) {
             throw coded('INVALID_INPUT', `unknown query origin: ${JSON.stringify(spec?.kind)} ` +
@@ -91,7 +53,7 @@ export class SubmittableQuery {
         this.spec = this._resolver ? null : spec;
     }
 
-    /** Resolve the spec once, whatever the caller passed. */
+    /** Resolve the source once. */
     async resolve() {
         if (this.spec) return this.spec;
         const spec = await this._resolver();
@@ -103,25 +65,17 @@ export class SubmittableQuery {
         return spec;
     }
 
-    get kind() { return this.spec?.kind ?? null; }
-
-    /** Chain letters in order, for naming — the page's `chainset`: an underscore, then each chain. */
+    /** Chain letters used in generated names. */
     _chainset(spec) {
         return `_${(spec.chains ?? []).map(c => c.chain).join('')}`;
     }
 
-    /** Every chain of a hit group carries the same target name; the accession comes off the first. */
+    /** Derive the source name from the first chain when needed. */
     _baseName(spec) {
         return spec.name ?? getAccession(spec.chains?.[0]?.target ?? 'query');
     }
 
-    /**
-     * Assemble the structure text this destination should receive.
-     *
-     * @param {'foldseek'|'multimer'|'foldmason'|'folddisco'} tool
-     * @returns {Promise<{pdb: string, name: string, isMultimer: boolean, suffix?: string,
-     *                    motif?: string, resolvedFrom?: string, reconstructed?: boolean}>}
-     */
+    /** Build the structure representation required by a destination. */
     async build(tool, { signal } = {}) {
         if (!DESTINATIONS.includes(tool)) {
             throw coded('INVALID_INPUT', `unknown destination: ${JSON.stringify(tool)} ` +
@@ -191,7 +145,7 @@ export class SubmittableQuery {
             };
         }
 
-        // Foldseek/Multimer: a genuine multi-chain PDB, chain ids preserved.
+        // Foldseek and Multimer preserve real chain identifiers.
         return {
             pdb: multi ? mergePdbs(parts) : parts[0].pdb,
             name: multi ? `${base}${this._chainset(spec)}` : base,
@@ -200,19 +154,14 @@ export class SubmittableQuery {
         };
     }
 
-    /**
-     * Reconstruction is the one build step that leaves the process, so it is also the one that fails
-     * for reasons having nothing to do with the caller — cg2all being down, slow, or answering with
-     * something that is not a structure. Every such failure is caught and renamed after the structure
-     * it was working on; on its own the message says only that a POST failed.
-     */
+    /** Reconstruct full atoms and report upstream failures against the source name. */
     async _reconstruct(text, signal, name) {
         try {
             return await reconstructFullAtom(text, {
                 cg2allUrl: this.client.cg2allUrl, signal, fetchImpl: this.client.fetchImpl,
             });
         } catch (err) {
-            if (err?.name === 'AbortError') throw err;      // the caller's own cancellation
+            if (err?.name === 'AbortError') throw err;
             throw coded('UPSTREAM_FAILED', `could not reconstruct ${name}: ${err.message}`);
         }
     }
@@ -223,16 +172,7 @@ export class SubmittableQuery {
         return { name: ensureStructureExtension(built.name, built.pdb), content: built.pdb };
     }
 
-    /**
-     * Build for the destination and submit.
-     *
-     * @param {object} opts
-     * @param {'foldseek'|'multimer'|'folddisco'} opts.tool
-     * @param {string[]} opts.databases
-     * @param {string} [opts.motif]    folddisco; defaults to the query's own motif when it has one
-     * @param {boolean} [opts.remark]  write the provenance header; default true
-     * @returns {Promise<import('./client.js').Ticket>}
-     */
+    /** Build and submit to a single-query destination. */
     async sendTo({
         tool, databases = null, mode = '3diaa', motif = null, taxFilter = '', email = '',
         iterativeSearch = false, remark = true, signal = undefined,
@@ -266,9 +206,7 @@ export class SubmittableQuery {
         return this._recordLineage(ticket, tool, built, { motifSource });
     }
 
-    /**
-     * Record which ticket this job came out of.
-     */
+    /** Record the source ticket and selection used for forwarding. */
     async _recordLineage(ticket, tool, built, { motifSource = null } = {}) {
         const source = this.spec?.ticket;
         if (!source) return ticket;
@@ -293,9 +231,7 @@ export class SubmittableQuery {
     }
 }
 
-/**
- * Several queries, submitted together - for FoldMason job.
- */
+/** A set of queries submitted together to FoldMason. */
 export class QuerySet {
     constructor(client, queries, { ticket = null, queryIdx = 0, description = null } = {}) {
         this.client = client;
@@ -307,12 +243,7 @@ export class QuerySet {
 
     get length() { return this.queries.length; }
 
-    /**
-     * @param {object} opts
-     * @param {boolean} [opts.includeQuery]  for foldmason: add the ticket's own query structure as an
-     *                                       entry, the way the page's toggle does (default true)
-     * @param {number} [opts.concurrency]    how many structures to build at once; default 8
-     */
+    /** Submit one query elsewhere or build a bounded-concurrency FoldMason file set. */
     async sendTo({ tool, includeQuery = true, concurrency = 8, email = '', signal, ...rest } = {}) {
         if (tool !== 'foldmason') {
             if (this.queries.length !== 1) {

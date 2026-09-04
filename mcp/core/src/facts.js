@@ -1,5 +1,4 @@
-// Facts about a parsed result, as pure functions: identity, counts, completeness, provenance, and
-// the full serializations the artifact exports. Nothing here reads the network or the filesystem.
+// Pure result identity, count, completeness, provenance and serialization helpers.
 
 import { numericMetric, NUMERIC_METRIC_FIELDS } from './metrics.js';
 
@@ -50,7 +49,7 @@ const SEARCH_ROW_CAP_DEFAULT = 1000;
 
 const SINGLE_UNIT_KINDS = new Set(['foldmason', 'folddisco']);
 
-/** Render fields and coordinates: neither belongs in an exported row. */
+/** Fields excluded from exported rows. */
 const DROPPED_ROW_FIELDS = new Set(['href', 'active', 'id', 'ca', 'tCa', 'qCa']);
 const NUMERIC_FIELDS = new Set(NUMERIC_METRIC_FIELDS);
 
@@ -69,11 +68,7 @@ export function isComplexResult(parsed) {
     return String(parsed?.mode ?? '').includes('complex') || parsed?.type === 'complexsearch';
 }
 
-/**
- * Which query of a ticket to address. Refused rather than normalised: FoldMason calls its alignment
- * rows "entries" too, so a caller passing one here means something real and would otherwise be handed
- * a valid-looking summary of a different unit.
- */
+/** Validate a query index without reinterpreting single-unit alignment entries. */
 export function normalizeQueryIdx(jobType, queryIdx = 0) {
     const value = queryIdx === undefined || queryIdx === null ? 0 : queryIdx;
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
@@ -88,10 +83,7 @@ export function normalizeQueryIdx(jobType, queryIdx = 0) {
     return { queryIdx: value };
 }
 
-/**
- * Chain-level items as delivered, groups after parsing, and which grouping produced the difference.
- * Totals are the counts contract; `databases` is the per-database breakdown callers merge elsewhere.
- */
+/** Count delivered alignments and parsed row groups per database. */
 export function resultCounts(parsed, { tool = 'foldseek' } = {}) {
     const results = parsed?.results ?? [];
     const databases = results.map((entryData, dbIndex) => {
@@ -125,10 +117,7 @@ export function resultRowCap({ jobType, configuredCap = null } = {}) {
     return { rowCap: SEARCH_ROW_CAP_DEFAULT };
 }
 
-/**
- * Tri-state completeness. Reaching a cap proves truncation; staying under one proves nothing, so
- * `complete` is null rather than true.
- */
+/** Report proven truncation, known completeness, or unknown completeness. */
 export function completenessOf({ jobType, parsedRows = 0, rowCap, configuredCap = null } = {}) {
     const resolved = rowCap === undefined ? resultRowCap({ jobType, configuredCap }) : { rowCap };
 
@@ -143,10 +132,7 @@ export function completenessOf({ jobType, parsedRows = 0, rowCap, configuredCap 
     };
 }
 
-/**
- * Per-database identity, with the catalog's version/status when `/databases` was reachable.
- * `safeName` is the artifact filename stem, so no database id ever reaches a path.
- */
+/** Combine parsed database identity with optional catalog metadata and safe file names. */
 export function databaseProvenance(parsed, catalog = null) {
     const list = Array.isArray(catalog) ? catalog : null;
     const byPath = new Map((list ?? []).map(d => [d.path, d]));
@@ -168,10 +154,7 @@ export function databaseProvenance(parsed, catalog = null) {
     return { catalogAvailable: list !== null && list.length > 0, databases };
 }
 
-/**
- * Every taxonomy node, with a parent derived from the depth-ordered report by a stack — the report
- * itself carries no parent link, and without one a clade cannot be walked offline.
- */
+/** Export a depth-ordered taxonomy report with derived parent links. */
 export function taxonomyExport(report) {
     const nodes = [];
     const issues = [];
@@ -224,10 +207,7 @@ function serializeChain(item) {
     return out;
 }
 
-/**
- * One row, complete: every parsed field of the group's head, numeric metrics as numbers, and the
- * per-chain facts when the parser grouped several chains into it.
- */
+/** Serialize one parsed hit group with numeric metrics and optional chain details. */
 export function serializeRow(parsed, dbIndex, groupId, { tool = 'foldseek' } = {}) {
     const entryData = parsed?.results?.[dbIndex];
     const group = entryData?.alignments?.[String(groupId)];
@@ -255,10 +235,7 @@ export function serializeRow(parsed, dbIndex, groupId, { tool = 'foldseek' } = {
     return row;
 }
 
-/**
- * Which query residues each hit matched, aggregated over every hit. Ties break on the pattern so
- * the exported file is byte-stable.
- */
+/** Aggregate FoldDisco match patterns with deterministic tie ordering. */
 export function motifPatternExport(entryData) {
     const counts = new Map();
     for (const group of Object.values(entryData?.alignments ?? {})) {

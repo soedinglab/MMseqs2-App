@@ -1,23 +1,14 @@
-// Filesystem cache for ticket metadata and completed results.
-//
-// Layout mirrors the backend's own job-directory sharding, so a ticket's cache entry is easy to
-// line up with its server-side job dir:
-//
-//   <stateDir>/tickets/<id[0:2]>/<id[2:4]>/<id>/
-//     ticket.json          { id, kind, submittedAt, lastPolledAt, lastStatus, request }
-//     result-<entry>.json  parsed search result, one file per query entry
-//     foldmason.json       one payload per ticket — the endpoint has no entry index
-//     folddisco.json       same reasoning
+// Filesystem cache for ticket metadata, completed results and named selections.
 
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-/** Ticket ids are base64url from the backend. Reject anything else rather than build a path from it. */
+/** Only backend-shaped ticket ids may become paths. */
 const SAFE_ID = /^[A-Za-z0-9_-]{4,}$/;
 
-/** Selection names are object keys in a file that is read back and spread. */
+/** Restrict persisted selection names and prototype keys. */
 const SAFE_SELECTION_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const RESERVED_SELECTION_NAMES = new Set(['__proto__', 'prototype', 'constructor']);
 
@@ -44,18 +35,7 @@ export function defaultStateDir() {
     return process.env.FOLDSEEK_SERVER_STATE_DIR || path.join(os.homedir(), '.foldseek-server');
 }
 
-/**
- * What we keep about a submission — deliberately not the submission itself.
- *
- * The raw query is the one unbounded field in the whole record: 1CRN, a 46-residue protein and
- * about the smallest real structure available, is 69 KB as mmCIF, and multimer queries reach into
- * the megabytes. Caching it buys nothing — the server already has it, and the result is what a
- * caller comes back for — while turning a ~300 byte record into a ~70 KB one, which is the
- * difference between a 10,000-ticket cache costing 3 MB and costing 700 MB.
- *
- * Length plus a hash prefix keeps the useful part: "is this the query I think it is" stays
- * answerable, without storing it.
- */
+/** Store only the query length and hash; the backend already owns the unbounded query text. */
 export function summarizeRequest(request = {}) {
     const { query, files, ...rest } = request;
     const summary = { ...rest };
@@ -133,7 +113,7 @@ export class Store {
         return path.join(this.ticketDir(id), 'selections.json');
     }
 
-    /** Null-prototype: these keys come from a file, and one of them could be spelled __proto__. */
+    /** Read untrusted selection keys into a null-prototype object. */
     async readSelections(id) {
         const stored = await this.#readJson(this.#selectionFile(id));
         const all = Object.create(null);
@@ -149,7 +129,7 @@ export class Store {
         return Object.hasOwn(all, name) ? all[name] : null;
     }
 
-    /** Merge-write, so saving one selection never drops another. */
+    /** Merge one selection without dropping its siblings. */
     async writeSelection(id, name, payload) {
         assertSelectionName(name);
         const all = await this.readSelections(id);
@@ -174,10 +154,7 @@ export class Store {
         return true;
     }
 
-    /**
-     * Copy a selection under a new name, so the original can be left exactly as a forwarded job
-     * recorded it. A deep copy: later edits to either name must not reach the other.
-     */
+    /** Deep-copy a selection so later edits cannot alter its source. */
     async copySelection(id, fromName, toName) {
         assertSelectionName(fromName);
         assertSelectionName(toName);
@@ -200,13 +177,7 @@ export class Store {
         return record;
     }
 
-    /**
-     * Names and sizes, without the lists themselves — enough to pick one to load.
-     *
-     * Two kinds of selection share this file: rows of a search result (`ids`) and columns of an
-     * alignment (`columns`). They belong to different tickets, so they never mix in practice, but the
-     * size is reported from whichever the record holds rather than assuming one.
-     */
+    /** List selection names, kinds and sizes without their members. */
     async listSelections(id) {
         const all = await this.readSelections(id);
         return Object.values(all).map(({ ids, columns, ...rest }) => ({
@@ -215,44 +186,4 @@ export class Store {
         }));
     }
 
-    /** Whether a name exists, without reading its membership. */
-    async hasSelection(id, name) {
-        return Object.hasOwn(await this.readSelections(id), name);
-    }
-
-    /**
-     * Walk the sharded tree. There is deliberately no index file: an index is a second source of
-     * truth that can disagree with the directories it describes, and the walk is cheap — records
-     * are ~300 bytes, so even 10,000 cached tickets read back as ~3 MB, dominated by syscalls
-     * rather than memory. Reads within a shard run concurrently.
-     *
-     * Every record is read before `limit` applies, because ordering by submittedAt cannot be known
-     * from the paths alone. If a cache ever grows large enough for that to hurt, the fix is an
-     * ordering hint in the layout, not a partial scan that would silently drop recent tickets.
-     */
-    async listTickets({ limit = 100 } = {}) {
-        const root = path.join(this.stateDir, 'tickets');
-        const out = [];
-        let outer;
-        try {
-            outer = await fs.readdir(root);
-        } catch (err) {
-            if (err.code === 'ENOENT') return [];
-            throw err;
-        }
-        for (const a of outer) {
-            let inner;
-            try { inner = await fs.readdir(path.join(root, a)); } catch { continue; }
-            for (const b of inner) {
-                let ids;
-                try { ids = await fs.readdir(path.join(root, a, b)); } catch { continue; }
-                const batch = await Promise.all(
-                    ids.map(id => this.#readJson(path.join(root, a, b, id, 'ticket.json'))),
-                );
-                for (const t of batch) if (t) out.push(t);
-            }
-        }
-        out.sort((x, y) => String(y.submittedAt ?? '').localeCompare(String(x.submittedAt ?? '')));
-        return out.slice(0, limit);
-    }
 }

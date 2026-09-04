@@ -1,39 +1,12 @@
-// Request shapes follow the Go backend handlers directly:
-//   POST /api/ticket            q, database[], mode, email, iterativesearch, taxfilter
-//   POST /api/ticket/foldmason  multipart, one `queries[]` part per file (the part's filename
-//                               carries the entry name; `fileNames[]` exists only for back-compat)
-//   POST /api/ticket/folddisco  q, database[], motif, email  (no mode, no taxfilter — both are
-//                                                             commented out in the handler)
-//   GET  /api/ticket/{id}       -> { id, status }
-//   GET  /api/ticket/type/{id}  -> { type }
-//   GET  /api/result/{id}/{entry}
-//   GET  /api/result/{id}/{entry}?format=brief&index=&database=   one hit's chains, with the CA
-//                                                   coordinates the full table omits — see getHitChains
-//   GET  /api/result/{id}/query                the original query file, whole (no per-entry form)
-//   GET  /api/result/foldmason/{id}
-//   GET  /api/result/folddisco/{id}            the result table
-//   GET  /api/result/folddisco/{id}?id=&database=   the same route with `id` set returns that hit's
-//                                                   PDB text instead — see getFoldDiscoTargetStructure
-//   GET  /api/result/queries/{id}/{limit}/{page}
-//
-// `baseUrl` is the site origin (https://search.foldseek.com), matching what the frontend puts in
-// axios' baseURL; the /api prefix belongs to the routes and is added here. A deployment that sets
-// config.Server.PathPrefix to something else can override it with `apiPath`.
-//
-// Uses the platform fetch rather than axios: Node 18+ ships fetch, FormData and Blob, so multipart
-// submission needs no dependency at all. The frontend's axios usage does not carry over — this is a
-// separate program that happens to share parsing logic, not a port of the page's networking.
+// HTTP client for the Go backend; submissions validate locally and completed results are cached.
 
 import { parseResults, parseResultsFoldDisco } from '../../../frontend/lib/parseResults.js';
 import { Store, defaultStateDir, summarizeRequest } from './store.js';
 import { ResultTable } from './results.js';
-import { assertMotif, computeDefaultMotif, validateMotif, normalizeChainNames } from './motif.js';
+import { assertMotif } from './motif.js';
+import { MsaColumnSelection } from './msa.js';
 import {
-    foldMasonColumns, foldMasonFasta, foldMasonCoordinates, foldMasonEntries, MsaColumnSelection,
-} from './msa.js';
-import {
-    fetchFoldDiscoStructure, reconstructFullAtom, resolveStructureFromDb,
-    loadAccession, loadAccessions, ensureStructureExtension,
+    fetchFoldDiscoStructure, loadAccession, loadAccessions, ensureStructureExtension,
 } from './structures.js';
 import { SubmittableQuery } from './submit.js';
 import { TERMINAL_STATUSES, kindForJobType, toolForJobType, normalizeQueryIdx } from './facts.js';
@@ -53,10 +26,10 @@ import { pathForTicket } from '../../../frontend/lib/ticketRoute.js';
 import path from 'node:path';
 import fsp from 'node:fs/promises';
 
-/** FoldMason aligns structures against each other; one input has nothing to align to. */
+/** Minimum structures in a FoldMason alignment. */
 export const FOLDMASON_MIN_FILES = 2;
 
-/** How many parsed results to keep in memory at once. Each can be several MB. */
+/** Parsed-result cache bound. */
 const PARSED_CACHE_SIZE = 16;
 const GC_MIN_INTERVAL_SECONDS = 600;
 
@@ -64,7 +37,7 @@ const VALID_TAX_FILTER = /^[0-9]+(,!?[0-9]+)*$|^$/;
 
 export { TERMINAL_STATUSES, kindForJobType, toolForJobType };
 
-/** A 404 on a job type this deployment does not serve, told apart from a genuinely missing ticket. */
+/** A deployment does not expose this job route. */
 export class UnsupportedOnDeploymentError extends Error {
     constructor(tool) {
         super(`this deployment does not serve ${tool} jobs — /ticket/${tool} returned 404 ` +
@@ -82,18 +55,6 @@ export class HttpError extends Error {
         this.url = url;
         this.body = body;
     }
-}
-
-export class Ticket {
-    constructor(client, id, status = null, kind = null) {
-        this.client = client;
-        this.id = id;
-        this.status = status;
-        this.kind = kind;
-    }
-
-    wait(opts) { return this.client.waitForCompletion(this.id, opts); }
-    getResult(entry = 0) { return this.client.getResult(this.id, entry); }
 }
 
 function coded(code, message) {
@@ -115,7 +76,6 @@ export function assertTaxFilter(taxFilter) {
 
 export function createClient({
     baseUrl,
-    app = 'foldseek',
     apiPath = '/api',
     cg2allUrl = 'https://3di.foldseek.com/cg2all/predict',
     stateDir = defaultStateDir(),
@@ -128,8 +88,7 @@ export function createClient({
     inputTtlSeconds = DEFAULT_INPUT_TTL_SECONDS,
     artifacts = {},
 } = {}) {
-    // Never default this. A wrong-but-plausible default would send someone's structures to a public
-    // production server without them choosing it.
+    // Require an explicit destination for submitted structures.
     if (!baseUrl || typeof baseUrl !== 'string') {
         throw new Error('createClient({ baseUrl }) is required — pass the site origin, e.g. ' +
                         '"http://localhost:3000" or "https://search.foldseek.com"');
@@ -153,8 +112,7 @@ export function createClient({
     };
     const serverNamespace = serverNamespaceFor({ baseUrl, apiPath });
 
-    // One directory the caller's host can read and write, granted once. A hidden state directory is
-    // reachable by the server and by nothing else, so it stays the fallback, not the shared case.
+    // Keep user-visible shared files outside private server state.
     const shared = sharedDir ? path.resolve(sharedDir) : null;
     if (shared) {
         const toState = path.relative(shared, stateDir);
@@ -172,8 +130,7 @@ export function createClient({
         pathPrefix: shared ? 'exports' : null,
         ...artifacts,
     });
-    // Outside the artifact root on purpose: the GC never has to decide whether its own log is an
-    // artifact.
+    // Keep the GC log outside the artifact root it sweeps.
     const gcOptions = {
         audit: artifacts.audit ?? fileAudit(path.join(stateDir, 'artifact-gc-audit.jsonl')),
     };
@@ -212,7 +169,7 @@ export function createClient({
         return as === 'json' ? res.json() : res.text();
     }
 
-    /** database[] repeats — the handler reads req.Form["database[]"], not a joined string. */
+    /** Encode each selected database as a repeated form field. */
     function withDatabases(params, databases) {
         for (const db of databases ?? []) params.append('database[]', db);
         return params;
@@ -261,13 +218,12 @@ export function createClient({
         } catch (err) {
             onWarning?.(`submitted ${result.id}, but could not write its cache record: ${err.message}`);
         }
-        return new Ticket(client, result.id, result.status ?? 'PENDING', kind);
+        return { id: result.id, status: result.status ?? 'PENDING', kind };
     }
 
     const client = {
         baseUrl: baseUrl.replace(/\/+$/, ''),
         apiRoot: root,
-        app,
         cg2allUrl,
         store,
         fetchImpl,
@@ -366,37 +322,6 @@ export function createClient({
             return res;
         },
 
-        async waitForCompletion(ticket, { intervalMs = 2000, timeoutMs = 0, onStatus = null } = {}) {
-            const cached = await store.readTicket(ticket);
-            if (cached?.lastStatus === 'COMPLETE') {
-                onStatus?.('COMPLETE', { fromCache: true });
-                return new Ticket(client, ticket, 'COMPLETE', cached.kind);
-            }
-
-            const startedAt = Date.now();
-            for (;;) {
-                const { status } = await client.pollTicket(ticket);
-                onStatus?.(status, { fromCache: false });
-                if (TERMINAL_STATUSES.has(status)) {
-                    if (status !== 'COMPLETE') {
-                        const err = new Error(`ticket ${ticket} finished with status ${status}`);
-                        err.status = status;
-                        throw err;
-                    }
-                    const t = await store.readTicket(ticket);
-                    return new Ticket(client, ticket, status, t?.kind);
-                }
-                if (timeoutMs && Date.now() - startedAt >= timeoutMs) {
-                    const err = new Error(`timed out after ${timeoutMs}ms waiting for ${ticket} ` +
-                                          `(last status ${status})`);
-                    err.status = status;
-                    err.timedOut = true;
-                    throw err;
-                }
-                await new Promise(r => setTimeout(r, intervalMs));
-            }
-        },
-
         async getResult(ticket, entry = 0) {
             const data = await memo(`search:${ticket}:${entry}`, async () => {
                 const cached = await store.readResult(ticket, 'search', entry);
@@ -406,7 +331,7 @@ export function createClient({
                 await store.writeResult(ticket, 'search', entry, value);
                 return value;
             });
-            return new ResultTable(data, { ticket, queryIdx: entry, app, client });
+            return new ResultTable(data, { ticket, queryIdx: entry, client });
         },
 
         getFoldMasonResult(ticket) {
@@ -417,22 +342,6 @@ export function createClient({
                 await store.writeResult(ticket, 'foldmason', 0, res);
                 return res;
             });
-        },
-
-        async getFoldMasonColumns(ticket, opts = {}) {
-            return foldMasonColumns(await client.getFoldMasonResult(ticket), opts);
-        },
-
-        async getFoldMasonFasta(ticket, opts = {}) {
-            return foldMasonFasta(await client.getFoldMasonResult(ticket), opts);
-        },
-
-        async getFoldMasonCoordinates(ticket, opts = {}) {
-            return foldMasonCoordinates(await client.getFoldMasonResult(ticket), opts);
-        },
-
-        async getFoldMasonEntries(ticket) {
-            return foldMasonEntries(await client.getFoldMasonResult(ticket));
         },
 
         async selectMsaColumns(ticket, { entry = 0, columns = [], name = 'default' } = {}) {
@@ -467,11 +376,6 @@ export function createClient({
                 : client.getResult(ticket, queryIdx);
         },
 
-        async getTaxonomy(ticket, { queryIdx = 0, db = null, ...opts } = {}) {
-            const table = await client.getResultTable(ticket, { queryIdx });
-            return table.getTaxonomy(db, opts);
-        },
-
         async getFoldDiscoResult(ticket) {
             const data = await memo(`folddisco:${ticket}`, async () => {
                 const cached = await store.readResult(ticket, 'folddisco');
@@ -481,7 +385,7 @@ export function createClient({
                 await store.writeResult(ticket, 'folddisco', 0, value);
                 return value;
             });
-            return new ResultTable(data, { ticket, entry: 0, app, tool: 'folddisco', client });
+            return new ResultTable(data, { ticket, queryIdx: 0, tool: 'folddisco', client });
         },
 
         getFoldDiscoTargetStructure(ticket, opts) {
@@ -492,11 +396,7 @@ export function createClient({
             return request(`/result/queries/${encodeURIComponent(ticket)}/${limit}/${page}`);
         },
 
-        /**
-         * One hit's chains, with the CA coordinates the full result omits.
-         *
-         * @returns {Promise<{ca: string, seq: string, chain: string, target: string}[]>}
-         */
+        /** Fetch one hit's chains and CA coordinates. */
         async getHitChains(ticket, { queryIdx = 0, db, idx, signal } = {}) {
             if (db === undefined || idx === undefined) {
                 throw new Error('getHitChains({ db, idx }) is required');
@@ -512,9 +412,7 @@ export function createClient({
             }));
         },
 
-        /**
-         * The ticket's own query structure, as a submittable file.
-         */
+        /** Fetch the ticket's query as a submittable file. */
         async getQueryStructure(ticket, { signal, encodeComplex = true } = {}) {
             const text = await request(`/result/${encodeURIComponent(ticket)}/query`,
                 { as: 'text', signal });
@@ -532,29 +430,10 @@ export function createClient({
 
         query(spec, opts) { return new SubmittableQuery(client, spec, opts); },
 
-        reconstructFullAtom(pdbText, opts = {}) {
-            return reconstructFullAtom(pdbText, { cg2allUrl, fetchImpl, ...opts });
-        },
-
-        resolveStructureFromDb(db, accession, opts = {}) {
-            return resolveStructureFromDb(db, accession, { fetchImpl, ...opts });
-        },
-
         loadAccession(id, opts) { return loadAccession(client, id, opts); },
         loadAccessions(ids, opts) { return loadAccessions(client, ids, opts); },
 
-        computeDefaultMotif(structureText, opts) { return computeDefaultMotif(structureText, opts); },
-        validateMotif(motif, structureText) { return validateMotif(motif, structureText); },
-
-        /**
-         * Give a structure single-character chain names and rewrite a motif to match — the repair for
-         * a chain a motif token cannot address, e.g., A1…A4.
-         */
-        normalizeChainNames(structureText, opts) { return normalizeChainNames(structureText, opts); },
-
-        /**
-         * Run every pre-submission check and report what *would* be sent, without queueing anything.
-         */
+        /** Validate a submission without queueing it. */
         async validateSubmission({ tool, query, databases, motif, mode = '3diaa', files, iterativeSearch = false, taxFilter = '' }) {
             const problems = [];
             let taxonomy = null;
@@ -616,19 +495,13 @@ export function createClient({
             };
         },
 
-        /**
-         * Resolve a ticket to one result unit, without waiting for it.
-         *
-         * Status comes from the cache when it is already terminal, and otherwise from exactly one
-         * poll: a caller asking what a result holds has not asked to wait for it.
-         */
+        /** Resolve one result unit with at most one status poll. */
         async resolveUnit(ticket, queryIdx = 0) {
             const { type: jobType } = await client.getTicketType(ticket);
             const { queryIdx: index } = normalizeQueryIdx(jobType, queryIdx);
             const kind = kindForJobType(jobType);
 
-            // Only when a caller actually navigates: the backend answers an out-of-range index with an
-            // empty-but-COMPLETE result, which reads as "this query found nothing".
+            // Refuse indices the backend would otherwise return as empty complete results.
             if (index > 0) {
                 const list = await client.getQueries(ticket, { limit: 1000 }).catch(() => null);
                 const count = list?.lookup?.length ?? null;
@@ -662,7 +535,7 @@ export function createClient({
             return unit;
         },
 
-        /** Bounded orientation for one result unit. Takes a ticket and a query index, nothing else. */
+        /** Return a bounded summary for one result unit. */
         async getResultSummary(ticket, queryIdx = 0) {
             const unit = await client.resolveUnit(ticket, queryIdx);
             if (unit.status !== 'COMPLETE') return notReadySummary(unit);
@@ -677,10 +550,7 @@ export function createClient({
         artifacts: artifactStore,
         serverNamespace,
 
-        /**
-         * The complete factual export for one result unit, as files. Returns a descriptor — the
-         * resource URI and what is in the bundle — never the data.
-         */
+        /** Export one complete result unit and return only its descriptor. */
         async exportResult(ticket, queryIdx = 0) {
             const unit = await client.resolveUnit(ticket, queryIdx);
             if (unit.status !== 'COMPLETE') {
@@ -700,8 +570,7 @@ export function createClient({
                 return artifactStore.descriptor(hit.manifest, { cacheHit: true });
             }
             if (hit.reason !== 'ABSENT') {
-                // Anything present that did not read back is a failed build or a damaged artifact:
-                // it has to go before the rename, or the rename is what fails.
+                // Remove an unreadable artifact before rebuilding it atomically.
                 onWarning?.(`rebuilding artifact ${artifactId.slice(0, 12)}: ${hit.reason}`);
                 await fsp.rm(artifactStore.dirFor(artifactId), { recursive: true, force: true });
             }
@@ -725,13 +594,7 @@ export function createClient({
             return artifactStore.descriptor(manifest, { cacheHit });
         },
 
-        /**
-         * Expire both kinds of derived state on one clock each.
-         *
-         * `minIntervalSeconds` skips both walks when the last sweep is recent; the marker lives outside
-         * the artifact root and survives a restart. An explicit call (operator, startup, tests) passes
-         * 0 and always sweeps.
-         */
+        /** Expire artifacts, cached results and dropped inputs on one clock. */
         async collectGarbage({ minIntervalSeconds = 0, dryRun = false, auditKeeps = false,
             audit = undefined } = {}) {
             const now = artifactStore.now();
@@ -740,7 +603,7 @@ export function createClient({
                     .then(text => Date.parse(JSON.parse(text).lastSweepAt))
                     .catch(() => NaN);
                 if (Number.isFinite(last) && (now.getTime() - last) / 1000 < minIntervalSeconds) {
-                    // Not "skipped": the report already uses that for how many entries were skipped.
+                    // Keep throttling distinct from per-entry skips.
                     return {
                         throttled: true,
                         lastSweepAt: new Date(last).toISOString(),
@@ -761,9 +624,7 @@ export function createClient({
             return report;
         },
 
-        listCachedTickets(opts) { return store.listTickets(opts); },
-
-        // The shared layout, for the caller that has to prepend imports/ to the read roots.
+        // Expose the shared layout to MCP transport setup.
         sharedDirs: shared ? { shared, exportsDir, importsDir } : null,
     };
 

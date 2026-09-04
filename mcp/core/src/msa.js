@@ -1,4 +1,4 @@
-// Per-column metrics for a FoldMason alignment, without a browser.
+// FoldMason alignment metrics, residue maps and saved column selections.
 
 import { computeMetricsCpu, decodeConservation } from '../../../frontend/lib/msaTracks.js';
 import { getResidueIndices, entryChainMap } from '../../../frontend/lib/alignmentColumns.js';
@@ -48,8 +48,7 @@ function prepare(foldMasonResult, representation, wanted) {
     const metrics = computeMetricsCpu(sequences, { symbols, alphabet: spec.alphabet });
     const scores = Array.isArray(foldMasonResult?.scores) ? foldMasonResult.scores : [];
 
-    // One accessor per scalar metric, returning null where the value does not exist, so callers
-    // never have to know which array a metric lives in or how absence is spelled.
+    // Normalize scalar metric access and missing values.
     const value = {
         lddt: c => (Number.isFinite(scores[c]) && scores[c] !== MISSING_LDDT ? scores[c] : null),
         quality: c => metrics.quality?.[c] ?? null,
@@ -69,11 +68,7 @@ function prepare(foldMasonResult, representation, wanted) {
     return { spec, symbols, sequences, metrics, scores, value, available };
 }
 
-/**
- * Collapse consecutive columns into ranges: [1,2,3,4,5,6,8] -> ['1-6', '8']. These lists are mostly
- * runs, so listing them one by one is both longer and harder to read than the shape it describes.
- * Uniformly strings, so a caller never has to branch on the element type.
- */
+/** Collapse consecutive columns into string ranges. */
 export function compressRanges(columns) {
     const out = [];
     for (let i = 0; i < columns.length;) {
@@ -85,11 +80,7 @@ export function compressRanges(columns) {
     return out;
 }
 
-/**
- * The inverse of compressRanges: ['1-6', '8'] -> [1,2,3,4,5,6,8]. Accepts plain numbers too, so a
- * caller can hand back exactly what a summary printed — the regions it reports are the columns worth
- * selecting, and retyping them as a list is the step where they get miscopied.
- */
+/** Expand numeric or string ranges into sorted unique columns. */
 export function expandRanges(ranges) {
     const out = [];
     for (const item of ranges ?? []) {
@@ -109,16 +100,7 @@ export function expandRanges(ranges) {
     return [...new Set(out)].sort((a, b) => a - b);
 }
 
-/**
- * @param {{entries: {name: string, aa: string, ss?: string}[], scores?: number[]}} foldMasonResult
- * @param {object} [opts]
- * @param {'aa'|'3di'} [opts.representation]
- * @param {string[]} [opts.metrics]   subset of COLUMN_METRICS; default all that are available
- * @param {number[]} [opts.columns]   explicit column indices; default every column
- * @param {number} [opts.offset]
- * @param {number} [opts.limit]       default 0, meaning no cap
- * @param {number} [opts.precision]   decimal places for floats; null to leave them alone
- */
+/** Return selected per-column metrics for one FoldMason alignment. */
 export function foldMasonColumns(foldMasonResult, {
     representation = 'aa', metrics: wanted = null, columns = null, offset = 0, limit = 0, precision = 4,
     minOccupancy = null, includeLetters = false, maxLetters = 5,
@@ -131,7 +113,7 @@ export function foldMasonColumns(foldMasonResult, {
     const total = metrics.occupancy.length;
 
     let indices = columns ?? Array.from({ length: total }, (_, i) => i);
-    // The page's gap threshold: a column is masked when too few rows have a residue in it.
+    // Mask columns below the requested occupancy.
     const maskedByOccupancy = minOccupancy == null
         ? 0
         : indices.filter(c => metrics.occupancy[c] < minOccupancy).length;
@@ -155,8 +137,7 @@ export function foldMasonColumns(foldMasonResult, {
                         .filter(l => l.count > 0)
                         .sort((a, b) => b.count - a.count);
                     row.consensus.nonGapCount = nonGap;
-                    // Capped like the page's getColumnTable, which slices to 5: a column can hold 20
-                    // residue types and the tail is almost always single counts.
+                    // Bound the residue-frequency payload.
                     row.consensus.letters = present.slice(0, maxLetters).map(l => ({
                         glyph: l.glyph, count: l.count,
                         logoFraction: round(nonGap ? l.count / nonGap : 0, precision),
@@ -218,40 +199,6 @@ export function foldMasonFasta(foldMasonResult, {
     };
 }
 
-/**
- * CA coordinates per entry.
- */
-export function foldMasonCoordinates(foldMasonResult, { entries: wantedEntries = null } = {}) {
-    const all = foldMasonResult?.entries ?? [];
-    if (all.length === 0) return { error: 'this result has no entries' };
-
-    const indices = wantedEntries == null
-        ? [0]                       // no argument means one entry, not all of them
-        : (Array.isArray(wantedEntries) ? wantedEntries : [wantedEntries]);
-
-    const out = [];
-    for (const i of indices) {
-        const entry = all[i];
-        if (!entry) continue;
-        const ca = typeof entry.ca === 'string' ? entry.ca : '';
-        out.push({
-            index: i,
-            name: entry.name,
-            residueCount: ca ? ca.split(',').length / 3 : 0,
-            alignedLength: entry.aa?.length ?? null,
-            bytes: Buffer.byteLength(ca),
-            ca,
-        });
-    }
-    return {
-        totalEntries: all.length,
-        format: 'comma-separated x,y,z triplets, one per ungapped residue — indices are residue '
-            + 'positions, not alignment columns',
-        returned: out.length,
-        entries: out,
-    };
-}
-
 /** Entry roster: names, ungapped lengths, and which representations each carries. */
 export function foldMasonEntries(foldMasonResult) {
     const all = foldMasonResult?.entries ?? [];
@@ -282,11 +229,7 @@ function statOf(values) {
     };
 }
 
-/**
- * Bounded orientation for one alignment: how large it is, which metrics exist, and the spread of
- * each. Deliberately no threshold, regions or ranked columns — which columns matter is the caller's
- * analysis, made on the per-column data rather than guessed at here.
- */
+/** Summarize alignment size, available metrics and metric ranges without choosing columns. */
 export function foldMasonSummary(foldMasonResult, { representation = 'aa' } = {}) {
     const prepared = prepare(foldMasonResult, representation, null);
     if (prepared.error) return prepared;
@@ -315,9 +258,7 @@ function suffixOf(name) {
     return String(name).includes(SUFFIX_DELIMITER) ? String(name).split(SUFFIX_DELIMITER)[1] : '';
 }
 
-/**
- * Map alignment columns to residue tokens and coordinate offsets using compact parallel lists.
- */
+/** Map alignment columns to residue tokens and chain offsets. */
 export function msaResidueMap(foldMasonResult, entryIndex = 0) {
     const entries = foldMasonResult?.entries ?? [];
     const data = entries[entryIndex];
@@ -366,11 +307,6 @@ export function residueTokenPairs(residueMap, columns) {
     return out;
 }
 
-/** The motif tokens for a set of columns, read off a residue map. */
-export function residueTokens(residueMap, columns) {
-    return residueTokenPairs(residueMap, columns).map(pair => pair.token);
-}
-
 export const AMINO_ACIDS = 'ACDEFGHIKLMNPQRSTVWY';
 export const SUBSTITUTION_CLASSES = {
     X: 'any amino acid',
@@ -396,9 +332,7 @@ function coded(code, message) {
     return err;
 }
 
-/**
- * A set of alignment columns within one FoldMason entry, and the query they describe.
- */
+/** A saved set of columns and substitutions for one FoldMason entry. */
 export class MsaColumnSelection {
     constructor(client, foldMasonResult, {
         entry = 0, columns = [], ticket = null, name = 'default', residueAa = [], savedAt = null,
@@ -495,10 +429,7 @@ export class MsaColumnSelection {
         return getResidueIndices(this.entry.aa, this.columns).map(i => i + 1);
     }
 
-    /**
-     * The motif these columns describe: `chain + original residue number` per residue, with `:aa`
-     * appended where a column carries a substitution.
-     */
+    /** Render selected residues as a FoldDisco motif. */
     get motif() {
         const substitution = new Map(this.residueAa.map(r => [r.column, r.aa]));
         return residueTokenPairs(this.residueMap, this.columns)
@@ -508,9 +439,7 @@ export class MsaColumnSelection {
             .join(', ');
     }
 
-    /**
-     * Which column resolved to which residue, in one line: `20->A17, 29->A26(G):b, 23->gap:Y`.
-     */
+    /** Render the column-to-residue mapping for confirmation. */
     residueMapping({ limit = MOTIF_MAX_RESIDUES } = {}) {
         const tokens = new Map(
             residueTokenPairs(this.residueMap, this.columns).map(p => [p.column, p.token]));
@@ -559,10 +488,7 @@ export class MsaColumnSelection {
         };
     }
 
-    /**
-     * A FoldMason entry's native pseudo-monomer form, which is the one origin that already has a
-     * motif attached — the columns picked it out.
-     */
+    /** Convert this entry and its selected columns into a submittable query. */
     toQuery() {
         return this.client.query({
             kind: 'fm-entry',

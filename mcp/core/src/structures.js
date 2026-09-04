@@ -1,5 +1,4 @@
-// Getting hold of a real structure: reconstructing one from CA coordinates, fetching the original
-// from the database it came from, or loading one by accession from a public service.
+// Fetch, reconstruct and prepare structures for submission.
 
 import { fetchAccession, searchBindingSites, fetchBindingSite } from '../../../frontend/lib/accession.js';
 import { checkMotif, normalizeChainNames } from './motif.js';
@@ -50,10 +49,7 @@ export class DatabaseNotResolvableError extends Error {
     }
 }
 
-/**
- * A pattern matched but the fetch failed. Kept distinct from the above: the original file does exist
- * in principle, so a caller may prefer to retry or report rather than silently reconstruct.
- */
+/** A known structure URL could not be fetched. */
 export class StructureFetchError extends Error {
     constructor(url, status) {
         super(`failed to fetch ${url}${status ? ` (${status})` : ''}`);
@@ -63,13 +59,7 @@ export class StructureFetchError extends Error {
     }
 }
 
-/**
- * The original structure file for a hit, from the database it came from.
- *
- * @returns {Promise<{text: string, url: string, db: string, accession: string}>}
- * @throws {DatabaseNotResolvableError} when no pattern matches — the caller decides to reconstruct
- * @throws {StructureFetchError} when a matching URL could not be fetched
- */
+/** Fetch an original hit structure from a known database URL pattern. */
 export async function resolveStructureFromDb(db, accession, {
     signal, fetchImpl = globalThis.fetch, timeoutMs = FETCH_TIMEOUT_MS,
 } = {}) {
@@ -84,7 +74,7 @@ export async function resolveStructureFromDb(db, accession, {
             return await res.text();
         } catch (err) {
             if (err instanceof StructureFetchError) throw err;
-            if (err?.name === 'AbortError' && signal?.aborted) throw err;   // the caller cancelled
+            if (err?.name === 'AbortError' && signal?.aborted) throw err;
             throw new StructureFetchError(url, err?.name === 'TimeoutError' ? 'timed out' : err?.message);
         }
     };
@@ -99,9 +89,7 @@ export async function resolveStructureFromDb(db, accession, {
     }
 }
 
-/**
- * cg2all's provenance remark, ported from AllAtomPredictMixin.vue's prependRemark.
- */
+/** Mark a structure reconstructed by cg2all. */
 export function prependRemark(pdbstr) {
     const isCif = pdbstr[0] === '#' || pdbstr.startsWith('data_');
     const prefix = isCif ? '# ' : 'REMARK  90 ';
@@ -110,10 +98,7 @@ export function prependRemark(pdbstr) {
     return `${firstline.padEnd(80, ' ')}\n${pdbstr}`;
 }
 
-/**
- * Full-atom reconstruction from a CA-only model, via the same remote service the page uses:
- * a multipart POST to cg2all, field `file`, plain-text PDB back.
- */
+/** Reconstruct a CA-only model through cg2all. */
 export async function reconstructFullAtom(pdbText, {
     cg2allUrl, signal, fetchImpl = globalThis.fetch, timeoutMs = RECONSTRUCT_TIMEOUT_MS,
 } = {}) {
@@ -131,7 +116,7 @@ export async function reconstructFullAtom(pdbText, {
         if (err?.name === 'TimeoutError') {
             throw new ReconstructionError(`cg2all did not answer within ${timeoutMs}ms`);
         }
-        if (err?.name === 'AbortError') throw err;      // the caller's own cancellation
+        if (err?.name === 'AbortError') throw err;
         throw new ReconstructionError(`could not reach cg2all at ${cg2allUrl}: ${err?.message ?? err}`);
     }
     if (!res.ok) {
@@ -146,7 +131,7 @@ export async function reconstructFullAtom(pdbText, {
     return prependRemark(text);
 }
 
-/** Reconstruction failed. Named so a caller can tell it from a submission or validation failure. */
+/** Distinguishes reconstruction failures from submission failures. */
 export class ReconstructionError extends Error {
     constructor(message) {
         super(message);
@@ -154,11 +139,7 @@ export class ReconstructionError extends Error {
     }
 }
 
-/**
- * A FoldDisco hit's structure: the original full-atom model, served by the backend itself.
- *
- * @param {(path: string, opts?: object) => Promise<string>} request  the client's HTTP helper
- */
+/** Fetch a FoldDisco hit's full-atom structure from the backend. */
 export async function fetchFoldDiscoStructure(request, ticket, {
     id, database, retries = 4, retryDelayMs = 500, signal,
 } = {}) {
@@ -181,11 +162,7 @@ export async function fetchFoldDiscoStructure(request, ticket, {
     throw lastErr;
 }
 
-/**
- * FoldMason reads a file's format from its *name*, and mis-parses a mmCIF entry whose name has no
- * `.cif` extension — the entry is then silently dropped from the alignment. Every name that reaches
- * a FoldMason submission goes through here.
- */
+/** Ensure FoldMason can infer the structure format from the file name. */
 export function ensureStructureExtension(name, text) {
     if (name.includes('-_-_-_')) return name;
 
@@ -194,15 +171,12 @@ export function ensureStructureExtension(name, text) {
     return name.endsWith(wanted) ? name : `${name}${wanted}`;
 }
 
-/**
- * A structure loaded by accession, ready to submit.
- */
+/** A fetched structure and its optional motif metadata. */
 export class LoadedStructure {
-    constructor(client, { id, source, name, text, motif = undefined, motifSource = undefined,
+    constructor({ id, source, name, text, motif = undefined, motifSource = undefined,
         qbiolipSites = undefined, resolvedFrom = undefined, motifProblem = undefined,
         motifWarnings = undefined, motifDropped = undefined, motifRenumbered = undefined,
         chainsRenamed = undefined } = {}) {
-        this.client = client;
         this.id = id;
         this.source = source;
         this.name = name;
@@ -218,17 +192,7 @@ export class LoadedStructure {
         this.chainsRenamed = chainsRenamed;
     }
 
-    /**
-     * A real structure file, so the origin is 'structure': there is nothing to build from CA
-     * coordinates and nothing to reconstruct for any destination.
-     */
-    toQuery() {
-        return this.client.query({ kind: 'structure', text: this.text, name: this.name, motif: this.motif });
-    }
-
-    sendTo(opts) { return this.toQuery().sendTo(opts); }
-
-    /** Without the structure text, which is the bulk of it and rarely what a caller wants echoed. */
+    /** Describe the structure without echoing its text. */
     describe() {
         return {
             id: this.id, source: this.source, name: this.name,
@@ -245,34 +209,9 @@ export class LoadedStructure {
     }
 }
 
-/** Several loaded structures — the only origin that can reach FoldMason on its own. */
-export class LoadedStructureList {
-    constructor(client, structures, failed = []) {
-        this.client = client;
-        this.structures = structures;
-        this.failed = failed;
-    }
-
-    get length() { return this.structures.length; }
-
-    /** FoldMason needs two or more; submitFoldMason enforces that and says so if not. */
-    submitFoldMason({ email = '' } = {}) {
-        return this.client.submitFoldMason({
-            files: this.structures.map(s => ({ name: s.name, content: s.text })),
-            email,
-        });
-    }
-
-    describe() {
-        return { loaded: this.structures.map(s => s.describe()), failed: this.failed };
-    }
-}
-
 const QBIOLIP_SOURCE = 'PDB';
 
-/**
- * Load one structure by accession.
- */
+/** Load one accession and, for PDB entries, an optional binding-site motif. */
 export async function loadAccession(client, id, {
     source = 'PDB', autoMotif = true, normalizeChains = true,
 } = {}) {
@@ -280,7 +219,7 @@ export async function loadAccession(client, id, {
         throw coded('UPSTREAM_FAILED', `could not load ${id} from ${source}`);
     });
 
-    const loaded = new LoadedStructure(client, { id, source, name, text });
+    const loaded = new LoadedStructure({ id, source, name, text });
     if (!autoMotif || source !== QBIOLIP_SOURCE) return loaded;
 
     let sites = [];
@@ -308,8 +247,7 @@ export async function loadAccession(client, id, {
                 const normalized = normalizeChainNames(text, { motif });
                 if (normalized.changed) {
                     const after = checkMotif(normalized.motif, normalized.text);
-                    // Only if it actually helped: renaming that leaves the motif no better would be
-                    // a gratuitous edit to someone's structure.
+                    // Keep chain renaming only when it makes the motif usable.
                     if (after.valid && !after.ambiguous) {
                         ({ text, motif } = normalized);
                         loaded.chainsRenamed = normalized.renames;
@@ -331,13 +269,13 @@ export async function loadAccession(client, id, {
             if (site.translated) loaded.motifRenumbered = site.translated;
         }
     } catch {
-        /* keep the structure, drop the motif */
+        // Keep the structure when optional motif lookup fails.
     }
     return loaded;
 }
 
 export async function loadAccessions(client, ids, opts = {}) {
-    opts.autoMotif = false // FoldMason doesn't need any motif, so skip searching for bs
+    opts.autoMotif = false;
     const settled = await Promise.allSettled(
         (ids ?? []).map(id => loadAccession(client, id, opts)));
     const structures = [];
@@ -346,5 +284,5 @@ export async function loadAccessions(client, ids, opts = {}) {
         if (r.status === 'fulfilled') structures.push(r.value);
         else failed.push({ id: ids[i], reason: r.reason?.message ?? String(r.reason) });
     });
-    return new LoadedStructureList(client, structures, failed);
+    return { structures, failed };
 }

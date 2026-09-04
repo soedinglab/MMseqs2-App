@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-    createClient, ResultTable, MsaColumnSelection,
+    createClient, ResultTable, MsaColumnSelection, resolveStructureFromDb,
 } from '../src/index.js';
 
 /** A one-hit, one-database parsed result, for the rows that lineage is recorded against. */
@@ -280,7 +280,7 @@ test('RCSB is asked for .pdb first and .cif second', async () => {
         baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
     });
 
-    const found = await client.resolveStructureFromDb('pdb100', '6iuf.ent_A');
+    const found = await resolveStructureFromDb('pdb100', '6iuf.ent_A', { fetchImpl });
     assert.equal(found.text, ORIGINAL_FILE);
 
     const tried = fetchImpl.calls.map(c => c.url);
@@ -296,20 +296,20 @@ test('each database keeps its own URL shape', async () => {
         baseUrl: 'https://example.test', cg2allUrl: CG2ALL, stateDir: await tmpDir(), fetchImpl,
     });
 
-    assert.equal((await client.resolveStructureFromDb('BFVD', 'A0A123')).url,
+    assert.equal((await resolveStructureFromDb('BFVD', 'A0A123', { fetchImpl })).url,
         'https://bfvd.steineggerlab.workers.dev/pdb/A0A123.pdb');
-    assert.equal((await client.resolveStructureFromDb('afdb50', 'AF-P00001-F1-model_v4')).url,
+    assert.equal((await resolveStructureFromDb('afdb50', 'AF-P00001-F1-model_v4', { fetchImpl })).url,
         'https://alphafold.ebi.ac.uk/files/AF-P00001-F1-model_v4.pdb');
-    assert.equal((await client.resolveStructureFromDb('esmatlas30', 'MGY123')).url,
+    assert.equal((await resolveStructureFromDb('esmatlas30', 'MGY123', { fetchImpl })).url,
         'https://api.esmatlas.com/fetchPredictedStructure/MGY123.pdb');
 });
 
 test('an unknown database is a different failure from an unreachable one', async () => {
     const client = await makeClient({ 'bfvd.steineggerlab.workers.dev': missing });
 
-    await assert.rejects(() => client.resolveStructureFromDb('some-private-db', 'X'),
+    await assert.rejects(() => resolveStructureFromDb('some-private-db', 'X'),
         err => err.name === 'DatabaseNotResolvableError');
-    await assert.rejects(() => client.resolveStructureFromDb('BFVD', 'X'),
+    await assert.rejects(() => resolveStructureFromDb('BFVD', 'X', { fetchImpl: client.fetchImpl }),
         err => err.name === 'StructureFetchError' && err.status === 404);
 });
 

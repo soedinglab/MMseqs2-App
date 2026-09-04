@@ -5,8 +5,7 @@ const RANK_FILTER = '?tax_rank_filter=higher_taxon';
 export const TAX_CANDIDATE_CAP = 8;
 
 const NUMERIC = /^[0-9]+$/;
-// A name starts with a letter. Anything else that is not a plain id — "9606;10090", "12-15" — is a
-// malformed id list, and belongs in the local validator's refusal rather than in a lookup.
+// Only name-shaped tokens are eligible for remote resolution.
 const NAME = /^[A-Za-z][A-Za-z0-9 .'’\-()[\]]*$/;
 
 function coded(code, message) {
@@ -48,11 +47,7 @@ async function resolveName(name, { fetchImpl, signal }) {
     return { taxId: String(pick.tax_id), sciName: pick.sci_name, rank: pick.rank ?? null };
 }
 
-/**
- * Resolve scientific names to ids without fetching for numeric tokens.
- *
- * @returns {Promise<{filter: string, resolved: object[]}>}
- */
+/** Resolve scientific names to ids while leaving numeric tokens local. */
 export async function resolveTaxFilter(raw, { fetchImpl = globalThis.fetch, signal } = {}) {
     const value = String(raw ?? '').trim();
     if (!value) return { filter: '', resolved: [] };
@@ -61,8 +56,7 @@ export async function resolveTaxFilter(raw, { fetchImpl = globalThis.fetch, sign
     const resolved = [];
     for (const token of value.split(',')) {
         const trimmed = token.trim();
-        // An empty token is kept, not skipped: "9606," and "9606,!" are malformed, and silently
-        // repairing them would drop an exclusion the caller meant to write.
+        // Preserve empty tokens so local validation refuses malformed exclusions.
         if (!trimmed) { ids.push(''); continue; }
         const negated = trimmed.startsWith('!');
         const body = (negated ? trimmed.slice(1) : trimmed).trim();

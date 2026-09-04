@@ -1,4 +1,4 @@
-// Deleting derived state: public artifacts, and cached result payloads.
+// Bounded cleanup of artifacts, cached results and dropped inputs.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -13,7 +13,7 @@ const READY = 'READY';
 
 export const DEFAULT_TTL_SECONDS = DEFAULT_ARTIFACT_TTL_SECONDS;
 
-/** The expensive thing: a network round trip and a multi-MB parse, so it is kept for a day. */
+/** Default lifetime for cached parsed results. */
 export const DEFAULT_RESULT_TTL_SECONDS = 86400;
 
 const DEFAULT_STALE_BUILD_SECONDS = 3600;
@@ -21,10 +21,7 @@ const DEFAULT_MAX_DELETIONS = 200;
 
 export const DEFAULT_AUDIT_MAX_BYTES = 4 * 1024 * 1024;
 
-/**
- * An audit sink that appends one JSON object per line, rotating once at `maxBytes` so the log is
- * bounded at two generations rather than growing for the life of the state directory.
- */
+/** Append JSONL audit entries and retain at most two bounded generations. */
 export function fileAudit(file, { maxBytes = DEFAULT_AUDIT_MAX_BYTES } = {}) {
     return async (entry) => {
         await fs.mkdir(path.dirname(file), { recursive: true });
@@ -34,7 +31,7 @@ export function fileAudit(file, { maxBytes = DEFAULT_AUDIT_MAX_BYTES } = {}) {
     };
 }
 
-/** Routine outcomes: an operator asking for detail can have them, a running server should not. */
+/** Routine entries are emitted only for explicit operator audits. */
 const ROUTINE_RESULTS = new Set(['kept']);
 const ROUTINE_REASONS = new Set(['WITHIN_TTL', 'BUILD_IN_PROGRESS', 'INCOMPLETE_RECENT']);
 
@@ -79,18 +76,11 @@ async function ageSeconds(store, dir, name, now) {
         const at = Date.parse(stamp);
         if (Number.isFinite(at)) return (now.getTime() - at) / 1000;
     }
-    // No readable access record or manifest: fall back to the directory itself, which makes an
-    // unreadable artifact look older rather than immortal.
+    // Fall back to directory age so unreadable artifacts do not become immortal.
     try { return (now.getTime() - (await fs.lstat(dir)).mtimeMs) / 1000; } catch { return Infinity; }
 }
 
-/**
- * @param {object} store  createArtifactStore instance
- * @param {object} [opts]
- * @param {boolean} [opts.dryRun]   report what would go, delete nothing
- * @param {(entry: object) => any} [opts.audit]
- * @returns {Promise<object>} a report; never throws for a single unusable entry
- */
+/** Expire artifacts without failing the sweep on one unusable entry. */
 export async function collectArtifacts(store, {
     ttlSeconds = store.ttlSeconds ?? DEFAULT_TTL_SECONDS,
     staleBuildSeconds = DEFAULT_STALE_BUILD_SECONDS,
@@ -118,8 +108,7 @@ export async function collectArtifacts(store, {
     let names;
     try { names = await fs.readdir(root); } catch { return report; }
 
-    // Only roots we created. An export directory can be any folder the operator names, and a typo
-    // would otherwise aim the sweep at one we have never written to.
+    // Sweep only roots carrying our ownership marker.
     if (!names.includes(ROOT_MARKER)) {
         report.refused = 'NOT_AN_ARTIFACT_ROOT';
         return report;
@@ -181,7 +170,7 @@ export async function collectArtifacts(store, {
         candidates.push({ name, dir, age, reason: 'EXPIRED' });
     }
 
-    // Oldest first, so a bounded run removes the least useful artifacts rather than an arbitrary set.
+    // A bounded sweep removes oldest artifacts first.
     candidates.sort((a, b) => b.age - a.age);
 
     for (const candidate of candidates) {
@@ -211,7 +200,7 @@ export async function collectArtifacts(store, {
             continue;
         }
         try {
-            // The real directory is walked; a manifest is never the authority on what to remove.
+            // Delete the real directory contents, not only manifest entries.
             await fs.rm(candidate.dir, { recursive: true, force: true });
             report.deleted += 1;
             report.bytesReclaimed += bytes;
@@ -228,7 +217,7 @@ export async function collectArtifacts(store, {
 
 const RESULT_PAYLOAD = /^(?:result-\d+|foldmason|folddisco)\.json$/;
 
-/** Re-checked immediately before the unlink, for the same reason the artifact sweep re-checks. */
+/** Re-check a cached payload immediately before unlinking it. */
 async function refuseUnsafePayload(root, relative) {
     if (!RESULT_PAYLOAD.test(path.basename(relative))) return 'UNRECOGNIZED_NAME';
     if (relative.includes('..')) return 'UNSAFE_NAME';
@@ -242,12 +231,7 @@ async function refuseUnsafePayload(root, relative) {
     return null;
 }
 
-/**
- * Expire cached result payloads under `<stateDir>/tickets/**`.
- *
- * @param {object} store  a Store
- * @returns {Promise<object>} a report; never throws for a single unusable entry
- */
+/** Expire cached result payloads without failing on one unusable entry. */
 export async function collectResultCache(store, {
     ttlSeconds = DEFAULT_RESULT_TTL_SECONDS,
     maxDeletions = DEFAULT_MAX_DELETIONS,
@@ -289,7 +273,7 @@ export async function collectResultCache(store, {
                         continue;
                     }
                     const relative = path.join(a, b, id, entry.name);
-                    // A payload name that is not a plain file is deliberate, so it leaves a trace.
+                    // Report non-files instead of treating them as cached payloads.
                     if (!entry.isFile()) {
                         report.skipped += 1;
                         await record({
@@ -344,7 +328,7 @@ export async function collectResultCache(store, {
             continue;
         }
         try {
-            // A single file, never a directory: the directory is what holds the metadata we keep.
+            // Remove payload files while retaining ticket metadata.
             await fs.rm(path.join(root, candidate.relative), { force: true });
             report.deleted += 1;
             report.bytesReclaimed += candidate.bytes;
@@ -359,12 +343,7 @@ export async function collectResultCache(store, {
     return report;
 }
 
-/**
- * Expire files dropped into `<shared>/imports/`.
- *
- * @param {string} root  the imports directory
- * @returns {Promise<object>} a report; never throws for a single unusable entry
- */
+/** Expire managed files dropped into the shared imports directory. */
 export async function collectDroppedInputs(root, {
     ttlSeconds = DEFAULT_INPUT_TTL_SECONDS,
     maxDeletions = DEFAULT_MAX_DELETIONS,
@@ -396,8 +375,7 @@ export async function collectDroppedInputs(root, {
     };
 
     const entries = await readdirSafe(root, true);
-    // Dropped files are named by whoever wrote them, so there is no pattern to filter on and the
-    // marker is the only thing between this sweep and a directory we do not own.
+    // The ownership marker is the safety boundary for arbitrary input names.
     if (!entries.some(entry => entry.name === DROP_MARKER)) {
         report.refused = 'NOT_A_DROP_DIRECTORY';
         return report;

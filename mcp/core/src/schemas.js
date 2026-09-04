@@ -91,8 +91,7 @@ function run(value, shape) {
     return { ok: errors.length === 0, errors };
 }
 
-// Flat: a nested "semantics" object repeated the sort order and echoed the mode, tool and field that
-// the enclosing payload already carries.
+// Keep ranking semantics flat under the enclosing result context.
 const RANKING = {
     allowExtra: false,
     fields: {
@@ -188,8 +187,7 @@ const SUMMARY_HEAD = {
     status: { type: 'string', required: true, enum: STATUSES },
 };
 
-// Two variants rather than one shape of optional fields: a not-ready summary must not be able to
-// carry result data, and a complete one must not be able to omit it.
+// Separate lifecycle shapes prevent premature or incomplete result data.
 const SUMMARY_NOT_READY = {
     allowExtra: false,
     fields: {
