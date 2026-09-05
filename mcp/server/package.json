@@ -1,0 +1,49 @@
+{
+  "name": "foldseek-server-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Search protein structures with Foldseek, align them with FoldMason, search 3D motifs with FoldDisco, and export reproducible result artifacts.",
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "foldseek",
+    "foldmason",
+    "folddisco",
+    "protein",
+    "structure",
+    "bioinformatics",
+    "structural-biology",
+    "alignment"
+  ],
+  "homepage": "https://github.com/soedinglab/MMseqs2-App/tree/master/mcp/server",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soedinglab/MMseqs2-App.git",
+    "directory": "mcp/server"
+  },
+  "bugs": {
+    "url": "https://github.com/soedinglab/MMseqs2-App/issues"
+  },
+  "author": "steineggerlab",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "bin": {
+    "foldseek-server-mcp": "bin/foldseek-server-mcp.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "foldseek-server-lib": "file:../core"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "build:mcpb": "node pack-mcpb.mjs",
+    "build:plugin-runtime": "node pack-plugin-runtime.mjs",
+    "test": "node --test test/"
+  }
+}

@@ -442,9 +442,6 @@ export default {
             handler(n, o) {
                 // this.log(n)
                 this.toggleSourceIdx = -1
-                // Size the first render from the new filter rather than a flat BATCH_SIZE.
-                // With an aggressive filter, 100 rendered rows can contain zero visible ones,
-                // which would show an empty table until the observer happened to fire.
                 this.recomputeVisibility()
                 this.renderLimit = this.nextRenderLimit(0)
                 this.$nextTick(() => {
@@ -527,9 +524,6 @@ export default {
         visibleSortedIndices() {
             return this.sortedIndices.slice(0, this.renderLimit)
         },
-        // Counts the user can act on: rows actually on screen, out of rows that survive the
-        // filter. The old footer reported rendered-vs-unfiltered, so an aggressive taxonomy
-        // filter showed "Showing 100 of 1834" above three visible rows.
         shownCount() {
             return this.visibleSortedIndices.reduce(
                 (n, g) => n + (this.isRowVisible(g) ? 1 : 0), 0)
@@ -538,9 +532,6 @@ export default {
             return this.sortedIndices.reduce(
                 (n, g) => n + (this.isRowVisible(g) ? 1 : 0), 0)
         },
-        // Shared with the getTable() API via lib/resultSort.js so the two cannot sort
-        // differently. Verified byte-identical to the previous inline implementation across
-        // every sort key on three real results.
         comparator() {
             return makeComparator(this.entry.alignments, this.sortKey, this.sortOrder, this.sortKeyCache)
         },
@@ -631,12 +622,6 @@ export default {
                 }
             })
         },
-        // Advance far enough to surface a full batch of *visible* rows.
-        // Stepping by a fixed number of rendered rows is the wrong unit under a filter: if only
-        // 5% of hits pass, each step reveals ~5 rows, the sentinel never leaves the viewport
-        // (hidden rows have no height), and loadMore re-fires until everything is rendered.
-        // Walking forward until BATCH_SIZE visible rows have accumulated is exact rather than
-        // an estimate, and degrades to the old +BATCH_SIZE when nothing is filtered.
         nextRenderLimit(from = this.renderLimit) {
             const sorted = this.sortedIndices
             let shown = 0
@@ -684,9 +669,6 @@ export default {
                 }
             }
         },
-        // Both `.selected` and `.invisible` are written imperatively rather than bound, so
-        // any code path that changes the rendered window has to re-apply them by hand.
-        // Route every such path through here so the invariant is checkable in one place.
         syncRenderedState(from = 0) {
             this.reflectSelectionState(from)
             this.applyRowVisibility(from)
@@ -721,9 +703,6 @@ export default {
             const arr = []
             let deltaUpperbound = this.selectUpperbound - this.totalSelectedCounts
             let delta = 0
-            // Iterate in sorted (screen) order and by group id — `for..in` here yielded the
-            // position and used it as a group id, which picks the wrong rows once the
-            // selection cap truncates the loop or group ids are sparse.
             for (const targetIdx of this.sortedIndices) {
                 if (delta >= deltaUpperbound) {
                     break

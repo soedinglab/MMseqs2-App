@@ -1,0 +1,104 @@
+name: Release Foldseek MCP runtime
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish immutable assets for the existing mcp-v<version> tag"
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: mcp-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mcp/server/package-lock.json
+      - run: npm ci --prefix mcp/server
+
+      - name: Verify the MCP tag and package version
+        id: version
+        run: |
+          version=$(node -p "require('./mcp/server/package.json').version")
+          tag="mcp-v${version}"
+          if [ "${GITHUB_EVENT_NAME}" = push ] && [ "${GITHUB_REF_NAME}" != "$tag" ]; then
+            echo "Tag ${GITHUB_REF_NAME} must equal $tag" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Test the MCP server
+        run: npm test --prefix mcp/server
+
+      - name: Build the minimal plugin runtime
+        run: npm run build:plugin-runtime --prefix mcp/server
+
+      - name: Build the Claude Desktop extension
+        run: npm run build:mcpb --prefix mcp/server
+
+      - name: Write artifact checksums
+        id: artifact
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          runtime="foldseek-server-plugin-runtime-v${VERSION}.zip"
+          mcpb="foldseek-server-v${VERSION}.mcpb"
+          cd mcp/server/dist
+          sha256sum "$runtime" > "$runtime.sha256"
+          sha256sum "$mcpb" > "$mcpb.sha256"
+          echo "runtime=mcp/server/dist/$runtime" >> "$GITHUB_OUTPUT"
+          echo "runtime_checksum=mcp/server/dist/$runtime.sha256" >> "$GITHUB_OUTPUT"
+          echo "mcpb=mcp/server/dist/$mcpb" >> "$GITHUB_OUTPUT"
+          echo "mcpb_checksum=mcp/server/dist/$mcpb.sha256" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: foldseek-server-mcp-v${{ steps.version.outputs.version }}
+          path: |
+            ${{ steps.artifact.outputs.runtime }}
+            ${{ steps.artifact.outputs.runtime_checksum }}
+            ${{ steps.artifact.outputs.mcpb }}
+            ${{ steps.artifact.outputs.mcpb_checksum }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish immutable assets on an MCP tag
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          RUNTIME: ${{ steps.artifact.outputs.runtime }}
+          RUNTIME_CHECKSUM: ${{ steps.artifact.outputs.runtime_checksum }}
+          MCPB: ${{ steps.artifact.outputs.mcpb }}
+          MCPB_CHECKSUM: ${{ steps.artifact.outputs.mcpb_checksum }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/published-mcp-runtime"
+            gh release download "$TAG" --dir "$RUNNER_TEMP/published-mcp-runtime" \
+              --pattern "$(basename "$RUNTIME")" --pattern "$(basename "$RUNTIME_CHECKSUM")" \
+              --pattern "$(basename "$MCPB")" --pattern "$(basename "$MCPB_CHECKSUM")"
+            cmp "$RUNTIME" "$RUNNER_TEMP/published-mcp-runtime/$(basename "$RUNTIME")"
+            cmp "$RUNTIME_CHECKSUM" "$RUNNER_TEMP/published-mcp-runtime/$(basename "$RUNTIME_CHECKSUM")"
+            cmp "$MCPB" "$RUNNER_TEMP/published-mcp-runtime/$(basename "$MCPB")"
+            cmp "$MCPB_CHECKSUM" "$RUNNER_TEMP/published-mcp-runtime/$(basename "$MCPB_CHECKSUM")"
+            echo "$TAG already carries these exact immutable assets"
+          else
+            gh release create "$TAG" "$RUNTIME" "$RUNTIME_CHECKSUM" "$MCPB" "$MCPB_CHECKSUM" --verify-tag \
+              --title "Foldseek MCP server v${VERSION}" \
+              --notes "Foldseek MCP distribution: a minimal Claude Code plugin runtime and the Claude Desktop MCPB used by Cowork."
+          fi

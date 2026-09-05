@@ -1,0 +1,124 @@
+{
+  "manifest_version": "0.3",
+  "name": "foldseek-server",
+  "display_name": "Foldseek Server",
+  "version": "0.1.0",
+  "description": "Search protein structures with Foldseek, align them with FoldMason, search 3D motifs with FoldDisco, and export results for analysis.",
+  "author": {
+    "name": "Steinegger Lab",
+    "url": "https://github.com/soedinglab/MMseqs2-App"
+  },
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/soedinglab/MMseqs2-App"
+  },
+  "keywords": [
+    "protein",
+    "structure",
+    "foldseek",
+    "alignment",
+    "bioinformatics"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "scripts/foldseek-server-mcp.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/scripts/foldseek-server-mcp.js"
+      ],
+      "env": {
+        "FOLDSEEK_SERVER_BASE_URL": "${user_config.base_url}",
+        "FOLDSEEK_SERVER_STATE_DIR": "${user_config.state_dir}",
+        "FOLDSEEK_SERVER_INPUT_DIRS": "${user_config.input_dir}",
+        "FOLDSEEK_SERVER_SHARED_DIR": "${user_config.shared_dir}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "list_databases",
+      "description": "Databases this server offers"
+    },
+    {
+      "name": "foldseek_search",
+      "description": "Search one monomer structure"
+    },
+    {
+      "name": "multimer_search",
+      "description": "Search a complex"
+    },
+    {
+      "name": "foldmason_msa",
+      "description": "Align two or more structures"
+    },
+    {
+      "name": "folddisco_search",
+      "description": "Search for a structural motif"
+    },
+    {
+      "name": "get_ticket_status",
+      "description": "Status of a submitted job"
+    },
+    {
+      "name": "get_result_summary",
+      "description": "Bounded summary of a finished result"
+    },
+    {
+      "name": "export_result",
+      "description": "Write the complete result to files"
+    },
+    {
+      "name": "select_hits",
+      "description": "Name a set of hits for forwarding"
+    },
+    {
+      "name": "select_msa_columns",
+      "description": "Name alignment columns and derive their motif"
+    },
+    {
+      "name": "send_to",
+      "description": "Forward a hit or selection into a new job"
+    }
+  ],
+  "user_config": {
+    "base_url": {
+      "type": "string",
+      "title": "Server URL",
+      "description": "Origin of the Foldseek Server deployment. Defaults to the public instance; change it to point at your own.",
+      "required": false,
+      "default": "https://search.foldseek.com"
+    },
+    "state_dir": {
+      "type": "directory",
+      "title": "State directory",
+      "description": "Where cached results, selections and exported artifacts are kept. Leave empty for ~/.foldseek-server. Artifact handles are only durable if this stays put.",
+      "required": false,
+      "default": ""
+    },
+    "shared_dir": {
+      "type": "directory",
+      "title": "Shared folder",
+      "description": "One folder shared with agent: exports/ for results and imports/ for structures. Leave empty to use foldseek-server-shared under your home directory.",
+      "required": false,
+      "default": ""
+    },
+    "input_dir": {
+      "type": "directory",
+      "title": "Readable input directory",
+      "description": "A further folder the server may read structure files from, never swept. Must not sit inside the shared folder. Optional.",
+      "required": false,
+      "default": ""
+    }
+  },
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32"
+    ],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}

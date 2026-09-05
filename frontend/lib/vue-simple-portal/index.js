@@ -1,6 +1,6 @@
 import Vue from 'vue'
-import Portal from './components/Portal'
-import config, { setSelector } from './config'
+import Portal from './components/Portal.js'
+import config, { setSelector } from './config.js'
 
 function install(_Vue, options = {}) {
   _Vue.component(options.name || 'portal', Portal)
