@@ -21,6 +21,14 @@ const TOOLS = [
     'select_hits', 'select_msa_columns', 'send_to',
 ];
 
+test('the shared folder defaults under the current user home', () => {
+    const homeDir = path.join(os.tmpdir(), 'foldseek-server-test-home');
+    const config = readConfigFromEnv({
+        FOLDSEEK_SERVER_BASE_URL: 'https://example.test',
+    }, { homeDir });
+    assert.equal(config.sharedDir, path.join(homeDir, 'foldseek-server-shared'));
+});
+
 test('the flag selects the transport, and refuses a guessed address', () => {
     assert.deepEqual(readTransportFromArgv([]), { kind: 'stdio' });
     assert.deepEqual(readTransportFromArgv(['--gc']), { kind: 'stdio' });
@@ -39,9 +47,11 @@ test('the flag selects the transport, and refuses a guessed address', () => {
 
 test('an http handshake serves the same eleven tools and reads a resource', async () => {
     const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-http-'));
+    const sharedDir = await fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-shared-'));
     const config = readConfigFromEnv({
         FOLDSEEK_SERVER_BASE_URL: 'https://example.test',
         FOLDSEEK_SERVER_STATE_DIR: stateDir,
+        FOLDSEEK_SERVER_SHARED_DIR: sharedDir,
     });
     // The fixture client, so no network is involved in the transport's own test.
     const built = createServer({ ...config, fetchImpl: fixtureFetch() });

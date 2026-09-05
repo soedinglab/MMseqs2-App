@@ -30,5 +30,19 @@ test('the Desktop manifest exposes the same tools and a self-contained entry poi
 
     const packer = await fs.readFile(path.join(SERVER, 'pack-mcpb.mjs'), 'utf8');
     assert.match(packer, /pack-plugin-runtime\.mjs/);
+    assert.match(packer, /foldseek-server-v\$\{packageJson\.version\}\.mcpb/);
     assert.doesNotMatch(packer, /npm[^\n]*install|node_modules/);
+
+    assert.equal(manifest.user_config.shared_dir.default, '');
+    assert.match(manifest.user_config.shared_dir.description, /under your home directory/);
+});
+
+test('the manual release builds both the plugin runtime and Desktop MCPB', async () => {
+    const workflow = await fs.readFile(path.join(SERVER, '../../.github/workflows/mcp-release.yml'), 'utf8');
+    assert.match(workflow, /^on:\n  workflow_dispatch:/m);
+    assert.doesNotMatch(workflow, /^  (?:push|schedule):/m);
+    assert.match(workflow, /npm run build:plugin-runtime --prefix mcp\/server/);
+    assert.match(workflow, /npm run build:mcpb --prefix mcp\/server/);
+    assert.match(workflow, /foldseek-server-plugin-runtime-v\$\{VERSION\}\.zip/);
+    assert.match(workflow, /foldseek-server-v\$\{VERSION\}\.mcpb/);
 });

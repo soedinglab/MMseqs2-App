@@ -8,7 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const out = process.argv[2] ?? path.join(HERE, 'dist', 'foldseek-server.mcpb');
+const packageJson = JSON.parse(await fs.readFile(path.join(HERE, 'package.json'), 'utf8'));
+const out = process.argv[2] ?? path.join(HERE, 'dist', `foldseek-server-v${packageJson.version}.mcpb`);
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
 
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-mcpb-'));

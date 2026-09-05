@@ -3,7 +3,7 @@
   "name": "foldseek-server",
   "display_name": "Foldseek Server",
   "version": "0.1.0",
-  "description": "Structure search against an MMseqs2-App backend: submit, inspect, export results as files, forward hits.",
+  "description": "Search protein structures with Foldseek, align them with FoldMason, search 3D motifs with FoldDisco, and export results for analysis.",
   "author": {
     "name": "Steinegger Lab",
     "url": "https://github.com/soedinglab/MMseqs2-App"
@@ -100,7 +100,7 @@
     "shared_dir": {
       "type": "directory",
       "title": "Shared folder",
-      "description": "One folder shared with Claude, in both directions: exports/ for result files, imports/ for structures you want searched. Pick a folder Claude can be granted. Leave empty to keep exports inside the state directory.",
+      "description": "One folder shared with agent: exports/ for results and imports/ for structures. Leave empty to use foldseek-server-shared under your home directory.",
       "required": false,
       "default": ""
     },

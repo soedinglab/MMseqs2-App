@@ -9,6 +9,7 @@ import {
     ErrorCode, McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { randomUUID } from 'node:crypto';
+import os from 'node:os';
 import path from 'node:path';
 
 import { createClient, parseInputDirs, ensureSharedDirs } from 'foldseek-server-lib';
@@ -86,7 +87,7 @@ export const RETIRED_ENV = {
     FOLDSEEK_SERVER_INPUT_QUOTA: 'nothing is uploaded now, so there is no upload quota',
 };
 
-export function readConfigFromEnv(env = process.env) {
+export function readConfigFromEnv(env = process.env, { homeDir = os.homedir() } = {}) {
     // Refuse retired variables instead of silently changing storage behavior.
     for (const [gone, now] of Object.entries(RETIRED_ENV)) {
         if (env[gone]) throw new Error(`${gone} is no longer read — ${now}`);
@@ -105,7 +106,7 @@ export function readConfigFromEnv(env = process.env) {
         baseUrl,
         app: env.FOLDSEEK_SERVER_APP || 'foldseek',
         stateDir: env.FOLDSEEK_SERVER_STATE_DIR || undefined,
-        sharedDir: env.FOLDSEEK_SERVER_SHARED_DIR || undefined,
+        sharedDir: env.FOLDSEEK_SERVER_SHARED_DIR || path.join(homeDir, 'foldseek-server-shared'),
         apiPath: env.FOLDSEEK_SERVER_API_PATH || undefined,
         basicAuth: user ? { user, pass: pass ?? '' } : null,
         resultRowCap: intFromEnv(env, 'FOLDSEEK_SERVER_RESULT_ROW_CAP',

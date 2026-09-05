@@ -94,7 +94,7 @@ export function prependRemark(pdbstr) {
     const isCif = pdbstr[0] === '#' || pdbstr.startsWith('data_');
     const prefix = isCif ? '# ' : 'REMARK  90 ';
     let firstline = `${prefix}This model is rebuilt with cg2all(https://github.com/huhlim/cg2all)`;
-    if (!isCif && firstline.length > 79) firstline = `${firstline.slice(76)}... `;
+    if (!isCif && firstline.length > 79) firstline = `${firstline.slice(0, 76)}... `;
     return `${firstline.padEnd(80, ' ')}\n${pdbstr}`;
 }
 

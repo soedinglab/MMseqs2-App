@@ -30,11 +30,11 @@ function isCif(text) {
 export function provenanceRemark(text, { accession, db = null, ticket = null }) {
     const prefix = isCif(text) ? '# ' : 'REMARK  99 ';
     let firstline = `${prefix}Accession: ${accession}${db ? `, DB: ${db}` : ''}`;
-    if (!isCif(text) && firstline.length > 79) firstline = `${firstline.slice(76)}... `;
+    if (!isCif(text) && firstline.length > 79) firstline = `${firstline.slice(0, 76)}... `;
 
     let second = '';
     if (ticket) {
-        const t = ticket.length > 55 ? `${ticket.slice(52)}...` : ticket;
+        const t = ticket.length > 55 ? `${ticket.slice(0, 52)}...` : ticket;
         second = `${prefix}${`Imported from ${t}`.padEnd(69, ' ')}\n`;
     }
     return `${firstline.padEnd(80, ' ')}\n${second}${text}`;

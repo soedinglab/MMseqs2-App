@@ -2,7 +2,7 @@
   "name": "foldseek-server-mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "Protein structure search for AI agents: Foldseek, FoldMason and FoldDisco as MCP tools over a Foldseek Server deployment, with results delivered as files.",
+  "description": "Search protein structures with Foldseek, align them with FoldMason, search 3D motifs with FoldDisco, and export reproducible result artifacts.",
   "keywords": [
     "mcp",
     "modelcontextprotocol",

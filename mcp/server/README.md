@@ -1,8 +1,10 @@
 # foldseek-server-mcp
 
-Node.js server implementing Model Context Protocol (MCP) for protein structure search — Foldseek,
-FoldMason and FoldDisco — against a [Foldseek Server](https://github.com/soedinglab/MMseqs2-App)
-deployment such as [search.foldseek.com](https://search.foldseek.com).
+Use Foldseek for monomer and complex structure search, FoldMason for multiple-structure alignment, and
+FoldDisco for 3D motif search through one Model Context Protocol (MCP) server. Results can be inspected
+as bounded summaries or exported as reproducible files for local analysis. It connects to a
+[Foldseek Server](https://github.com/soedinglab/MMseqs2-App) deployment such as
+[search.foldseek.com](https://search.foldseek.com).
 
 ## Features
 
@@ -21,15 +23,14 @@ deployment such as [search.foldseek.com](https://search.foldseek.com).
 The server is distributed as a Claude Desktop bundle and may also be bundled by a Claude plugin. It
 is not published to the npm registry. Requires Node.js 18+ when run from source.
 
-### Claude Desktop and local Cowork
+### Claude Desktop and Cowork
 
-Install `foldseek-server.mcpb` as a Desktop extension. Until a public release channel is approved, obtain
-the bundle from the project maintainer or build it from source as described below. During installation,
-choose the Foldseek Server deployment and, optionally, a shared folder for exported results and input
-structures. Local Cowork can use the Desktop extension; cloud Cowork cannot run a local stdio server.
+Install the versioned `foldseek-server-v<version>.mcpb` as a Desktop extension. The public Foldseek Server
+and a `foldseek-server-shared` folder under your home directory are the defaults; either can be changed
+during installation.
 
-Do not install the Desktop extension as well as a plugin that already bundles this server: that would
-register the same tools twice.
+For Claude Code, use either its plugin-bundled runtime or a manually registered checkout, not both in
+the same client. Cowork does not execute the runtime bundled by that plugin, so it needs the MCPB.
 
 ### Claude Code
 
@@ -57,8 +58,8 @@ npm ci --prefix mcp/server
 npm run build:mcpb --prefix mcp/server
 ```
 
-The bundle is written to `mcp/server/dist/foldseek-server.mcpb`. Building uses npm as the repository's
-dependency and task runner; it does not publish either package. The MCPB reuses the same
+The bundle is written to `mcp/server/dist/foldseek-server-v<version>.mcpb`. Building uses npm as the
+repository's dependency and task runner; it does not publish either package. The MCPB reuses the same
 self-contained runtime as the Claude plugin, so it contains no installed `node_modules` tree.
 
 ### Over HTTP
@@ -241,7 +242,8 @@ Arguments are not echoed: the ticket, entry and name you passed do not come back
 
 ### The shared folder
 
-`FOLDSEEK_SERVER_SHARED_DIR` names one directory both sides use, and derives two:
+`FOLDSEEK_SERVER_SHARED_DIR` names one directory both sides use. When unset it is
+`foldseek-server-shared` under the current user's home directory. It derives two:
 
 ```
 <shared>/exports    the server writes, you read     30 min
@@ -265,9 +267,9 @@ Exported files are readable as `foldseek-artifact://<artifactId>/<path>`. Small 
 map, tree — read directly; anything over `FOLDSEEK_SERVER_RESOURCE_MAX_BYTES` (16 KB) is refused, naming
 the path to open instead.
 
-Without a shared folder they sit in the state directory, which the client usually cannot read. A sandboxed
-client sees the shared folder at a mount of its own, so the descriptor carries `mountName`, `pathFromMount`
-and `ifUnreadable` to rebuild the path — join them to the mount. Grants are per session, and
+A same-filesystem client may use the descriptor's local paths after checking access. A cloud Cowork
+session instead stages the declared files through the Desktop device bridge and uses the staged paths;
+it never assumes the device path exists in the cloud VM. Grants are per session, and
 `localPathVerified` is always `false`.
 
 ## Configuration
@@ -278,7 +280,7 @@ Environment variables only.
 |---|---|---|
 | `FOLDSEEK_SERVER_BASE_URL` | **required** | deployment origin, e.g. `https://search.foldseek.com` |
 | `FOLDSEEK_SERVER_STATE_DIR` | `~/.foldseek-server` | cached results and selections |
-| `FOLDSEEK_SERVER_SHARED_DIR` | empty | one folder shared with the client: `exports/` out, `imports/` in |
+| `FOLDSEEK_SERVER_SHARED_DIR` | home directory + `foldseek-server-shared` | one folder shared with the client: `exports/` out, `imports/` in |
 | `FOLDSEEK_SERVER_INPUT_DIRS` | empty | further directories `queryRef` may read, never swept (`:` separated, `;` on Windows) |
 | `FOLDSEEK_SERVER_INPUT_TTL` | `1h` | how long a file in `imports/` is kept after last use |
 | `FOLDSEEK_SERVER_RESOURCE_MAX_BYTES` | `16k` | cap on one resource read |

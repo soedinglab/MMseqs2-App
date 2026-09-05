@@ -41,10 +41,11 @@ test('the plugin runtime is minimal, deterministic and serves the complete tool 
     assert.match(notices, /\bzod\b/);
 
     const state = path.join(temp, 'state');
+    const shared = path.join(temp, 'shared');
     const transport = new StdioClientTransport({
         command: path.join(unpacked, 'scripts', 'foldseek-server-mcp.js'),
         env: { ...process.env, FOLDSEEK_SERVER_BASE_URL: 'http://127.0.0.1:9',
-            FOLDSEEK_SERVER_STATE_DIR: state },
+            FOLDSEEK_SERVER_STATE_DIR: state, FOLDSEEK_SERVER_SHARED_DIR: shared },
         stderr: 'pipe',
     });
     const client = new Client({ name: 'plugin-runtime-test', version: '0' }, { capabilities: {} });
