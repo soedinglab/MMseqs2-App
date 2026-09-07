@@ -319,6 +319,8 @@ type ConfigRoot struct {
 	Local   ConfigLocal  `json:"local"`
 	Mail    ConfigMail   `json:"mail"`
 	Verbose bool         `json:"verbose"`
+	// Gfaidx enables read-only genome-graph queries without changing any MMseqs settings.
+	Gfaidx *ConfigGfaidx `json:"gfaidx,omitempty"`
 }
 
 func ReadConfigFromFile(name string) (ConfigRoot, error) {
@@ -397,6 +399,10 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 			&config.Paths.ColabFold.PdbObsolete,
 		)
 	}
+	// Resolve optional gfaidx paths with the same config-relative convention as existing binaries.
+	if config.Gfaidx != nil {
+		paths = append(paths, &config.Gfaidx.Binary, &config.Gfaidx.Registry)
+	}
 	for _, path := range paths {
 		if strings.HasPrefix(*path, "~") {
 			*path = strings.TrimLeft(*path, "~")
@@ -454,6 +460,23 @@ func (c *ConfigRoot) CheckPaths(types []JobType) error {
 	if c.App == AppColabFold {
 		if c.Paths.ColabFold == nil {
 			return errors.New("ColabFold paths are not set")
+		}
+	}
+
+	// Validate optional gfaidx resources only when the feature is configured.
+	if c.Gfaidx != nil {
+		// Command-line overrides are applied after JSON validation, so validate their numeric limits here too.
+		if c.Gfaidx.TimeoutSeconds < 0 {
+			return errors.New("gfaidx timeoutseconds must be 0 or greater")
+		}
+		if c.Gfaidx.MaxThreads < 0 {
+			return errors.New("gfaidx maxthreads must be 0 or greater")
+		}
+		if info, err := os.Stat(c.Gfaidx.Binary); err != nil || info.IsDir() {
+			return errors.New("gfaidx binary was not found at " + c.Gfaidx.Binary)
+		}
+		if _, err := loadGfaidxGraphRegistry(*c.Gfaidx); err != nil {
+			return err
 		}
 	}
 

@@ -10,3 +10,5 @@ pkg/
 resources/
 backend/.cache/
 .vscode/
+
+gfaidx_test/

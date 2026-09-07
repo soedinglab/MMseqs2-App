@@ -30,6 +30,8 @@ const (
 	JobInterfaceSearch JobType = "interfacesearch"
 	JobFoldMasonMSA    JobType = "foldmasoneasymsa"
 	JobFoldDisco       JobType = "folddisco"
+	// JobGfaidx runs one validated read-only query against a registered genome graph.
+	JobGfaidx JobType = "gfaidx"
 )
 
 var AllJobTypes = []JobType{
@@ -44,6 +46,7 @@ var AllJobTypes = []JobType{
 	JobInterfaceSearch,
 	JobFoldMasonMSA,
 	JobFoldDisco,
+	JobGfaidx,
 }
 
 func (t JobType) Valid() bool {
@@ -189,6 +192,14 @@ func (m *JobRequest) UnmarshalJSON(b []byte) error {
 		return nil
 	case JobFoldDisco:
 		var j FoldDiscoJob
+		if err := json.Unmarshal(msg, &j); err != nil {
+			return err
+		}
+		(*m).Job = j
+		return nil
+	case JobGfaidx:
+		// Restore the concrete job type so workers can dispatch persisted and remote jobs.
+		var j GfaidxJob
 		if err := json.Unmarshal(msg, &j); err != nil {
 			return err
 		}

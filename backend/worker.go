@@ -175,6 +175,9 @@ func ismmCIFFile(filePath string) (bool, error) {
 func RunJob(request JobRequest, config ConfigRoot) (err error) {
 	start := time.Now()
 	switch job := request.Job.(type) {
+	case GfaidxJob:
+		// Keep gfaidx execution isolated from all existing MMseqs and Foldseek cases.
+		return RunGfaidxJob(job, request.Id, config)
 	case SearchJob:
 		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 		var wg sync.WaitGroup
