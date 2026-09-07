@@ -34,12 +34,48 @@ func decodeGfaidxRequest(w http.ResponseWriter, req *http.Request, target interf
 	return nil
 }
 
-// RegisterGfaidxApi installs only the optional gfaidx submission and result
-// endpoints. It does not replace or alter existing MMseqs API handlers.
+// RegisterGfaidxApi installs only the optional gfaidx discovery, submission,
+// and result endpoints. It does not replace or alter existing MMseqs handlers.
 func RegisterGfaidxApi(r *mux.Router, jobsystem JobSystem, config ConfigRoot, submit gfaidxSubmitJobFunc) {
 	if config.Gfaidx == nil {
 		return
 	}
+
+	// GET /gfaidx/graphs returns public graph metadata without server paths.
+	r.HandleFunc("/gfaidx/graphs", func(w http.ResponseWriter, req *http.Request) {
+		graphs, err := loadGfaidxGraphRegistry(*config.Gfaidx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		if err := json.NewEncoder(w).Encode(publicGfaidxGraphs(graphs)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}).Methods(http.MethodGet)
+
+	// GET /gfaidx/graphs/{graph_id}/region-paths returns coordinate tracks for get_region.
+	r.HandleFunc("/gfaidx/graphs/{graph_id}/region-paths", func(w http.ResponseWriter, req *http.Request) {
+		graph, err := resolveGfaidxGraph(mux.Vars(req)["graph_id"], *config.Gfaidx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		paths, err := listGfaidxRegionPaths(graph, *config.Gfaidx)
+		if err != nil {
+			var timeout *JobTimeoutError
+			if errors.As(err, &timeout) {
+				http.Error(w, "gfaidx path listing timed out", http.StatusGatewayTimeout)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		if err := json.NewEncoder(w).Encode(paths); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}).Methods(http.MethodGet)
 
 	// POST /ticket/gfaidx/subgraph creates a queued get_subgraph job.
 	r.HandleFunc("/ticket/gfaidx/subgraph", func(w http.ResponseWriter, req *http.Request) {

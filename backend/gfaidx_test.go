@@ -205,3 +205,67 @@ func TestGfaidxApiRejectsUnknownJSONFields(t *testing.T) {
 		t.Fatalf("status = %d, body = %q", recorder.Code, recorder.Body.String())
 	}
 }
+
+// TestGfaidxGraphDiscovery verifies the public graph-list response and ensures
+// that its server-controlled filesystem path is never exposed.
+func TestGfaidxGraphDiscovery(t *testing.T) {
+	gfaidxConfig, graphPath := newTestGfaidxConfig(t)
+	config := ConfigRoot{Paths: ConfigPaths{Results: t.TempDir()}, Gfaidx: &gfaidxConfig}
+	router := mux.NewRouter()
+	RegisterGfaidxApi(router, nil, config, func(http.ResponseWriter, *http.Request, JobRequest) {})
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/gfaidx/graphs", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("graph discovery status = %d, body = %q", recorder.Code, recorder.Body.String())
+	}
+	var graphs []GfaidxGraphInfo
+	if err := json.NewDecoder(recorder.Body).Decode(&graphs); err != nil {
+		t.Fatal(err)
+	}
+	want := []GfaidxGraphInfo{{ID: "example", Name: "Example graph", Description: "Test graph"}}
+	if !reflect.DeepEqual(graphs, want) {
+		t.Fatalf("graphs = %#v, want %#v", graphs, want)
+	}
+	if strings.Contains(recorder.Body.String(), graphPath) {
+		t.Fatal("graph discovery response exposed its server filesystem path")
+	}
+}
+
+// TestGfaidxRegionPathParsing covers the gfaidx TSV-to-JSON conversion used by
+// the synchronous discovery endpoint without executing an external binary.
+func TestGfaidxRegionPathParsing(t *testing.T) {
+	output := "gfaidx informational output\n" +
+		"source\treference\thaplotype\tsequence\tstart\tend\tentries\tcoordinate_access\n" +
+		"W\tCHM13\t0\tchr22\t0\t51324926\t1439527\ton_the_fly\n"
+	paths, err := parseGfaidxRegionPaths(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []GfaidxRegionPath{{
+		Source: "W", Reference: "CHM13", Haplotype: "0", Sequence: "chr22",
+		Start: 0, End: 51324926, Entries: 1439527,
+		Label: "CHM13 hap0 chr22 (0-51324926)",
+	}}
+	if !reflect.DeepEqual(paths, want) {
+		t.Fatalf("region paths = %#v, want %#v", paths, want)
+	}
+	if _, err := parseGfaidxRegionPaths("not a table\n"); err == nil {
+		t.Fatal("invalid region path output was accepted")
+	}
+}
+
+// TestGfaidxRegionPathCommand verifies that metadata discovery uses only the
+// registered graph path and the supported get_region listing flag.
+func TestGfaidxRegionPathCommand(t *testing.T) {
+	config, graphPath := newTestGfaidxConfig(t)
+	graph, err := resolveGfaidxGraph("example", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := gfaidxRegionPathCommand(graph, config)
+	want := []string{config.Binary, "get_region", graphPath, "--print_path_names"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("command = %#v, want %#v", got, want)
+	}
+}
