@@ -162,13 +162,12 @@ import { storage, HistoryMixin } from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
 import Databases from './Databases.vue';
 import QueryTextarea from "./QueryTextarea.vue";
-import SearchApiMixin from "./SearchApiMixin.vue";
 const db = BlobDatabase();
 
 export default {
     name: "search",
     tool: __APP__,
-    mixins: [ HistoryMixin, SearchApiMixin ],
+    mixins: [ HistoryMixin ],
     components: { 
         Panel,
         FileButton,
@@ -260,16 +259,6 @@ export default {
         },
     },
     methods: {
-        searchApiConfig() {
-            return {
-                tool: __APP__ === 'mmseqs' ? 'mmseqs' : 'foldseek',
-                modeInfix: '', modeValuePrefix: '',
-                accessionExtras: [], sendsMode: true,
-                needsQueryStructure: false,
-                supportsTaxonomy: true,
-                supportsIterative: __APP__ === 'foldseek',
-            };
-        },
         async search() {
             var request = {
                 q: this.query,
