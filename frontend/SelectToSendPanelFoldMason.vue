@@ -68,6 +68,7 @@ import { StorageWrapper} from './lib/HistoryMixin.js';
 import { BlobDatabase } from './lib/BlobDatabase.js';
 import { pulchra } from 'pulchra-wasm';
 import AllAtomPredictMixin from './AllAtomPredictMixin.vue';
+import { structureRemarkLine, structureRemarkPrefix } from './lib/structureRemark.js';
 
 const localDb = BlobDatabase()
 
@@ -184,14 +185,8 @@ export default {
             this.$emit('clearAll')
         },
         prependInformation(structure, accession) {
-            let prefix = 'REMARK  99 '
-            let firstline = prefix + 'Accession: ' + accession
-            if (firstline.length > 79) {
-                firstline = firstline.slice(76) + '... '
-            }
-
-            firstline = firstline.padEnd(80, ' ') + '\n' + prefix + this.remarkStr
-            return firstline + structure
+            const line = structureRemarkLine(structure, `Accession: ${accession}`, 99)
+            return line + '\n' + structureRemarkPrefix(structure, 99) + this.remarkStr + structure
         },
         async getMockPdb(entry) {
             const mock = mockPDB(entry.ca, entry.aa.replace(/-/g, ''), 'A');

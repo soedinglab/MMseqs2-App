@@ -91,6 +91,7 @@
 import { StorageWrapper} from './lib/HistoryMixin.js';
 import { encodeMultimer, getAccession, makeCgPDBFromText, mockPDB, sleep, storeChains } from './Utilities';
 import { BlobDatabase } from './lib/BlobDatabase';
+import { structureRemarkLine, structureRemarkPrefix } from './lib/structureRemark.js';
 
 const localDb = BlobDatabase()
 
@@ -420,19 +421,8 @@ export default {
             this.$emit('clearAll')
         },
         prependRemark(structure, accession, db) {
-            let is_cif = false
-            if (structure[0] == '#' || structure.startsWith('data_')) {
-                is_cif = true
-            }
-            
-            let prefix = is_cif ? '# ' : 'REMARK  99 '
-            let firstline = prefix + 'Accession: ' + accession + ', DB: ' + db
-            if (!is_cif && firstline.length > 79) {
-                firstline = firstline.slice(76) + '... '
-            }
-
-            firstline = firstline.padEnd(80, ' ') + '\n' + prefix + this.remarkStr
-            return firstline + structure
+            const line = structureRemarkLine(structure, `Accession: ${accession}, DB: ${db}`, 99)
+            return line + '\n' + structureRemarkPrefix(structure, 99) + this.remarkStr + structure
         },
         toggleIncludeQuery() {
             this.includeQuery = !this.includeQuery

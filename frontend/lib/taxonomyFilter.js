@@ -1,10 +1,5 @@
 // Taxonomy subtree expansion over a kraken-style report.
-//
-// `entry.taxonomyreports[0]` is a flat array in depth-first order:
-//   { taxon_id, name, rank, depth, proportion, clade_reads, taxon_reads }
-// A node's descendants are therefore the rows that follow it with a greater `depth`, up to the
-// first row that is not deeper. This is the logic SankeyDiagram.findChildren implements against
-// its parsed nodes; extracted here so the API can expand a subtree whether or not the diagram
+// Extracted here so the API can expand a subtree whether or not the diagram
 // has ever been rendered, and so both use the same definition.
 
 /** Row for a taxon id, or null. Ids are compared as strings — the report stores them that way. */
