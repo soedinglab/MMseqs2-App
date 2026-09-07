@@ -1,11 +1,4 @@
 // Where does a ticket's result live?
-//
-// This mapping existed twice — History.vue (keyed by normalised UI type) and Queue.vue (keyed by
-// raw backend type) — so it lives here once and both import it, along with the ticket-navigation
-// API. Same reason resultSort.js and accession.js exist.
-//
-// The important trick is History's fallback: when the type is not known, route to /queue/<id> and
-// let Queue.vue resolve the type and redirect. That means a caller never has to know the type.
 
 /** Sentinel for a COMPLETE job whose type we do not render a dedicated avatar for. */
 export const RAW_TYPE = 'raw';
@@ -49,13 +42,7 @@ export function routeNameForType(uiType) {
     }
 }
 
-/**
- * Accept either spelling of a type and return the normalised UI one.
- *
- * Both spellings are in circulation: the type store caches normalised types while
- * `api/ticket/type/{id}` returns raw backend ones. Anything unmappable comes back as RAW_TYPE.
- * Idempotent, so it is safe to apply to a value that has already been through it.
- */
+// Accept either spelling of a type and return the normalised UI one.
 export function asUiType(type) {
     if (!type) {
         return RAW_TYPE;
@@ -63,13 +50,7 @@ export function asUiType(type) {
     return routeNameForType(type) ? type : normalizeJobType(type);
 }
 
-/**
- * Route descriptor for a ticket.
- *
- * `type` may be a normalised UI type OR a raw backend type — both are accepted, since History
- * caches the former and `api/ticket/type/{id}` returns the latter. Unknown or absent type falls
- * back to the queue, which resolves and redirects on its own.
- */
+//Route descriptor for a ticket.
 export function routeForTicket(ticket, type = null, { entry = 0 } = {}) {
     const ui = type ? asUiType(type) : null;
     const name = ui ? routeNameForType(ui) : null;
