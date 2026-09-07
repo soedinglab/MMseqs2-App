@@ -1,5 +1,6 @@
 <script>
 import axios from 'axios'
+import { structureRemarkLine } from './lib/structureRemark.js'
 
 export default {
     name : 'AllAtomPredictMixin',
@@ -42,19 +43,9 @@ export default {
             }
         },
         prependRemark(pdbstr) {
-            let is_cif = false
-            if (pdbstr[0] == '#' || pdbstr.startsWith('data_')) {
-                is_cif = true
-            }
-            
-            let prefix = is_cif ? '# ' : 'REMARK  90 '
-            let firstline = prefix + 'This model is rebuilt with cg2all(https://github.com/huhlim/cg2all)'
-            if (!is_cif && firstline.length > 79) {
-                firstline = firstline.slice(76) + '... '
-            }
-
-            firstline = firstline.padEnd(80, ' ') + '\n'
-            return firstline + pdbstr
+            return structureRemarkLine(
+                pdbstr, 'This model is rebuilt with cg2all(https://github.com/huhlim/cg2all)', 90
+            ) + '\n' + pdbstr
         },
     }
 }

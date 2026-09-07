@@ -1,6 +1,6 @@
 import Vue from 'vue'
-import config, { isBrowser } from '../config'
-import TargetContainer from './TargetContainer'
+import config, { isBrowser } from '../config.js'
+import TargetContainer from './TargetContainer.js'
 
 export default Vue.extend({
   name: 'VueSimplePortal',
