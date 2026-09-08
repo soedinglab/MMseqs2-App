@@ -31,7 +31,7 @@ const NAME = { type: 'string', description: 'Selection name; default "default".'
 const ACCESSION = {
     type: ['string', 'object'],
     description: 'An id, or {id, source, autoMotif}, fetched instead of passing text. ' +
-                 'A PDB id brings its Q-BioLiP motif.',
+                 'Set autoMotif: true to request a Q-BioLiP motif for a PDB id used by Folddisco.',
     properties: {
         id: { type: 'string' },
         source: { type: 'string', enum: ['PDB', 'AlphaFoldDB', 'BFVD'] },
