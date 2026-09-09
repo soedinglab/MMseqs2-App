@@ -32,6 +32,77 @@ docker-compose up
 
 You can now navigate with a web browser to your server's IP address and use the MMseqs2 Search Server.
 
+### Serving indexed genome graphs with gfaidx
+
+The backend image includes the `gfaidx` executable, but its HTTP API is opt-in.
+Enable it with the gfaidx Compose overlay:
+
+```
+docker-compose -f docker-compose.yml -f docker-compose.gfaidx.yml up
+```
+
+Set `GFAIDX_DB_PATH` in `.env` to a host directory containing query-ready,
+indexed graphs. The directory is mounted read-only in both the API and worker
+containers; gfaidx indexing must be completed before starting the server.
+`GFAIDX_TIMEOUT_SECONDS` limits each extraction's runtime, and
+`GFAIDX_MAX_THREADS` caps the thread count accepted from a request.
+
+Each graph is registered by a JSON `<graph-id>.params` file. The params
+filename, without `.params`, is the stable ID accepted by browser requests.
+`path` must be relative to the mounted directory, and absolute server paths are
+never returned by the API.
+
+```
+gfaidx-databases/
+├── hprc_v2_mc.params
+├── hprc_v2_mc.indexed.gfa.gz
+├── hprc_v2_mc.indexed.gfa.gz.idx
+├── hprc_v2_mc.indexed.gfa.gz.ndx
+├── hprc_v2_mc.indexed.gfa.gz.lnx
+├── hprc_v2_mc.indexed.gfa.gz.pdx
+└── hprc_v2_mc.indexed.gfa.gz.pcx
+```
+
+Example `hprc_v2_mc.params`:
+
+```json
+{
+  "name": "HPRC v2 Minigraph-Cactus",
+  "description": "HPRC release 2 pangenome graph",
+  "version": "v2",
+  "path": "hprc_v2_mc.indexed.gfa.gz"
+}
+```
+
+The `.idx`, `.ndx`, and `.pdx` companions are needed by the supported queries.
+The `.lnx` and `.pcx` files support efficient coordinate-aware queries, while
+`.cdx` is optional when gfaidx can resolve coordinates from `.pdx` and `.lnx`.
+Only files with a valid `.params` entry are exposed.
+
+For a local source build, combine the normal development and gfaidx overlays:
+
+```
+GFAIDX_DB_PATH=/absolute/path/to/indexed-graphs \
+docker-compose \
+  -f docker-compose.yml \
+  -f docker-compose-dev.yml \
+  -f docker-compose.gfaidx.yml \
+  up --build
+```
+
+Check the installed binary, public graph list, and read-only mount:
+
+```
+docker-compose -f docker-compose.yml -f docker-compose.gfaidx.yml exec mmseqs-web-api gfaidx --version
+curl http://127.0.0.1:${PORT}/api/gfaidx/graphs
+docker-compose -f docker-compose.yml -f docker-compose.gfaidx.yml exec mmseqs-web-worker touch /opt/mmseqs-web/gfaidx-databases/write-test
+```
+
+The final command should fail with a read-only filesystem error. A complete
+queue test submits a request to `/api/ticket/gfaidx/region` or
+`/api/ticket/gfaidx/subgraph`, polls `/api/ticket/{ticket}`, and downloads the
+finished GFA from `/api/result/gfaidx/{ticket}`.
+
 ### Running searches on the GPU
 
 GPU support is opt-in through an additional compose file:

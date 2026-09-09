@@ -43,7 +43,7 @@ func RegisterGfaidxApi(r *mux.Router, jobsystem JobSystem, config ConfigRoot, su
 
 	// GET /gfaidx/graphs returns public graph metadata without server paths.
 	r.HandleFunc("/gfaidx/graphs", func(w http.ResponseWriter, req *http.Request) {
-		graphs, err := loadGfaidxGraphRegistry(*config.Gfaidx)
+		graphs, err := loadGfaidxDatabases(*config.Gfaidx)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

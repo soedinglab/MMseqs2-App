@@ -76,6 +76,27 @@ ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-gpu-arm64.tar.gz .
 
 FROM $downloader AS downloader
 
+# Build gfaidx from a pinned source revision on Docker's target platform. This
+# keeps the existing multi-architecture backend images usable on amd64 and arm64.
+FROM debian:stable-slim AS gfaidx-builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential ca-certificates cmake wget zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# This published commit reports version 1.9.7 and contains the query threading
+# and haplotype-gap options accepted by the backend API.
+ARG GFAIDX_REF=1e4bfee8f33af5bac33ef7dec61f01cef7017484
+ARG GFAIDX_SHA256=7619b703f7b21a80a92da09e161acbe116fb04c9fc9193026ce35180c2fa1929
+RUN wget -q -O /tmp/gfaidx.tar.gz \
+    "https://github.com/fawaz-dabbaghieh/gfaidx/archive/${GFAIDX_REF}.tar.gz" \
+    && echo "$GFAIDX_SHA256  /tmp/gfaidx.tar.gz" | sha256sum -c - \
+    && mkdir -p /opt/build/gfaidx-source \
+    && tar -xzf /tmp/gfaidx.tar.gz --strip-components=1 -C /opt/build/gfaidx-source
+RUN cmake -S /opt/build/gfaidx-source -B /opt/build/gfaidx-build \
+    -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+    && cmake --build /opt/build/gfaidx-build --parallel \
+    && cmake --install /opt/build/gfaidx-build --prefix /opt/gfaidx
+
 FROM --platform=$BUILDPLATFORM golang:latest AS builder
 ARG TARGETARCH
 ARG FRONTEND_APP
@@ -139,7 +160,13 @@ RUN mkdir -p binaries; \
 FROM debian:stable-slim
 LABEL maintainer="Milot Mirdita <milot@mirdita.de>"
 
-RUN apt-get update && apt-get install -y ca-certificates wget aria2 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ca-certificates wget aria2 libstdc++6 zlib1g && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /opt/build/mmseqs-web /opt/build/binaries/* /usr/local/bin/
+COPY --from=gfaidx-builder /opt/gfaidx/bin/gfaidx /usr/local/bin/gfaidx
+COPY --from=gfaidx-builder /opt/build/gfaidx-source/LICENSE /usr/share/doc/gfaidx/LICENSE
+
+# Fail the image build immediately if the copied binary or runtime libraries
+# are unusable on the selected target architecture.
+RUN /usr/local/bin/gfaidx --version
 
 ENTRYPOINT ["/usr/local/bin/mmseqs-web"]

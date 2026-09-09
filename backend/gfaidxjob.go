@@ -1,13 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,9 +19,18 @@ import (
 // binaries and graph metadata. Browser requests never contain these paths.
 type ConfigGfaidx struct {
 	Binary         string `json:"binary" validate:"required"`
-	Registry       string `json:"registry" validate:"required"`
+	Databases      string `json:"databases" validate:"required"`
 	TimeoutSeconds int    `json:"timeoutseconds" validate:"omitempty,gte=1"`
 	MaxThreads     int    `json:"maxthreads" validate:"omitempty,gte=1"`
+}
+
+// GfaidxParams is the server-owned metadata stored in one <graph-id>.params
+// file. Path must be relative to the configured gfaidx database directory.
+type GfaidxParams struct {
+	Name        string `json:"name" validate:"required"`
+	Description string `json:"description,omitempty"`
+	Version     string `json:"version,omitempty"`
+	Path        string `json:"path" validate:"required"`
 }
 
 // GfaidxGraph is one read-only indexed graph exposed through its public ID.
@@ -126,106 +134,80 @@ func effectiveGfaidxThreads(requested int, config ConfigGfaidx) (int, error) {
 	return requested, nil
 }
 
-// loadGfaidxGraphRegistry reads the server-controlled TSV registry. Relative
-// graph paths are interpreted relative to the registry file, matching the
-// graphviz_wasm prototype's behavior.
-func loadGfaidxGraphRegistry(config ConfigGfaidx) (map[string]GfaidxGraph, error) {
-	file, err := os.Open(config.Registry)
+// loadGfaidxDatabases discovers graphs through <graph-id>.params files, like
+// the existing MMseqs database convention, without using its mutable metadata.
+func loadGfaidxDatabases(config ConfigGfaidx) (map[string]GfaidxGraph, error) {
+	databaseDir, err := filepath.Abs(filepath.Clean(config.Databases))
 	if err != nil {
-		return nil, fmt.Errorf("open gfaidx graph registry: %w", err)
+		return nil, errors.New("resolve gfaidx database directory")
 	}
-	defer file.Close()
-
-	reader := csv.NewReader(file)
-	reader.Comma = '\t'
-	reader.FieldsPerRecord = -1
-	reader.TrimLeadingSpace = true
-
-	header, err := reader.Read()
+	matches, err := filepath.Glob(filepath.Join(databaseDir, "*.params"))
 	if err != nil {
-		return nil, fmt.Errorf("read gfaidx graph registry header: %w", err)
-	}
-	columns := make(map[string]int, len(header))
-	for index, name := range header {
-		columns[strings.TrimSpace(name)] = index
-	}
-	for _, required := range []string{"graph_id", "display_name", "path"} {
-		if _, ok := columns[required]; !ok {
-			return nil, fmt.Errorf("gfaidx graph registry is missing %q column", required)
-		}
+		return nil, errors.New("scan gfaidx database directory")
 	}
 
-	registryDir := filepath.Dir(config.Registry)
-	graphs := make(map[string]GfaidxGraph)
-	for line := 2; ; line++ {
-		record, err := reader.Read()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("read gfaidx graph registry line %d: %w", line, err)
-		}
-		if len(record) == 0 || (len(record) == 1 && strings.TrimSpace(record[0]) == "") {
-			continue
-		}
-
-		// value returns an empty string for an absent optional column or field.
-		value := func(name string) string {
-			index, ok := columns[name]
-			if !ok || index >= len(record) {
-				return ""
-			}
-			return strings.TrimSpace(record[index])
-		}
-
-		id := value("graph_id")
-		displayName := value("display_name")
-		rawPath := value("path")
-		if id == "" || displayName == "" || rawPath == "" {
-			return nil, fmt.Errorf("gfaidx graph registry line %d is incomplete", line)
-		}
+	graphs := make(map[string]GfaidxGraph, len(matches))
+	for _, paramsPath := range matches {
+		paramsName := filepath.Base(paramsPath)
+		id := strings.TrimSuffix(paramsName, filepath.Ext(paramsName))
 		if !validGfaidxGraphID.MatchString(id) {
-			return nil, fmt.Errorf("gfaidx graph registry line %d has invalid graph ID", line)
-		}
-		if _, exists := graphs[id]; exists {
-			return nil, fmt.Errorf("gfaidx graph registry contains duplicate graph ID %q", id)
+			return nil, fmt.Errorf("gfaidx params %q has an invalid graph ID", paramsName)
 		}
 
-		graphPath := rawPath
-		if !filepath.IsAbs(graphPath) {
-			graphPath = filepath.Join(registryDir, graphPath)
-		}
-		graphPath, err = filepath.Abs(graphPath)
+		file, err := os.Open(paramsPath)
 		if err != nil {
-			return nil, fmt.Errorf("resolve gfaidx graph %q: %w", id, err)
+			return nil, fmt.Errorf("open gfaidx params %q", paramsName)
+		}
+		var params GfaidxParams
+		decodeErr := DecodeJsonAndValidate(bufio.NewReader(file), &params)
+		closeErr := file.Close()
+		if decodeErr != nil {
+			return nil, fmt.Errorf("read gfaidx params %q: %w", paramsName, decodeErr)
+		}
+		if closeErr != nil {
+			return nil, fmt.Errorf("close gfaidx params %q", paramsName)
+		}
+
+		rawPath := strings.TrimSpace(params.Path)
+		if filepath.IsAbs(rawPath) {
+			return nil, fmt.Errorf("gfaidx params %q must use a relative graph path", paramsName)
+		}
+		graphPath := filepath.Clean(filepath.Join(databaseDir, rawPath))
+		relativePath, err := filepath.Rel(databaseDir, graphPath)
+		if err != nil || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+			return nil, fmt.Errorf("gfaidx params %q points outside the database directory", paramsName)
 		}
 
 		graph := GfaidxGraph{
 			ID:          id,
-			DisplayName: displayName,
-			Path:        filepath.Clean(graphPath),
-			Description: value("description"),
-			Version:     value("version"),
+			DisplayName: strings.TrimSpace(params.Name),
+			Path:        graphPath,
+			Description: strings.TrimSpace(params.Description),
+			Version:     strings.TrimSpace(params.Version),
+		}
+		if graph.DisplayName == "" {
+			return nil, fmt.Errorf("gfaidx params %q has an empty graph name", paramsName)
+		}
+		if info, statErr := os.Stat(graph.Path); statErr != nil || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("inspect gfaidx graph %q: indexed graph was not found", id)
 		}
 		if graph.Version == "" {
 			graph.Version, err = deriveGfaidxGraphVersion(graph.Path)
 			if err != nil {
-				return nil, fmt.Errorf("inspect gfaidx graph %q: %w", id, err)
+				return nil, fmt.Errorf("inspect gfaidx graph %q: indexed graph or sidecar could not be read", id)
 			}
-		} else if _, err := os.Stat(graph.Path); err != nil {
-			return nil, fmt.Errorf("inspect gfaidx graph %q: %w", id, err)
 		}
 		graphs[id] = graph
 	}
 
 	if len(graphs) == 0 {
-		return nil, errors.New("gfaidx graph registry contains no graphs")
+		return nil, errors.New("gfaidx database directory contains no .params files")
 	}
 	return graphs, nil
 }
 
 // deriveGfaidxGraphVersion fingerprints the indexed graph and known sidecars
-// when the registry does not provide an explicit deployment version.
+// when the params file does not provide an explicit deployment version.
 func deriveGfaidxGraphVersion(graphPath string) (string, error) {
 	h := sha256.New()
 	found := false
@@ -250,13 +232,13 @@ func deriveGfaidxGraphVersion(graphPath string) (string, error) {
 }
 
 // resolveGfaidxGraph converts a public graph ID into its server-controlled
-// registry entry and rejects unknown graph selections.
+// database entry and rejects unknown graph selections.
 func resolveGfaidxGraph(graphID string, config ConfigGfaidx) (GfaidxGraph, error) {
 	graphID = strings.TrimSpace(graphID)
 	if !validGfaidxGraphID.MatchString(graphID) {
 		return GfaidxGraph{}, errors.New("invalid graph ID")
 	}
-	graphs, err := loadGfaidxGraphRegistry(config)
+	graphs, err := loadGfaidxDatabases(config)
 	if err != nil {
 		return GfaidxGraph{}, err
 	}

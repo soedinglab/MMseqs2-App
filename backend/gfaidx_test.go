@@ -8,36 +8,65 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
 )
 
-// newTestGfaidxConfig creates a complete server-controlled graph registry
+// newTestGfaidxConfig creates a complete server-controlled graph database
 // without depending on the developer's ignored integration-test data.
 func newTestGfaidxConfig(t *testing.T) (ConfigGfaidx, string) {
 	t.Helper()
-	base := t.TempDir()
-	graphPath := filepath.Join(base, "graphs", "example.gfa.gz")
-	if err := os.MkdirAll(filepath.Dir(graphPath), 0755); err != nil {
-		t.Fatal(err)
-	}
+	databaseDir := t.TempDir()
+	graphPath := filepath.Join(databaseDir, "example.gfa.gz")
 	if err := os.WriteFile(graphPath, []byte("indexed graph"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	registryPath := filepath.Join(base, "graphs.tsv")
-	registry := "graph_id\tdisplay_name\tpath\tdescription\tversion\n" +
-		"example\tExample graph\tgraphs/example.gfa.gz\tTest graph\tv1\n"
-	if err := os.WriteFile(registryPath, []byte(registry), 0644); err != nil {
+	params := `{"name":"Example graph","description":"Test graph","version":"v1","path":"example.gfa.gz"}`
+	if err := os.WriteFile(filepath.Join(databaseDir, "example.params"), []byte(params), 0644); err != nil {
 		t.Fatal(err)
 	}
 	return ConfigGfaidx{
 		Binary:         "/server/bin/gfaidx",
-		Registry:       registryPath,
+		Databases:      databaseDir,
 		TimeoutSeconds: 30,
 		MaxThreads:     4,
 	}, graphPath
+}
+
+// TestGfaidxDatabaseDiscoveryRequiresParams ensures unregistered graph files
+// are not exposed merely because they exist in the mounted directory.
+func TestGfaidxDatabaseDiscoveryRequiresParams(t *testing.T) {
+	databaseDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(databaseDir, "orphan.gfa.gz"), []byte("graph"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := loadGfaidxDatabases(ConfigGfaidx{Databases: databaseDir})
+	if err == nil || !strings.Contains(err.Error(), "no .params") {
+		t.Fatalf("unregistered graph discovery error = %v", err)
+	}
+}
+
+// TestGfaidxDatabaseDiscoveryRejectsEscapingPaths keeps server metadata
+// portable and prevents a params file from selecting data outside its mount.
+func TestGfaidxDatabaseDiscoveryRejectsEscapingPaths(t *testing.T) {
+	for name, graphPath := range map[string]string{
+		"absolute": filepath.Join(t.TempDir(), "outside.gfa.gz"),
+		"parent":   "../outside.gfa.gz",
+	} {
+		t.Run(name, func(t *testing.T) {
+			databaseDir := t.TempDir()
+			params := `{"name":"Escaping graph","path":` + strconv.Quote(graphPath) + `}`
+			if err := os.WriteFile(filepath.Join(databaseDir, "escape.params"), []byte(params), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := loadGfaidxDatabases(ConfigGfaidx{Databases: databaseDir}); err == nil {
+				t.Fatalf("escaping graph path %q was accepted", graphPath)
+			}
+		})
+	}
 }
 
 // TestGfaidxSubgraphJob verifies request normalization, deterministic tickets,

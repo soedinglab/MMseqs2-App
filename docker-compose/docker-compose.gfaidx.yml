@@ -1,0 +1,26 @@
+# This optional overlay enables the gfaidx API without changing installations
+# that only serve MMseqs2 or Foldseek searches.
+services:
+  mmseqs-web-api:
+    command: >
+      -server
+      -config /etc/mmseqs-web/config.json
+      -app ${APP}
+      -gfaidx.binary /usr/local/bin/gfaidx
+      -gfaidx.databases /opt/mmseqs-web/gfaidx-databases
+      -gfaidx.timeoutseconds ${GFAIDX_TIMEOUT_SECONDS:-120}
+      -gfaidx.maxthreads ${GFAIDX_MAX_THREADS:-2}
+    volumes:
+      - ${GFAIDX_DB_PATH}:/opt/mmseqs-web/gfaidx-databases:ro
+
+  mmseqs-web-worker:
+    command: >
+      -worker
+      -config /etc/mmseqs-web/config.json
+      -app ${APP}
+      -gfaidx.binary /usr/local/bin/gfaidx
+      -gfaidx.databases /opt/mmseqs-web/gfaidx-databases
+      -gfaidx.timeoutseconds ${GFAIDX_TIMEOUT_SECONDS:-120}
+      -gfaidx.maxthreads ${GFAIDX_MAX_THREADS:-2}
+    volumes:
+      - ${GFAIDX_DB_PATH}:/opt/mmseqs-web/gfaidx-databases:ro

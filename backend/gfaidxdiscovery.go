@@ -66,7 +66,7 @@ func (b *gfaidxOutputBuffer) Write(p []byte) (int, error) {
 }
 
 // publicGfaidxGraphs strips server-only paths and versions and sorts the
-// registry so API responses are stable across requests.
+// database directory so API responses are stable across requests.
 func publicGfaidxGraphs(graphs map[string]GfaidxGraph) []GfaidxGraphInfo {
 	result := make([]GfaidxGraphInfo, 0, len(graphs))
 	for _, graph := range graphs {

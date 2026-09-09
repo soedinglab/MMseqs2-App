@@ -401,7 +401,7 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 	}
 	// Resolve optional gfaidx paths with the same config-relative convention as existing binaries.
 	if config.Gfaidx != nil {
-		paths = append(paths, &config.Gfaidx.Binary, &config.Gfaidx.Registry)
+		paths = append(paths, &config.Gfaidx.Binary, &config.Gfaidx.Databases)
 	}
 	for _, path := range paths {
 		if strings.HasPrefix(*path, "~") {
@@ -475,7 +475,7 @@ func (c *ConfigRoot) CheckPaths(types []JobType) error {
 		if info, err := os.Stat(c.Gfaidx.Binary); err != nil || info.IsDir() {
 			return errors.New("gfaidx binary was not found at " + c.Gfaidx.Binary)
 		}
-		if _, err := loadGfaidxGraphRegistry(*c.Gfaidx); err != nil {
+		if _, err := loadGfaidxDatabases(*c.Gfaidx); err != nil {
 			return err
 		}
 	}
