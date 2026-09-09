@@ -12,6 +12,8 @@ import {
     taxonomyExport, serializeRow, motifPatternExport,
 } from './facts.js';
 import { foldMasonColumns, foldMasonEntries, foldMasonFasta, msaResidueMap } from './msa.js';
+import { listCaResidues } from '../../../frontend/lib/structureText.js';
+import { splitAlphaNum } from '../../../frontend/lib/parseResults.js';
 
 export const ARTIFACT_ID = /^[0-9a-f]{64}$/;
 export const DEFAULT_ARTIFACT_TTL_SECONDS = 1800;
@@ -283,7 +285,116 @@ function* rowsOf(parsed, dbIndex, tool) {
     }
 }
 
-async function writeSearchFiles(collector, { parsed, tool, counts, issues }) {
+function numbers(value, count) {
+    const values = Array.isArray(value) ? value.map(Number)
+        : String(value ?? '').split(',').filter(part => part.trim() !== '').map(Number);
+    return values.length === count && values.every(Number.isFinite) ? values : null;
+}
+
+function motifResidues(parsed) {
+    if (typeof parsed?.motif === 'string' && parsed.motif.trim() !== '') {
+        return parsed.motif.split(',').map(token => token.trim().split(':')[0]).filter(Boolean);
+    }
+    for (const result of parsed?.results ?? []) {
+        for (const group of Object.values(result?.alignments ?? {})) {
+            const head = Array.isArray(group) ? group[0] : group;
+            if (typeof head?.queryresidues === 'string' && head.queryresidues !== '') {
+                return head.queryresidues.split(',').map(token => token.trim()).filter(Boolean);
+            }
+        }
+    }
+    return [];
+}
+
+function queryResidueCoordinates(structureText, residues, issues) {
+    const rows = listCaResidues(structureText);
+    const byAddress = new Map();
+    const byNumber = new Map();
+    for (const row of rows) {
+        byAddress.set(`${row.chain}|${row.resno}`, row);
+        if (!byNumber.has(String(row.resno))) byNumber.set(String(row.resno), []);
+        byNumber.get(String(row.resno)).push(row);
+    } // TODO: need to inspect
+
+    let missing = 0;
+    let ambiguous = 0;
+    const positions = residues.map((residue, motifIndex) => {
+        const [chain, resno] = splitAlphaNum(residue);
+        let row = chain ? byAddress.get(`${chain}|${resno}`) : null;
+        if (!chain) {
+            const candidates = byNumber.get(String(resno)) ?? [];
+            if (candidates.length === 1) row = candidates[0];
+            else if (candidates.length > 1) ambiguous += 1;
+        }
+        if (!row) missing += 1;
+        return {
+            motifIndex,
+            residue,
+            queryCa: row ? row.xyz.map(Number) : null,
+        };
+    });
+    if (missing || ambiguous) {
+        issues.push({
+            code: 'RESIDUE_GEOMETRY_MISMATCH',
+            detail: `query motif: ${missing} residue coordinate(s) missing; ${ambiguous} unchained token(s) ambiguous`,
+        });
+    }
+    return { queryResidues: residues, positions };
+}
+
+function residueGeometry(parsed, dbIndex, issues) {
+    const rows = [];
+    let badCoordinates = 0;
+    let badMatrices = 0;
+    let badWidth = 0;
+    for (const groupId of Object.keys(parsed.results[dbIndex]?.alignments ?? {})) {
+        const group = parsed.results[dbIndex].alignments[groupId];
+        const hit = Array.isArray(group) ? group[0] : group;
+        const queryResidues = String(hit?.queryresidues ?? '').split(',').map(v => v.trim()).filter(Boolean);
+        const targetResidues = String(hit?.targetresidues ?? '').split(',').map(v => v.trim());
+        const matched = targetResidues.filter(token => token !== '_').length;
+        const flatCa = numbers(hit?.tCa, matched * 3);
+        const tmat = numbers(hit?.tmat, 3);
+        const umat = numbers(hit?.umat, 9);
+        if (!flatCa) badCoordinates += 1;
+        if (!tmat || !umat) badMatrices += 1;
+        if (queryResidues.length !== targetResidues.length) badWidth += 1;
+
+        let caIndex = 0;
+        const positions = targetResidues.map((targetResidue, motifIndex) => {
+            const gap = targetResidue === '_';
+            const targetCa = !gap && flatCa ? flatCa.slice(caIndex * 3, caIndex * 3 + 3) : null;
+            if (!gap) caIndex += 1;
+            return { motifIndex, targetResidue: gap ? null : targetResidue, targetCa };
+        });
+        rows.push({
+            id: `${dbIndex}#${groupId}`,
+            dbIndex,
+            groupId: String(groupId),
+            target: hit?.target ?? null,
+            queryResidues,
+            positions,
+            tmat,
+            umat,
+        });
+    }
+    if (badCoordinates || badMatrices || badWidth) {
+        issues.push({
+            code: 'RESIDUE_GEOMETRY_MISMATCH',
+            detail: `${parsed.results[dbIndex]?.db ?? `db-${dbIndex}`}: ${badCoordinates} bad tCa, `
+                + `${badMatrices} bad transform, ${badWidth} residue-width mismatch row(s)`,
+        });
+    }
+    return rows;
+}
+
+async function writeSearchFiles(collector, { parsed, tool, counts, issues, queryStructure }) {
+    if (tool === 'folddisco') {
+        const residues = motifResidues(parsed);
+        const query = queryResidueCoordinates(queryStructure, residues, issues);
+        await collector.write('search/query-residue-coordinates.json', 'query-residue-coordinates',
+            JSON.stringify(query), { rows: query.positions.length });
+    }
     for (const [dbIndex, entryData] of (parsed.results ?? []).entries()) {
         const safe = `db-${dbIndex}`;
         const expected = counts.databases[dbIndex].parsedRows;
@@ -330,6 +441,8 @@ async function writeSearchFiles(collector, { parsed, tool, counts, issues }) {
             await collector.write(`search/${safe}.motif-patterns.json`, 'motif-patterns',
                 JSON.stringify({ db: entryData.db, dbIndex, ...patterns }),
                 { rows: patterns.patterns.length });
+            await collector.writeJsonl(`search/${safe}.residue-geometry.jsonl`, 'residue-geometry',
+                residueGeometry(parsed, dbIndex, issues));
         }
     }
 }
@@ -380,7 +493,8 @@ async function writeFoldMasonFiles(collector, { result, issues }) {
 /** Build the manifest and data files for one result unit. */
 export function artifactWriter({
     artifactId, serverNamespace, ticket, queryIdx, jobType, table = null, foldMasonResult = null,
-    record = null, catalog = null, configuredCap = null, clock = () => new Date(),
+    record = null, catalog = null, queryStructure = null, configuredCap = null,
+    clock = () => new Date(),
 }) {
     return async (scratch) => {
         const kind = kindForJobType(jobType);
@@ -426,7 +540,9 @@ export function artifactWriter({
             const largest = measured.databases.reduce((a, d) => Math.max(a, d.parsedRows), 0);
             completeness = completenessOf({ jobType, parsedRows: largest, configuredCap });
 
-            await writeSearchFiles(collector, { parsed, tool: table.tool, counts: measured, issues });
+            await writeSearchFiles(collector, {
+                parsed, tool: table.tool, counts: measured, issues, queryStructure,
+            });
             await collector.write('databases.json', 'databases',
                 JSON.stringify({ catalogAvailable: provenance.catalogAvailable, databases }),
                 { rows: databases.length });

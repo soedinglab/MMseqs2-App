@@ -174,19 +174,42 @@ function fixed(value) {
 
 function caRowsPdb(text) {
     const rows = [];
+    const seen = new Set();
+    let firstModel = null;
+    let model = null;
     for (const raw of text.split('\n')) {
+        if (raw.startsWith('MODEL')) {
+            model = raw.slice(10, 14).trim() || '1';
+            if (firstModel === null) firstModel = model;
+            continue;
+        }
+        if (raw.startsWith('ENDMDL')) {
+            if (model === firstModel) break;
+            model = null;
+            continue;
+        }
+        if (firstModel !== null && model !== firstModel) continue;
         if (raw.slice(0, 6) !== 'ATOM  ') continue;      // HETATM is not part of the chain trace
         const line = repairAtomLine(raw);
         if (line.slice(...PDB_ATOM_NAME).trim() !== 'CA') continue;
+        const alt = line.slice(16, 17).trim();
+        if (alt !== '' && alt !== 'A') continue;
         const xyz = [
             fixed(line.slice(...PDB_X)), fixed(line.slice(...PDB_Y)), fixed(line.slice(...PDB_Z)),
         ];
         if (xyz.some(v => v === null)) continue;
+        const chain = line.slice(...PDB_CHAIN_ID).trim() || 'A';
+        const resno = line.slice(...PDB_RES_SEQ).trim();
+        const insCode = line.slice(...PDB_I_CODE).trim();
+        const key = `${chain}|${resno}|${insCode}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
         rows.push({
-            chain: line.slice(...PDB_CHAIN_ID).trim() || 'A',
+            chain,
             resName: line.slice(...PDB_RES_NAME).trim(),
-            resno: line.slice(...PDB_RES_SEQ).trim(),
+            resno,
             xyz,
+            ...(insCode ? { insCode } : {}),
         });
     }
     return rows;
@@ -194,6 +217,7 @@ function caRowsPdb(text) {
 
 function caRowsCif(text) {
     const rows = [];
+    const seen = new Set();
     const lines = text.split('\n');
     let i = 0;
     while (i < lines.length) {
@@ -245,16 +269,27 @@ function caRowsCif(text) {
 
             const xyz = [fixed(cols[idx.x]), fixed(cols[idx.y]), fixed(cols[idx.z])];
             if (xyz.some(v => v === null)) continue;
+            const chain = cols[idx.chain];
+            const resno = idx.seq >= 0 ? cols[idx.seq] : '';
+            const key = `${chain}|${resno}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
             rows.push({
-                chain: cols[idx.chain],
+                chain,
                 resName: idx.comp >= 0 ? cols[idx.comp] : '',
-                resno: idx.seq >= 0 ? cols[idx.seq] : '',
+                resno,
                 xyz,
             });
         }
         break;
     }
     return rows;
+}
+
+/** Every readable C-alpha coordinate, in file order and the query structure's residue numbering. */
+export function listCaResidues(text) {
+    if (typeof text !== 'string' || text.trim() === '') return [];
+    return isCif(text) ? caRowsCif(text) : caRowsPdb(text);
 }
 
 /**
@@ -266,8 +301,7 @@ function caRowsCif(text) {
  *   arrives as, so mockPDB(ca, seq, chain) works on either without a second code path.
  */
 export function listChains(text) {
-    if (typeof text !== 'string' || text.trim() === '') return [];
-    const rows = isCif(text) ? caRowsCif(text) : caRowsPdb(text);
+    const rows = listCaResidues(text);
 
     const byChain = new Map();
     for (const row of rows) {
@@ -435,8 +469,7 @@ function renameChainsCif(text, renames, scheme) {
  * @param {Map<string, string>|object} renames  original -> alias
  * @param {{scheme?: 'auth'|'label'|'effective'}} [opts]  which mmCIF naming scheme to rewrite.
  *   Default 'effective': the one a reader would surface, which is `auth` when the file has auth
- *   columns and `label` when it does not — the same choice listResidues and listChains make, so the
- *   names a motif was built from are the names that get rewritten.
+ *   columns and `label` when it does not
  * @returns {string} the same structure with those chains renamed; unchanged if nothing matched
  */
 export function renameChains(text, renames, { scheme = 'effective' } = {}) {

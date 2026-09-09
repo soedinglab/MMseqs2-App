@@ -1,12 +1,13 @@
 // Public contract shapes. A version bump means a public meaning or shape change, not a refactor.
 
 export const SUMMARY_SCHEMA = 'foldseek-server/result-summary@1';
-export const ARTIFACT_SCHEMA = 'foldseek-server/result-artifact@1';
+export const ARTIFACT_SCHEMA = 'foldseek-server/result-artifact@2';
 
 export const TOOLS = ['foldseek', 'multimer', 'foldmason', 'folddisco'];
 export const STATUSES = ['PENDING', 'RUNNING', 'COMPLETE', 'ERROR', 'UNKNOWN'];
 export const INTEGRITY_CODES = [
     'ROSTER_MISMATCH', 'REFERENCE_GAP', 'TAXONOMY_DEPTH_JUMP', 'EXPORTED_ROW_MISMATCH',
+    'RESIDUE_GEOMETRY_MISMATCH',
 ];
 export const SELECTION_KINDS = ['rows', 'columns'];
 

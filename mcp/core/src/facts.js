@@ -50,7 +50,7 @@ const SEARCH_ROW_CAP_DEFAULT = 1000;
 const SINGLE_UNIT_KINDS = new Set(['foldmason', 'folddisco']);
 
 /** Fields excluded from exported rows. */
-const DROPPED_ROW_FIELDS = new Set(['href', 'active', 'id', 'ca', 'tCa', 'qCa']);
+const DROPPED_ROW_FIELDS = new Set(['href', 'active', 'id', 'ca', 'tCa', 'qCa', 'tmat', 'umat']);
 const NUMERIC_FIELDS = new Set(NUMERIC_METRIC_FIELDS);
 
 function coded(code, message) {

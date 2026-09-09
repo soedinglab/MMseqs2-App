@@ -41,6 +41,9 @@ export function createExportService({
             }
 
             const catalog = await getDatabases().catch(() => null);
+            const queryStructure = unit.kind === 'folddisco'
+                ? (await results.getQueryStructure(ticket, { encodeComplex: false })).content
+                : null;
             const { manifest, cacheHit } = await artifactStore.build(artifactId, artifactWriter({
                 artifactId,
                 serverNamespace,
@@ -51,6 +54,7 @@ export function createExportService({
                 foldMasonResult: unit.foldMasonResult ?? null,
                 record: unit.record,
                 catalog,
+                queryStructure,
                 configuredCap: resultRowCap,
                 clock: artifactStore.now,
             }));

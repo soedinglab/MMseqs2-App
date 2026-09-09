@@ -11,6 +11,7 @@ Use the tools documented in [`../server/README.md`](../server/README.md).
 - Poll tickets once per `get_ticket_status` call.
 - Cache terminal results and retain compact ticket lineage.
 - Return a fixed-shape summary and export the complete result as files.
+- Export FoldDisco query and target motif Cα coordinates with explicit gap positions and per-hit transforms.
 - Persist explicit row and MSA-column selections used by `send_to`.
 - Report the verified shared-directory layout.
 - Validate input paths and collect expired inputs, results and artifacts safely.
