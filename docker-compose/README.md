@@ -34,11 +34,12 @@ You can now navigate with a web browser to your server's IP address and use the 
 
 ### Serving indexed genome graphs with gfaidx
 
-The backend image includes the `gfaidx` executable, but its HTTP API is opt-in.
-Enable it with the gfaidx Compose overlay:
+The backend image includes the checksum-verified gfaidx 1.9.8 Linux release
+executable, but its HTTP API is opt-in and restricted to Foldseek deployments.
+Set `APP=foldseek` and enable the gfaidx Compose overlay:
 
 ```
-docker-compose -f docker-compose.yml -f docker-compose.gfaidx.yml up
+APP=foldseek docker-compose -f docker-compose.yml -f docker-compose.gfaidx.yml up
 ```
 
 Set `GFAIDX_DB_PATH` in `.env` to a host directory containing query-ready,
@@ -79,9 +80,12 @@ The `.lnx` and `.pcx` files support efficient coordinate-aware queries, while
 `.cdx` is optional when gfaidx can resolve coordinates from `.pdx` and `.lnx`.
 Only files with a valid `.params` entry are exposed.
 
-For a local source build, combine the normal development and gfaidx overlays:
+For a local backend source build, combine the normal development and gfaidx
+overlays. The application is built locally, while gfaidx itself is downloaded
+from its pinned binary release:
 
 ```
+APP=foldseek \
 GFAIDX_DB_PATH=/absolute/path/to/indexed-graphs \
 docker-compose \
   -f docker-compose.yml \
@@ -93,9 +97,9 @@ docker-compose \
 Check the installed binary, public graph list, and read-only mount:
 
 ```
-docker-compose -f docker-compose.yml -f docker-compose.gfaidx.yml exec mmseqs-web-api gfaidx --version
+APP=foldseek docker-compose -f docker-compose.yml -f docker-compose.gfaidx.yml exec mmseqs-web-api gfaidx --version
 curl http://127.0.0.1:${PORT}/api/gfaidx/graphs
-docker-compose -f docker-compose.yml -f docker-compose.gfaidx.yml exec mmseqs-web-worker touch /opt/mmseqs-web/gfaidx-databases/write-test
+APP=foldseek docker-compose -f docker-compose.yml -f docker-compose.gfaidx.yml exec mmseqs-web-worker touch /opt/mmseqs-web/gfaidx-databases/write-test
 ```
 
 The final command should fail with a read-only filesystem error. A complete

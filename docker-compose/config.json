@@ -16,7 +16,7 @@
         "mmseqs"       : "/usr/local/bin/mmseqs",
         "foldseek"     : "/usr/local/bin/foldseek",
         "riboseek"     : "/usr/local/bin/riboseek",
-        "foldseekinterface" : "/usr/local/bin/foldseek-interface",
+        "foldseekinterface" : "/usr/local/bin/foldseek",
         "foldmason"    : "/usr/local/bin/foldmason",
         "folddisco"    : "/usr/local/bin/folddisco",
         "foldcomp"    : "/usr/local/bin/foldcomp"

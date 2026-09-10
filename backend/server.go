@@ -767,8 +767,12 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		r.HandleFunc("/ticket/folddisco", ticketFolddiscoHandlerFunc).Methods("POST")
 		r.HandleFunc("/ticket/riboseek", ticketRiboseekHandlerFunc).Methods("POST")
 	}
-	// Register the optional gfaidx routes alongside, but independently from, existing app routes.
-	RegisterGfaidxApi(r, jobsystem, config, submitJob)
+	// Expose genome-graph queries only on explicitly configured Foldseek servers.
+	// This prevents an accidental gfaidx setting from adding routes to MMseqs,
+	// ColabFold, or PredictProtein deployments.
+	if config.App == AppFoldseek && config.Gfaidx != nil {
+		RegisterGfaidxApi(r, jobsystem, config, submitJob)
+	}
 
 	r.HandleFunc("/ticket/type/{ticket}", func(w http.ResponseWriter, req *http.Request) {
 		ticket, err := jobsystem.GetTicket(Id(mux.Vars(req)["ticket"]))

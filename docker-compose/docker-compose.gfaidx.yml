@@ -1,5 +1,6 @@
-# This optional overlay enables the gfaidx API without changing installations
-# that only serve MMseqs2 or Foldseek searches.
+# This optional overlay configures gfaidx for a Foldseek server. The backend
+# registers the graph routes only when APP=foldseek, preventing accidental
+# exposure by MMseqs, ColabFold, or PredictProtein deployments.
 services:
   mmseqs-web-api:
     command: >
