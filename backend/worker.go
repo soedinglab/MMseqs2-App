@@ -1019,8 +1019,6 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					dbpath = filepath.Clean(params.OverridePath)
 				}
 				parameters := []string{
-					// Interface search is integrated into Foldseek; the standalone
-					// config.Paths.FoldseekInterface executable is deprecated.
 					config.Paths.Foldseek,
 					"easy-interfacesearch",
 					inputFile,
@@ -1174,7 +1172,6 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			err = execCommandSync(
 				config.Verbose,
 				[]string{
-					// config.Paths.FoldseekInterface is retained only for configuration compatibility.
 					config.Paths.Foldseek,
 					"createsubdb",
 					filepath.Join(resultBase, "keys_"+database),
@@ -1191,7 +1188,6 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			err = execCommandSync(
 				config.Verbose,
 				[]string{
-					// config.Paths.FoldseekInterface is retained only for configuration compatibility.
 					config.Paths.Foldseek,
 					"convert2pdb",
 					filepath.Join(resultBase, "dimer_"+database),

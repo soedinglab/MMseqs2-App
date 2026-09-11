@@ -115,8 +115,6 @@ var defaultFileContent = []byte(`{
 		*/
 		// path to foldseek binary
 		"foldseek"     : "~foldseek",
-		// Deprecated: interface commands are now provided by the Foldseek binary.
-		// "foldseekinterface" : "~foldseek-interface",
 		"foldmason"    : "~foldmason",
 		"folddisco"    : "~folddisco",
 		"foldcomp"     : "~foldcomp",
@@ -221,21 +219,17 @@ type ConfigColabFoldPaths struct {
 }
 
 type ConfigPaths struct {
-	Databases string `json:"databases"`
-	Results   string `json:"results"`
-	Temporary string `json:"temporary"`
-	Mmseqs    string `json:"mmseqs"`
-	Riboseek  string `json:"riboseek"`
-	Foldseek  string `json:"foldseek"`
-	// FoldseekInterface is deprecated because interface commands are now part
-	// of Foldseek. Keep the field temporarily so older configurations and CLI
-	// overrides continue to parse during the transition.
-	FoldseekInterface string                `json:"foldseekinterface"`
-	FoldMason         string                `json:"foldmason"`
-	FoldDisco         string                `json:"folddisco"`
-	FoldComp          string                `json:"foldcomp"`
-	Pdb100            string                `json:"pdb100"`
-	ColabFold         *ConfigColabFoldPaths `json:"colabfold"`
+	Databases string                `json:"databases"`
+	Results   string                `json:"results"`
+	Temporary string                `json:"temporary"`
+	Mmseqs    string                `json:"mmseqs"`
+	Riboseek  string                `json:"riboseek"`
+	Foldseek  string                `json:"foldseek"`
+	FoldMason string                `json:"foldmason"`
+	FoldDisco string                `json:"folddisco"`
+	FoldComp  string                `json:"foldcomp"`
+	Pdb100    string                `json:"pdb100"`
+	ColabFold *ConfigColabFoldPaths `json:"colabfold"`
 }
 
 type ConfigRedis struct {
@@ -381,11 +375,9 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 			paths,
 			&config.Paths.Riboseek,
 			&config.Paths.Foldseek,
-			// &config.Paths.FoldseekInterface, // Deprecated: use Foldseek.
 			&config.Paths.FoldMason,
 			&config.Paths.FoldDisco,
 			&config.Paths.FoldComp,
-			// &config.Paths.FoldseekInterface, // Deprecated duplicate entry.
 		)
 	}
 
@@ -429,7 +421,6 @@ func (c *ConfigRoot) binaryRequirements() []binaryRequirement {
 			{c.Paths.Foldseek, "Foldseek", []JobType{JobStructureSearch, JobComplexSearch, JobInterfaceSearch, JobFoldDisco, JobIndex}},
 			{c.Paths.FoldMason, "FoldMason", []JobType{JobFoldMasonMSA}},
 			{c.Paths.FoldDisco, "FoldDisco", []JobType{JobFoldDisco}},
-			// {c.Paths.FoldseekInterface, "FoldseekInterface", []JobType{JobInterfaceSearch}}, // Deprecated: Foldseek provides interface search.
 		}
 	}
 	return []binaryRequirement{
