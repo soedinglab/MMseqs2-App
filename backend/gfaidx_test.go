@@ -32,7 +32,7 @@ func newTestGfaidxConfig(t *testing.T) (ConfigGfaidx, string) {
 		Binary:         "/server/bin/gfaidx",
 		Databases:      databaseDir,
 		TimeoutSeconds: 30,
-		MaxThreads:     4,
+		Threads:        2,
 	}, graphPath
 }
 
@@ -77,7 +77,6 @@ func TestGfaidxSubgraphJob(t *testing.T) {
 		GraphID:    "example",
 		StartNode:  "node-42",
 		MaxNodes:   250,
-		Threads:    2,
 		WithCoords: true,
 	}
 	request, err := NewGfaidxSubgraphJobRequest(input, config)
@@ -120,7 +119,6 @@ func TestGfaidxRegionJob(t *testing.T) {
 		Sequence:      "chr22",
 		Start:         100,
 		End:           200,
-		Threads:       3,
 		AllHaplotypes: true,
 		HaplotypeGap:  "10kb",
 		WithCoords:    true,
@@ -136,7 +134,7 @@ func TestGfaidxRegionJob(t *testing.T) {
 	got := gfaidxCommand(job, graph, "/jobs/result.gfa.tmp", config)
 	want := []string{
 		config.Binary, "get_region", graphPath, "chr22:100-200", "/jobs/result.gfa.tmp",
-		"--all_haplotypes", "--threads", "3", "--reference", "CHM13",
+		"--all_haplotypes", "--threads", "2", "--reference", "CHM13",
 		"--haplotype_gap", "10kb", "--with_coords",
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -219,19 +217,26 @@ func TestGfaidxApiSubmissionAndResult(t *testing.T) {
 	}
 }
 
-// TestGfaidxApiRejectsUnknownJSONFields keeps misspelled client parameters
-// from silently producing a different query than intended.
+// TestGfaidxApiRejectsUnknownJSONFields keeps misspelled or server-controlled
+// parameters from being accepted from clients.
 func TestGfaidxApiRejectsUnknownJSONFields(t *testing.T) {
 	gfaidxConfig, _ := newTestGfaidxConfig(t)
 	config := ConfigRoot{Paths: ConfigPaths{Results: t.TempDir()}, Gfaidx: &gfaidxConfig}
 	router := mux.NewRouter()
 	RegisterGfaidxApi(router, nil, config, func(http.ResponseWriter, *http.Request, JobRequest) {})
 
-	body := bytes.NewBufferString(`{"graph_id":"example","start_node":"node","max_nodes":10,"max_node":9}`)
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/ticket/gfaidx/subgraph", body))
-	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "unknown field") {
-		t.Fatalf("status = %d, body = %q", recorder.Code, recorder.Body.String())
+	for name, body := range map[string]string{
+		"misspelled field": `{"graph_id":"example","start_node":"node","max_nodes":10,"max_node":9}`,
+		"client threads":   `{"graph_id":"example","start_node":"node","max_nodes":10,"threads":999}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodPost, "/ticket/gfaidx/subgraph", bytes.NewBufferString(body))
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "unknown field") {
+				t.Fatalf("status = %d, body = %q", recorder.Code, recorder.Body.String())
+			}
+		})
 	}
 }
 

@@ -21,7 +21,8 @@ type ConfigGfaidx struct {
 	Binary         string `json:"binary" validate:"required"`
 	Databases      string `json:"databases" validate:"required"`
 	TimeoutSeconds int    `json:"timeoutseconds" validate:"omitempty,gte=1"`
-	MaxThreads     int    `json:"maxthreads" validate:"omitempty,gte=1"`
+	// Threads is controlled by the server and applies to every gfaidx query.
+	Threads int `json:"threads" validate:"omitempty,gte=1"`
 }
 
 // GfaidxParams is the server-owned metadata stored in one <graph-id>.params
@@ -48,7 +49,6 @@ type GfaidxSubgraphRequest struct {
 	GraphID    string `json:"graph_id"`
 	StartNode  string `json:"start_node"`
 	MaxNodes   uint64 `json:"max_nodes"`
-	Threads    int    `json:"threads"`
 	NoPaths    bool   `json:"no_paths"`
 	WithCoords bool   `json:"with_coords"`
 }
@@ -61,7 +61,6 @@ type GfaidxRegionRequest struct {
 	Start         uint64  `json:"start"`
 	End           uint64  `json:"end"`
 	MaxNodes      *uint64 `json:"max_nodes,omitempty"`
-	Threads       int     `json:"threads"`
 	Reference     string  `json:"reference"`
 	AllHaplotypes bool    `json:"all_haplotypes"`
 	HaplotypeGap  string  `json:"haplotype_gap"`
@@ -89,7 +88,6 @@ type GfaidxJob struct {
 	Start         uint64        `json:"start,omitempty"`
 	End           uint64        `json:"end,omitempty"`
 	MaxNodes      uint64        `json:"max_nodes,omitempty"`
-	Threads       int           `json:"threads" validate:"required,gte=1"`
 	Reference     string        `json:"reference,omitempty"`
 	AllHaplotypes bool          `json:"all_haplotypes,omitempty"`
 	HaplotypeGap  string        `json:"haplotype_gap,omitempty"`
@@ -120,18 +118,13 @@ func (r GfaidxJob) Rank() float64 {
 	return float64(r.MaxNodes)
 }
 
-// effectiveGfaidxThreads applies the safe default and configured server limit.
-func effectiveGfaidxThreads(requested int, config ConfigGfaidx) (int, error) {
-	if requested == 0 {
-		requested = 1
+// configuredGfaidxThreads returns the server-selected thread count. Zero keeps
+// configurations that omit the setting safe by running each query single-threaded.
+func configuredGfaidxThreads(config ConfigGfaidx) int {
+	if config.Threads == 0 {
+		return 1
 	}
-	if requested < 1 {
-		return 0, errors.New("threads must be at least 1")
-	}
-	if config.MaxThreads > 0 && requested > config.MaxThreads {
-		return 0, fmt.Errorf("threads must not exceed %d", config.MaxThreads)
-	}
-	return requested, nil
+	return config.Threads
 }
 
 // loadGfaidxDatabases discovers graphs through <graph-id>.params files, like
@@ -290,10 +283,6 @@ func NewGfaidxSubgraphJobRequest(input GfaidxSubgraphRequest, config ConfigGfaid
 	if input.MaxNodes < 1 {
 		return JobRequest{}, errors.New("max_nodes must be at least 1")
 	}
-	threads, err := effectiveGfaidxThreads(input.Threads, config)
-	if err != nil {
-		return JobRequest{}, err
-	}
 	if err := validateGfaidxFlags(input.NoPaths, input.WithCoords); err != nil {
 		return JobRequest{}, err
 	}
@@ -304,7 +293,6 @@ func NewGfaidxSubgraphJobRequest(input GfaidxSubgraphRequest, config ConfigGfaid
 		GraphVersion: graph.Version,
 		StartNode:    startNode,
 		MaxNodes:     input.MaxNodes,
-		Threads:      threads,
 		NoPaths:      input.NoPaths,
 		WithCoords:   input.WithCoords,
 	}
@@ -329,10 +317,6 @@ func NewGfaidxRegionJobRequest(input GfaidxRegionRequest, config ConfigGfaidx) (
 		return JobRequest{}, errors.New("end must be greater than start")
 	}
 	reference, err := validateGfaidxText("reference", input.Reference, false)
-	if err != nil {
-		return JobRequest{}, err
-	}
-	threads, err := effectiveGfaidxThreads(input.Threads, config)
 	if err != nil {
 		return JobRequest{}, err
 	}
@@ -362,7 +346,6 @@ func NewGfaidxRegionJobRequest(input GfaidxRegionRequest, config ConfigGfaidx) (
 		Start:         input.Start,
 		End:           input.End,
 		MaxNodes:      maxNodes,
-		Threads:       threads,
 		Reference:     reference,
 		AllHaplotypes: input.AllHaplotypes,
 		HaplotypeGap:  input.HaplotypeGap,

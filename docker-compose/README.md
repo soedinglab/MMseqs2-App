@@ -46,7 +46,8 @@ Set `GFAIDX_DB_PATH` in `.env` to a host directory containing query-ready,
 indexed graphs. The directory is mounted read-only in both the API and worker
 containers; gfaidx indexing must be completed before starting the server.
 `GFAIDX_TIMEOUT_SECONDS` limits each extraction's runtime, and
-`GFAIDX_MAX_THREADS` caps the thread count accepted from a request.
+`GFAIDX_THREADS` sets the server-controlled thread count used for every query
+and defaults to one; clients cannot select or override it.
 
 Each graph is registered by a JSON `<graph-id>.params` file. The params
 filename, without `.params`, is the stable ID accepted by browser requests.

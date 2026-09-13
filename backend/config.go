@@ -464,8 +464,8 @@ func (c *ConfigRoot) CheckPaths(types []JobType) error {
 		if c.Gfaidx.TimeoutSeconds < 0 {
 			return errors.New("gfaidx timeoutseconds must be 0 or greater")
 		}
-		if c.Gfaidx.MaxThreads < 0 {
-			return errors.New("gfaidx maxthreads must be 0 or greater")
+		if c.Gfaidx.Threads < 0 {
+			return errors.New("gfaidx threads must be 0 or greater")
 		}
 		if info, err := os.Stat(c.Gfaidx.Binary); err != nil || info.IsDir() {
 			return errors.New("gfaidx binary was not found at " + c.Gfaidx.Binary)
