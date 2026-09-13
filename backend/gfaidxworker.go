@@ -46,9 +46,6 @@ func validateQueuedGfaidxJob(job GfaidxJob, config ConfigGfaidx) (GfaidxGraph, e
 	if graph.Version != job.GraphVersion {
 		return GfaidxGraph{}, errors.New("registered graph changed after the job was submitted; submit it again")
 	}
-	if _, err := effectiveGfaidxThreads(job.Threads, config); err != nil {
-		return GfaidxGraph{}, err
-	}
 	if err := validateGfaidxFlags(job.NoPaths, job.WithCoords); err != nil {
 		return GfaidxGraph{}, err
 	}
@@ -106,7 +103,8 @@ func gfaidxCommand(job GfaidxJob, graph GfaidxGraph, outputPath string, config C
 	} else {
 		parameters = append(parameters, "--max_nodes", strconv.FormatUint(job.MaxNodes, 10))
 	}
-	parameters = append(parameters, "--threads", strconv.Itoa(job.Threads))
+	// Thread allocation is taken only from server configuration, never from a request.
+	parameters = append(parameters, "--threads", strconv.Itoa(configuredGfaidxThreads(config)))
 	if job.Reference != "" {
 		parameters = append(parameters, "--reference", job.Reference)
 	}

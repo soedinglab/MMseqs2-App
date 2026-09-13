@@ -10,7 +10,7 @@ services:
       -gfaidx.binary /usr/local/bin/gfaidx
       -gfaidx.databases /opt/mmseqs-web/gfaidx-databases
       -gfaidx.timeoutseconds ${GFAIDX_TIMEOUT_SECONDS:-120}
-      -gfaidx.maxthreads ${GFAIDX_MAX_THREADS:-2}
+      -gfaidx.threads ${GFAIDX_THREADS:-1}
     volumes:
       - ${GFAIDX_DB_PATH}:/opt/mmseqs-web/gfaidx-databases:ro
 
@@ -22,6 +22,6 @@ services:
       -gfaidx.binary /usr/local/bin/gfaidx
       -gfaidx.databases /opt/mmseqs-web/gfaidx-databases
       -gfaidx.timeoutseconds ${GFAIDX_TIMEOUT_SECONDS:-120}
-      -gfaidx.maxthreads ${GFAIDX_MAX_THREADS:-2}
+      -gfaidx.threads ${GFAIDX_THREADS:-1}
     volumes:
       - ${GFAIDX_DB_PATH}:/opt/mmseqs-web/gfaidx-databases:ro
