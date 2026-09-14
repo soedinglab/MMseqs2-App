@@ -15,4 +15,5 @@ npm ci --prefix mcp/core
 npm ci --prefix mcp/server
 ```
 
-Run or install the server using [`server/README.md`](server/README.md). 
+Run or install the server using [`server/README.md`](server/README.md).
+What changed between versions is in [`CHANGELOG.md`](CHANGELOG.md).

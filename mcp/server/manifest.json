@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "foldseek-server",
   "display_name": "Foldseek Server",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Search protein structures with Foldseek, align them with FoldMason, search 3D motifs with FoldDisco, and export results for analysis.",
   "author": {
     "name": "Steinegger Lab",

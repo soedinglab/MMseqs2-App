@@ -1,6 +1,6 @@
 {
   "name": "foldseek-server-lib",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Private implementation library for the Foldseek MCP server.",
   "license": "GPL-3.0-or-later",
