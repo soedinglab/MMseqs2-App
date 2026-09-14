@@ -190,7 +190,7 @@ Put TLS and authentication in front of anything not on loopback.
     - `databases` (string[], optional), `mode`, `taxFilter`, `iterativeSearch`, `email` as above, each refused when the destination has no such field, rather than dropped: FoldDisco takes no `taxFilter` or `mode`, multimer no `iterativeSearch`
     - `motif` (string, optional): FoldDisco, when the source carries none
     - `includeQuery` (boolean, optional): FoldMason from a selection also sends the original query,
-      default true
+      default true. 
   - The structure is reassembled for the destination, and the new ticket records its source
 
 ### Responses

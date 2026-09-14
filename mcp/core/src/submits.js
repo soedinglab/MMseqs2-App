@@ -244,7 +244,9 @@ export async function sendQuerySet(dependencies, set, {
     }
 
     if (includeQuery && set.ticket) {
-        const original = await dependencies.getQueryStructure(set.ticket).catch(err => {
+        const original = await dependencies.getQueryStructure(set.ticket, {
+            queryIdx: set.queryIdx,
+        }).catch(err => {
             skipped.push({ index: -1, name: 'query', reason: err.message });
             return null;
         });

@@ -9,7 +9,7 @@ import { ARTIFACT_SCHEMA, validateArtifactManifest, unsafeRelativePath } from '.
 import { defaultRankingSemantics, metricSemantics, NUMERIC_METRIC_FIELDS } from './metrics.js';
 import {
     kindForJobType, toolForJobType, resultCounts, completenessOf, databaseProvenance,
-    taxonomyExport, serializeRow, motifPatternExport,
+    taxonomyExport, serializeRow, motifPatternExport, queryRoster,
 } from './facts.js';
 import { foldMasonColumns, foldMasonEntries, foldMasonFasta, msaResidueMap } from './msa.js';
 import { listCaResidues } from '../../../frontend/lib/structureText.js';
@@ -206,6 +206,7 @@ export function createArtifactStore({
                 ticket: manifest.state.ticket,
                 queryIdx: manifest.state.queryIdx,
                 tool: manifest.state.tool,
+                ...(manifest.queries ? { queries: manifest.queries } : {}),
                 counts: manifest.counts,
                 completeness: manifest.completeness,
                 files: manifest.files.map(({ role, path: p, mime, bytes, rows, uncompressedBytes }) => ({
@@ -493,7 +494,7 @@ async function writeFoldMasonFiles(collector, { result, issues }) {
 /** Build the manifest and data files for one result unit. */
 export function artifactWriter({
     artifactId, serverNamespace, ticket, queryIdx, jobType, table = null, foldMasonResult = null,
-    record = null, catalog = null, queryStructure = null, configuredCap = null,
+    record = null, catalog = null, queryStructure = null, configuredCap = null, queries = null,
     clock = () => new Date(),
 }) {
     return async (scratch) => {
@@ -556,6 +557,7 @@ export function artifactWriter({
             schema: ARTIFACT_SCHEMA,
             artifactId,
             state: { serverNamespace, ticket, queryIdx, mode, tool: toolForJobType(jobType) },
+            ...(queries ? { queries: queryRoster(queries) } : {}),
             derivedFrom: record?.derivedFrom ?? null,
             createdAt: clock().toISOString(),
             builtBy: BUILT_BY,

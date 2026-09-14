@@ -1,7 +1,7 @@
 // Public contract shapes. A version bump means a public meaning or shape change, not a refactor.
 
-export const SUMMARY_SCHEMA = 'foldseek-server/result-summary@1';
-export const ARTIFACT_SCHEMA = 'foldseek-server/result-artifact@2';
+export const SUMMARY_SCHEMA = 'foldseek-server/result-summary@2';
+export const ARTIFACT_SCHEMA = 'foldseek-server/result-artifact@3';
 
 export const TOOLS = ['foldseek', 'multimer', 'foldmason', 'folddisco'];
 export const STATUSES = ['PENDING', 'RUNNING', 'COMPLETE', 'ERROR', 'UNKNOWN'];
@@ -180,6 +180,27 @@ const SELECTION = {
     },
 };
 
+// Which queryIdx values the ticket accepts. Omitted for the single-unit tools, as queryIdx is.
+const QUERY_ROSTER = {
+    allowExtra: false,
+    fields: {
+        count: { type: 'int', required: true, min: 0 },
+        items: {
+            type: 'array',
+            items: {
+                type: 'object',
+                shape: {
+                    allowExtra: false,
+                    fields: {
+                        queryIdx: { type: 'int', required: true, min: 0 },
+                        chain: { type: 'string', required: true, nullable: true },
+                    },
+                },
+            },
+        },
+    },
+};
+
 const SUMMARY_HEAD = {
     schema: { type: 'string', required: true, enum: [SUMMARY_SCHEMA] },
     ticket: { type: 'string', required: true },
@@ -206,6 +227,7 @@ const SUMMARY_READY = {
         mode: { type: 'string', nullable: true },
         tool: { type: 'string', required: true, enum: TOOLS },
         submission: { type: 'object', required: true, nullable: true },
+        queries: { type: 'object', shape: QUERY_ROSTER },
         derivedFrom: { type: 'object', required: true, nullable: true },
         databases: { type: 'array', required: true, items: { type: 'object', shape: SUMMARY_DATABASE } },
         counts: { type: 'object', required: true, shape: counts() },
@@ -247,6 +269,7 @@ const MANIFEST = {
                 },
             },
         },
+        queries: { type: 'object', shape: QUERY_ROSTER },
         derivedFrom: { type: 'object', required: true, nullable: true },
         createdAt: { type: 'string', required: true },
         builtBy: {

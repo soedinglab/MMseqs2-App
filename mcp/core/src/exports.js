@@ -54,6 +54,7 @@ export function createExportService({
                 foldMasonResult: unit.foldMasonResult ?? null,
                 record: unit.record,
                 catalog,
+                queries: unit.queries ?? null,
                 queryStructure,
                 configuredCap: resultRowCap,
                 clock: artifactStore.now,

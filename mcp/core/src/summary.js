@@ -3,14 +3,11 @@
 import { SUMMARY_SCHEMA, validateResultSummary } from './schemas.js';
 import { defaultRankingSemantics } from './metrics.js';
 import {
-    kindForJobType, toolForJobType, resultCounts, completenessOf, databaseProvenance,
-    motifPatternExport, serializeRow,
+    SINGLE_UNIT_KINDS, kindForJobType, toolForJobType, resultCounts, completenessOf,
+    databaseProvenance, motifPatternExport, queryRoster, serializeRow,
 } from './facts.js';
 import { foldMasonSummary } from './msa.js';
 import { topRowIds } from './table.js';
-
-// Single-unit jobs have no query index.
-const SINGLE_UNIT = new Set(['foldmason', 'folddisco']);
 
 const MOTIF_PATTERN_SAMPLE = 5;
 
@@ -81,7 +78,7 @@ export function notReadySummary({ ticket, queryIdx = 0, status, jobType = null }
     const out = {
         schema: SUMMARY_SCHEMA,
         ticket,
-        ...(SINGLE_UNIT.has(kindForJobType(jobType)) ? {} : { queryIdx }),
+        ...(SINGLE_UNIT_KINDS.has(kindForJobType(jobType)) ? {} : { queryIdx }),
         status,
         tool: toolForJobType(jobType),
         code: failed ? 'RESULT_FAILED' : 'RESULT_NOT_READY',
@@ -96,13 +93,13 @@ export function notReadySummary({ ticket, queryIdx = 0, status, jobType = null }
 export function resultSummary({
     ticket, queryIdx = 0, jobType, status = 'COMPLETE',
     table = null, foldMasonResult = null, record = null, catalog = null,
-    selections = [], configuredCap = null,
+    selections = [], configuredCap = null, queries = null,
 }) {
     const kind = kindForJobType(jobType);
     const head = {
         schema: SUMMARY_SCHEMA,
         ticket,
-        ...(SINGLE_UNIT.has(kindForJobType(jobType)) ? {} : { queryIdx }),
+        ...(SINGLE_UNIT_KINDS.has(kindForJobType(jobType)) ? {} : { queryIdx }),
         status,
         tool: toolForJobType(jobType),
         derivedFrom: record?.derivedFrom ?? null,
@@ -156,6 +153,7 @@ export function resultSummary({
             ...head,
             mode: table.mode || null,
             submission: submissionSummary(record, parsed),
+            ...(queries ? { queries: queryRoster(queries) } : {}),
             databases,
             counts: {
                 serverAlignments: counts.serverAlignments,

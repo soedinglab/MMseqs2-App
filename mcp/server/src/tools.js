@@ -8,7 +8,8 @@ import {
 const TICKET = { type: 'string', description: 'Ticket id.' };
 const QUERY_IDX = {
     type: 'number',
-    description: 'Which query of a multi-query ticket; default 0. Foldseek and multimer only',
+    description: 'Which query of a multi-query ticket; default 0. Foldseek and multimer only. '
+        + 'get_result_summary reports the ones a ticket has',
 };
 const QUERY = { type: 'string', description: 'Structure as PDB or mmCIF text.' };
 function pathArg({ many = false } = {}) {
@@ -371,7 +372,8 @@ export function createTools(operations, { inputDir = null } = {}) {
         {
             name: 'get_result_summary',
             description: 'What a finished result holds: databases, row counts, the ranking metric and ' +
-                         'one top hit each. Start here, then export_result for the whole thing.',
+                         'one top hit each, plus the queries this ticket can be asked for. ' +
+                         'Start here, then export_result for the whole thing.',
             inputSchema: {
                 type: 'object',
                 required: ['ticketId'],

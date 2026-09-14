@@ -47,7 +47,22 @@ export function kindForJobType(jobType) {
 const FOLDDISCO_ROW_CAP = 1000;
 const SEARCH_ROW_CAP_DEFAULT = 1000;
 
-const SINGLE_UNIT_KINDS = new Set(['foldmason', 'folddisco']);
+/** Single-unit jobs have no query index. */
+export const SINGLE_UNIT_KINDS = new Set(['foldmason', 'folddisco']);
+
+/** Beyond this many queries the per-query list is dropped; the count still stands. */
+const QUERY_ITEM_LIMIT = 100;
+
+/** Which queryIdx values a ticket accepts, and the chain each one addresses. */
+export function queryRoster({ count, items }) {
+    return {
+        count,
+        ...(count <= QUERY_ITEM_LIMIT
+            ? { items: items.map(q => ({ queryIdx: q.queryIdx, chain: q.chain })) }
+            : {}),
+    };
+}
+
 
 /** Fields excluded from exported rows. */
 const DROPPED_ROW_FIELDS = new Set(['href', 'active', 'id', 'ca', 'tCa', 'qCa', 'tmat', 'umat']);
