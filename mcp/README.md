@@ -10,7 +10,8 @@ Two packages let an MCP client submit jobs to server backend, inspect or export 
 ## Quick start
 
 ```bash
-npm ci --prefix mcp/core                      # from the repo root
+npm ci --prefix frontend/lib                  # from the repo root
+npm ci --prefix mcp/core
 npm ci --prefix mcp/server
 ```
 

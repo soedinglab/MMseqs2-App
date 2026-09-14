@@ -219,11 +219,11 @@ export async function loadAccession(id, {
         if (site.motif) {
             let { text, motif } = site;
 
-            let checked = checkMotif(motif, text);
+            let checked = await checkMotif(motif, text);
             if (normalizeChains && (checked.ambiguous || checked.unnameableChains)) {
-                const normalized = normalizeChainNames(text, { motif });
+                const normalized = await normalizeChainNames(text, { motif });
                 if (normalized.changed) {
-                    const after = checkMotif(normalized.motif, normalized.text);
+                    const after = await checkMotif(normalized.motif, normalized.text);
                     // Keep chain renaming only when it makes the motif usable.
                     if (after.valid && !after.ambiguous) {
                         ({ text, motif } = normalized);

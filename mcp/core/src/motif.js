@@ -10,11 +10,11 @@ export const MOTIF_MAX_RESIDUES = 32;
 const SUBSTITUTION = /[A-Za-z]/;
 const RESIDUE_TOKEN = /^[A-Za-z]*\d+$/;
 
-function residueIndex(structureText) {
+async function residueIndex(structureText) {
     const byChain = new Set();
     const anyChain = new Set();
     const chains = new Set();
-    for (const r of listResidues(structureText)) {
+    for (const r of await listResidues(structureText)) {
         byChain.add(`${r.chain}|${r.resno}`);
         anyChain.add(String(r.resno));
         chains.add(r.chain);
@@ -23,7 +23,7 @@ function residueIndex(structureText) {
 }
 
 /** Validate motif syntax and, when provided, referenced structure residues. */
-export function checkMotif(motif, structureText) {
+export async function checkMotif(motif, structureText) {
     if (typeof motif !== 'string' || motif.trim() === '') {
         return { valid: false, reason: 'motif is empty', residues: [], missing: [] };
     }
@@ -68,7 +68,7 @@ export function checkMotif(motif, structureText) {
 
     if (structureText === undefined) return { valid: true, residues: distinct, missing: [] };
 
-    const { byChain, anyChain, chains } = residueIndex(structureText);
+    const { byChain, anyChain, chains } = await residueIndex(structureText);
     if (byChain.size === 0) {
         return {
             valid: false,
@@ -78,7 +78,7 @@ export function checkMotif(motif, structureText) {
     }
 
     const unnameable = [...chains].filter(c => c && !isNameableChain(c));
-    const byConcatenation = residueTokenSet(structureText);
+    const byConcatenation = await residueTokenSet(structureText);
     const missing = [];
     const ambiguous = [];
     for (const token of distinct) {
@@ -119,8 +119,8 @@ export function checkMotif(motif, structureText) {
     return result;
 }
 
-export function assertMotif(motif, structureText) {
-    const { valid, reason } = checkMotif(motif, structureText);
+export async function assertMotif(motif, structureText) {
+    const { valid, reason } = await checkMotif(motif, structureText);
     if (!valid) throw new Error(`invalid FoldDisco motif: ${reason}`);
 }
 
@@ -132,8 +132,8 @@ export function motifFromTargetResidues(targetResidues) {
 }
 
 /** Give a structure addressable chain names and rewrite its motif. */
-export function normalizeChainNames(structureText, { motif = null } = {}) {
-    const chains = listChains(structureText).map(c => c.chain);
+export async function normalizeChainNames(structureText, { motif = null } = {}) {
+    const chains = (await listChains(structureText)).map(c => c.chain);
     const renames = planChainRenames(chains);
     if (renames.size === 0) {
         return { text: structureText, motif, renames: {}, changed: false };
@@ -150,9 +150,9 @@ export function normalizeChainNames(structureText, { motif = null } = {}) {
         return substitution === undefined ? renamed : `${renamed}:${substitution}`;
     };
 
-    const text = renameChains(structureText, renames);
+    const text = await renameChains(structureText, renames);
 
-    const after = new Set(listChains(text).map(c => c.chain));
+    const after = new Set((await listChains(text)).map(c => c.chain));
     const unapplied = [...renames.entries()].filter(([, alias]) => !after.has(alias));
     if (unapplied.length) {
         return {

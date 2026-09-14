@@ -306,15 +306,15 @@ function motifResidues(parsed) {
     return [];
 }
 
-function queryResidueCoordinates(structureText, residues, issues) {
-    const rows = listCaResidues(structureText);
+async function queryResidueCoordinates(structureText, residues, issues) {
+    const rows = await listCaResidues(structureText);
     const byAddress = new Map();
     const byNumber = new Map();
     for (const row of rows) {
         byAddress.set(`${row.chain}|${row.resno}`, row);
         if (!byNumber.has(String(row.resno))) byNumber.set(String(row.resno), []);
         byNumber.get(String(row.resno)).push(row);
-    } // TODO: need to inspect
+    }
 
     let missing = 0;
     let ambiguous = 0;
@@ -330,7 +330,7 @@ function queryResidueCoordinates(structureText, residues, issues) {
         return {
             motifIndex,
             residue,
-            queryCa: row ? row.xyz.map(Number) : null,
+            queryCa: row ? row.xyz : null,
         };
     });
     if (missing || ambiguous) {
@@ -391,7 +391,7 @@ function residueGeometry(parsed, dbIndex, issues) {
 async function writeSearchFiles(collector, { parsed, tool, counts, issues, queryStructure }) {
     if (tool === 'folddisco') {
         const residues = motifResidues(parsed);
-        const query = queryResidueCoordinates(queryStructure, residues, issues);
+        const query = await queryResidueCoordinates(queryStructure, residues, issues);
         await collector.write('search/query-residue-coordinates.json', 'query-residue-coordinates',
             JSON.stringify(query), { rows: query.positions.length });
     }

@@ -19,6 +19,7 @@ It connects to a [Foldseek Search Server](https://github.com/soedinglab/MMseqs2-
 
 The server is distributed as a Claude Desktop bundle and may also be bundled by a Claude plugin.
 Requires Node.js 18+ when run from source.
+`frontend/lib` is installed as well because the shared structure reader it holds is built on molstar.
 
 ### Claude Desktop and Cowork
 
@@ -35,6 +36,7 @@ Clone this repository, install the server dependencies, then register the checko
 ```bash
 git clone https://github.com/soedinglab/MMseqs2-App.git
 cd MMseqs2-App
+npm ci --prefix frontend/lib
 npm ci --prefix mcp/core
 npm ci --prefix mcp/server
 
@@ -51,6 +53,7 @@ If a Claude plugin already bundles this server, use the plugin's installation in
 From the repository root:
 
 ```bash
+npm ci --prefix frontend/lib
 npm ci --prefix mcp/core
 npm ci --prefix mcp/server
 npm run build:mcpb --prefix mcp/server

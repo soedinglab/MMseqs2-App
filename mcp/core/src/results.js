@@ -130,7 +130,7 @@ export function createResultService({
         async getQueryStructure(ticket, { signal, encodeComplex = true } = {}) {
             const text = await backend.getQueryStructure(ticket, { signal });
             if (encodeComplex) {
-                const chains = listChains(text);
+                const chains = await listChains(text);
                 if (chains.length > 1) {
                     const parts = chains.map(c => ({ pdb: mockPDB(c.ca, c.seq, c.chain), chain: c.chain }));
                     const { pdb, suffix } = encodeMultimer(parts);

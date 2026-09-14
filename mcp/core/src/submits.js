@@ -381,7 +381,7 @@ export function createSubmitService({
 
         async submitFoldDisco({ query, databases, motif, email = '' }) {
             if (!query) throw new Error('submitFoldDisco({ query }) is required');
-            assertMotif(motif, query);
+            await assertMotif(motif, query);
             await assertDatabases(databases, 'folddisco');
             return recordSubmission(
                 await backend.submitFoldDisco({ query, databases, motif, email }),
@@ -416,10 +416,10 @@ export function createSubmitService({
         }) {
             const problems = [];
             let taxonomy = null;
-            const record = (check) => { try { check(); } catch (err) { problems.push(err.message); } };
+            const record = async (check) => { try { await check(); } catch (err) { problems.push(err.message); } };
 
             if (tool === 'foldmason') {
-                record(() => {
+                await record(() => {
                     if (!Array.isArray(files) || files.length < FOLDMASON_MIN_FILES) {
                         throw new Error(`FoldMason needs at least ${FOLDMASON_MIN_FILES} structures; `
                             + `${Array.isArray(files) ? files.length : 0} provided`);
@@ -436,7 +436,7 @@ export function createSubmitService({
             const kind = tool === 'folddisco' ? 'folddisco' : (isComplex ? 'complexsearch' : 'search');
 
             if (tool === 'folddisco') {
-                record(() => assertMotif(motif, query));
+                await record(() => assertMotif(motif, query));
             } else if (taxFilterHasNames(taxFilter)) {
                 try {
                     const { filter, resolved } = await resolveTaxFilter(taxFilter, { fetchImpl });
@@ -444,7 +444,7 @@ export function createSubmitService({
                     taxonomy = { filter, resolved };
                 } catch (err) { problems.push(`taxonomy: ${err.message}`); }
             } else {
-                record(() => assertTaxFilter(taxFilter));
+                await record(() => assertTaxFilter(taxFilter));
             }
             if (tool !== 'folddisco' && isComplex && iterativeSearch) {
                 problems.push('multimer (complex) search does not support iterative search');

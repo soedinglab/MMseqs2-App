@@ -69,7 +69,7 @@ export {
 } from './structures.js';
 
 export {
-    listResidues, listCaResidues, listChains, residueTokenSet,
+    listResidues, listCaResidues, listChains, residueTokenSet, extractChains,
     planChainRenames, renameChains, isNameableChain,
 } from '../../../frontend/lib/structureText.js';
 export {
