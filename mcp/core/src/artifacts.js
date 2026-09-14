@@ -14,6 +14,7 @@ import {
 import { foldMasonColumns, foldMasonEntries, foldMasonFasta, msaResidueMap } from './msa.js';
 import { listCaResidues } from '../../../frontend/lib/structureText.js';
 import { splitAlphaNum } from '../../../frontend/lib/parseResults.js';
+import { VERSION } from './version.js';
 
 export const ARTIFACT_ID = /^[0-9a-f]{64}$/;
 export const DEFAULT_ARTIFACT_TTL_SECONDS = 1800;
@@ -33,7 +34,7 @@ const MIME = {
     gz: 'application/gzip',
 };
 
-const BUILT_BY = { package: 'foldseek-server-lib', version: '0.1.0' };
+const BUILT_BY = { package: 'foldseek-server-lib', version: VERSION };
 
 /** Normalize a server origin into one artifact namespace. */
 export function serverNamespaceFor({ baseUrl, apiPath = '/api' } = {}) {

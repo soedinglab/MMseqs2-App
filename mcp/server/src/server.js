@@ -14,6 +14,7 @@ import path from 'node:path';
 import { createOperations, ensureSharedDirs } from 'foldseek-server-lib';
 
 import { createTools, runTool } from './tools.js';
+import { VERSION } from './version.js';
 
 /** Parse a bounded integer without silently clamping it. */
 function intFromEnv(env, name, { fallback, min, max }) {
@@ -105,7 +106,7 @@ export function createServer(config, transport = { kind: 'stdio' }) {
         inputDir: readRoot(operations, transport),
     });
     const server = new Server(
-        { name: 'foldseek-server', version: '0.1.0' },
+        { name: 'foldseek-server', version: VERSION },
         { capabilities: { tools: {} } },
     );
 

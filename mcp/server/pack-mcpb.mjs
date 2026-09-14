@@ -19,9 +19,12 @@ try {
     await fs.mkdir(stage);
     run('node', [path.join(HERE, 'pack-plugin-runtime.mjs'), runtime], HERE);
     run('unzip', ['-q', runtime, '-d', stage], HERE);
-    for (const item of ['manifest.json', 'README.md']) {
-        await fs.copyFile(path.join(HERE, item), path.join(stage, item));
-    }
+    await fs.copyFile(path.join(HERE, 'README.md'), path.join(stage, 'README.md'));
+
+    // package.json owns the version; the checked-in manifest only has to be valid.
+    const manifest = JSON.parse(await fs.readFile(path.join(HERE, 'manifest.json'), 'utf8'));
+    manifest.version = packageJson.version;
+    await fs.writeFile(path.join(stage, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
     await fs.mkdir(path.dirname(out), { recursive: true });
     run('npx', ['--yes', '@anthropic-ai/mcpb@2.1.2', 'pack', stage, out], HERE);
