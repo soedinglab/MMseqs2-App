@@ -115,7 +115,6 @@ var defaultFileContent = []byte(`{
 		*/
 		// path to foldseek binary
 		"foldseek"     : "~foldseek",
-		"foldseekinterface" : "~foldseek-interface",
 		"foldmason"    : "~foldmason",
 		"folddisco"    : "~folddisco",
 		"foldcomp"     : "~foldcomp",
@@ -220,18 +219,17 @@ type ConfigColabFoldPaths struct {
 }
 
 type ConfigPaths struct {
-	Databases         string                `json:"databases"`
-	Results           string                `json:"results"`
-	Temporary         string                `json:"temporary"`
-	Mmseqs            string                `json:"mmseqs"`
-	Riboseek          string                `json:"riboseek"`
-	Foldseek          string                `json:"foldseek"`
-	FoldseekInterface string                `json:"foldseekinterface"`
-	FoldMason         string                `json:"foldmason"`
-	FoldDisco         string                `json:"folddisco"`
-	FoldComp          string                `json:"foldcomp"`
-	Pdb100            string                `json:"pdb100"`
-	ColabFold         *ConfigColabFoldPaths `json:"colabfold"`
+	Databases string                `json:"databases"`
+	Results   string                `json:"results"`
+	Temporary string                `json:"temporary"`
+	Mmseqs    string                `json:"mmseqs"`
+	Riboseek  string                `json:"riboseek"`
+	Foldseek  string                `json:"foldseek"`
+	FoldMason string                `json:"foldmason"`
+	FoldDisco string                `json:"folddisco"`
+	FoldComp  string                `json:"foldcomp"`
+	Pdb100    string                `json:"pdb100"`
+	ColabFold *ConfigColabFoldPaths `json:"colabfold"`
 }
 
 type ConfigRedis struct {
@@ -319,6 +317,8 @@ type ConfigRoot struct {
 	Local   ConfigLocal  `json:"local"`
 	Mail    ConfigMail   `json:"mail"`
 	Verbose bool         `json:"verbose"`
+	// Gfaidx enables read-only genome-graph queries without changing any MMseqs settings.
+	Gfaidx *ConfigGfaidx `json:"gfaidx,omitempty"`
 }
 
 func ReadConfigFromFile(name string) (ConfigRoot, error) {
@@ -375,11 +375,9 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 			paths,
 			&config.Paths.Riboseek,
 			&config.Paths.Foldseek,
-			&config.Paths.FoldseekInterface,
 			&config.Paths.FoldMason,
 			&config.Paths.FoldDisco,
 			&config.Paths.FoldComp,
-			&config.Paths.FoldseekInterface,
 		)
 	}
 
@@ -396,6 +394,10 @@ func ReadConfig(r io.Reader, relativeTo string) (ConfigRoot, error) {
 			&config.Paths.ColabFold.PdbDivided,
 			&config.Paths.ColabFold.PdbObsolete,
 		)
+	}
+	// Resolve optional gfaidx paths with the same config-relative convention as existing binaries.
+	if config.Gfaidx != nil {
+		paths = append(paths, &config.Gfaidx.Binary, &config.Gfaidx.Databases)
 	}
 	for _, path := range paths {
 		if strings.HasPrefix(*path, "~") {
@@ -419,7 +421,6 @@ func (c *ConfigRoot) binaryRequirements() []binaryRequirement {
 			{c.Paths.Foldseek, "Foldseek", []JobType{JobStructureSearch, JobComplexSearch, JobInterfaceSearch, JobFoldDisco, JobIndex}},
 			{c.Paths.FoldMason, "FoldMason", []JobType{JobFoldMasonMSA}},
 			{c.Paths.FoldDisco, "FoldDisco", []JobType{JobFoldDisco}},
-			{c.Paths.FoldseekInterface, "FoldseekInterface", []JobType{JobInterfaceSearch}},
 		}
 	}
 	return []binaryRequirement{
@@ -454,6 +455,23 @@ func (c *ConfigRoot) CheckPaths(types []JobType) error {
 	if c.App == AppColabFold {
 		if c.Paths.ColabFold == nil {
 			return errors.New("ColabFold paths are not set")
+		}
+	}
+
+	// Validate optional gfaidx resources only when the feature is configured.
+	if c.Gfaidx != nil {
+		// Command-line overrides are applied after JSON validation, so validate their numeric limits here too.
+		if c.Gfaidx.TimeoutSeconds < 0 {
+			return errors.New("gfaidx timeoutseconds must be 0 or greater")
+		}
+		if c.Gfaidx.Threads < 0 {
+			return errors.New("gfaidx threads must be 0 or greater")
+		}
+		if info, err := os.Stat(c.Gfaidx.Binary); err != nil || info.IsDir() {
+			return errors.New("gfaidx binary was not found at " + c.Gfaidx.Binary)
+		}
+		if _, err := loadGfaidxDatabases(*c.Gfaidx); err != nil {
+			return err
 		}
 	}
 

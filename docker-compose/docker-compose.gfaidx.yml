@@ -1,0 +1,27 @@
+# This optional overlay configures gfaidx for a Foldseek server. The backend
+# registers the graph routes only when APP=foldseek, preventing accidental
+# exposure by MMseqs, ColabFold, or PredictProtein deployments.
+services:
+  mmseqs-web-api:
+    command: >
+      -server
+      -config /etc/mmseqs-web/config.json
+      -app ${APP}
+      -gfaidx.binary /usr/local/bin/gfaidx
+      -gfaidx.databases /opt/mmseqs-web/gfaidx-databases
+      -gfaidx.timeoutseconds ${GFAIDX_TIMEOUT_SECONDS:-120}
+      -gfaidx.threads ${GFAIDX_THREADS:-1}
+    volumes:
+      - ${GFAIDX_DB_PATH}:/opt/mmseqs-web/gfaidx-databases:ro
+
+  mmseqs-web-worker:
+    command: >
+      -worker
+      -config /etc/mmseqs-web/config.json
+      -app ${APP}
+      -gfaidx.binary /usr/local/bin/gfaidx
+      -gfaidx.databases /opt/mmseqs-web/gfaidx-databases
+      -gfaidx.timeoutseconds ${GFAIDX_TIMEOUT_SECONDS:-120}
+      -gfaidx.threads ${GFAIDX_THREADS:-1}
+    volumes:
+      - ${GFAIDX_DB_PATH}:/opt/mmseqs-web/gfaidx-databases:ro

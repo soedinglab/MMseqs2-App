@@ -175,6 +175,9 @@ func ismmCIFFile(filePath string) (bool, error) {
 func RunJob(request JobRequest, config ConfigRoot) (err error) {
 	start := time.Now()
 	switch job := request.Job.(type) {
+	case GfaidxJob:
+		// Keep gfaidx execution isolated from all existing MMseqs and Foldseek cases.
+		return RunGfaidxJob(job, request.Id, config)
 	case SearchJob:
 		resultBase := lookupJobDir(config.Paths.Results, request.Id)
 		var wg sync.WaitGroup
@@ -1016,7 +1019,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					dbpath = filepath.Clean(params.OverridePath)
 				}
 				parameters := []string{
-					config.Paths.FoldseekInterface,
+					config.Paths.Foldseek,
 					"easy-interfacesearch",
 					inputFile,
 					dbpath,
@@ -1169,7 +1172,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			err = execCommandSync(
 				config.Verbose,
 				[]string{
-					config.Paths.FoldseekInterface,
+					config.Paths.Foldseek,
 					"createsubdb",
 					filepath.Join(resultBase, "keys_"+database),
 					dimerdbpath,
@@ -1185,7 +1188,7 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 			err = execCommandSync(
 				config.Verbose,
 				[]string{
-					config.Paths.FoldseekInterface,
+					config.Paths.Foldseek,
 					"convert2pdb",
 					filepath.Join(resultBase, "dimer_"+database),
 					filepath.Join(resultBase, "pdb_"+database),

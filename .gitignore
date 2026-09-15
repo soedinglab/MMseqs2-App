@@ -15,3 +15,5 @@ backend/.cache/
 .claude/
 claude-plan/
 CLAUDE.md
+
+gfaidx_test/

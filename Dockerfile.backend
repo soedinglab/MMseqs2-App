@@ -76,6 +76,29 @@ ONBUILD ADD https://mmseqs.com/riboseek/riboseek-linux-gpu-arm64.tar.gz .
 
 FROM $downloader AS downloader
 
+# Download the pinned, statically linked gfaidx release for Docker's target
+# architecture. Using release binaries avoids installing a C++ toolchain in
+# every backend build while retaining reproducible, checksum-verified inputs.
+FROM --platform=$BUILDPLATFORM debian:stable-slim AS gfaidx-downloader
+ARG TARGETARCH
+ARG GFAIDX_VERSION=1.9.8
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates wget \
+    && rm -rf /var/lib/apt/lists/*
+RUN set -eu; \
+    case "$TARGETARCH" in \
+      amd64) release_arch="x86_64"; checksum="65806146ebda4022dd77a4cebf7408d72aed07ee0665d50d5cf3de8571a212d0" ;; \
+      arm64) release_arch="aarch64"; checksum="c7ac434f59615a6e13ae8de0f4b482620ed1bbb783efce810741ba8f7959c8af" ;; \
+      *) echo "Unsupported gfaidx target architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    archive="gfaidx-v${GFAIDX_VERSION}-linux-${release_arch}.tar.gz"; \
+    wget -q -O "/tmp/${archive}" \
+      "https://github.com/fawaz-dabbaghieh/gfaidx/releases/download/v${GFAIDX_VERSION}/${archive}"; \
+    echo "${checksum}  /tmp/${archive}" | sha256sum -c -; \
+    mkdir -p /opt/gfaidx; \
+    tar -xzf "/tmp/${archive}" --strip-components=1 -C /opt/gfaidx; \
+    test -x /opt/gfaidx/gfaidx
+
 FROM --platform=$BUILDPLATFORM golang:latest AS builder
 ARG TARGETARCH
 ARG FRONTEND_APP
@@ -141,5 +164,12 @@ LABEL maintainer="Milot Mirdita <milot@mirdita.de>"
 
 RUN apt-get update && apt-get install -y ca-certificates wget aria2 && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /opt/build/mmseqs-web /opt/build/binaries/* /usr/local/bin/
+COPY --from=gfaidx-downloader /opt/gfaidx/gfaidx /usr/local/bin/gfaidx
+COPY --from=gfaidx-downloader /opt/gfaidx/LICENSE /usr/share/doc/gfaidx/LICENSE
+COPY --from=gfaidx-downloader /opt/gfaidx/LICENSE.argparse /usr/share/doc/gfaidx/LICENSE.argparse
+
+# Fail the image build immediately if the downloaded release binary cannot run
+# on the selected target architecture.
+RUN /usr/local/bin/gfaidx --version
 
 ENTRYPOINT ["/usr/local/bin/mmseqs-web"]
