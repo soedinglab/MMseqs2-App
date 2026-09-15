@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build the minimal self-contained runtime vendored by the Foldseek Claude plugin.
+// Build the minimal self-contained runtime vendored by the Marv Claude plugin.
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
@@ -12,8 +12,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
 const sourcePackage = JSON.parse(await fs.readFile(path.join(HERE, 'package.json'), 'utf8'));
 const out = path.resolve(process.argv[2] ??
-    path.join(HERE, 'dist', `foldseek-server-plugin-runtime-v${sourcePackage.version}.zip`));
-const stage = await fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-plugin-runtime-'));
+    path.join(HERE, 'dist', `marv-api-runtime-v${sourcePackage.version}.zip`));
+const stage = await fs.mkdtemp(path.join(os.tmpdir(), 'marv-api-runtime-'));
 const fixedTime = new Date('1980-01-01T00:00:00.000Z');
 
 function packageInfo(input) {
@@ -63,8 +63,8 @@ try {
         logLevel: 'warning',
     });
 
-    await fs.copyFile(path.join(HERE, 'bin', 'foldseek-server-mcp.js'),
-        path.join(stage, 'scripts', 'foldseek-server-mcp.js'));
+    await fs.copyFile(path.join(HERE, 'bin', 'marv-mcp.js'),
+        path.join(stage, 'scripts', 'marv-mcp.js'));
     await fs.copyFile(path.join(ROOT, 'LICENSE'), path.join(stage, 'LICENSE'));
     await fs.writeFile(path.join(stage, 'THIRD_PARTY_NOTICES.md'),
         await thirdPartyNotices(Object.keys(result.metafile.inputs)));
@@ -75,14 +75,14 @@ try {
         description: sourcePackage.description,
         license: sourcePackage.license,
         type: 'module',
-        bin: { 'foldseek-server-mcp': 'scripts/foldseek-server-mcp.js' },
+        bin: { 'marv-mcp': 'scripts/marv-mcp.js' },
         engines: sourcePackage.engines,
     }, null, 2)}\n`);
 
     const files = [
         'LICENSE',
         'THIRD_PARTY_NOTICES.md',
-        'scripts/foldseek-server-mcp.js',
+        'scripts/marv-mcp.js',
         'dist/server.mjs',
         'package.json',
     ];

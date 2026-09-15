@@ -34,7 +34,7 @@ const MIME = {
     gz: 'application/gzip',
 };
 
-const BUILT_BY = { package: 'foldseek-server-lib', version: VERSION };
+const BUILT_BY = { package: 'marv-core', version: VERSION };
 
 /** Normalize a server origin into one artifact namespace. */
 export function serverNamespaceFor({ baseUrl, apiPath = '/api' } = {}) {
@@ -166,7 +166,7 @@ export function createArtifactStore({
             await fs.mkdir(root, { recursive: true });
             // Claim the root before it becomes eligible for cleanup.
             await fs.writeFile(path.join(root, ROOT_MARKER), JSON.stringify({
-                kind: 'foldseek-server artifact root', createdAt: clock().toISOString(),
+                kind: 'marv artifact root', createdAt: clock().toISOString(),
             })).catch(() => {});
             const scratch = await fs.mkdtemp(path.join(root, BUILD_PREFIX));
             building.add(id);

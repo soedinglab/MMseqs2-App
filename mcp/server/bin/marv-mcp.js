@@ -16,6 +16,6 @@ const run = argv.includes('--gc')
     : () => main(process.env, argv);
 
 run().catch((err) => {
-    process.stderr.write(`foldseek-server-mcp: ${err.message}\n`);
+    process.stderr.write(`marv-mcp: ${err.message}\n`);
     process.exit(1);
 });

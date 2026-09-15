@@ -9,10 +9,10 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const packageJson = JSON.parse(await fs.readFile(path.join(HERE, 'package.json'), 'utf8'));
-const out = process.argv[2] ?? path.join(HERE, 'dist', `foldseek-server-v${packageJson.version}.mcpb`);
+const out = process.argv[2] ?? path.join(HERE, 'dist', `marv-api-v${packageJson.version}.mcpb`);
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
 
-const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'foldseek-server-mcpb-'));
+const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'marv-api-mcpb-'));
 try {
     const stage = path.join(temporary, 'extension');
     const runtime = path.join(temporary, 'runtime.zip');

@@ -1,9 +1,9 @@
 {
   "manifest_version": "0.3",
-  "name": "foldseek-server",
-  "display_name": "Foldseek Server",
+  "name": "marv-api",
+  "display_name": "Marv API",
   "version": "0.0.0",
-  "description": "Search protein structures with Foldseek, align them with FoldMason, search 3D motifs with FoldDisco, and export results for analysis.",
+  "description": "Run Steinegger Lab tools, chain them, and produce inspectable result artifacts.",
   "author": {
     "name": "Steinegger Lab",
     "url": "https://github.com/soedinglab/MMseqs2-App"
@@ -22,16 +22,16 @@
   ],
   "server": {
     "type": "node",
-    "entry_point": "scripts/foldseek-server-mcp.js",
+    "entry_point": "scripts/marv-mcp.js",
     "mcp_config": {
       "command": "node",
       "args": [
-        "${__dirname}/scripts/foldseek-server-mcp.js"
+        "${__dirname}/scripts/marv-mcp.js"
       ],
       "env": {
-        "FOLDSEEK_SERVER_BASE_URL": "${user_config.base_url}",
-        "FOLDSEEK_SERVER_STATE_DIR": "${user_config.state_dir}",
-        "FOLDSEEK_SERVER_SHARED_DIR": "${user_config.shared_dir}"
+        "MARV_BASE_URL": "${user_config.base_url}",
+        "MARV_STATE_DIR": "${user_config.state_dir}",
+        "MARV_SHARED_DIR": "${user_config.shared_dir}"
       }
     }
   },
@@ -89,21 +89,21 @@
     "base_url": {
       "type": "string",
       "title": "Server URL",
-      "description": "Origin of the Foldseek Server deployment. Defaults to the public instance; change it to point at your own.",
+      "description": "Origin of the Foldseek Search Server deployment. Defaults to the public instance; change it to point at your own.",
       "required": false,
       "default": "https://search.foldseek.com"
     },
     "state_dir": {
       "type": "directory",
       "title": "State directory",
-      "description": "Where cached results, selections and exported artifacts are kept. Leave empty for ~/.foldseek-server. Artifact handles are only durable if this stays put.",
+      "description": "Where cached results, selections and exported artifacts are kept. Leave empty for ~/.marv. Artifact handles are only durable if this stays put.",
       "required": false,
       "default": ""
     },
     "shared_dir": {
       "type": "directory",
       "title": "Shared folder",
-      "description": "One folder shared with agent: exports/ for results and imports/ for structures. Leave empty to use foldseek-server-shared under your home directory.",
+      "description": "One folder shared with agent: exports/ for results and imports/ for structures. Leave empty to use marv-shared under your home directory.",
       "required": false,
       "default": ""
     }

@@ -3,7 +3,7 @@
 import {
     UnsupportedOnDeploymentError, DESTINATIONS, expandRanges, toolForJobType,
     resolveInputPath, describeLoadedStructure,
-} from 'foldseek-server-lib';
+} from 'marv-core';
 
 const TICKET = { type: 'string', description: 'Ticket id.' };
 const QUERY_IDX = {

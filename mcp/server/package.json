@@ -1,8 +1,8 @@
 {
-  "name": "foldseek-server-mcp",
-  "version": "0.1.1",
+  "name": "marv-mcp",
+  "version": "0.2.0",
   "private": true,
-  "description": "Search protein structures with Foldseek, align them with FoldMason, search 3D motifs with FoldDisco, and export reproducible result artifacts.",
+  "description": "Run Steinegger Lab tools, chain them, and produce inspectable result artifacts.",
   "keywords": [
     "mcp",
     "modelcontextprotocol",
@@ -28,14 +28,14 @@
   "license": "GPL-3.0-or-later",
   "type": "module",
   "bin": {
-    "foldseek-server-mcp": "bin/foldseek-server-mcp.js"
+    "marv-mcp": "bin/marv-mcp.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "foldseek-server-lib": "file:../core"
+    "marv-core": "file:../core"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

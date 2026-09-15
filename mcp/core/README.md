@@ -1,6 +1,6 @@
-# `foldseek-server-lib`
+# `marv-core`
 
-Private implementation library for the Foldseek MCP server. 
+Private implementation library for the Marv MCP server. 
 It connects to the Go backend, parses results with shared frontend helpers, persists ticket state, creates bounded summaries and file artifacts, and forwards selected rows or alignment columns into follow-up jobs.
 
 Use the tools documented in [`../server/README.md`](../server/README.md).
@@ -16,14 +16,14 @@ Use the tools documented in [`../server/README.md`](../server/README.md).
 - Report the verified shared-directory layout.
 - Validate input paths and collect expired inputs, results and artifacts safely.
 
-`FOLDSEEK_SERVER_BASE_URL` has no library default: choosing one implicitly could send a structure to the wrong deployment.
+`MARV_BASE_URL` has no library default: choosing one implicitly could send a structure to the wrong deployment.
 
 ## Layout
 
 | module | responsibility |
 |---|---|
 | `operations.js` | compose the public operations facade from the focused services below |
-| `backendClient.js` | raw Foldseek Server HTTP requests |
+| `backendClient.js` | raw Foldseek Search Server HTTP requests |
 | `results.js`, `table.js` | ticket/result access and tabular result objects |
 | `selections.js`, `msa.js` | saved hit and MSA-column selections |
 | `submits.js`, `structures.js`, `motif.js` | request validation, construction and submission |

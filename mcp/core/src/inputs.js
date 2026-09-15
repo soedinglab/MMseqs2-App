@@ -60,7 +60,7 @@ export async function resolveInputPath(candidate, { inputDir = null, touch = tru
     if (!inputDir) {
         throw coded('INPUT_PATH_REFUSED',
             'reading queries from files is unavailable — use a local or loopback connection with ' +
-            'FOLDSEEK_SERVER_SHARED_DIR');
+            'MARV_SHARED_DIR');
     }
     const wanted = path.isAbsolute(candidate) ? candidate : path.join(inputDir, candidate);
     const real = await containedRealPath([inputDir], wanted);
@@ -129,11 +129,11 @@ export async function ensureSharedDirs(shared) {
         throw coded('SHARED_DIR_OCCUPIED',
             `${importsDir} already existed and holds ${names.length} entr${names.length === 1 ? 'y' : 'ies'}`
             + ' — refusing to claim it, because everything in it would expire on the input TTL. Point'
-            + ' FOLDSEEK_SERVER_SHARED_DIR at a directory with no imports/ of its own, or move those'
+            + ' MARV_SHARED_DIR at a directory with no imports/ of its own, or move those'
             + ' files out.');
     }
     await fs.writeFile(path.join(importsDir, DROP_MARKER), JSON.stringify({
-        kind: 'foldseek-server drop directory', createdAt: new Date().toISOString(),
+        kind: 'marv drop directory', createdAt: new Date().toISOString(),
     })).catch(() => {});
     return { exportsDir, importsDir };
 }

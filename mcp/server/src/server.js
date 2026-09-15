@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 
-import { createOperations, ensureSharedDirs } from 'foldseek-server-lib';
+import { createOperations, ensureSharedDirs } from 'marv-core';
 
 import { createTools, runTool } from './tools.js';
 import { VERSION } from './version.js';
@@ -59,10 +59,10 @@ function boolFromEnv(env, name, fallback) {
 }
 
 export const RETIRED_ENV = {
-    FOLDSEEK_SERVER_ARTIFACT_DIR: 'use FOLDSEEK_SERVER_SHARED_DIR, whose exports/ replaces it',
-    FOLDSEEK_SERVER_INPUT_TOKEN: 'the upload route is gone; drop a file into the shared imports/ instead',
-    FOLDSEEK_SERVER_INPUT_QUOTA: 'nothing is uploaded now, so there is no upload quota',
-    FOLDSEEK_SERVER_INPUT_DIRS: 'put files in FOLDSEEK_SERVER_SHARED_DIR/imports instead',
+    MARV_ARTIFACT_DIR: 'use MARV_SHARED_DIR, whose exports/ replaces it',
+    MARV_INPUT_TOKEN: 'the upload route is gone; drop a file into the shared imports/ instead',
+    MARV_INPUT_QUOTA: 'nothing is uploaded now, so there is no upload quota',
+    MARV_INPUT_DIRS: 'put files in MARV_SHARED_DIR/imports instead',
 };
 
 export function readConfigFromEnv(env = process.env, { homeDir = os.homedir() } = {}) {
@@ -71,31 +71,31 @@ export function readConfigFromEnv(env = process.env, { homeDir = os.homedir() } 
         if (env[gone]) throw new Error(`${gone} is no longer read — ${now}`);
     }
 
-    const baseUrl = env.FOLDSEEK_SERVER_BASE_URL;
+    const baseUrl = env.MARV_BASE_URL;
     if (!baseUrl) {
         throw new Error(
-            'FOLDSEEK_SERVER_BASE_URL is required — set it to the site origin, e.g. ' +
+            'MARV_BASE_URL is required — set it to the site origin, e.g. ' +
             'http://localhost:3000 or https://search.foldseek.com.'
         );
     }
-    const user = env.FOLDSEEK_SERVER_BASIC_AUTH_USER;
-    const pass = env.FOLDSEEK_SERVER_BASIC_AUTH_PASS;
+    const user = env.MARV_BASIC_AUTH_USER;
+    const pass = env.MARV_BASIC_AUTH_PASS;
     return {
         baseUrl,
-        stateDir: env.FOLDSEEK_SERVER_STATE_DIR || undefined,
-        sharedDir: env.FOLDSEEK_SERVER_SHARED_DIR || path.join(homeDir, 'foldseek-server-shared'),
-        apiPath: env.FOLDSEEK_SERVER_API_PATH || undefined,
+        stateDir: env.MARV_STATE_DIR || undefined,
+        sharedDir: env.MARV_SHARED_DIR || path.join(homeDir, 'marv-shared'),
+        apiPath: env.MARV_API_PATH || undefined,
         basicAuth: user ? { user, pass: pass ?? '' } : null,
-        resultRowCap: intFromEnv(env, 'FOLDSEEK_SERVER_RESULT_ROW_CAP',
+        resultRowCap: intFromEnv(env, 'MARV_RESULT_ROW_CAP',
             { fallback: null, min: 1, max: 1000000 }),
-        inputTtlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_INPUT_TTL',
+        inputTtlSeconds: durationFromEnv(env, 'MARV_INPUT_TTL',
             { fallback: 3600, min: 300, max: 604800 }),
-        resultTtlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_RESULT_TTL',
+        resultTtlSeconds: durationFromEnv(env, 'MARV_RESULT_TTL',
             { fallback: 86400, min: 60, max: 2592000 }),
         artifacts: {
-            ttlSeconds: durationFromEnv(env, 'FOLDSEEK_SERVER_ARTIFACT_TTL',
+            ttlSeconds: durationFromEnv(env, 'MARV_ARTIFACT_TTL',
                 { fallback: 1800, min: 60, max: 604800 }),
-            exposeLocalPaths: boolFromEnv(env, 'FOLDSEEK_SERVER_LOCAL_PATHS', true),
+            exposeLocalPaths: boolFromEnv(env, 'MARV_LOCAL_PATHS', true),
         },
     };
 }
@@ -106,7 +106,7 @@ export function createServer(config, transport = { kind: 'stdio' }) {
         inputDir: readRoot(operations, transport),
     });
     const server = new Server(
-        { name: 'foldseek-server', version: VERSION },
+        { name: 'Marv API', version: VERSION },
         { capabilities: { tools: {} } },
     );
 
@@ -202,17 +202,17 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
     if (operations.sharedDirs) {
         // Shared-folder failure does not block remote searches.
         await ensureSharedDirs(operations.sharedDirs.shared)
-            .catch(err => process.stderr.write(`foldseek-server: ${err.message}\n`));
+            .catch(err => process.stderr.write(`marv-api: ${err.message}\n`));
     }
 
     if (transport.kind === 'http') {
         await listenHttp(server, transport);
         process.stderr.write(
-            `foldseek-server: streamable http on http://${transport.host}:${transport.port}\n`);
+            `marv-api: streamable http on http://${transport.host}:${transport.port}\n`);
     } else {
         await server.connect(new StdioServerTransport());
         // Keep stdout reserved for the protocol.
-        process.stderr.write('foldseek-server: stdio\n');
+        process.stderr.write('marv-api: stdio\n');
     }
 
     // Sweep after the handshake and report only to stderr.
@@ -222,12 +222,12 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
             // Report deletion from the user-visible drop folder.
             if (artifacts.deleted || results.deleted || inputs.deleted || errors) {
                 process.stderr.write(
-                    `foldseek-server: startup GC removed ${artifacts.deleted} artifact(s), ` +
+                    `marv-api: startup GC removed ${artifacts.deleted} artifact(s), ` +
                     `${results.deleted} cached result(s) and ${inputs.deleted ?? 0} dropped file(s), ` +
                     `${errors} error(s)\n`);
             }
         })
-        .catch(err => process.stderr.write(`foldseek-server: startup GC failed: ${err.message}\n`));
+        .catch(err => process.stderr.write(`marv-api: startup GC failed: ${err.message}\n`));
 }
 
 /** Operator maintenance: sweep and report, without starting a server. */

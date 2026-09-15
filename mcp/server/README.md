@@ -1,4 +1,4 @@
-# foldseek-server-mcp
+# marv-mcp
 
 Use Foldseek for monomer and complex structure search, FoldMason for multiple-structure alignment, and FoldDisco for 3D motif search through one Model Context Protocol (MCP) server.
 Results can be inspected as bounded summaries or exported as reproducible files for local analysis.
@@ -23,8 +23,8 @@ Requires Node.js 18+ when run from source.
 
 ### Claude Desktop and Cowork
 
-Install the versioned `foldseek-server-v<version>.mcpb` as a Desktop extension.
-The public Foldseek Server and a `foldseek-server-shared` folder under your home directory are the defaults; either can be changed during installation.
+Install the versioned `marv-api-v<version>.mcpb` as a Desktop extension.
+The public Foldseek Search Server and a `marv-shared` folder under your home directory are the defaults; either can be changed during installation.
 
 For Claude Code, use either its plugin-bundled runtime or a manually registered checkout, not both in the same client.
 Cowork does not execute the runtime bundled by that plugin, so it needs the MCPB.
@@ -40,11 +40,11 @@ npm ci --prefix frontend/lib
 npm ci --prefix mcp/core
 npm ci --prefix mcp/server
 
-claude mcp add foldseek -e FOLDSEEK_SERVER_BASE_URL=https://search.foldseek.com \
-  -- node /absolute/path/to/MMseqs2-App/mcp/server/bin/foldseek-server-mcp.js
+claude mcp add marv -e MARV_BASE_URL=https://search.foldseek.com \
+  -- node /absolute/path/to/MMseqs2-App/mcp/server/bin/marv-mcp.js
 ```
 
-`FOLDSEEK_SERVER_BASE_URL` is required when running from source and has no default.
+`MARV_BASE_URL` is required when running from source and has no default.
 Replace the absolute path with the checkout's real path.
 If a Claude plugin already bundles this server, use the plugin's installation instructions instead of registering the checkout separately.
 
@@ -59,7 +59,7 @@ npm ci --prefix mcp/server
 npm run build:mcpb --prefix mcp/server
 ```
 
-The bundle is written to `mcp/server/dist/foldseek-server-v<version>.mcpb`.
+The bundle is written to `mcp/server/dist/marv-api-v<version>.mcpb`.
 Building uses npm as the repository's dependency and task runner; it does not publish either package.
 
 ### Over HTTP
@@ -68,8 +68,8 @@ For clients that connect to a running checkout rather than starting a local stdi
 repository root:
 
 ```bash
-FOLDSEEK_SERVER_BASE_URL=https://search.foldseek.com \
-  node mcp/server/bin/foldseek-server-mcp.js --http --host 127.0.0.1 --port 8080
+MARV_BASE_URL=https://search.foldseek.com \
+  node mcp/server/bin/marv-mcp.js --http --host 127.0.0.1 --port 8080
 ```
 
 Streamable HTTP, bound to the address given.
@@ -213,7 +213,7 @@ Every reply is one JSON object.
 
 ### The shared folder
 
-`FOLDSEEK_SERVER_SHARED_DIR` names one directory both sides use. When unset it is `foldseek-server-shared` under the current user's home directory. It derives two:
+`MARV_SHARED_DIR` names one directory both sides use. When unset it is `marv-shared` under the current user's home directory. It derives two:
 
 ```
 <shared>/exports    the server writes, client read     30 min
@@ -231,17 +231,17 @@ Environment variables only.
 
 | variable | default | |
 |---|---|---|
-| `FOLDSEEK_SERVER_BASE_URL` | **required** | deployment origin, e.g. `https://search.foldseek.com` |
-| `FOLDSEEK_SERVER_STATE_DIR` | `~/.foldseek-server` | cached results and selections |
-| `FOLDSEEK_SERVER_SHARED_DIR` | home directory + `foldseek-server-shared` | one folder shared with the client: `exports/` out, `imports/` in |
-| `FOLDSEEK_SERVER_INPUT_TTL` | `1h` | how long a file in `imports/` is kept after last use |
-| `FOLDSEEK_SERVER_ARTIFACT_TTL` | `30m` | how long exported files are kept after last use |
-| `FOLDSEEK_SERVER_RESULT_TTL` | `24h` | how long cached results are kept after last use |
-| `FOLDSEEK_SERVER_LOCAL_PATHS` | `1` | `0` withholds local paths, for remote deployments |
-| `FOLDSEEK_SERVER_API_PATH` | `/api` | for a deployment behind a path prefix |
-| `FOLDSEEK_SERVER_BASIC_AUTH_USER` | — | HTTP basic auth, if the deployment wants it |
-| `FOLDSEEK_SERVER_BASIC_AUTH_PASS` | — | |
-| `FOLDSEEK_SERVER_RESULT_ROW_CAP` | unset | overrides the assumed per-database hit cap |
+| `MARV_BASE_URL` | **required** | deployment origin, e.g. `https://search.foldseek.com` |
+| `MARV_STATE_DIR` | `~/.marv` | cached results and selections |
+| `MARV_SHARED_DIR` | home directory + `marv-shared` | one folder shared with the client: `exports/` out, `imports/` in |
+| `MARV_INPUT_TTL` | `1h` | how long a file in `imports/` is kept after last use |
+| `MARV_ARTIFACT_TTL` | `30m` | how long exported files are kept after last use |
+| `MARV_RESULT_TTL` | `24h` | how long cached results are kept after last use |
+| `MARV_LOCAL_PATHS` | `1` | `0` withholds local paths, for remote deployments |
+| `MARV_API_PATH` | `/api` | for a deployment behind a path prefix |
+| `MARV_BASIC_AUTH_USER` | — | HTTP basic auth, if the deployment wants it |
+| `MARV_BASIC_AUTH_PASS` | — | |
+| `MARV_RESULT_ROW_CAP` | unset | overrides the assumed per-database hit cap |
 
 ### Command line
 

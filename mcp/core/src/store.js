@@ -32,7 +32,7 @@ function coded(code, message) {
 }
 
 export function defaultStateDir() {
-    return process.env.FOLDSEEK_SERVER_STATE_DIR || path.join(os.homedir(), '.foldseek-server');
+    return process.env.MARV_STATE_DIR || path.join(os.homedir(), '.marv');
 }
 
 /** Store only the query length and hash; the backend already owns the unbounded query text. */
