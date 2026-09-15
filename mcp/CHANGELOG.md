@@ -1,7 +1,5 @@
 # Changelog
 
-`core` and `server` are released together under one version.
-
 ## 0.2.0
 
 Renamed throughout. The server, its two packages, its environment variables and its persiste contracts are now `marv`; what the server does is unchanged.
