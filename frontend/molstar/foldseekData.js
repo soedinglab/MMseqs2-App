@@ -1,6 +1,7 @@
 import { Mat4 } from 'molstar/lib/mol-math/linear-algebra';
 import { pulchra } from 'pulchra-wasm';
 import { detectStructureFormat, mockPDB } from './molstarStructure.js';
+import { setChainId } from '../lib/structureText.js';
 
 export function getChainName(name) {
     if (!name || /_v[0-9]+$/.test(name)) return 'A';
@@ -176,7 +177,7 @@ async function buildTarget(ctx) {
         // same segment that NGL passes to TM-align.
         const mock = mockPDB(tCa, tSeq, chain);
         try {
-            targets.push(applyChainId(await pulchra(mock), chain));
+            targets.push(setChainId(await pulchra(mock), chain));
         } catch (e) {
             targets.push(mock);
         }
@@ -253,14 +254,6 @@ function computeMultimerTransform(alignments) {
         [u[6], u[7], u[8], t[2]],
         [0, 0, 0, 1],
     ]);
-}
-
-function applyChainId(pdb, chain) {
-    if (!pdb || !chain) return pdb;
-    return pdb.split('\n').map((line) => {
-        if (!line.startsWith('ATOM') && !line.startsWith('HETATM')) return line;
-        return `${line.slice(0, 21)}${chain}${line.slice(22)}`;
-    }).join('\n');
 }
 
 function mergePdbChunks(chunks) {

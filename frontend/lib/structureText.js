@@ -133,6 +133,16 @@ function listResiduesPdb(text) {
     return residues;
 }
 
+// pulchra drops the chain column, so callers that reconstruct a backbone have to put it back.
+export function setChainId(text, chain) {
+    if (typeof text !== 'string' || !chain) return text;
+    return text.split('\n').map((line) => (
+        line.startsWith('ATOM') || line.startsWith('HETATM')
+            ? line.slice(0, PDB_CHAIN_ID[0]) + chain + line.slice(PDB_CHAIN_ID[1])
+            : line
+    )).join('\n');
+}
+
 /**
  * Every residue in a PDB or mmCIF string, in file order, deduplicated by (chain, residue number).
  *
