@@ -11,7 +11,7 @@ import { Task } from 'molstar/lib/mol-task';
 import { ValueCell } from 'molstar/lib/mol-util';
 import { Color } from 'molstar/lib/mol-util/color';
 import { ParamDefinition as PD } from 'molstar/lib/mol-util/param-definition';
-import { structureResidueKeys } from './molstarStructure.js';
+import { normalizeChainId, structureResidueKeys } from './molstarStructure.js';
 
 // Multimer cartoons use one color per structure. Interface results instead
 // use the paired-chain palette from the interface viewer.
@@ -234,8 +234,8 @@ function structureChainAnchors(structureRef) {
             loc.unit = unit;
             loc.element = element;
 
-            const auth = StructureProperties.chain.auth_asym_id(loc) || '';
-            const label = StructureProperties.chain.label_asym_id(loc) || '';
+            const auth = normalizeChainId(StructureProperties.chain.auth_asym_id(loc));
+            const label = normalizeChainId(StructureProperties.chain.label_asym_id(loc));
             const chain = auth || label;
             if (!chain) continue;
 

@@ -57,7 +57,32 @@ export async function loadStructureFromData(plugin, source, label = source?.labe
     );
     const trajectory = await plugin.builders.structure.parseTrajectory(raw, source.format || 'pdb');
     const model = await plugin.builders.structure.createModel(trajectory);
-    return plugin.builders.structure.createStructure(model);
+    return plugin.builders.structure.createStructure(model, { name: 'model', params: {} });
+}
+
+// Structures without a chain column report a blank id; treat it as unnamed.
+export function normalizeChainId(value) {
+    return String(value ?? '').trim();
+}
+
+export function caChainIds(structureRef) {
+    const structure = structureRef?.cell?.obj?.data || structureRef;
+    const ids = new Set();
+    if (!structure) return ids;
+
+    const location = StructureElement.Location.create(structure);
+    for (const unit of structure.units || []) {
+        if (!Unit.isAtomic(unit)) continue;
+        location.unit = unit;
+        for (let index = 0; index < OrderedSet.size(unit.elements); index++) {
+            location.element = OrderedSet.getAt(unit.elements, index);
+            if (StructureProperties.atom.label_atom_id(location) !== 'CA') continue;
+            const authChain = normalizeChainId(StructureProperties.chain.auth_asym_id(location));
+            const labelChain = normalizeChainId(StructureProperties.chain.label_asym_id(location));
+            ids.add(authChain || labelChain);
+        }
+    }
+    return ids;
 }
 
 export function detectStructureFormat(raw) {
@@ -184,8 +209,8 @@ function residueInfoFromLocation(loc) {
     const threeLetter = StructureProperties.residue.label_comp_id(loc)
         || StructureProperties.residue.auth_comp_id(loc)
         || '';
-    const authChain = StructureProperties.chain.auth_asym_id(loc) || '';
-    const labelChain = StructureProperties.chain.label_asym_id(loc) || '';
+    const authChain = normalizeChainId(StructureProperties.chain.auth_asym_id(loc));
+    const labelChain = normalizeChainId(StructureProperties.chain.label_asym_id(loc));
     const chain = authChain || labelChain;
 
     return {
@@ -279,8 +304,8 @@ export function caResiduesByChain(structureRef) {
             location.element = OrderedSet.getAt(unit.elements, index);
             if (StructureProperties.atom.label_atom_id(location) !== 'CA') continue;
 
-            const authChain = StructureProperties.chain.auth_asym_id(location) || '';
-            const labelChain = StructureProperties.chain.label_asym_id(location) || '';
+            const authChain = normalizeChainId(StructureProperties.chain.auth_asym_id(location));
+            const labelChain = normalizeChainId(StructureProperties.chain.label_asym_id(location));
             const authResidue = StructureProperties.residue.auth_seq_id(location);
             const labelResidue = StructureProperties.residue.label_seq_id(location);
             const identity = `${labelChain}:${authChain}:${labelResidue}:${authResidue}`;
@@ -297,7 +322,9 @@ export function caResiduesByChain(structureRef) {
                 y: StructureProperties.atom.y(location),
                 z: StructureProperties.atom.z(location),
             };
-            for (const chain of new Set([authChain, labelChain].filter(Boolean))) {
+            const chains = new Set([authChain, labelChain].filter(Boolean));
+            if (chains.size === 0) chains.add('');
+            for (const chain of chains) {
                 if (!residuesByChain.has(chain)) residuesByChain.set(chain, []);
                 residuesByChain.get(chain).push(residue);
             }
@@ -468,11 +495,11 @@ export function structureResidueKeys(residue, chain = null) {
         if (Number.isFinite(residue.authResidue)) keys.push(`${chain}:auth:${residue.authResidue}`);
         return keys;
     }
-    if (residue.labelChain && Number.isFinite(residue.labelResidue)) {
-        keys.push(`${residue.labelChain}:label:${residue.labelResidue}`);
+    if (Number.isFinite(residue.labelResidue)) {
+        keys.push(`${residue.labelChain || ''}:label:${residue.labelResidue}`);
     }
-    if (residue.authChain && Number.isFinite(residue.authResidue)) {
-        keys.push(`${residue.authChain}:auth:${residue.authResidue}`);
+    if (Number.isFinite(residue.authResidue)) {
+        keys.push(`${residue.authChain || ''}:auth:${residue.authResidue}`);
     }
     return keys;
 }
