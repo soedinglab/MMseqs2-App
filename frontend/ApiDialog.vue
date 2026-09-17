@@ -28,7 +28,7 @@
                   &nbsp;&nbsp;-F 'database[]={{ path }}'  \<br>
                 </span>
                 <span
-                  v-for="(val, key) in $attrs"
+                  v-for="(val, key) in extraParams"
                   :key="key"
                 >
                 &nbsp;&nbsp;-F '{{ key }}={{ val }}' \<br>
@@ -47,7 +47,7 @@ with open(file, "rb") as f:
 <span v-if="mode">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;("mode", "{{ mode }}"),<br></span>
 <span v-if="taxfilter">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;("taxfilter", "{{ taxfilter }}"),<br></span>
 <span v-for="(path, i) in database" :key="`db-${i}`">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;("database[]", "{{ path }}"),<br></span>
-<span v-for="(val, key) in $attrs" :key="key">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;("{{ key }}", "{{ val }}"),<br></span>
+<span v-for="(val, key) in extraParams" :key="key">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;("{{ key }}", "{{ val }}"),<br></span>
 &nbsp;&nbsp;&nbsp;&nbsp;]</span>
     response = requests.post(url, files=files, data=data)
     print(response.status_code)
@@ -91,6 +91,14 @@ export default {
     suffix: {
       type: String,
       default: ''
+    }
+  },
+  computed: {
+    // Unset extras are not part of the request
+    extraParams() {
+      return Object.fromEntries(
+        Object.entries(this.$attrs).filter(([, val]) => val !== false && val != null && val !== '')
+      );
     }
   },
   data() {

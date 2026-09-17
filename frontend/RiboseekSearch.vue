@@ -15,6 +15,7 @@
                 :email="email"
                 :database="database"
                 :taxfilter="taxFilter ? taxFilter.value : ''"
+                :iterativesearch="iterativeSearch"
                 suffix="riboseek"></api-dialog>
             <v-icon v-if="query.length > 0" title="Clear" @click="query = ''" style="margin-right: 16px">{{ $MDI.Delete }}</v-icon>
             <v-tooltip open-delay="300" top>
@@ -74,7 +75,7 @@
                         </template>
                     </v-checkbox>
                 </template>
-                <span>Improve sensitivity of search by performing an iterative search (--num-iterations 0).</span>
+                <span>Improve sensitivity by running three search iterations (--num-iterations 3).</span>
             </v-tooltip>
 
             <v-tooltip v-if="!$ELECTRON && !hideEmail" open-delay="300" top>
