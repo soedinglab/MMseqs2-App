@@ -18,7 +18,7 @@
                     :class="colorscheme ? colorscheme : null"
                 /><br><!--
                 --><span class="protsolata-auto">{{'&nbsp;'.repeat(3+(Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length)}}</span><!--
-                --><span class="residues diff" :class="colorscheme ? colorscheme : null">{{formatAlnDiff(alignment.qAln.substring((i-1)*lineLen,  (i-1)*lineLen+lineLen), alignment.dbAln.substring((i-1)*lineLen, (i-1)*lineLen+lineLen))}}</span><br><!--
+                --><span class="residues diff" :class="colorscheme ? colorscheme : null">{{alnDiff.substring((i-1)*lineLen, (i-1)*lineLen+lineLen)}}</span><br><!--
                 --><span class="protsolata-auto">T&nbsp;{{padNumber(getTargetRowStartPos(i), (Math.max(alignment.qStartPos, alignment.dbStartPos) + alignment.alnLength+"").length, '&nbsp;')}}&nbsp;</span><!--
                 --><ResidueSpan
                     sequenceType="target"
@@ -42,6 +42,7 @@
 <script>
     
 import ResidueSpan from './ResidueSpan.vue'
+import { alignmentDiffRna } from './lib/dinucSimilarity.js'
 
 // cat blosum62.out  | grep -v '^#' | awk 'NR == 1 { for (i = 1; i <= NF; i++) { r[i] = $i; } next; } { col = $1; for (i = 2; i <= NF; i++) { print col,r[i-1],$i; } }' | awk '$3 > 0 && $1 != $2 { printf "\""$1""$2"\",";}'
 const blosum62Sim = [
@@ -70,9 +71,17 @@ export default {
         'highlights',
         'queryHighlights',
         'hover',
-        'colorscheme'
+        'colorscheme',
+        'nucleotide'
     ],
     components: { ResidueSpan },
+    computed: {
+        alnDiff() {
+            return this.nucleotide
+                ? alignmentDiffRna(this.alignment.qAln, this.alignment.dbAln)
+                : this.formatAlnDiff(this.alignment.qAln, this.alignment.dbAln);
+        },
+    },
     methods: {
         getSelectionStart(i, side) {
             const highlights = side === 'query' ? this.queryHighlights : this.highlights;
