@@ -34,20 +34,26 @@
         </div>
 
         <div class="rna-structure-wrapper">
-            <RnaStructureViewer
-                :key="`rna-q-${alignment.id}`"
-                :sequence="querySequence"
-                :name="queryName"
-                :highlightStart="queryHighlightStart"
-                :highlightLength="queryHighlightLength"
-                :height="300"
-            />
-            <RnaStructureViewer
-                :key="`rna-t-${alignment.id}`"
-                :sequence="targetSequence"
-                :name="alignment.target"
-                :height="300"
-            />
+            <div>
+                <RnaStructureViewer
+                    :key="`rna-q-${alignment.id}`"
+                    :sequence="querySequence"
+                    :name="queryName"
+                    :highlightStart="queryHighlightStart"
+                    :highlightLength="queryHighlightLength"
+                    :height="300"
+                />
+                <div class="rna-caption">{{ queryCaption }}</div>
+            </div>
+            <div>
+                <RnaStructureViewer
+                    :key="`rna-t-${alignment.id}`"
+                    :sequence="targetSequence"
+                    :name="alignment.target"
+                    :height="300"
+                />
+                <div class="rna-caption">{{ targetCaption }}</div>
+            </div>
         </div>
     </div>
 </template>
@@ -114,6 +120,19 @@ export default {
         targetSequence() {
             return this.alignment.dbAln.replace(/-/g, '');
         },
+        queryCaption() {
+            return this.query && this.query.sequence
+                ? 'Full query sequence, aligned region highlighted'
+                : 'Aligned region';
+        },
+        targetCaption() {
+            if (this.targetSequence.length >= this.alignment.dbLen) {
+                return 'Full target sequence';
+            }
+            const start = Math.min(this.alignment.dbStartPos, this.alignment.dbEndPos);
+            const end = Math.max(this.alignment.dbStartPos, this.alignment.dbEndPos);
+            return `Aligned region, ${start}-${end} of ${this.alignment.dbLen} nt`;
+        },
     },
 };
 </script>
@@ -160,6 +179,12 @@ export default {
 .rna-structure-wrapper > * {
     flex: 1 1 0;
     min-width: 0;
+}
+
+.rna-caption {
+    font-size: 0.85rem;
+    opacity: 0.7;
+    margin-top: 0.5em;
 }
 
 @media screen and (max-width: 960px) {
