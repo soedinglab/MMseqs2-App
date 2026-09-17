@@ -29,6 +29,7 @@
                 :targetMap="targetMap"
                 :highlights="highlights"
                 :colorscheme="colorscheme"
+                :nucleotide="true"
             />
         </div>
 
