@@ -69,6 +69,7 @@ import { BlobDatabase } from './lib/BlobDatabase.js';
 import { pulchra } from 'pulchra-wasm';
 import AllAtomPredictMixin from './AllAtomPredictMixin.vue';
 import { structureRemarkLine, structureRemarkPrefix } from './lib/structureRemark.js';
+import { setChainId } from './lib/structureText.js';
 
 const localDb = BlobDatabase()
 
@@ -191,7 +192,7 @@ export default {
         async getMockPdb(entry) {
             const mock = mockPDB(entry.ca, entry.aa.replace(/-/g, ''), 'A');
             if (!entry.suffix) {
-                return await pulchra(mock);
+                return setChainId(await pulchra(mock), 'A');
             } else {
                 const decoded = decodeMultimer(mock, entry.suffix)
                 return decoded

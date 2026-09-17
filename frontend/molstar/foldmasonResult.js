@@ -4,6 +4,7 @@ import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder'
 import { tmalign, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import { pulchra } from 'pulchra-wasm';
 import { decodeMultimer, mergeMultimer, revertChainInfo, splitMultimer, storeChains } from '../Utilities.js';
+import { setChainId } from '../lib/structureText.js';
 import {
     addUniformRepresentation,
     deleteComponent,
@@ -382,7 +383,7 @@ function subPDB(pdb, start, end) {
 async function structurePDB(entry) {
     const mock = mockPDB(entry.ca, entry.aa.replace(/-/g, ''), 'A');
     try {
-        if (!entry.suffix) return await pulchra(mock);
+        if (!entry.suffix) return setChainId(await pulchra(mock), 'A');
 
         const decoded = decodeMultimer(mock, entry.suffix);
         const chains = storeChains(decoded);
