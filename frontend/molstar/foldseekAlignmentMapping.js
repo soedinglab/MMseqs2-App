@@ -64,7 +64,7 @@ function buildSideAlignmentMaps(structureRef, input, side, sourceStructureRef = 
 
     return (input?.alignments || []).map((alignment, index) => {
         const sourceChain = getChainName(side === 'query' ? alignment.query : alignment.target);
-        const chain = structureChainForAlignment(input, side, sourceChain);
+        const chain = resolveStructureChain(structureResidues, structureChainForAlignment(input, side, sourceChain));
         const residues = structureResidues.get(chain) || [];
         const toStructure = new Map();
         const start = side === 'query' ? alignment.qStartPos : alignment.dbStartPos;
@@ -73,7 +73,7 @@ function buildSideAlignmentMaps(structureRef, input, side, sourceStructureRef = 
         if (input?.structureMode === 'interface') {
             const displayLookup = residueNumberLookup(residues);
             const coordinates = parseCaCoordinates(alignment[side === 'query' ? 'qCa' : 'tCa']);
-            const sourceResidues = sourceStructureResidues.get(chain) || [];
+            const sourceResidues = sourceStructureResidues.get(resolveStructureChain(sourceStructureResidues, chain)) || [];
             coordinates.forEach((coordinate, offset) => {
                 const sourceResidue = nearestResidue(sourceResidues, coordinate);
                 if (!sourceResidue) return;
@@ -90,6 +90,13 @@ function buildSideAlignmentMaps(structureRef, input, side, sourceStructureRef = 
         }
         return { index, side, sourceChain, chain, start: Math.min(start, end), end: Math.max(start, end), toStructure };
     });
+}
+
+// An unnamed chain cannot be matched by name; a structure holding only one
+// chain must be the one the alignment refers to.
+function resolveStructureChain(structureResidues, chain) {
+    if (structureResidues.has(chain)) return chain;
+    return structureResidues.size === 1 ? [...structureResidues.keys()][0] : chain;
 }
 
 function structureResidueAlignmentMap(alignmentMaps) {

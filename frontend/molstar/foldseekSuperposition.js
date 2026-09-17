@@ -1,7 +1,7 @@
 import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
-import { atomToPdbRow, mat4FromRotationTranslation, transformStructureConformation } from './molstarStructure.js';
+import { atomToPdbRow, caChainIds, mat4FromRotationTranslation, normalizeChainId, transformStructureConformation } from './molstarStructure.js';
 import { rangesByChain } from './foldseekAlignmentMapping.js';
 
 export async function prepareSuperposedTarget(plugin, target, query, input, state) {
@@ -47,10 +47,14 @@ function makeAlignedCaPdb(structureRef, ranges) {
     const structure = structureRef?.cell?.obj?.data;
     if (!structure || ranges.size === 0) return '';
 
+    const chainIds = caChainIds(structureRef);
+    const soleSpans = ranges.size === 1 && chainIds.size === 1 ? [...ranges.values()][0] : null;
+
     const rows = [];
     const loc = StructureElement.Location.create(structure);
     let serial = 1;
     const chainOrdinals = new Map();
+    const seen = new Set();
     for (const unit of structure.units) {
         if (!Unit.isAtomic(unit)) continue;
         loc.unit = unit;
@@ -58,19 +62,26 @@ function makeAlignedCaPdb(structureRef, ranges) {
             loc.element = OrderedSet.getAt(unit.elements, index);
             if (StructureProperties.atom.label_atom_id(loc) !== 'CA') continue;
 
-            const authChain = StructureProperties.chain.auth_asym_id(loc) || '';
-            const labelChain = StructureProperties.chain.label_asym_id(loc) || '';
+            const authChain = normalizeChainId(StructureProperties.chain.auth_asym_id(loc));
+            const labelChain = normalizeChainId(StructureProperties.chain.label_asym_id(loc));
             const chain = ranges.has(authChain) ? authChain : (ranges.has(labelChain) ? labelChain : null);
-            if (!chain) continue;
-            const ordinal = (chainOrdinals.get(chain) || 0) + 1;
-            chainOrdinals.set(chain, ordinal);
-            if (!ranges.get(chain).some(([start, end]) => ordinal >= start && ordinal <= end)) continue;
+            const spans = chain ? ranges.get(chain) : soleSpans;
+            if (!spans) continue;
+
+            const identity = `${labelChain}:${authChain}:${StructureProperties.residue.label_seq_id(loc)}:${StructureProperties.residue.auth_seq_id(loc)}`;
+            if (seen.has(identity)) continue;
+            seen.add(identity);
+
+            const chainKey = chain || authChain || labelChain;
+            const ordinal = (chainOrdinals.get(chainKey) || 0) + 1;
+            chainOrdinals.set(chainKey, ordinal);
+            if (!spans.some(([start, end]) => ordinal >= start && ordinal <= end)) continue;
 
             rows.push(atomToPdbRow({
                 serial: serial++,
                 atomName: 'CA',
                 resName: StructureProperties.atom.auth_comp_id(loc) || StructureProperties.atom.label_comp_id(loc) || 'ALA',
-                chain,
+                chain: chainKey,
                 resno: ordinal,
                 x: StructureProperties.atom.x(loc),
                 y: StructureProperties.atom.y(loc),
