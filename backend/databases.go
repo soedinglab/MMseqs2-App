@@ -23,6 +23,7 @@ type GpuConfig struct {
 type Params struct {
 	Name         string `json:"name" validate:"required"`
 	Version      string `json:"version"`
+	Description  string `json:"description"`
 	Path         string `json:"path" validate:"required"`
 	Default      bool   `json:"default"`
 	Order        int    `json:"order"`

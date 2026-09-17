@@ -219,13 +219,14 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 				}
 			}
 			params := Params{
-				Name:    req.FormValue("name"),
-				Version: req.FormValue("version"),
-				Path:    path,
-				Default: req.FormValue("default") == "true",
-				Index:   req.FormValue("index"),
-				Search:  req.FormValue("search"),
-				Status:  StatusPending,
+				Name:        req.FormValue("name"),
+				Version:     req.FormValue("version"),
+				Description: req.FormValue("description"),
+				Path:        path,
+				Default:     req.FormValue("default") == "true",
+				Index:       req.FormValue("index"),
+				Search:      req.FormValue("search"),
+				Status:      StatusPending,
 			}
 
 			filename := filepath.Join(config.Paths.Databases, filepath.Base(path+".params"))
