@@ -152,6 +152,22 @@ function tryLinkTargetToDB(target, db) {
     return null;
   }
 }
+
+export function tryLinkRnaTarget(target) {
+  const accession = target.replace(/\/[0-9]+-[0-9]+$/, "");
+  const urs = accession.match(/^(URS[0-9A-F]{10})(?:_([0-9]+))?$/);
+  if (urs) {
+    return "https://rnacentral.org/rna/" + urs[1] + (urs[2] ? "/" + urs[2] : "");
+  }
+  if (/^[A-Z]{2}_[A-Z0-9]+(\.[0-9]+)?$/.test(accession)) {
+    return "https://www.ncbi.nlm.nih.gov/nuccore/" + accession;
+  }
+  if (/^[A-Z]{1,6}[0-9][A-Z0-9]{4,}(\.[0-9]+)?$/.test(accession)) {
+    return "https://www.ebi.ac.uk/ena/browser/view/" + accession;
+  }
+  return null;
+}
+
 function tryFixTargetName(target, db) {
   var res = db.toLowerCase();
   if (APP == "foldseek") {
@@ -352,7 +368,7 @@ export function parseResultsRiboseek(data) {
           const split = item.target.split(" ");
           item.target = tryFixTargetName(split[0], db);
           item.description = split.slice(1).join(" ");
-          item.href = tryLinkTargetToDB(split[0], db);
+          item.href = tryLinkRnaTarget(split[0]) ?? tryLinkTargetToDB(split[0], db);
         }
         if (item.description.length > 1) {
           result.hasDescription = true;
