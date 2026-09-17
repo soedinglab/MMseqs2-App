@@ -140,7 +140,6 @@ import NavigationButton from './NavigationButton.vue';
 import ResultRiboseekDB from './ResultRiboseekDB.vue';
 import TopHitsRiboseek from './TopHitsRiboseek.vue';
 import RnaAlignmentPanel from './RnaAlignmentPanel.vue';
-import RnaStructureViewer from './RnaStructureViewer.vue';
 import colorScale from './lib/ColorScale';
 import { rgb2hsl } from './lib/ColorSpace';
 import { parseResultsRiboseek, download, dateTime, getAbsOffsetTop } from './Utilities.js';
@@ -157,7 +156,7 @@ export default {
     name: 'ResultRiboseek',
     tool: 'riboseek',
     components: { Panel, NameField, NavigationButton, ResultRiboseekDB,
-        TopHitsRiboseek, RnaAlignmentPanel, RnaStructureViewer },
+        TopHitsRiboseek, RnaAlignmentPanel },
     data() {
         return {
             ticket: '',
@@ -374,12 +373,6 @@ export default {
 </script>
 
 <style scoped>
-.rna-caption {
-    font-size: 0.85rem;
-    opacity: 0.7;
-    margin-top: 0.5em;
-}
-
 @media print, screen and (max-width: 599px) {
     small.ticket {
         display: inline-block;
