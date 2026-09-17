@@ -31,8 +31,8 @@
                     :append-icon="(db.status == 'ERROR' || db.status == 'UNKNOWN') ? $MDI.AlertCircleOutline : ((db.status == 'PENDING' || db.status == 'RUNNING') ? $MDI.ProgressWrench : undefined)"
                     :disabled="db.status != 'COMPLETE'" hide-details>
                 </v-checkbox>
-                <div v-if="!db.default" class="caption text--secondary" style="margin-left: 32px; margin-top: -4px; margin-bottom: 4px;">
-                    It may take longer than several minutes.
+                <div v-if="db.description" class="caption text--secondary" style="margin-left: 32px; margin-top: -4px; margin-bottom: 4px;">
+                    {{ db.description }}
                 </div>
             </div>
         </template>
