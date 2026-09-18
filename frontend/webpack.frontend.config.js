@@ -142,7 +142,11 @@ module.exports = (env, argv) => {
         resolve: {
             extensions: ['.js', '.vue', '.json'],
             alias: {
-                'vue$': 'vue/dist/vue.runtime.esm.js'
+                'vue$': 'vue/dist/vue.runtime.esm.js',
+                // frontend/lib imports molstar's commonjs tree so the MCP server can run it under
+                // Node; in the browser take the ESM tree, and one copy of it.
+                'molstar/lib/commonjs': path.resolve('./node_modules/molstar/lib'),
+                'molstar': path.resolve('./node_modules/molstar')
             }
         },
         experiments: {

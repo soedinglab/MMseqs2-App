@@ -1,5 +1,7 @@
 .DS_Store
 dist/*
+mcp/server/dist/
+mcp/server/*.tgz
 build/*
 node_modules/
 npm-debug.log
@@ -10,5 +12,8 @@ pkg/
 resources/
 backend/.cache/
 .vscode/
+.claude/
+claude-plan/
+CLAUDE.md
 
 gfaidx_test/
