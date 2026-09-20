@@ -57,7 +57,7 @@ type FoldseekAlignmentEntry struct {
 	DbEndPos      int           `json:"dbEndPos"`
 	Prob          float32       `json:"prob"`
 	Eval          float64       `json:"eval"`
-	Score         int           `json:"score"`
+	Score         float64       `json:"score"`
 	QueryLength   int           `json:"qLen"`
 	DbLength      int           `json:"dbLen"`
 	QueryAln      string        `json:"qAln"`
@@ -125,7 +125,7 @@ type ComplexAlignmentEntry struct {
 	DbEndPos        int           `json:"dbEndPos"`
 	Prob            float32       `json:"prob"`
 	Eval            float64       `json:"eval"`
-	Score           int           `json:"score"`
+	Score           float64       `json:"score"`
 	QueryLength     int           `json:"qLen"`
 	DbLength        int           `json:"dbLen"`
 	QueryAln        string        `json:"qAln"`
@@ -155,7 +155,7 @@ type InterfaceAlignmentEntry struct {
 	DbEndPos        int           `json:"dbEndPos"`
 	Prob            float32       `json:"prob"`
 	Eval            float64       `json:"eval"`
-	Score           int           `json:"score"`
+	Score           float64       `json:"score"`
 	QueryLength     int           `json:"qLen"`
 	DbLength        int           `json:"dbLen"`
 	QueryAln        string        `json:"qAln"`
