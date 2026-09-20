@@ -356,6 +356,7 @@ export default {
 }
 
 .card-content-container {
+    min-width: 320px;
     flex-grow: 1;
 }
 

@@ -137,7 +137,7 @@
                                         </v-icon>
                                     </v-list-item-icon>
                                 </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('score')">
+                                <v-list-item v-if="this.mode != 'lolalign' " @click.stop="changeSortMode('score')">
                                     <v-list-item-title>Score</v-list-item-title>
                                     <v-list-item-icon>
                                         <v-icon :style="{'opacity' : sortKey == 'score' ? '1' : 0}">
@@ -236,7 +236,7 @@
                     <th v-if="searchType !== 'interfacesearch'" class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'eval', 'sort-down': this.sortOrder < 0, 'default-down': mode == 'lolalign' || mode == 'tmalign'}"
                         @click="changeSortMode('eval')" :title="'Click to sort by '+ scoreColumnName">{{ scoreColumnName }}</th> <!-- TODO fixme!! -->
                     <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'score', 'sort-down': this.sortOrder < 0}"
-                        v-show="tableMode == 1" @click="changeSortMode('score')" title="Click to sort by score">Score</th>
+                        v-if="this.mode !== 'lolalign'" v-show="tableMode == 1" @click="changeSortMode('score')" title="Click to sort by score">Score</th>
                     <th v-show="tableMode == 1">Query Pos.</th>
                     <th v-show="tableMode == 1">Target Pos.</th>
                     <th v-show="tableMode == 0">
