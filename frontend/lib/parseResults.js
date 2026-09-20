@@ -238,7 +238,7 @@ export function parseResults(data) {
         }
         item.id = "result-" + i + "-" + j;
         item.active = false;
-        if (APP != "foldseek" || data.mode != "tmalign") {
+        if (APP != "foldseek" || (data.mode != "tmalign" && data.mode != "lolalign")) {
           item.eval =
             typeof item.eval === "string"
               ? item.eval
@@ -253,6 +253,8 @@ export function parseResults(data) {
           } else if (data.mode == "lolalign") {
             item.eval = item.eval * 100;
             item.eval = parseFloat(item.eval.toFixed(2)).toString();
+            item.score =
+              typeof item.score === "string" ? item.score : item.score.toFixed(4);
           }
         }
         if ("taxId" in item) {
