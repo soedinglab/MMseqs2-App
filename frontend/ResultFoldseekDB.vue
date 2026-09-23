@@ -172,9 +172,9 @@
                     <col style="min-width: 20%;" />
                 </template>
                 <template v-else>
-                    <col style="width: 4%;" />
-                    <col style="width: 8%;" />
-                    <col style="width: 8%;" />
+                    <col v-if="mode !== 'lolalign'" style="width: 4%;" />
+                    <col :style="{ width: mode !== 'lolalign' ? '8%' : '10%' }" />
+                    <col :style="{ width: mode !== 'lolalign' ? '8%' : '10%' }" />
                 </template>
                 <col style="width: 6%;" />
             </colgroup>
@@ -309,7 +309,7 @@
                     <td v-if="searchType !== 'interfacesearch'" class="thin" data-label="Probability">{{ item.prob }}</td>
                     <td class="thin" data-label="Sequence Identity">{{ item.seqId }}</td>
                     <td v-if="searchType !== 'interfacesearch'" class="thin" :data-label="scoreColumnName">{{ item.eval }}</td>
-                    <td class="thin" v-show="tableMode == 1" data-label="Score">{{ item.score }}</td>
+                    <td class="thin" v-if="mode !== 'lolalign'" v-show="tableMode == 1" data-label="Score">{{ item.score }}</td>
                     <td v-show="tableMode == 1" data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
                     <td v-show="tableMode == 1" data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
                     <td class="graphical" :data-label="searchType === 'interfacesearch' ? 'Position in query interface' : 'Position'" v-show="tableMode == 0">
@@ -377,7 +377,7 @@ export default {
     },
     created() {
         this.BATCH_SIZE = 100;
-        this.sortKey = this.isComplex ? 'qtm' : 'score'
+        this.sortKey = this.isComplex ? 'qtm' : this.mode == 'lolalign' ? 'eval' : 'score'
     },
     props: {
         tableMode: {
