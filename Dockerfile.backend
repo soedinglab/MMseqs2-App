@@ -105,7 +105,16 @@ ARG FRONTEND_APP
 
 WORKDIR /opt/build
 ADD backend .
-RUN GOOS=linux GOARCH=$TARGETARCH go build -o mmseqs-web
+RUN set -eu; \
+    for attempt in 1 2 3; do \
+      if GOOS=linux GOARCH=$TARGETARCH go build -o mmseqs-web; then \
+        break; \
+      fi; \
+      if [ "$attempt" -eq 3 ]; then \
+        exit 1; \
+      fi; \
+      sleep 5; \
+    done
 
 ADD https://raw.githubusercontent.com/soedinglab/MMseqs2/678c82ac44f1178bf9a3d49bfab9d7eed3f17fbc/util/mmseqs_wrapper.sh wrappers/mmseqs
 ADD https://raw.githubusercontent.com/steineggerlab/foldseek/2a7d682841e78deb511ada92fa5caa1f8f183f14/util/foldseek_wrapper.sh wrappers/foldseek
