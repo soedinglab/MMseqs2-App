@@ -92,7 +92,7 @@
                                         </v-icon>
                                     </v-list-item-icon>
                                 </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('score')">
+                                <v-list-item @click.stop="changeSortMode('score')" v-if="searchType !== 'search' || mode !== 'lolalign'">
                                     <v-list-item-title>Score</v-list-item-title>
                                     <v-list-item-icon>
                                         <v-icon :style="{'opacity' : sortKey == 'score' ? '1' : 0}">
@@ -126,9 +126,9 @@
                     <col style="min-width: 20%;" />
                 </template>
                 <template v-else>
-                    <col style="width: 4%;" />
-                    <col style="width: 8%;" />
-                    <col style="width: 8%;" />
+                    <col v-if="mode !== 'lolalign'" style="width: 4%;" />
+                    <col :style="{ width: mode !== 'lolalign' ? '8%' : '10%' }" />
+                    <col :style="{ width: mode !== 'lolalign' ? '8%' : '10%' }" />
                 </template>
                 <col style="width: 6%;" />
             </colgroup>
@@ -186,7 +186,7 @@
                         @click="changeSortMode('seqId')" title="Click to sort by sequence identity">Seq. Id.</th>
                     <th v-if="searchType !== 'interfacesearch'" class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'eval', 'sort-down': this.sortOrder < 0, 'default-down': mode == 'lolalign' || mode == 'tmalign'}"
                         @click="changeSortMode('eval')" :title="'Click to sort by '+ scoreColumnName">{{ scoreColumnName }}</th>
-                    <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'score', 'sort-down': this.sortOrder < 0}"
+                    <th class="thin sort-criterion default-down" v-if="mode !== 'lolalign'" :class="{'sort-selected':this.sortKey == 'score', 'sort-down': this.sortOrder < 0}"
                         v-show="tableMode == 1" @click="changeSortMode('score')" title="Click to sort by score">Score</th>
                     <th v-show="tableMode == 1">Query Pos.</th>
                     <th v-show="tableMode == 1">Target Pos.</th>
@@ -272,7 +272,7 @@
                     <td v-if="searchType !== 'interfacesearch'" class="thin" data-label="Probability">{{ item.prob }}</td>
                     <td class="thin" data-label="Sequence Identity">{{ item.seqId }}</td>
                     <td v-if="searchType !== 'interfacesearch'" class="thin" :data-label="scoreColumnName">{{ item.eval }}</td>
-                    <td class="thin" v-show="tableMode == 1" data-label="Score">{{ item.score }}</td>
+                    <td class="thin" v-if="mode !== 'lolalign'" v-show="tableMode == 1" data-label="Score">{{ item.score }}</td>
                     <td v-show="tableMode == 1" data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
                     <td v-show="tableMode == 1" data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
                     <td class="graphical" :data-label="searchType === 'interfacesearch' ? 'Position in query interface' : 'Position'" v-show="tableMode == 0">
@@ -469,6 +469,8 @@ export default {
         },
     },
     created() {
+        this.sortKey = this.mode == "lolalign" ? 'eval' : this.sortKey
+        
         // Initialize sortKeyCache
         const obj = {}
         obj['qtm'] = {}
