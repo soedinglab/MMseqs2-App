@@ -455,3 +455,130 @@ export function renameChains(text, renames, { scheme = 'effective' } = {}) {
     if (!isCif(text)) return renameChainsPdb(text, map);
     return renameChainsCif(text, map, scheme === 'effective' ? effectiveScheme(text) : scheme);
 }
+
+// Joining several structures into one.
+
+/** The `_atom_site` loop of an mmCIF string: its item names and its rows, split into values. */
+function atomSiteLoop(text) {
+    const lines = text.split('\n');
+    let i = 0;
+    while (i < lines.length) {
+        if (lines[i].trim() !== 'loop_') { i++; continue; }
+        i++;
+
+        const headers = [];
+        while (i < lines.length && lines[i].trim().startsWith('_')) {
+            headers.push(lines[i].trim().split(/\s+/)[0]);
+            i++;
+        }
+        if (headers.length === 0 || !headers[0].startsWith('_atom_site.')) continue;
+
+        const rows = [];
+        for (; i < lines.length; i++) {
+            const t = lines[i].trim();
+            if (t === '' || t === 'loop_' || t.startsWith('_') || t.startsWith('#')
+                || t.startsWith('data_')) {
+                break;
+            }
+            const cols = splitCifRow(t);
+            if (cols.length === headers.length) rows.push(cols);
+        }
+        return { headers, rows };
+    }
+    return null;
+}
+
+/** Loop values are whitespace separated, so one holding a space has to be quoted back. */
+function quoteCifValue(value) {
+    if (value === undefined || value === '') return '.';
+    return /[\s'"]/.test(value) ? `'${value.replace(/'/g, '')}'` : value;
+}
+
+/**
+ * Join several mmCIF structures into one, the way concatenating ATOM records joins PDB ones.
+ *
+ * Only the `_atom_site` loop survives. A reader handed several `data_` blocks parses one and drops
+ * the rest, so the extra structures have to arrive as extra rows of a single loop rather than as
+ * their own blocks.
+ *
+ * @param {string[]} chunks
+ * @returns {string} one mmCIF data block, or '' if no chunk had an atom_site loop
+ */
+export function mergeCifAtomSites(chunks) {
+    const loops = chunks
+        .map(chunk => (typeof chunk === 'string' ? atomSiteLoop(chunk) : null))
+        .filter(Boolean);
+    if (loops.length === 0) return '';
+
+    const headers = loops[0].headers;
+    const idColumn = headers.indexOf('_atom_site.id');
+    const modelColumn = headers.indexOf('_atom_site.pdbx_PDB_model_num');
+    const rows = [];
+    let serial = 1;
+
+    for (const loop of loops) {
+        // A later file may order or omit items differently, so address its values by name.
+        const columns = headers.map(header => loop.headers.indexOf(header));
+        for (const row of loop.rows) {
+            const values = columns.map(column => (column >= 0 ? row[column] : '.'));
+            if (idColumn >= 0) values[idColumn] = String(serial);
+            // Each file numbers its own model 1; keeping that would stack them as an ensemble.
+            if (modelColumn >= 0) values[modelColumn] = '1';
+            rows.push(values.map(quoteCifValue).join(' '));
+            serial++;
+        }
+    }
+
+    return ['data_merged', '#', 'loop_', ...headers, ...rows, '#', ''].join('\n');
+}
+
+/**
+ * Drop `_chem_comp` rows that declare no component type.
+ *
+ * @param {string} text  mmCIF
+ * @returns {string} the same text with untyped components removed; unchanged if there were none
+ */
+export function stripUntypedChemComp(text) {
+    if (typeof text !== 'string' || !text.includes('_chem_comp.')) return text;
+
+    const lines = text.split('\n');
+    const out = [];
+    let i = 0;
+    let changed = false;
+
+    while (i < lines.length) {
+        if (lines[i].trim() !== 'loop_') { out.push(lines[i]); i++; continue; }
+
+        const start = i;
+        i++;
+        const headers = [];
+        while (i < lines.length && lines[i].trim().startsWith('_')) {
+            headers.push(lines[i].trim().split(/\s+/)[0]);
+            i++;
+        }
+        if (headers.length === 0 || !headers[0].startsWith('_chem_comp.')) {
+            out.push(...lines.slice(start, i));
+            continue;
+        }
+
+        const typeColumn = headers.indexOf('_chem_comp.type');
+        const rows = [];
+        for (; i < lines.length; i++) {
+            const t = lines[i].trim();
+            if (t === '' || t === 'loop_' || t.startsWith('_') || t.startsWith('#')
+                || t.startsWith('data_')) {
+                break;
+            }
+            const cols = splitCifRow(t);
+            // '.' and '?' are mmCIF's null markers: the file is saying it does not know the type.
+            if (typeColumn >= 0 && (cols[typeColumn] === '.' || cols[typeColumn] === '?')) {
+                changed = true;
+                continue;
+            }
+            rows.push(lines[i]);
+        }
+        if (rows.length > 0) out.push(lines[start], ...headers, ...rows);
+    }
+
+    return changed ? out.join('\n') : text;
+}

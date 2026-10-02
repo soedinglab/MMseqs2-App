@@ -87,7 +87,9 @@ export function caChainIds(structureRef) {
 
 export function detectStructureFormat(raw) {
     const text = raw?.trimStart?.() || '';
-    return text[0] === '#' || text.startsWith('data_') ? 'mmcif' : 'pdb';
+    // A writer may lead with a comment, a data block or the loop itself; a PDB file has none of them.
+    return text[0] === '#' || text.startsWith('data_') || text.startsWith('loop_')
+        || text.startsWith('_atom_site.') ? 'mmcif' : 'pdb';
 }
 
 export function normalizedPdbSourceFromText(raw, label, options = {}) {

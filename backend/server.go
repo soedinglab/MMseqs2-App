@@ -1137,7 +1137,7 @@ func server(jobsystem JobSystem, config ConfigRoot) {
 		}
 
 		resultBase := lookupJobDir(config.Paths.Results, ticket.Id)
-		pdbpath := filepath.Join(resultBase, "pdb_"+database, dimerName+".pdb")
+		pdbpath := filepath.Join(resultBase, "pdb_"+database, dimerName+".cif")
 		pdb, err := os.ReadFile(pdbpath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
