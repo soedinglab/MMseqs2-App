@@ -48,7 +48,7 @@ function alignmentRegions(alignments, side, input) {
         const end = side === 'query' ? alignment.qEndPos : alignment.dbEndPos;
         if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
         regions.push({
-            chain: structureChainForAlignment(input, side, getChainName(name)),
+            chain: structureChainForAlignment(input, side, alignmentChainName(input, name)),
             start: Math.min(start, end),
             end: Math.max(start, end),
         });
@@ -63,7 +63,7 @@ function buildSideAlignmentMaps(structureRef, input, side, sourceStructureRef = 
         : null;
 
     return (input?.alignments || []).map((alignment, index) => {
-        const sourceChain = getChainName(side === 'query' ? alignment.query : alignment.target);
+        const sourceChain = alignmentChainName(input, side === 'query' ? alignment.query : alignment.target);
         const chain = resolveStructureChain(structureResidues, structureChainForAlignment(input, side, sourceChain));
         const residues = structureResidues.get(chain) || [];
         const toStructure = new Map();
@@ -109,6 +109,10 @@ function structureResidueAlignmentMap(alignmentMaps) {
         }
     }
     return mapped;
+}
+
+function alignmentChainName(input, name) {
+    return getChainName(name, { full: input?.structureMode === 'interface' });
 }
 
 function structureChainForAlignment(input, side, sourceChain) {

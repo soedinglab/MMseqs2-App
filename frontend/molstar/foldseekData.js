@@ -1,13 +1,15 @@
 import { Mat4 } from 'molstar/lib/mol-math/linear-algebra';
 import { pulchra } from 'pulchra-wasm';
 import { detectStructureFormat, mockPDB } from './molstarStructure.js';
-import { setChainId } from '../lib/structureText.js';
+import { mergeCifAtomSites, setChainId, stripUntypedChemComp } from '../lib/structureText.js';
 
-export function getChainName(name) {
+
+export function getChainName(name, { full = false } = {}) {
     if (!name || /_v[0-9]+$/.test(name)) return 'A';
     if (/^[A-Za-z0-9]$/.test(name)) return name;
     const pos = name.lastIndexOf('_');
-    const chain = pos !== -1 ? name.substring(pos + 1, pos + 2) : '';
+    const suffix = pos !== -1 ? name.substring(pos + 1) : '';
+    const chain = full ? suffix : suffix.substring(0, 1);
     return chain || 'A';
 }
 
@@ -213,10 +215,11 @@ async function buildInterfaceTarget(ctx) {
         chunks.push(response.data);
     }
 
-    const data = mergePdbChunks(chunks);
+    const format = detectStructureFormat(chunks.find(nonEmptyChunk) || '');
+    const data = format === 'mmcif' ? mergeCifChunks(chunks) : mergePdbChunks(chunks);
     return data ? {
         data,
-        format: 'pdb',
+        format,
         label: 'target',
         id: sourceIdentity(ctx, 'interface-target', [...seen]),
     } : null;
@@ -254,6 +257,16 @@ function computeMultimerTransform(alignments) {
         [u[6], u[7], u[8], t[2]],
         [0, 0, 0, 1],
     ]);
+}
+
+function nonEmptyChunk(chunk) {
+    return typeof chunk === 'string' && chunk.trim() !== '';
+}
+
+function mergeCifChunks(chunks) {
+    const present = chunks.filter(nonEmptyChunk).map(stripUntypedChemComp);
+    if (present.length === 0) return '';
+    return present.length === 1 ? present[0] : mergeCifAtomSites(present);
 }
 
 function mergePdbChunks(chunks) {

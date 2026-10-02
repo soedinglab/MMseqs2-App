@@ -55,6 +55,7 @@ msgstr ""
 msgid "CITATION_INTERFACE"
 msgstr ""
 "Strom JM, Cha S, Kim RS, Sajal H, Gilchrist CLM, Steinegger M, and Luck K. "
+" <a href=\"https://www.biorxiv.org/content/10.64898/2026.08.24.746585v2\" target=\"_blank\" rel=\"noopener\">"
 "Foldseek-Interface reveals a protein interface universe far from complete</a>. bioRxiv, 2026."
 
 msgid "CITATION_FOLDMASON"

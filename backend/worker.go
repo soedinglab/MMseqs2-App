@@ -1191,6 +1191,8 @@ mv -f -- "${BASE}/query.lookup_tmp" "${BASE}/query.lookup"
 					filepath.Join(resultBase, "pdb_"+database),
 					"--pdb-output-mode",
 					"2",
+					"--pdb-output-format",
+					"1",
 				},
 				[]string{},
 				1*time.Minute,
