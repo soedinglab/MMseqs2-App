@@ -1,4 +1,12 @@
 {
+	"name": "foldseek-frontend-lib",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Browser-independent helpers shared by the frontend and the MCP server.",
+	"license": "GPL-3.0-or-later",
 	"type": "module",
-	"sideEffects": false
+	"sideEffects": false,
+	"dependencies": {
+		"molstar": "^5.9.0"
+	}
 }
