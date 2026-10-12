@@ -5,6 +5,10 @@ import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder'
 import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
 import { Color } from 'molstar/lib/mol-util/color';
 import { MarkerAction } from 'molstar/lib/mol-util/marker-action';
+import { atomToPdbRow } from '../lib/pdbAssembly.js';
+import { normalizePdb } from '../lib/structureText.js';
+
+export { atomToPdbRow };
 
 export const OneToThree = {
     A: 'ALA',
@@ -51,11 +55,12 @@ const CartoonQualityPresets = {
 };
 
 export async function loadStructureFromData(plugin, source, label = source?.label) {
+    const format = source.format || 'pdb';
     const raw = await plugin.builders.data.rawData(
-        { data: source.data, label },
+        { data: format === 'pdb' ? normalizePdb(source.data) : source.data, label },
         { state: { isGhost: true } },
     );
-    const trajectory = await plugin.builders.structure.parseTrajectory(raw, source.format || 'pdb');
+    const trajectory = await plugin.builders.structure.parseTrajectory(raw, format);
     const model = await plugin.builders.structure.createModel(trajectory);
     return plugin.builders.structure.createStructure(model, { name: 'model', params: {} });
 }
@@ -94,102 +99,10 @@ export function normalizedPdbSourceFromText(raw, label, options = {}) {
     const data = raw?.trimStart?.() || '';
     const format = detectStructureFormat(data);
     return {
-        data: format === 'pdb' ? normalizeWhitespacePdb(data, options) : data,
+        data: format === 'pdb' ? normalizePdb(data, options) : data,
         label,
         format,
     };
-}
-
-function normalizeWhitespacePdb(text, options = {}) {
-    return text
-        .split(/\r?\n/)
-        .map(line => {
-            const trimmed = line.trim();
-            if (!trimmed) return '';
-            if (options.dropConect && trimmed.startsWith('CONECT')) return '';
-            if (!trimmed.startsWith('ATOM') && !trimmed.startsWith('HETATM')) {
-                return trimmed;
-            }
-            if (hasFixedAtomColumns(line)) return line.trimEnd();
-            return formatWhitespaceAtom(trimmed.split(/\s+/));
-        })
-        .filter(Boolean)
-        .join('\n');
-}
-
-function hasFixedAtomColumns(line) {
-    return line.length >= 54
-        && Number.isFinite(Number.parseInt(line.slice(22, 26), 10))
-        && Number.isFinite(Number.parseFloat(line.slice(30, 38)))
-        && Number.isFinite(Number.parseFloat(line.slice(38, 46)))
-        && Number.isFinite(Number.parseFloat(line.slice(46, 54)));
-}
-
-function formatWhitespaceAtom(parts) {
-    if (parts.length < 9) return null;
-    const hasChain = !/^-?\d+$/.test(parts[4]);
-    const resSeqIndex = hasChain ? 5 : 4;
-    const coordIndex = hasChain ? 6 : 5;
-    const serial = Number.parseInt(parts[1], 10) || 1;
-    const atomName = parts[2] || 'CA';
-    const resName = parts[3] || 'UNK';
-    const chain = hasChain ? parts[4] : 'A';
-    const resSeq = Number.parseInt(parts[resSeqIndex], 10);
-    const x = Number.parseFloat(parts[coordIndex]);
-    const y = Number.parseFloat(parts[coordIndex + 1]);
-    const z = Number.parseFloat(parts[coordIndex + 2]);
-    const occupancy = Number.parseFloat(parts[coordIndex + 3]);
-    const bFactor = Number.parseFloat(parts[coordIndex + 4]);
-    if (!Number.isFinite(resSeq) || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
-
-    const element = (parts[coordIndex + 5] || atomName.replace(/[^A-Za-z]/g, '').slice(0, 2)).toUpperCase();
-    return atomToPdbRow({
-        group: parts[0] === 'HETATM' ? 'HETATM' : 'ATOM',
-        serial,
-        atomName,
-        resName,
-        chain,
-        resno: resSeq,
-        x,
-        y,
-        z,
-        occupancy,
-        bFactor,
-        element,
-        charge: parts[coordIndex + 6] || '',
-    });
-}
-
-function formatAtomName(name, element) {
-    const value = String(name || '').slice(0, 4);
-    return element.length === 1 && value.length < 4
-        ? ` ${value.padEnd(3)}`
-        : value.padStart(4);
-}
-
-export function atomToPdbRow(atom) {
-    const atomName = formatAtomName(atom.atomName || 'CA', atom.element || atom.atomName?.[0] || 'C');
-    return [
-        (atom.group || 'ATOM').padEnd(6).slice(0, 6),
-        String(atom.serial).padStart(5).slice(-5),
-        ' ',
-        atomName,
-        atom.altId || ' ',
-        String(atom.resName || 'ALA').padStart(3).slice(-3),
-        ' ',
-        String(atom.chain || 'A').slice(0, 1),
-        String(atom.resno).padStart(4).slice(-4),
-        atom.insCode || ' ',
-        '   ',
-        atom.x.toFixed(3).padStart(8),
-        atom.y.toFixed(3).padStart(8),
-        atom.z.toFixed(3).padStart(8),
-        (Number.isFinite(atom.occupancy) ? atom.occupancy : 1).toFixed(2).padStart(6),
-        (Number.isFinite(atom.bFactor) ? atom.bFactor : 0).toFixed(2).padStart(6),
-        '          ',
-        String(atom.element || '').trim().slice(0, 2).padStart(2),
-        String(atom.charge || '').padStart(2).slice(-2),
-    ].join('');
 }
 
 export function isValidLoci(loci) {

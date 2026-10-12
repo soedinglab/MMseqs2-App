@@ -69,7 +69,7 @@ import { BlobDatabase } from './lib/BlobDatabase.js';
 import { pulchra } from 'pulchra-wasm';
 import AllAtomPredictMixin from './AllAtomPredictMixin.vue';
 import { structureRemarkLine, structureRemarkPrefix } from './lib/structureRemark.js';
-import { setChainId } from './lib/structureText.js';
+import { normalizePdb, setChainId } from './lib/structureText.js';
 
 const localDb = BlobDatabase()
 
@@ -186,6 +186,7 @@ export default {
             this.$emit('clearAll')
         },
         prependInformation(structure, accession) {
+            structure = normalizePdb(structure)
             const line = structureRemarkLine(structure, `Accession: ${accession}`, 99)
             return line + '\n' + structureRemarkPrefix(structure, 99) + this.remarkStr + structure
         },
