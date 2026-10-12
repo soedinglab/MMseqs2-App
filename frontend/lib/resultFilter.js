@@ -115,6 +115,36 @@ export function taxFilterFor(report, option) {
     return { taxId: option.value, name: option.text, ids: ids.map(Number) };
 }
 
+/** Taxon options across databases (merged Top 100): counts summed per taxon. */
+export function mergedTaxonOptions(results) {
+    const byId = new Map();
+    for (const result of results) {
+        if (!result.hasTaxonomy) continue;
+        for (const option of taxonOptions(result.taxonomyreports?.[0], result.alignments)) {
+            const merged = byId.get(option.value);
+            if (merged) {
+                merged.count += option.count;
+                merged.rank = merged.rank || option.rank;
+            } else {
+                byId.set(option.value, { ...option });
+            }
+        }
+    }
+    return [...byId.values()].sort((a, b) => b.count - a.count);
+}
+
+/** Subtree of `option` expanded in every database report that has it. */
+export function mergedTaxFilterFor(results, option) {
+    const ids = new Set([Number(option.value)]);
+    for (const result of results) {
+        const report = result.taxonomyreports?.[0];
+        if (Array.isArray(report) && report.length > 0) {
+            for (const id of expandDescendants(report, option.value)) ids.add(Number(id));
+        }
+    }
+    return { taxId: option.value, name: option.text, ids: [...ids] };
+}
+
 function chainTest(key, value) {
     switch (filterKind(key)) {
         case 'text': {
