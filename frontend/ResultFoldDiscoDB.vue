@@ -442,7 +442,7 @@ export default {
         persistedState() {
             return {
                 sortKey: this.sortKey, sortOrder: this.sortOrder,
-                filters: this.filters, gapFilter: this.gapFilter,
+                filters: this.activeFilters, gapFilter: this.gapFilter,
             }
         },
         columnLabels() {

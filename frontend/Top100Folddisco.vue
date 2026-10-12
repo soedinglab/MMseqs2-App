@@ -13,19 +13,26 @@
                     'white-space': 'nowrap',
                 }">
                 <div style="flex-basis: 100%; width: 100%; flex: 1">
-                    <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
+                    <h2 style="margin-top: 0.5em; margin-bottom: 1em;" class="mr-auto result-title">
                     <!-- <div style="width: 24px; display: inline-block;"></div> -->
                      <div style="width: 24px; display: inline-block;"
                         v-if="!$vuetify.breakpoint.mdAndDown"
                     ></div>
                     <v-icon @click="isCollapsed = !isCollapsed" v-else
-                        style="transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);"
+                        style="transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1); margin-right: 8px;"
                         :style="{'transform': isCollapsed ? 'rotate(-90deg)' : ''}"
                         :title="isCollapsed ? 'Show actions' : 'Hide actions'"
                     >
                         {{ $MDI.ChevronDown }}
                     </v-icon>
-                    <span>Top 100</span> 
+                    <span>Top 100</span>
+                    <small v-if="filteredTotal < entryLength" class="ml-2">of {{ filteredTotal }} filtered hits</small>
+                    <span v-if="filterChips.length > 0 && !$vuetify.breakpoint.smAndDown" class="filter-chips">
+                        <v-chip v-for="chip in filterChips" :key="chip.key" small outlined close
+                            :color="entry.color" class="ml-2" :title="chip.text"
+                            @click:close="onColumnFilter(chip.key, null)">{{ chip.text }}</v-chip>
+                        <v-chip v-if="filterChips.length > 1" small class="ml-2" @click="clearFilters">Clear all</v-chip>
+                    </span>
                     </h2>
                 </div>
                 <v-flex
@@ -60,56 +67,29 @@
                             >
                             </motif-filter>
                         </div>
-                        <v-menu v-show="$vuetify.breakpoint.smAndDown" bottom left :close-on-content-click='false'>
-                            <template v-slot:activator="{on, attrs}">
-                                <v-btn
-                                    icon
-                                    v-bind="attrs"
-                                    v-on="on"
-                                    v-show="$vuetify.breakpoint.smAndDown"
-                                    style="align-self: flex-end; margin-bottom: 16px; margin-left: 8px"
-                                    title="Sort options"
-                                >
-                                    <v-icon>
-                                        {{ $MDI.Sort }}
-                                    </v-icon>
-                                </v-btn>
-                            </template>
-                            <v-list
-                                flat dense
-                            >
-                                <v-list-item-group
-                                    mandatory
-                                    color="primary"
-                                    :value="sortMenuValue"
-                                >
-                                    <v-list-item @click.stop="changeSortMode('idf')">
-                                        <v-list-item-title>IDF-score</v-list-item-title>
-                                        <v-list-item-icon>
-                                            <v-icon :style="{'opacity' : sortKey == 'idf' ? '1' : 0}">
-                                                {{$MDI.Check}}
-                                            </v-icon>
-                                        </v-list-item-icon>
-                                    </v-list-item>
-                                    <v-list-item @click.stop="changeSortMode('rmsd')">
-                                        <v-list-item-title>RMSD</v-list-item-title>
-                                        <v-list-item-icon>
-                                            <v-icon :style="{'opacity' : sortKey == 'rmsd' ? '1' : 0}">
-                                                {{$MDI.Check}}
-                                            </v-icon>
-                                        </v-list-item-icon>
-                                    </v-list-item>
-                                    <v-list-item @click.stop="changeSortMode('node')">
-                                        <v-list-item-title>Node Count</v-list-item-title>
-                                        <v-list-item-icon>
-                                            <v-icon :style="{'opacity' : sortKey == 'node' ? '1' : 0}">
-                                                {{$MDI.Check}}
-                                            </v-icon>
-                                        </v-list-item-icon>
-                                    </v-list-item>
-                                </v-list-item-group>
-                            </v-list>
-                        </v-menu>
+                        <div v-if="$vuetify.breakpoint.smAndDown" class="mobile-table-actions">
+                            <ResultFilterMenu :columns="mobileFilterColumns" :color="entry.color"
+                                @filter="onColumnFilter" @clear="clearFilters"></ResultFilterMenu>
+                            <v-menu bottom left>
+                                <template v-slot:activator="{on, attrs}">
+                                    <v-btn icon v-bind="attrs" v-on="on" title="Sort options">
+                                        <v-icon>{{ $MDI.Sort }}</v-icon>
+                                    </v-btn>
+                                </template>
+                                <v-list flat dense>
+                                    <v-list-item-group mandatory :color="entry.color" :value="filterKeys.indexOf(sortKey)">
+                                        <v-list-item v-for="key in filterKeys" :key="key" @click.stop="changeSortMode(key)">
+                                            <v-list-item-title>{{ columnLabels[key] }}</v-list-item-title>
+                                            <v-list-item-icon>
+                                                <v-icon :style="{ opacity: sortKey == key ? 1 : 0 }">
+                                                    {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp }}
+                                                </v-icon>
+                                            </v-list-item-icon>
+                                        </v-list-item>
+                                    </v-list-item-group>
+                                </v-list>
+                            </v-menu>
+                        </div>
                     </v-flex>
                 </v-flex>
             </v-flex>
@@ -147,25 +127,39 @@
                             </span>
                         </div>
                     </th>
-                    <th :class="['wide-' + (3 - hasDescription - hasTaxonomy),]">
+                    <th :class="['wide-' + (3 - hasDescription - hasTaxonomy), {'sort-selected': sortKey == 'target', 'sort-down': sortOrder < 0}]" class="sort-criterion">
                         Target
+                        <ResultColumnMenu v-bind="columnMenuProps('target')" @sort="changeSortMode('target')" @filter="v => onColumnFilter('target', v)" />
                     </th>
-                    <th v-if="hasDescription">
+                    <th v-if="hasDescription" class="sort-criterion has-help" :class="{'sort-selected': sortKey == 'desc', 'sort-down': sortOrder < 0}">
                         Description
                         <v-tooltip open-delay="300" top>
                             <template v-slot:activator="{ on }">
-                                <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
+                                <v-icon v-on="on" class="th-help">{{ $MDI.HelpCircleOutline }}</v-icon>
                             </template>
                             <span>Triple click to select whole cell (for very long identifiers)</span>
                         </v-tooltip>
+                        <ResultColumnMenu v-bind="columnMenuProps('desc')" @sort="changeSortMode('desc')" @filter="v => onColumnFilter('desc', v)" />
                     </th>
-                    <th v-if="hasTaxonomy">Scientific Name</th>
+                    <th v-if="hasTaxonomy" class="sort-criterion" :class="{'sort-selected': sortKey == 'tax', 'sort-down': sortOrder < 0}">
+                        Scientific Name
+                        <ResultColumnMenu v-bind="columnMenuProps('tax')" @sort="changeSortMode('tax')" @filter="v => onColumnFilter('tax', v)" />
+                    </th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'idf', 'sort-down': this.sortOrder < 0}" 
-                        @click="changeSortMode('idf')" title="Click to sort by IDF-score">{{ $vuetify.breakpoint.mdAndDown ? 'IDF' :'IDF-score' }}</th>
+                        title="IDF-score">
+                        {{ $vuetify.breakpoint.mdAndDown ? 'IDF' :'IDF-score' }}
+                        <ResultColumnMenu v-bind="columnMenuProps('idf')" @sort="changeSortMode('idf')" @filter="v => onColumnFilter('idf', v)" />
+                    </th>
                     <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'rmsd', 'sort-down': this.sortOrder < 0}" 
-                        @click="changeSortMode('rmsd')" title="Click to sort by RMSD">RMSD</th>
+                        title="RMSD">
+                        RMSD
+                        <ResultColumnMenu v-bind="columnMenuProps('rmsd')" @sort="changeSortMode('rmsd')" @filter="v => onColumnFilter('rmsd', v)" />
+                    </th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'node', 'sort-down': this.sortOrder < 0}" 
-                        @click="changeSortMode('node')" title="Click to sort by node count" >Nodes</th>
+                        title="Node count">
+                        Nodes
+                        <ResultColumnMenu v-bind="columnMenuProps('node')" @sort="changeSortMode('node')" @filter="v => onColumnFilter('node', v)" />
+                    </th>
                     <th>
                         {{ $vuetify.breakpoint.lgAndDown ? 'Residues' : 'Matched residues' }}
                         <v-tooltip open-delay="300" top>
@@ -258,14 +252,19 @@
 </template>
 <script>
 import MotifFilter from './MotifFilter.vue';
+import ResultTableFilterMixin from './ResultTableFilterMixin.vue';
+import { defaultSortOrder } from './lib/resultSort.js';
+import { makeGroupPredicate, mergedTaxonOptions, mergedTaxFilterFor } from './lib/resultFilter.js';
+
+const STRING_FIELD = { target: 'target', desc: 'description', tax: 'taxName' };
 
 export default {
     name: 'Top100Folddisco',
-    components: {MotifFilter},
+    mixins: [ ResultTableFilterMixin ],
+    components: { MotifFilter },
     data() {
         return {
             origIndicesPerGaps: {},
-            cachedSortedIndices: {},
             sortKeyCache: {},
             toggleTargetValue: true,
             toggleSourceKey: "",
@@ -273,6 +272,7 @@ export default {
             idxToDb: {},
             idxToColor: {},
             sortKey: 'idf',
+            sortOrder: -1,
             isCollapsed: false,
             gapFilter: "",
             multipleSelectionEnabled: false,
@@ -365,9 +365,55 @@ export default {
             }, 0)
         })
     },
+    watch: {
+        sortedIndices() {
+            this.toggleSourceIdx = -1
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.reflectSelectionState()
+                }, 0)
+            })
+        },
+    },
     computed: {
+        entry() {
+            return { color: this.primaryColor, hasTaxonomy: this.hasTaxonomy }
+        },
+        columnLabels() {
+            return {
+                target: 'Target',
+                desc: 'Description',
+                tax: 'Scientific Name',
+                idf: 'IDF-score',
+                rmsd: 'RMSD',
+                node: 'Node Count',
+            }
+        },
+        filterKeys() {
+            return [
+                'target',
+                ...(this.hasDescription ? ['desc'] : []),
+                ...(this.hasTaxonomy ? ['tax'] : []),
+                'idf', 'rmsd', 'node',
+            ]
+        },
+        filterGroups() {
+            return (this.origIndicesPerGaps[""] || []).map(id => this.groupOf(id))
+        },
+        taxOptions() {
+            return this.hasTaxonomy ? mergedTaxonOptions(this.hits.results) : null
+        },
         entryLength() {
-            return this.sortedIndices.length
+            return (this.origIndicesPerGaps[""] || []).length
+        },
+        filteredTotal() {
+            return this.filteredIndices.length
+        },
+        // The motif pattern chosen here, then the column filters.
+        filteredIndices() {
+            const indices = this.origIndicesPerGaps[this.gapFilter || ""] || []
+            const predicate = makeGroupPredicate(this.filters, this.filterKeys)
+            return predicate ? indices.filter(id => predicate(this.groupOf(id))) : indices
         },
         hasEntries() {
             return this.origIndicesPerGaps[""]?.length > 0
@@ -393,25 +439,18 @@ export default {
             return value
         },
         sortedIndices() {
-            if (this.cachedSortedIndices[this.gapFilter] != undefined
-                && this.cachedSortedIndices[this.gapFilter][this.sortKey] != undefined
-            ) return this.cachedSortedIndices[this.gapFilter][this.sortKey]
-
-            if (this.gapFilter == null) this.gapFilter = ""
-            let copiedArrs = [...this.origIndicesPerGaps[this.gapFilter]]
-            let sliced = copiedArrs.sort(this.comparator).slice(0, 100)
-            if (this.cachedSortedIndices[this.gapFilter] == undefined) {
-                this.cachedSortedIndices[this.gapFilter] = {}
-            }
-            this.cachedSortedIndices[this.gapFilter][this.sortKey] = sliced
-
-            return sliced
+            return [...this.filteredIndices].sort(this.comparator).slice(0, 100)
         },
         sortedCount() {
             if (!this.sortedIndices) return 0
             return this.sortedIndices.length
         },
         comparator() {
+            const field = STRING_FIELD[this.sortKey]
+            if (field) {
+                return (a, b) => this.sortOrder * String(this.groupOf(a)[0][field] ?? '')
+                    .localeCompare(String(this.groupOf(b)[0][field] ?? ''))
+            }
             let sortCache = this.sortKeyCache[this.sortKey]
             let comp = (a, b) => {
                 let [a_db, a_idx] = a.split("#")
@@ -441,28 +480,8 @@ export default {
             const auxHeight = this.isCollapsed && this.$vuetify.breakpoint.mdAndDown ? -70 : this.$vuetify.breakpoint.mdAndDown ? 56 : 0
             return String(auxHeight + 134) + 'px'
         },
-        sortMenuValue() {
-            switch (this.sortKey) {
-                case 'idf': {
-                    return 0
-                }
-                case 'rmsd': {
-                    return 1
-                }
-                case 'node': {
-                    return 2
-                }
-                default: {
-                    return 2
-                }
-            }
-        },
         sortedSplittedIndices() {
             return this.sortedIndices.map(idx => idx.split("#"))
-        },
-        sortOrder() { 
-            if (this.sortKey == 'rmsd') return 1
-            else return -1
         },
         queryresidues() {
             return this.hits.results[0]?.queryresidues ? this.hits.results[0].queryresidues : ""
@@ -522,6 +541,13 @@ export default {
                     this.$emit('toggleSelection', dbIdx, entryIdx, true)
                 }
             }
+        },
+        groupOf(id) {
+            const [dbIdx, groupIdx] = id.split("#")
+            return this.hits.results[dbIdx].alignments[groupIdx]
+        },
+        resolveTaxFilter(option) {
+            return mergedTaxFilterFor(this.hits.results, option)
         },
         emitForwardDropdown(event, href) {
             this.$emit('forwardDropdown', event, href)
@@ -606,14 +632,17 @@ export default {
             let select_all_button = document.getElementById("top#select-all")
             if (select_all_button) {
                 select_all_button.classList.toggle('any-selected', count > 0)
-                select_all_button.classList.toggle('all-selected', this.entryLength == count)
+                select_all_button.classList.toggle('all-selected', this.sortedIndices.length == count)
             }
             this.selectedTopEntries = count
         },
         changeSortMode(key) {
-            if (this.sortKey == key) return
-
-            this.sortKey = key
+            if (this.sortKey == key) {
+                this.sortOrder *= -1
+            } else {
+                this.sortKey = key
+                this.sortOrder = defaultSortOrder(key)
+            }
             this.toggleSourceKey = ""
             this.toggleSourceIdx = -1
             this.toggleTargetValue = true
@@ -723,33 +752,8 @@ thead.sticky-thead th::before {
 }
 
 thead.sticky-thead th.sort-criterion {
-    cursor: pointer;
     background-color: transparent;
     transition: color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected):hover  {
-    background-color: rgba(0, 0, 0, 0.05);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected):active  {
-    background-color: rgba(0, 0, 0, 0.15);
-}
-
-.theme--dark .sticky-thead th.sort-criterion:not(.sort-selected):hover  {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-
-.theme--dark thead.sticky-thead th.sort-criterion:not(.sort-selected):active  {
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected:hover  {
-    background-color: color-mix(in srgb, var(--active-color) 12%, transparent);
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected:active  {
-    background-color: color-mix(in srgb, var(--active-color) 20%, transparent);
 }
 
 thead.sticky-thead th.sort-criterion::before {
@@ -771,19 +775,6 @@ thead.sticky-thead th.sort-criterion::after {
     border-right: 4px solid transparent;
     background-color: transparent;
     transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), border-bottom-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), bottom 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected):hover::after {
-    border-bottom-color: rgba(0, 0, 0, 0.15);
-}
-
-.theme--dark .sticky-thead th.sort-criterion:not(.sort-selected):hover::after {
-    border-bottom-color: rgba(255, 255, 255, 0.15);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected).default-down:hover::after {
-    bottom: 0px;
-    transform: scaleY(-1);
 }
 
 thead.sticky-thead th.sort-criterion.sort-selected::before {
@@ -897,8 +888,45 @@ tr.hit .entry-checkbox.selected svg, .select-all.any-selected svg {
 tr.hit:has(.invisible) {
     display: none;
 }
-th.sort-criterion {
-    cursor: pointer;
+thead.sticky-thead th.sort-criterion {
+    padding-right: 24px;
+}
+
+thead.sticky-thead th.has-help {
+    padding-right: 54px;
+}
+
+thead.sticky-thead th.has-help ::v-deep .column-menu-btn {
+    right: 32px;
+}
+
+.th-help {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    font-size: 16px !important;
+}
+
+.mobile-table-actions {
+    display: flex;
+    align-self: flex-end;
+    margin-bottom: 16px;
+    margin-left: 8px;
+}
+
+.result-title {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.filter-chips {
+    display: inline-flex;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
 }
 
 th.sort-criterion.sort-selected {

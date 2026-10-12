@@ -8,10 +8,17 @@
             }">
             <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.smAndDown ? 'column' : null, 
                 'align-items': 'center', 'justify-content': $vuetify.breakpoint.smAndDown ? 'center' : 'space-between'}">
-                <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
+                <h2 style="margin-top: 0.5em; margin-bottom: 1em;" class="mr-auto result-title">
                     <div style="width: 24px; display: inline-block;"
                     ></div>
                     <span>Top 100</span>
+                    <small v-if="filteredTotal < entryLength" class="ml-2">of {{ filteredTotal }} filtered hits</small>
+                    <span v-if="filterChips.length > 0 && !$vuetify.breakpoint.smAndDown" class="filter-chips">
+                        <v-chip v-for="chip in filterChips" :key="chip.key" small outlined close
+                            :color="entry.color" class="ml-2" :title="chip.text"
+                            @click:close="onColumnFilter(chip.key, null)">{{ chip.text }}</v-chip>
+                        <v-chip v-if="filterChips.length > 1" small class="ml-2" @click="clearFilters">Clear all</v-chip>
+                    </span>
                 </h2>
 
                 <div
@@ -29,80 +36,29 @@
                             </v-btn>
                         </v-btn-toggle>
                     </div>
-                    <v-menu v-show="$vuetify.breakpoint.smAndDown" bottom left>
-                        <template v-slot:activator="{on, attrs}">
-                            <v-btn
-                                icon
-                                v-bind="attrs"
-                                v-on="on"
-                                v-show="$vuetify.breakpoint.smAndDown"
-                                style="align-self: flex-end; margin-bottom: 16px; margin-left: 8px"
-                                title="Sort options"
-                            >
-                                <v-icon>
-                                    {{ $MDI.Sort }}
-                                </v-icon>
-                            </v-btn>
-                        </template>
-                        <v-list
-                            flat dense
-                        >
-                            <v-list-item-group
-                                mandatory
-                                color="primary"
-                                :value="sortMenuValue"
-                                >
-                                <v-list-item v-if="isComplex" @click.stop="changeSortMode('qtm')">
-                                    <v-list-item-title>{{ searchType === 'interfacesearch' ? 'Query Interface TM-score' : 'Query TM-score' }}</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'qtm' ? '1' : 0}">
-                                            {{$MDI.Check}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item v-if="isComplex" @click.stop="changeSortMode('ttm')">
-                                    <v-list-item-title>{{ searchType === 'interfacesearch' ? 'Target Interface TM-score' : 'Target TM-score' }}</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'ttm' ? '1' : 0}">
-                                            {{$MDI.Check}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item v-if="searchType !== 'interfacesearch'" @click.stop="changeSortMode('prob')">
-                                    <v-list-item-title>Probability</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'prob' ? '1' : 0}">
-                                            {{$MDI.Check}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('seqId')">
-                                    <v-list-item-title>Sequence Id.</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'seqId' ? '1' : 0}">
-                                            {{$MDI.Check}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item v-if="searchType !== 'interfacesearch'" @click.stop="changeSortMode('eval')">
-                                    <v-list-item-title>{{ this.mode == 'tmalign' ? 'TM-score' : this.mode == 'lolalign' ? 'LOL-score' : 'E-Value' }}</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'eval' ? '1' : 0}">
-                                            {{$MDI.Check}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('score')" v-if="searchType !== 'search' || mode !== 'lolalign'">
-                                    <v-list-item-title>Score</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'score' ? '1' : 0}">
-                                            {{$MDI.Check}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                            </v-list-item-group>
-                        </v-list>
-                    </v-menu>
+                    <div v-if="$vuetify.breakpoint.smAndDown" class="mobile-table-actions">
+                        <ResultFilterMenu :columns="mobileFilterColumns" :color="entry.color"
+                            @filter="onColumnFilter" @clear="clearFilters"></ResultFilterMenu>
+                        <v-menu bottom left>
+                            <template v-slot:activator="{on, attrs}">
+                                <v-btn icon v-bind="attrs" v-on="on" title="Sort options">
+                                    <v-icon>{{ $MDI.Sort }}</v-icon>
+                                </v-btn>
+                            </template>
+                            <v-list flat dense>
+                                <v-list-item-group mandatory :color="entry.color" :value="filterKeys.indexOf(sortKey)">
+                                    <v-list-item v-for="key in filterKeys" :key="key" @click.stop="changeSortMode(key)">
+                                        <v-list-item-title>{{ columnLabels[key] }}</v-list-item-title>
+                                        <v-list-item-icon>
+                                            <v-icon :style="{ opacity: sortKey == key ? 1 : 0 }">
+                                                {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp }}
+                                            </v-icon>
+                                        </v-list-item-icon>
+                                    </v-list-item>
+                                </v-list-item-group>
+                            </v-list>
+                        </v-menu>
+                    </div>
                 </div>
             </v-flex>
         </v-sheet>
@@ -158,36 +114,53 @@
                     <template v-if="isComplex">
                         <!-- <th class="thin">ID</th> -->
                         <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'qtm', 'sort-down': this.sortOrder < 0}"
-                            @click="changeSortMode('qtm')" :title="searchType === 'interfacesearch' ? 'Click to sort by Query Interface TM-score' : 'Click to sort by Query TM-score'">qTM</th>
+                            :title="searchType === 'interfacesearch' ? 'Query Interface TM-score' : 'Query TM-score'">qTM<ResultColumnMenu v-bind="columnMenuProps('qtm')" @sort="changeSortMode('qtm')" @filter="v => onColumnFilter('qtm', v)" /></th>
                         <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'ttm', 'sort-down': this.sortOrder < 0}"
-                            @click="changeSortMode('ttm')" :title="searchType === 'interfacesearch' ? 'Click to sort by Target Interface TM-score' : 'Click to sort by Target TM-score'" style="border-right: 1px solid #333; ">tTM</th>
+                            :title="searchType === 'interfacesearch' ? 'Target Interface TM-score' : 'Target TM-score'" style="border-right: 1px solid #333; ">tTM<ResultColumnMenu v-bind="columnMenuProps('ttm')" @sort="changeSortMode('ttm')" @filter="v => onColumnFilter('ttm', v)" /></th>
                     </template>
-                    <th :class="[`wide-${3 - hasDescription - hasTaxonomy}`]">
+                    <th :class="[`wide-${3 - hasDescription - hasTaxonomy}`, {'sort-selected': sortKey == 'target', 'sort-down': sortOrder < 0}]" class="sort-criterion">
                         <template v-if="isComplex">
                             Chain pairing
                         </template>
                         <template v-else>
                             Target
                         </template>
+                        <ResultColumnMenu v-bind="columnMenuProps('target')" @sort="changeSortMode('target')" @filter="v => onColumnFilter('target', v)" />
                     </th>
-                    <th v-if="hasDescription">
+                    <th v-if="hasDescription" class="sort-criterion has-help" :class="{'sort-selected': sortKey == 'desc', 'sort-down': sortOrder < 0}">
                         Description
                         <v-tooltip open-delay="300" top>
                             <template v-slot:activator="{ on }">
-                                <v-icon v-on="on" style="font-size: 16px; float: right;">{{ $MDI.HelpCircleOutline }}</v-icon>
+                                <v-icon v-on="on" class="th-help">{{ $MDI.HelpCircleOutline }}</v-icon>
                             </template>
                             <span>Triple click to select whole cell (for very long identifiers)</span>
                         </v-tooltip>
+                        <ResultColumnMenu v-bind="columnMenuProps('desc')" @sort="changeSortMode('desc')" @filter="v => onColumnFilter('desc', v)" />
                     </th>
-                    <th v-if="hasTaxonomy">Scientific Name</th>
+                    <th v-if="hasTaxonomy" class="sort-criterion" :class="{'sort-selected': sortKey == 'tax', 'sort-down': sortOrder < 0}">
+                        Scientific Name
+                        <ResultColumnMenu v-bind="columnMenuProps('tax')" @sort="changeSortMode('tax')" @filter="v => onColumnFilter('tax', v)" />
+                    </th>
                     <th v-if="searchType !== 'interfacesearch'" class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'prob', 'sort-down': this.sortOrder < 0}" 
-                        @click="changeSortMode('prob')" title="Click to sort by probability">Prob.</th>
+                        title="Probability">
+                        Prob.
+                        <ResultColumnMenu v-bind="columnMenuProps('prob')" @sort="changeSortMode('prob')" @filter="v => onColumnFilter('prob', v)" />
+                    </th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'seqId', 'sort-down': this.sortOrder < 0}"
-                        @click="changeSortMode('seqId')" title="Click to sort by sequence identity">Seq. Id.</th>
+                        title="Sequence identity">
+                        Seq. Id.
+                        <ResultColumnMenu v-bind="columnMenuProps('seqId')" @sort="changeSortMode('seqId')" @filter="v => onColumnFilter('seqId', v)" />
+                    </th>
                     <th v-if="searchType !== 'interfacesearch'" class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'eval', 'sort-down': this.sortOrder < 0, 'default-down': mode == 'lolalign' || mode == 'tmalign'}"
-                        @click="changeSortMode('eval')" :title="'Click to sort by '+ scoreColumnName">{{ scoreColumnName }}</th>
+                        :title="scoreColumnName">
+                        {{ scoreColumnName }}
+                        <ResultColumnMenu v-bind="columnMenuProps('eval')" @sort="changeSortMode('eval')" @filter="v => onColumnFilter('eval', v)" />
+                    </th>
                     <th class="thin sort-criterion default-down" v-if="mode !== 'lolalign'" :class="{'sort-selected':this.sortKey == 'score', 'sort-down': this.sortOrder < 0}"
-                        v-show="tableMode == 1" @click="changeSortMode('score')" title="Click to sort by score">Score</th>
+                        v-show="tableMode == 1" title="Score">
+                        Score
+                        <ResultColumnMenu v-bind="columnMenuProps('score')" @sort="changeSortMode('score')" @filter="v => onColumnFilter('score', v)" />
+                    </th>
                     <th v-show="tableMode == 1">Query Pos.</th>
                     <th v-show="tableMode == 1">Target Pos.</th>
                     <th v-show="tableMode == 0">
@@ -311,15 +284,21 @@
 
 <script>
 import Ruler from './Ruler.vue';
+import ResultTableFilterMixin from './ResultTableFilterMixin.vue';
+import { defaultSortOrder } from './lib/resultSort.js';
+import { makeGroupPredicate, mergedTaxonOptions, mergedTaxFilterFor } from './lib/resultFilter.js';
+
+const STRING_FIELD = { target: 'target', desc: 'description', tax: 'taxName' };
 
 export default {
     name: 'Top100Foldseek',
-    components: {Ruler},
+    mixins: [ ResultTableFilterMixin ],
+    components: { Ruler },
     data() {
         return {
             origIndices: [],
-            cachedSortedIndices: {},
             sortKey: 'score',
+            sortOrder: -1,
             sortKeyCache: {},
             idxToDb: {},
             idxToColor: {},
@@ -341,9 +320,12 @@ export default {
     },
     methods: {
         changeSortMode(key) {
-            if (key == this.sortKey) return
-            
-            this.sortKey = key
+            if (key == this.sortKey) {
+                this.sortOrder *= -1
+            } else {
+                this.sortKey = key
+                this.sortOrder = defaultSortOrder(key, { mode: this.mode })
+            }
             this.toggleSourceIdx = -1
             this.toggleTargetValue = true
             
@@ -460,12 +442,19 @@ export default {
             let select_all_button = document.getElementById("top#select-all")
             if (select_all_button) {
                 select_all_button.classList.toggle('any-selected', count > 0)
-                select_all_button.classList.toggle('all-selected', this.entryLength == count)
+                select_all_button.classList.toggle('all-selected', this.sortedIndices.length == count)
             }
             this.selectedTopEntries = count
         },
         emitForwardDropdown(event, href) {
             this.$emit('forwardDropdown', event, href)
+        },
+        groupOf(id) {
+            const [dbIdx, groupIdx] = id.split("#")
+            return this.hits.results[dbIdx].alignments[groupIdx]
+        },
+        resolveTaxFilter(option) {
+            return mergedTaxFilterFor(this.hits.results, option)
         },
     },
     created() {
@@ -512,6 +501,7 @@ export default {
         if (this.isComplex) {
             this.sortKey = 'qtm'
         }
+        this.sortOrder = defaultSortOrder(this.sortKey, { mode: this.mode })
     },
     mounted() {
         this.$nextTick(() => {
@@ -529,9 +519,65 @@ export default {
             }, 0)
         })
     },
+    watch: {
+        sortedIndices() {
+            this.toggleSourceIdx = -1
+            this.$nextTick(() => {
+                setTimeout(() => {
+                    this.reflectSelectionState()
+                }, 0)
+            })
+        },
+    },
     computed: {
+        entry() {
+            return {
+                color: this.$vuetify.theme.dark ? '#2196f3' : '#1976d2',
+                hasTaxonomy: this.hasTaxonomy,
+            }
+        },
+        columnLabels() {
+            const isInterface = this.searchType === 'interfacesearch'
+            return {
+                qtm: isInterface ? 'Query Interface TM-score' : 'Query TM-score',
+                ttm: isInterface ? 'Target Interface TM-score' : 'Target TM-score',
+                target: this.isComplex ? 'Chain pairing' : 'Target',
+                desc: 'Description',
+                tax: 'Scientific Name',
+                prob: 'Probability',
+                seqId: 'Sequence Identity',
+                eval: this.scoreColumnName,
+                score: 'Score',
+            }
+        },
+        filterKeys() {
+            const isInterface = this.searchType === 'interfacesearch'
+            return [
+                ...(this.isComplex ? ['qtm', 'ttm'] : []),
+                'target',
+                ...(this.hasDescription ? ['desc'] : []),
+                ...(this.hasTaxonomy ? ['tax'] : []),
+                ...(!isInterface ? ['prob'] : []),
+                'seqId',
+                ...(!isInterface ? ['eval'] : []),
+                ...(this.mode !== 'lolalign' ? ['score'] : []),
+            ]
+        },
+        filterGroups() {
+            return this.origIndices.map(id => this.groupOf(id))
+        },
+        taxOptions() {
+            return this.hasTaxonomy ? mergedTaxonOptions(this.hits.results) : null
+        },
         entryLength() {
-            return this.sortedIndices.length
+            return this.origIndices.length
+        },
+        filteredTotal() {
+            return this.filteredIndices.length
+        },
+        filteredIndices() {
+            const predicate = makeGroupPredicate(this.filters, this.filterKeys)
+            return predicate ? this.origIndices.filter(id => predicate(this.groupOf(id))) : this.origIndices
         },
         hasEntries() {
             return this.origIndices.length > 0
@@ -561,33 +607,12 @@ export default {
             }
             return 'E-Value';
         },
-        sortMenuValue() {
-            const offset = (this.isComplex ? 2 : 0) 
-            switch (this.sortKey) {
-                case 'qtm': {
-                    return 0
-                }
-                case 'ttm': {
-                    return 1
-                }
-                case 'prob': {
-                    return 0 + offset
-                }
-                case 'seqId': {
-                    return 1 + offset
-                }
-                case 'eval': {
-                    return 2 + offset
-                }
-                case 'score': {
-                    return 3 + offset
-                }
-                default: {
-                    return 3 + offset
-                }
-            }
-        },
         comparator() {
+            const field = STRING_FIELD[this.sortKey]
+            if (field) {
+                return (a, b) => this.sortOrder * String(this.groupOf(a)[0][field] ?? '')
+                    .localeCompare(String(this.groupOf(b)[0][field] ?? ''))
+            }
             let sortCache = this.sortKeyCache[this.sortKey]
             let comp = (a, b) => {
                 let [a_db, a_idx] = a.split("#")
@@ -596,21 +621,8 @@ export default {
             }
             return comp
         },
-        sortOrder() {
-            if (this.sortKey == 'eval' && (this.mode != 'tmalign' && this.mode != 'lolalign')) return 1
-            else return -1
-        },
         sortedIndices() {
-            // returns sorted indices, calculating on-the-fly
-            if (this.cachedSortedIndices[this.sortKey]) {
-                return this.cachedSortedIndices[this.sortKey]
-            }
-            
-            let copiedArr = [...this.origIndices]
-            let sliced = copiedArr.sort(this.comparator).slice(0, 100)
-            this.cachedSortedIndices[this.sortKey] = sliced
-            
-            return sliced
+            return [...this.filteredIndices].sort(this.comparator).slice(0, 100)
         },
         sortedSplittedIndices() {
             return this.sortedIndices.map(idx => idx.split("#"))
@@ -712,33 +724,8 @@ thead.sticky-thead th::before {
 }
 
 thead.sticky-thead th.sort-criterion {
-    cursor: pointer;
     background-color: transparent;
     transition: color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected):hover  {
-    background-color: rgba(0, 0, 0, 0.05);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected):active  {
-    background-color: rgba(0, 0, 0, 0.15);
-}
-
-.theme--dark .sticky-thead th.sort-criterion:not(.sort-selected):hover  {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-
-.theme--dark thead.sticky-thead th.sort-criterion:not(.sort-selected):active  {
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected:hover  {
-    background-color: color-mix(in srgb, var(--active-color) 12%, transparent);
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected:active  {
-    background-color: color-mix(in srgb, var(--active-color) 20%, transparent);
 }
 
 thead.sticky-thead th.sort-criterion::before {
@@ -760,19 +747,6 @@ thead.sticky-thead th.sort-criterion::after {
     border-right: 4px solid transparent;
     background-color: transparent;
     transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), border-bottom-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), bottom 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected):hover::after {
-    border-bottom-color: rgba(0, 0, 0, 0.15);
-}
-
-.theme--dark .sticky-thead th.sort-criterion:not(.sort-selected):hover::after {
-    border-bottom-color: rgba(255, 255, 255, 0.15);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected).default-down:hover::after {
-    bottom: 0px;
-    transform: scaleY(-1);
 }
 
 thead.sticky-thead th.sort-criterion.sort-selected::before {
@@ -886,8 +860,45 @@ tr.hit .entry-checkbox.selected svg, .select-all.any-selected svg {
 tr.hit:has(.invisible) {
     display: none;
 }
-th.sort-criterion {
-    cursor: pointer;
+thead.sticky-thead th.sort-criterion {
+    padding-right: 24px;
+}
+
+thead.sticky-thead th.has-help {
+    padding-right: 54px;
+}
+
+thead.sticky-thead th.has-help ::v-deep .column-menu-btn {
+    right: 32px;
+}
+
+.th-help {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    font-size: 16px !important;
+}
+
+.mobile-table-actions {
+    display: flex;
+    align-self: flex-end;
+    margin-bottom: 16px;
+    margin-left: 8px;
+}
+
+.result-title {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.filter-chips {
+    display: inline-flex;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
 }
 
 th.sort-criterion.sort-selected {

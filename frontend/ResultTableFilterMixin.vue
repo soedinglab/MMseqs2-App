@@ -9,7 +9,8 @@ import {
 
 // Column sort/filter state shared by the per-database result tables.
 // The table provides `entry`, `filterKeys`, `columnLabels`, `sortKey`, `sortOrder`,
-// `entryLength` and `filteredTotal`; it may override `sortKeys`, `filterGroups` and `defaultOrderFor`.
+// `entryLength` and `filteredTotal`; it may override `sortKeys`, `filterGroups`, `taxOptions`,
+// `resolveTaxFilter` and `defaultOrderFor`.
 export default {
     name: 'ResultTableFilterMixin',
     mixins: [ ResultSankeyMixin ],
@@ -27,6 +28,9 @@ export default {
             this.filters = this.tableState.filters
         }
     },
+    beforeDestroy() {
+        this.$emit('update:tableState', this.persistedState)
+    },
     computed: {
         hasTaxonomyReport() {
             return this.entry?.hasTaxonomy && this.entry.taxonomyreports?.length > 0
@@ -41,8 +45,12 @@ export default {
         filterGroups() {
             return this.entry.alignments
         },
+        // Filters on hidden columns are not kept with the table state.
+        activeFilters() {
+            return Object.fromEntries(Object.entries(this.filters).filter(([key]) => this.filterKeys.includes(key)))
+        },
         persistedState() {
-            return { sortKey: this.sortKey, sortOrder: this.sortOrder, filters: this.filters }
+            return { sortKey: this.sortKey, sortOrder: this.sortOrder, filters: this.activeFilters }
         },
         rangeBoundsByKey() {
             const bounds = {}
@@ -83,6 +91,9 @@ export default {
         },
     },
     methods: {
+        resolveTaxFilter(option) {
+            return taxFilterFor(this.taxonomyReport, option)
+        },
         defaultOrderFor(key) {
             return defaultSortOrder(key, { mode: this.mode })
         },
@@ -112,7 +123,7 @@ export default {
         },
         onColumnFilter(key, value) {
             if (key == 'tax' && value != null) {
-                value = taxFilterFor(this.taxonomyReport, value)
+                value = this.resolveTaxFilter(value)
             }
             this.setFilter(key, value)
         },
