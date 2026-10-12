@@ -53,104 +53,29 @@
                             </v-btn>
                         </v-btn-toggle>
                     </div>
-                    <v-menu v-show="$vuetify.breakpoint.smAndDown" bottom left>
-                        <template v-slot:activator="{on, attrs}">
-                            <v-btn
-                                icon
-                                v-bind="attrs"
-                                v-on="on"
-                                v-show="$vuetify.breakpoint.smAndDown"
-                                style="align-self: flex-end; margin-bottom: 16px; margin-left: 8px"
-                                title="Sort options"
-                            >
-                                <v-icon>
-                                    {{ $MDI.Sort }}
-                                </v-icon>
-                            </v-btn>
-                        </template>
-                        <v-list
-                            flat dense
-                        >
-                            <v-list-item-group
-                                mandatory
-                                :color="entry.color"
-                                :value="sortMenuValue"
-                                >
-                                <v-list-item v-if="isComplex" @click.stop="changeSortMode('qtm')">
-                                    <v-list-item-title>{{ searchType === 'interfacesearch' ? 'Query Interface TM-score' : 'Query TM-score' }}</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'qtm' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item v-if="isComplex" @click.stop="changeSortMode('ttm')">
-                                    <v-list-item-title>{{ searchType === 'interfacesearch' ? 'Target Interface TM-score' : 'Target TM-score' }}</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'ttm' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('target')">
-                                    <v-list-item-title>Target</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'target' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item v-if="entry.hasDescription" @click.stop="changeSortMode('desc')">
-                                    <v-list-item-title>Description</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'desc' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item v-if="entry.hasTaxonomy" @click.stop="changeSortMode('tax')">
-                                    <v-list-item-title>Scientific Name</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'tax' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item v-if="searchType !== 'interfacesearch'" @click.stop="changeSortMode('prob')">
-                                    <v-list-item-title>Probability</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'prob' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item @click.stop="changeSortMode('seqId')">
-                                    <v-list-item-title>Sequence Id.</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'seqId' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item v-if="searchType !== 'interfacesearch'" @click.stop="changeSortMode('eval')">
-                                    <v-list-item-title>{{ this.mode == 'tmalign' ? 'TM-score' : this.mode == 'lolalign' ? 'LOL-score' : 'E-Value' }}</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'eval' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                                <v-list-item v-if="this.mode != 'lolalign' " @click.stop="changeSortMode('score')">
-                                    <v-list-item-title>Score</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == 'score' ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp}}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                            </v-list-item-group>
-                        </v-list>
-                    </v-menu>
+                    <div v-if="$vuetify.breakpoint.smAndDown" class="mobile-table-actions">
+                        <ResultFilterMenu :columns="mobileFilterColumns" :color="entry.color"
+                            @filter="onColumnFilter" @clear="clearFilters"></ResultFilterMenu>
+                        <v-menu bottom left>
+                            <template v-slot:activator="{on, attrs}">
+                                <v-btn icon v-bind="attrs" v-on="on" title="Sort options">
+                                    <v-icon>{{ $MDI.Sort }}</v-icon>
+                                </v-btn>
+                            </template>
+                            <v-list flat dense>
+                                <v-list-item-group mandatory :color="entry.color" :value="filterKeys.indexOf(sortKey)">
+                                    <v-list-item v-for="key in filterKeys" :key="key" @click.stop="changeSortMode(key)">
+                                        <v-list-item-title>{{ columnLabels[key] }}</v-list-item-title>
+                                        <v-list-item-icon>
+                                            <v-icon :style="{ opacity: sortKey == key ? 1 : 0 }">
+                                                {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp }}
+                                            </v-icon>
+                                        </v-list-item-icon>
+                                    </v-list-item>
+                                </v-list-item-group>
+                            </v-list>
+                        </v-menu>
+                    </div>
                 </div>
             </v-flex>
         </v-sheet>
@@ -381,6 +306,7 @@
 import Ruler from './Ruler.vue';
 import ResultSankeyMixin from './ResultSankeyMixin.vue';
 import ResultColumnMenu from './ResultColumnMenu.vue';
+import ResultFilterMenu from './ResultFilterMenu.vue';
 import { buildSortCache, makeComparator, defaultSortOrder } from './lib/resultSort.js';
 import {
     filterKind, rangeBounds, isLogScale, taxonOptions, taxFilterFor,
@@ -390,7 +316,7 @@ import {
 export default {
     name: 'ResultFoldseekDB',
     mixins: [ ResultSankeyMixin ],
-    components: { Ruler, ResultColumnMenu },
+    components: { Ruler, ResultColumnMenu, ResultFilterMenu },
     data() {
         return {
             toggleTargetValue: true,
@@ -581,6 +507,16 @@ export default {
         taxOptions() {
             return this.entry.hasTaxonomy ? taxonOptions(this.taxonomyReport, this.entry.alignments) : null
         },
+        mobileFilterColumns() {
+            return this.filterKeys.map(key => ({
+                key,
+                label: this.columnLabels[key],
+                summary: this.filters[key] != null
+                    ? formatFilterValue(key, this.filters[key], isLogScale(key, this.mode))
+                    : '',
+                field: this.filterFieldProps(key),
+            }))
+        },
         filterChips() {
             return this.filterKeys
                 .filter(key => this.filters[key] != null)
@@ -650,43 +586,6 @@ export default {
             let addend = !this.onlyOne ? 48 : 0
             let breakpointAddend = this.$vuetify.breakpoint.smAndDown ? 108 : 0
             return String(172 + addend + breakpointAddend) + 'px'
-        },
-        sortMenuValue() {
-            const offset = (this.entry.hasDescription ? 1 : 0) 
-                + (this.entry.hasTaxonomy ? 1 : 0)
-                + (this.isComplex ? 2 : 0)
-            switch (this.sortKey) {
-                case 'qtm': {
-                    return 0
-                }
-                case 'ttm': {
-                    return 1
-                }
-                case 'target': {
-                    return this.isComplex ? 2 : 0
-                }
-                case 'desc': {
-                    return this.isComplex ? 3 : 1
-                }
-                case 'tax': {
-                    return offset
-                }
-                case 'prob': {
-                    return 1 + offset
-                }
-                case 'seqId': {
-                    return 2 + offset
-                }
-                case 'eval': {
-                    return 3 + offset
-                }
-                case 'score': {
-                    return 4 + offset
-                }
-                default: {
-                    return 4 + offset
-                }
-            }
         },
         fullColSpan() {
             let defaultVal = 7
@@ -759,18 +658,23 @@ export default {
         syncRenderedState(from = 0) {
             this.reflectSelectionState(from)
         },
-        columnMenuProps(key) {
+        filterFieldProps(key) {
             return {
                 label: this.columnLabels[key],
                 kind: filterKind(key),
                 value: this.filters[key] ?? null,
-                sortSelected: this.sortKey == key,
-                sortOrder: this.sortOrder,
-                defaultSortOrder: defaultSortOrder(key, { mode: this.mode }),
                 color: this.entry.color,
                 bounds: this.rangeBoundsByKey[key] ?? null,
                 logScale: isLogScale(key, this.mode),
                 taxOptions: key == 'tax' ? this.taxOptions : null,
+            }
+        },
+        columnMenuProps(key) {
+            return {
+                ...this.filterFieldProps(key),
+                sortSelected: this.sortKey == key,
+                sortOrder: this.sortOrder,
+                defaultSortOrder: defaultSortOrder(key, { mode: this.mode }),
             }
         },
         onColumnFilter(key, value) {
@@ -925,6 +829,13 @@ export default {
 <style lang="scss" scoped>
 .db {
     border-left: 5px solid black;
+}
+
+.mobile-table-actions {
+    display: flex;
+    align-self: flex-end;
+    margin-bottom: 16px;
+    margin-left: 8px;
 }
 
 .result-title {
