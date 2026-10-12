@@ -14,7 +14,7 @@
                     ></div>
                     <v-icon @click="isCollapsed = !isCollapsed"
                         v-if="$vuetify.breakpoint.smAndDown"
-                        style="transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);"
+                        style="transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1); margin-right: 8px;"
                         :style="{'transform': isCollapsed ? 'rotate(-90deg)' : ''}"
                         :title="isCollapsed ? 'Show actions' : 'Hide actions'"
                     >
@@ -304,19 +304,14 @@
 
 <script>
 import Ruler from './Ruler.vue';
-import ResultSankeyMixin from './ResultSankeyMixin.vue';
-import ResultColumnMenu from './ResultColumnMenu.vue';
-import ResultFilterMenu from './ResultFilterMenu.vue';
+import ResultTableFilterMixin from './ResultTableFilterMixin.vue';
 import { buildSortCache, makeComparator, defaultSortOrder } from './lib/resultSort.js';
-import {
-    filterKind, rangeBounds, isLogScale, taxonOptions, taxFilterFor,
-    makeGroupPredicate, formatFilterValue,
-} from './lib/resultFilter.js';
+import { makeGroupPredicate } from './lib/resultFilter.js';
 
 export default {
     name: 'ResultFoldseekDB',
-    mixins: [ ResultSankeyMixin ],
-    components: { Ruler, ResultColumnMenu, ResultFilterMenu },
+    mixins: [ ResultTableFilterMixin ],
+    components: { Ruler },
     data() {
         return {
             toggleTargetValue: true,
@@ -332,11 +327,7 @@ export default {
     },
     created() {
         this.BATCH_SIZE = 100;
-        if (this.tableState) {
-            this.sortKey = this.tableState.sortKey
-            this.sortOrder = this.tableState.sortOrder
-            this.filters = this.tableState.filters
-        } else {
+        if (!this.tableState) {
             this.sortKey = this.isComplex ? 'qtm' : this.mode == 'lolalign' ? 'eval' : 'score'
         }
     },
@@ -397,15 +388,8 @@ export default {
             type: String,
             default: "",
         },
-        tableState: {
-            type: Object,
-            default: null,
-        },
     },
     watch: {
-        persistedState(n) {
-            this.$emit('update:tableState', n)
-        },
         filters() {
             this.toggleSourceIdx = -1
             this.recomputeVisibility()
@@ -459,15 +443,6 @@ export default {
         hasEntries() {
             return this.entry ? this.entryLength > 0 : false
         },
-        hasTaxonomyReport() {
-            return this.entry?.hasTaxonomy && this.entry.taxonomyreports?.length > 0
-        },
-        taxonomyReport() {
-            return this.hasTaxonomyReport ? this.entry.taxonomyreports[0] : null
-        },
-        persistedState() {
-            return { sortKey: this.sortKey, sortOrder: this.sortOrder, filters: this.filters }
-        },
         columnLabels() {
             const isInterface = this.searchType === 'interfacesearch'
             return {
@@ -494,44 +469,6 @@ export default {
                 ...(!isInterface ? ['eval'] : []),
                 ...(this.mode !== 'lolalign' ? ['score'] : []),
             ]
-        },
-        rangeBoundsByKey() {
-            const bounds = {}
-            for (const key of this.filterKeys) {
-                if (filterKind(key) == 'range') {
-                    bounds[key] = rangeBounds(this.entry.alignments, key)
-                }
-            }
-            return bounds
-        },
-        taxOptions() {
-            return this.entry.hasTaxonomy ? taxonOptions(this.taxonomyReport, this.entry.alignments) : null
-        },
-        mobileFilterColumns() {
-            return this.filterKeys.map(key => ({
-                key,
-                label: this.columnLabels[key],
-                summary: this.filters[key] != null
-                    ? formatFilterValue(key, this.filters[key], isLogScale(key, this.mode))
-                    : '',
-                field: this.filterFieldProps(key),
-            }))
-        },
-        filterChips() {
-            return this.filterKeys
-                .filter(key => this.filters[key] != null)
-                .map(key => ({
-                    key,
-                    text: this.columnLabels[key] + ': '
-                        + formatFilterValue(key, this.filters[key], isLogScale(key, this.mode)),
-                }))
-        },
-        hitCountLabel() {
-            const unit = this.entryLength == 1 ? 'hit' : 'hits'
-            if (this.filterChips.length > 0) {
-                return `${this.filteredTotal} of ${this.entryLength} ${unit}`
-            }
-            return this.entryLength > 0 ? `${this.entryLength} ${unit}` : 'no hit'
         },
         // isComplex() {
         //     return this.entry?.alignments?.[0]?.[0]?.complexqtm != null
@@ -657,34 +594,6 @@ export default {
         },
         syncRenderedState(from = 0) {
             this.reflectSelectionState(from)
-        },
-        filterFieldProps(key) {
-            return {
-                label: this.columnLabels[key],
-                kind: filterKind(key),
-                value: this.filters[key] ?? null,
-                color: this.entry.color,
-                bounds: this.rangeBoundsByKey[key] ?? null,
-                logScale: isLogScale(key, this.mode),
-                taxOptions: key == 'tax' ? this.taxOptions : null,
-            }
-        },
-        columnMenuProps(key) {
-            return {
-                ...this.filterFieldProps(key),
-                sortSelected: this.sortKey == key,
-                sortOrder: this.sortOrder,
-                defaultSortOrder: defaultSortOrder(key, { mode: this.mode }),
-            }
-        },
-        onColumnFilter(key, value) {
-            if (key == 'tax' && value != null) {
-                value = taxFilterFor(this.taxonomyReport, value)
-            }
-            this.setFilter(key, value)
-        },
-        clearFilters() {
-            this.filters = {}
         },
         log(a) {
             console.log(a)

@@ -2,7 +2,8 @@
 
 import { expandDescendants } from './taxonomyFilter.js';
 
-const TEXT_FIELD = { target: 'target', desc: 'description' };
+// FoldDisco shows `targetname`, the cleaned-up form of `target`.
+const TEXT_FIELD = { target: ['target', 'targetname'], desc: ['description'] };
 const RANGE_FIELD = {
     prob: 'prob', seqId: 'seqId', eval: 'eval', score: 'score',
     qtm: 'complexqtm', ttm: 'complexttm',
@@ -99,8 +100,8 @@ function chainTest(key, value) {
         case 'text': {
             const needle = String(value).trim().toLowerCase();
             if (!needle) return null;
-            const field = TEXT_FIELD[key];
-            return item => String(item[field] ?? '').toLowerCase().includes(needle);
+            const fields = TEXT_FIELD[key];
+            return item => fields.some(field => String(item[field] ?? '').toLowerCase().includes(needle));
         }
         case 'tax': {
             const ids = new Set(value.ids);
