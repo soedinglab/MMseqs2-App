@@ -1,7 +1,7 @@
 <template>
     <v-tooltip open-delay="300" top :disabled="isLocal">
         <template v-slot:activator="{ on }">
-            <v-autocomplete
+            <v-autocomplete ref="field"
                 :value="value"
                 :label="isLocal ? undefined : 'Taxonomic filter'"
                 :placeholder="isLocal ? 'Search scientific name' : 'Start typing scientific name to search'"
@@ -11,6 +11,8 @@
                 :loading="isLoading"
                 :search-input.sync="search"
                 @input="change"
+                @focus="fitBelow"
+                @click="fitBelow"
                 return-object
                 auto-select-first
                 :allow-overflow="false"
@@ -21,7 +23,7 @@
                 :hide-details="isLocal"
                 :clearable="isLocal"
                 :prepend-inner-icon="isLocal ? $MDI.Magnify : undefined"
-                :menu-props="isLocal ? { maxHeight: 280 } : undefined"
+                :menu-props="localMenuProps"
             >
                 <template v-if="isLocal" v-slot:item="{ item }">
                     <v-list-item-content>
@@ -53,11 +55,16 @@ export default {
             items: [],
             isLoading: false,
             search: null,
+            menuMaxHeight: 280,
         }
     },
     computed: {
         isLocal() {
             return this.localItems != null;
+        },
+        // Local mode lives inside result-table menus (z-index 99999); stay above them, below the field.
+        localMenuProps() {
+            return this.isLocal ? { maxHeight: this.menuMaxHeight, zIndex: 100001, offsetOverflow: false } : undefined;
         },
     },
     mounted() {
@@ -68,10 +75,17 @@ export default {
             this.items = [ this.value ];
         },
         search (val) {
+            this.fitBelow();
             !this.isLocal && val && val.length > 2 && val !== this.value && this.querySelections(val)
         },
     },
     methods: {
+        fitBelow() {
+            if (!this.isLocal) return;
+            const field = this.$refs.field.$el.querySelector('.v-input__slot');
+            const below = window.innerHeight - field.getBoundingClientRect().bottom - 16;
+            this.menuMaxHeight = Math.max(120, Math.min(280, below));
+        },
         change(taxId) {
           this.$emit('input', taxId);
         },
