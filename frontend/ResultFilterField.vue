@@ -6,6 +6,14 @@
             :prepend-inner-icon="$MDI.Magnify"
             dense outlined hide-details clearable
         ></v-text-field>
+        <div v-else-if="kind == 'choice'">
+            <div class="text-caption text--secondary mb-2">Show only hits on one {{ label.toLowerCase() }}</div>
+            <v-btn-toggle :value="value" @change="v => $emit('filter', v ?? null)" :color="color" dense>
+                <v-btn v-for="choice in choices" :key="choice.value" :value="choice.value" small style="text-transform: none;">
+                    {{ choice.text }}
+                </v-btn>
+            </v-btn-toggle>
+        </div>
         <TaxonomyAutocomplete v-else-if="kind == 'tax'"
             :value="taxSelection" :localItems="taxOptions"
             @input="onTaxon"
@@ -55,6 +63,7 @@ export default {
         bounds: { type: Object, default: null },
         logScale: { type: Boolean, default: false },
         taxOptions: { type: Array, default: null },
+        choices: { type: Array, default: null },
     },
     created() {
         this.emitText = debounce(text => this.$emit('filter', text), 500);

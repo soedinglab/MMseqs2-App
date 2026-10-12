@@ -8,10 +8,15 @@
             }">
             <v-flex class="d-flex" :style="{ 'flex-direction' : $vuetify.breakpoint.smAndDown ? 'column' : null,
                 'align-items': 'center', 'justify-content': $vuetify.breakpoint.smAndDown ? 'center' : 'space-between'}">
-                <h2 style="margin-top: 0.5em; margin-bottom: 1em; display: inline-block;" class="mr-auto">
+                <h2 style="margin-top: 0.5em; margin-bottom: 1em;" class="mr-auto result-title">
                     <span style="text-transform: uppercase;">{{ entry.db }}</span>
-                    <small v-if="isFiltered">{{ filteredHits.length }} of {{ entryLength }} hits</small>
-                    <small v-else>{{ entryLength > 1 ? entryLength.toString() + " hits" : entryLength > 0 ? "1 hit" : "no hit" }}</small>
+                    <small class="ml-2">{{ hitCountLabel }}</small>
+                    <span v-if="filterChips.length > 0 && !$vuetify.breakpoint.smAndDown" class="filter-chips">
+                        <v-chip v-for="chip in filterChips" :key="chip.key" small outlined close
+                            :color="entry.color" class="ml-2" :title="chip.text"
+                            @click:close="onColumnFilter(chip.key, null)">{{ chip.text }}</v-chip>
+                        <v-chip v-if="filterChips.length > 1" small class="ml-2" @click="clearFilters">Clear all</v-chip>
+                    </span>
                 </h2>
 
                 <div style="display: flex; justify-content: center; align-items: center;"
@@ -25,26 +30,29 @@
                         <v-btn>Graphical</v-btn>
                         <v-btn>Numeric</v-btn>
                     </v-btn-toggle>
-                    <v-menu v-show="$vuetify.breakpoint.smAndDown" bottom left>
-                        <template v-slot:activator="{on, attrs}">
-                            <v-btn icon v-bind="attrs" v-on="on" v-show="$vuetify.breakpoint.smAndDown"
-                                style="align-self: flex-end; margin-bottom: 16px; margin-left: 8px" title="Sort options">
-                                <v-icon>{{ $MDI.Sort }}</v-icon>
-                            </v-btn>
-                        </template>
-                        <v-list flat dense>
-                            <v-list-item-group mandatory :color="entry.color" :value="sortMenuValue">
-                                <v-list-item v-for="c in sortColumns" :key="c.key" @click.stop="changeSortMode(c.key)">
-                                    <v-list-item-title>{{ c.title }}</v-list-item-title>
-                                    <v-list-item-icon>
-                                        <v-icon :style="{'opacity' : sortKey == c.key ? '1' : 0}">
-                                            {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp }}
-                                        </v-icon>
-                                    </v-list-item-icon>
-                                </v-list-item>
-                            </v-list-item-group>
-                        </v-list>
-                    </v-menu>
+                    <div v-if="$vuetify.breakpoint.smAndDown" class="mobile-table-actions">
+                        <ResultFilterMenu :columns="mobileFilterColumns" :color="entry.color"
+                            @filter="onColumnFilter" @clear="clearFilters"></ResultFilterMenu>
+                        <v-menu bottom left>
+                            <template v-slot:activator="{on, attrs}">
+                                <v-btn icon v-bind="attrs" v-on="on" title="Sort options">
+                                    <v-icon>{{ $MDI.Sort }}</v-icon>
+                                </v-btn>
+                            </template>
+                            <v-list flat dense>
+                                <v-list-item-group mandatory :color="entry.color" :value="sortKeys.indexOf(sortKey)">
+                                    <v-list-item v-for="key in sortKeys" :key="key" @click.stop="changeSortMode(key)">
+                                        <v-list-item-title>{{ columnLabels[key] }}</v-list-item-title>
+                                        <v-list-item-icon>
+                                            <v-icon :style="{ opacity: sortKey == key ? 1 : 0 }">
+                                                {{ sortOrder < 0 ? $MDI.ChevronDown : $MDI.ChevronUp }}
+                                            </v-icon>
+                                        </v-list-item-icon>
+                                    </v-list-item>
+                                </v-list-item-group>
+                            </v-list>
+                        </v-menu>
+                    </div>
                 </div>
             </v-flex>
         </v-sheet>
@@ -80,21 +88,39 @@
                 <tr>
                     <th class="thin phantom-checkbox"></th>
                     <th :class="[`wide-${3 - entry.hasDescription - entry.hasTaxonomy}`, {'sort-selected': sortKey == 'target', 'sort-down': sortOrder < 0}]"
-                        class="sort-criterion" title="Click to sort by target name" @click="changeSortMode('target')">Target</th>
+                        class="sort-criterion">
+                        Target
+                        <ResultColumnMenu v-bind="columnMenuProps('target')" @sort="changeSortMode('target')" @filter="v => onColumnFilter('target', v)" />
+                    </th>
                     <th v-if="entry.hasDescription" class="sort-criterion"
-                        :class="{'sort-selected': sortKey == 'desc', 'sort-down': sortOrder < 0}"
-                        @click="changeSortMode('desc')" title="Click to sort by description">Description</th>
+                        :class="{'sort-selected': sortKey == 'desc', 'sort-down': sortOrder < 0}">
+                        Description
+                        <ResultColumnMenu v-bind="columnMenuProps('desc')" @sort="changeSortMode('desc')" @filter="v => onColumnFilter('desc', v)" />
+                    </th>
                     <th v-if="entry.hasTaxonomy" class="sort-criterion"
-                        :class="{'sort-selected': sortKey == 'tax', 'sort-down': sortOrder < 0}"
-                        @click="changeSortMode('tax')" title="Click to sort by scientific name">Scientific Name</th>
+                        :class="{'sort-selected': sortKey == 'tax', 'sort-down': sortOrder < 0}">
+                        Scientific Name
+                        <ResultColumnMenu v-bind="columnMenuProps('tax')" @sort="changeSortMode('tax')" @filter="v => onColumnFilter('tax', v)" />
+                    </th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected': sortKey == 'seqId', 'sort-down': sortOrder < 0}"
-                        @click="changeSortMode('seqId')" title="Click to sort by sequence identity">Seq. Id.</th>
+                        title="Sequence identity">
+                        Seq. Id.
+                        <ResultColumnMenu v-bind="columnMenuProps('seqId')" @sort="changeSortMode('seqId')" @filter="v => onColumnFilter('seqId', v)" />
+                    </th>
                     <th class="thin sort-criterion" :class="{'sort-selected': sortKey == 'eval', 'sort-down': sortOrder < 0}"
-                        @click="changeSortMode('eval')" title="Click to sort by E-value">E-Value</th>
+                        title="E-value">
+                        E-Value
+                        <ResultColumnMenu v-bind="columnMenuProps('eval')" @sort="changeSortMode('eval')" @filter="v => onColumnFilter('eval', v)" />
+                    </th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected': sortKey == 'score', 'sort-down': sortOrder < 0}"
-                        v-show="tableMode == 1" @click="changeSortMode('score')" title="Click to sort by score">Score</th>
-                    <th class="thin sort-criterion" :class="{'sort-selected': sortKey == 'strand', 'sort-down': sortOrder < 0}"
-                        v-show="tableMode == 1" @click="changeSortMode('strand')" title="Click to sort by strand">Strand</th>
+                        v-show="tableMode == 1" title="Score">
+                        Score
+                        <ResultColumnMenu v-bind="columnMenuProps('score')" @sort="changeSortMode('score')" @filter="v => onColumnFilter('score', v)" />
+                    </th>
+                    <th class="thin filter-only" v-show="tableMode == 1" title="Strand">
+                        Strand
+                        <ResultColumnMenu v-bind="columnMenuProps('strand')" @filter="v => onColumnFilter('strand', v)" />
+                    </th>
                     <th v-show="tableMode == 1">Query Pos.</th>
                     <th v-show="tableMode == 1">Target Pos.</th>
                     <th v-show="tableMode == 0">
@@ -174,11 +200,12 @@
 
 <script>
 import Ruler from './Ruler.vue';
-import ResultSankeyMixin from './ResultSankeyMixin.vue';
+import ResultTableFilterMixin from './ResultTableFilterMixin.vue';
+import { makeGroupPredicate } from './lib/resultFilter.js';
 
 export default {
     name: 'ResultRiboseekDB',
-    mixins: [ ResultSankeyMixin ],
+    mixins: [ ResultTableFilterMixin ],
     components: { Ruler },
     props: {
         tableMode: { type: Number, default: 0 },
@@ -234,37 +261,41 @@ export default {
         fullColSpan() {
             return 5 + this.entry.hasDescription + this.entry.hasTaxonomy + (this.tableMode == 1 ? 3 : 0);
         },
-        sortColumns() {
-            const columns = [{ key: 'target', title: 'Target' }];
-            if (this.entry.hasDescription) {
-                columns.push({ key: 'desc', title: 'Description' });
-            }
-            if (this.entry.hasTaxonomy) {
-                columns.push({ key: 'tax', title: 'Scientific Name' });
-            }
-            return columns.concat([
-                { key: 'seqId', title: 'Sequence Identity' },
-                { key: 'eval', title: 'E-Value' },
-                { key: 'score', title: 'Score' },
-                { key: 'strand', title: 'Strand' },
-            ]);
+        columnLabels() {
+            return {
+                target: 'Target',
+                desc: 'Description',
+                tax: 'Scientific Name',
+                seqId: 'Sequence Identity',
+                eval: 'E-Value',
+                score: 'Score',
+                strand: 'Strand',
+            };
         },
-        sortMenuValue() {
-            return this.sortColumns.findIndex(c => c.key == this.sortKey);
+        filterKeys() {
+            return [
+                'target',
+                ...(this.entry.hasDescription ? ['desc'] : []),
+                ...(this.entry.hasTaxonomy ? ['tax'] : []),
+                'seqId', 'eval', 'score', 'strand',
+            ];
+        },
+        sortKeys() {
+            return this.filterKeys.filter(key => key != 'strand');
+        },
+        filterGroups() {
+            return this.hits.map(hit => [hit]);
         },
         hasTaxonomyReport() {
             return this.entry.hasTaxonomy && !this.merged
                 && this.entry.taxonomyreports && this.entry.taxonomyreports.length > 0;
         },
-        isFiltered() {
-            return this.filteredHitsTaxIds != null && this.filteredHitsTaxIds.length > 0;
-        },
         filteredHits() {
-            if (!this.isFiltered) {
-                return this.hits;
-            }
-            const clade = new Set(this.filteredHitsTaxIds);
-            return this.hits.filter(h => h.taxId != null && clade.has(Number(h.taxId)));
+            const predicate = makeGroupPredicate(this.filters, this.filterKeys);
+            return predicate ? this.hits.filter(hit => predicate([hit])) : this.hits;
+        },
+        filteredTotal() {
+            return this.filteredHits.length;
         },
         sortedHits() {
             return [...this.filteredHits].sort(this.comparator);
@@ -281,8 +312,6 @@ export default {
                     return text('description');
                 case 'tax':
                     return text('taxName');
-                case 'strand':
-                    return text('strand');
                 default:
                     return (a, b) => this.sortOrder * (a[this.sortKey] - b[this.sortKey]);
             }
@@ -293,7 +322,7 @@ export default {
             this.renderLimit = this.BATCH_SIZE;
             this.setupObserver();
         },
-        filteredHitsTaxIds() {
+        filters() {
             this.renderLimit = this.BATCH_SIZE;
             this.setupObserver();
         },
@@ -307,8 +336,11 @@ export default {
                 this.sortOrder *= -1;
             } else {
                 this.sortKey = key;
-                this.sortOrder = ['target', 'desc', 'tax', 'strand', 'eval'].includes(key) ? 1 : -1;
+                this.sortOrder = this.defaultOrderFor(key);
             }
+        },
+        defaultOrderFor(key) {
+            return ['target', 'desc', 'tax', 'eval'].includes(key) ? 1 : -1;
         },
         setupObserver() {
             this.$nextTick(() => {

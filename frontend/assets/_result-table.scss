@@ -85,33 +85,8 @@ thead.sticky-thead th::before {
 }
 
 thead.sticky-thead th.sort-criterion {
-    cursor: pointer;
     background-color: transparent;
     transition: color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected):hover  {
-    background-color: rgba(0, 0, 0, 0.05);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected):active  {
-    background-color: rgba(0, 0, 0, 0.15);
-}
-
-.theme--dark .sticky-thead th.sort-criterion:not(.sort-selected):hover  {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-
-.theme--dark thead.sticky-thead th.sort-criterion:not(.sort-selected):active  {
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected:hover  {
-    background-color: color-mix(in srgb, var(--active-color) 12%, transparent);
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected:active  {
-    background-color: color-mix(in srgb, var(--active-color) 20%, transparent);
 }
 
 thead.sticky-thead th.sort-criterion::before {
@@ -133,19 +108,6 @@ thead.sticky-thead th.sort-criterion::after {
     border-right: 4px solid transparent;
     background-color: transparent;
     transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), border-bottom-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), bottom 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected):hover::after {
-    border-bottom-color: rgba(0, 0, 0, 0.15);
-}
-
-.theme--dark .sticky-thead th.sort-criterion:not(.sort-selected):hover::after {
-    border-bottom-color: rgba(255, 255, 255, 0.15);
-}
-
-thead.sticky-thead th.sort-criterion:not(.sort-selected).default-down:hover::after {
-    bottom: 0px;
-    transform: scaleY(-1);
 }
 
 thead.sticky-thead th.sort-criterion.sort-selected::before {
@@ -256,11 +218,34 @@ tr.hit .entry-checkbox.selected svg, .select-all.any-selected svg {
     fill: var(--active-color);
 }
 
-tr.hit:has(.invisible) {
-    display: none;
+tr.invisible {
+    display: none !important;
 }
-th.sort-criterion {
-    cursor: pointer;
+
+thead.sticky-thead th.sort-criterion,
+thead.sticky-thead th.filter-only {
+    padding-right: 24px;
+}
+
+.mobile-table-actions {
+    display: flex;
+    align-self: flex-end;
+    margin-bottom: 16px;
+    margin-left: 8px;
+}
+
+.result-title {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.filter-chips {
+    display: inline-flex;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
 }
 
 th.sort-criterion.sort-selected {

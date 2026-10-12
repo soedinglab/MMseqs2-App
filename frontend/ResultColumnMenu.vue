@@ -4,14 +4,14 @@
         min-width="300" max-width="340">
         <template v-slot:activator="{ on, attrs }">
             <button type="button" class="column-menu-btn" :class="{ 'is-active': value != null, 'is-open': open }"
-                v-bind="attrs" v-on="on" @click.stop="pickSide" :title="'Sort and filter by ' + label">
+                v-bind="attrs" v-on="on" @click.stop="pickSide" :title="(sortable ? 'Sort and filter by ' : 'Filter by ') + label">
                 <v-icon small :color="value != null ? color : undefined">
                     {{ value != null ? $MDI.Filter : $MDI.FilterOutline }}
                 </v-icon>
             </button>
         </template>
         <v-card>
-            <v-list dense class="py-0">
+            <v-list v-if="sortable" dense class="py-0">
                 <v-list-item @click="$emit('sort')">
                     <v-list-item-content>
                         <v-list-item-title>Sort by {{ label }}</v-list-item-title>
@@ -23,10 +23,10 @@
                     </v-list-item-action>
                 </v-list-item>
             </v-list>
-            <v-divider></v-divider>
+            <v-divider v-if="sortable"></v-divider>
             <ResultFilterField ref="field" class="pa-3"
                 :label="label" :kind="kind" :value="value" :color="color"
-                :bounds="bounds" :logScale="logScale" :taxOptions="taxOptions"
+                :bounds="bounds" :logScale="logScale" :taxOptions="taxOptions" :choices="choices"
                 @filter="v => $emit('filter', v)"
             ></ResultFilterField>
         </v-card>
@@ -43,6 +43,7 @@ export default {
         label: { type: String, required: true },
         kind: { type: String, default: null },
         value: { default: null },
+        sortable: { type: Boolean, default: true },
         sortSelected: { type: Boolean, default: false },
         sortOrder: { type: Number, default: -1 },
         defaultSortOrder: { type: Number, default: -1 },
@@ -50,6 +51,7 @@ export default {
         bounds: { type: Object, default: null },
         logScale: { type: Boolean, default: false },
         taxOptions: { type: Array, default: null },
+        choices: { type: Array, default: null },
     },
     data() {
         return {
