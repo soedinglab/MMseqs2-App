@@ -121,7 +121,7 @@
                 <col style="min-width: 12%;" /> <!-- target -->
                 <col v-if="entry.hasDescription" style="width: 25%;" /> 
                 <col v-if="entry.hasTaxonomy" style="width: 15%;" />
-                <col style="width: 6%;" /> <!-- idf-score --> 
+                <col style="width: 8%;" /> <!-- idf-score --> 
                 <col style="width: 6%;" /> <!-- RMSD --> 
                 <col style="width: 6%;" /> <!-- nodecount -->
                 <col style="min-width: 12%;" /> <!-- Matched residues --> 
@@ -149,12 +149,12 @@
                     <th :class="['wide-' + (3 - entry.hasDescription - entry.hasTaxonomy), 
                     {'sort-selected': this.sortKey == 'target', 'sort-down': this.sortOrder < 0}]" 
                     class="sort-criterion">
-                        Target
+                        <span class="th-label">Target</span>
                         <ResultColumnMenu v-bind="columnMenuProps('target')" @sort="changeSortMode('target')" @filter="v => onColumnFilter('target', v)" />
                     </th>
                     <th v-if="entry.hasDescription" class="sort-criterion has-help"
                     :class="{'sort-selected':this.sortKey == 'desc', 'sort-down': this.sortOrder < 0}">
-                        Description
+                        <span class="th-label">Description</span>
                         <ResultColumnMenu v-bind="columnMenuProps('desc')" @sort="changeSortMode('desc')" @filter="v => onColumnFilter('desc', v)" />
                         <v-tooltip open-delay="300" top>
                             <template v-slot:activator="{ on }">
@@ -165,22 +165,22 @@
                     </th>
                     <th v-if="entry.hasTaxonomy" :class="{'sort-selected':this.sortKey == 'tax', 'sort-down': this.sortOrder < 0}" 
                         class="sort-criterion">
-                        Scientific Name
+                        <span class="th-label">Scientific Name</span>
                         <ResultColumnMenu v-bind="columnMenuProps('tax')" @sort="changeSortMode('tax')" @filter="v => onColumnFilter('tax', v)" />
                     </th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'idf', 'sort-down': this.sortOrder < 0}" 
                         title="IDF-score">
-                        {{ $vuetify.breakpoint.mdAndDown ? 'IDF' :'IDF-score' }}
+                        <span class="th-label">{{ $vuetify.breakpoint.mdAndDown ? 'IDF' :'IDF-score' }}</span>
                         <ResultColumnMenu v-bind="columnMenuProps('idf')" @sort="changeSortMode('idf')" @filter="v => onColumnFilter('idf', v)" />
                     </th>
                     <th class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'rmsd', 'sort-down': this.sortOrder < 0}" 
                         title="RMSD">
-                        RMSD
+                        <span class="th-label">RMSD</span>
                         <ResultColumnMenu v-bind="columnMenuProps('rmsd')" @sort="changeSortMode('rmsd')" @filter="v => onColumnFilter('rmsd', v)" />
                     </th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'node', 'sort-down': this.sortOrder < 0}" 
                         title="Node count">
-                        Nodes
+                        <span class="th-label">Nodes</span>
                         <ResultColumnMenu v-bind="columnMenuProps('node')" @sort="changeSortMode('node')" @filter="v => onColumnFilter('node', v)" />
                     </th>
                     <th>
@@ -845,445 +845,12 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.hide {
-    display: none;
-}
-
-.db {
-    border-left: 5px solid black;
-}
-
-.mobile-table-actions {
-    display: flex;
-    align-self: flex-end;
-    margin-bottom: 16px;
-    margin-left: 8px;
-}
-
-.result-title {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    white-space: nowrap;
-}
-
-.filter-chips {
-    display: inline-flex;
-    min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: thin;
-}
-
-.result-table {
-    transform: translateY(0);
-    a.anchor {
-        display: block;
-        position: relative;
-        top: -125px;
-        visibility: hidden;
-    }
-
-    a:not([href]) {
-        color: #333;
-        &:not([href]):hover {
-            text-decoration: none;
-        }
-    }
-
-    tbody {
-        counter-reset: row;
-    }
-
-    tbody tr.hit {
-        counter-increment: row;
-    }
-
-    td, th {
-        padding: 0 6px;
-        text-align: left;
-    }
-
-    .hit.active {
-        background: #f9f9f9;
-    }
-
-    // tbody:hover td[rowspan], tbody tr:hover {
-    //     background: #eee;
-    // }
-
-    .alignment-action {
-        text-align: center;
-        word-wrap: normal;
-    }
-}
-
-.theme--dark {
-    .result-table {
-        a:not([href])  {
-            color: #eee;
-        }
-
-        .hit.active {
-            background: #333;
-        }
-
-        // tbody:hover td[rowspan], tbody tr:hover {
-        //     background: #333;
-        // }
-    }
-}
-.matched-residues-text {
-    display: inline-block;
-    max-width: 100%;
-    overflow: scroll;
-    scrollbar-width: none;
-}
-
-
-
-// Sticky thead border
-thead.sticky-thead th {
-    position: relative;
-    padding-top: 4px;
-    padding-bottom: 4px;
-}
-
-thead.sticky-thead th::before {
-    content: "";
-    width: 100%;
-    bottom: 0;
-    left: 0;
-    background-color: rgba(0, 0, 0, 0.12);
-    position: absolute;
-    height: 1px;
-    display: block;
-    z-index: inherit;
-}
-.theme--dark thead.sticky-thead th::before {
-    background-color: rgba(255, 255, 255, 0.12);
-}
-
-thead.sticky-thead th.sort-criterion {
-    background-color: transparent;
-    transition: color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion::before {
-    transition: background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), height 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), bottom 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion::after {
-    transform-origin: bottom center;
-    content: "";
-    width: 0;
-    height: 0;
-    bottom: 1px;
-    right: 0;
-    position: absolute;
-    display: block;
-    z-index: inherit;
-    border-bottom: 7px solid transparent;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    background-color: transparent;
-    transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), border-bottom-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), bottom 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected::before {
-    background-color: var(--active-color);
-    height: 2px;
-    bottom: -1px;
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected::after {
-    border-bottom-color: var(--active-color);
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected:not(.sort-down)::after {
-    bottom: 1px;
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected.sort-down::after {
-    bottom: -1px;
-    transform: scaleY(-1);
-}
-
-tr.hit .entry-checkbox:not(.selected) path.checked {
-    opacity: 0;
-}
-
-tr.hit .entry-checkbox.selected path.unchecked{
-    opacity: 0;
-}
-
-th.select-all-th .select-all path.undeterminate {
-    opacity: 0;
-}
-
-th.select-all-th .select-all.any-selected:not(.all-selected) path.undeterminate {
-    opacity: 1;
-}
-
-th.select-all-th .select-all:not(.all-selected) path.checked {
-    opacity: 0;
-}
-
-th.select-all-th .select-all.any-selected path.unchecked {
-    opacity: 0;
-}
-
-tr.hit .entry-checkbox svg, .select-all svg {
-    transition: opacity 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-    transition: background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-tr.hit .entry-checkbox, .select-all {
-    position: relative;
-}
-
-.custom-checkbox::before,
-.custom-checkbox::after {
-    content: '';
-    transition: opacity  0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color  0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-    border-radius: 50%;
-    cursor: pointer;
-    width: 34px;
-    height: 34px;
-    top: calc(50% - 17px);
-    left: calc(50% - 17px);
-    position: absolute;
-    background-color: inherit;
-}
-
-:not(.selected) > .custom-checkbox:not(.any-selected)::before,
-:not(.selected) > .custom-checkbox:not(.any-selected)::after {
-    background-color: rgba(0,0,0,0.54);
-}
-
-.theme--dark :not(.selected) > .custom-checkbox:not(.any-selected)::before,
-.theme--dark :not(.selected) > .custom-checkbox:not(.any-selected)::after {
-    background-color: #fff;
-}
-
-.selected .custom-checkbox::before,
-.selected .custom-checkbox::after,
-.custom-checkbox.any-selected::before,
-.custom-checkbox.any-selected::after
-{
-    background-color: var(--active-color);
-}
-
-.custom-checkbox:not(:hover)::before {
-    opacity: 0;
-}
-
-.custom-checkbox:hover::before {
-    opacity: 0.2;
-}
-
-.custom-checkbox::after {
-    opacity: 0;
-    transition: opacity  0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-    transform: scale(0);
-    transform-origin: center center;
-}
-
-.custom-checkbox:active::after {
-    opacity: 0.2;
-    transform: scale(1);
-}
-
-tr.hit .entry-checkbox.selected svg, .select-all.any-selected svg {
-    fill: var(--active-color);
-}
-
-tr.invisible {
-    display: none !important;
-}
-thead.sticky-thead th.sort-criterion {
-    padding-right: 24px;
-}
-
-thead.sticky-thead th.has-help {
-    padding-right: 54px;
-}
-
-thead.sticky-thead th.has-help ::v-deep .column-menu-btn {
-    right: 32px;
-}
-
-.th-help {
-    position: absolute;
-    top: 50%;
-    right: 4px;
-    transform: translateY(-50%);
-    font-size: 16px !important;
-}
-
-th.sort-criterion.sort-selected {
-    color: var(--active-color);
-}
-
-
-@media print, screen and (min-width: 961px) {
-    .result-table {
-        table-layout: fixed;
-        border-collapse: collapse;
-        width: 100%;
-        th.thin, td.thin {
-            white-space: nowrap;
-        }
-        .long {
-            overflow: hidden;
-            word-break: keep-all;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        th {
-            // overflow: hidden;
-            text-overflow: ellipsis;
-        }
-    }
-}
-
-@media print {
-    .result-table .alignment-action {
-        display: none;
-    }
-}
+@import "result-table";
 
 @media screen and (max-width: 960px) {
-    .result-table {
-        width: 100%;
-        col {
-            width: auto !important;
-        }
-        .long {
-            height: 100% !important;
-            white-space: normal !important;
-            min-height: 48px;
-        }
-        .hits {
-            min-width: 300px;
-        }
-
-        tbody td a {
-            min-width: 100px;
-        }
-        tbody td.graphical div.ruler {
-            margin: 10px 0;
-        }
-        
-        td.entry-checkbox {
-            display: none;
-        }
-
-        thead {
-            display: none;
-        }
-        tfoot th {
-            border: 0;
-            display: inherit;
-        }
-        tr.hit {
-            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.1);
-            max-width: 100%;
-            position: relative;
-            display: block;
-            padding: 2em;
-            margin-left: 2em;
-            margin-right: 2em;
-            cursor: pointer;
-        }
-
-        tr.hit:has(.selected) {
-            outline: 4px solid color-mix(in srgb, var(--active-color) 60%, transparent);
-            outline-offset: -2px;
-        }
-
-        tr:not(.hit) {
-            position: relative
-        }
-
-        tr:not(.hit)::after {
-            content: "";
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: 0;
-            height: 1px;
-            background-color: #cfcfcf;
-        }
-
-        tr td {
-            border: 0;
-            display: inherit;
-        }
-        tr td:last-child {
-            border-bottom: 0;
-        }
-        tr:not(:last-child) {
-            margin-bottom: 1rem;
-        }
-        tr:not(.is-selected) {
-            background: inherit;
-        }
-        tr:not(.is-selected):hover {
-            background-color: inherit;
-        }
-        tr.detail {
-            margin-top: -1rem;
-        }
-        tr:not(.detail):not(.is-empty):not(.table-footer) td:not(.entry-checkbox) {
-            display: flex;
-            border-bottom: 1px solid #eee;
-            flex-direction: row;
-
-            &:last-child {
-                border-bottom: 0;
-            }
-        }
-        tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
-            content: attr(data-label);
-            font-weight: 600;
-            margin-right: auto;
-            padding-right: 0.5em;
-            word-break: keep-all;
-            flex: 1;
-            white-space: nowrap;
-        }
-
-        tbody td a, tbody td span {
-            flex: 2;
-            margin-left: auto;
-            text-align: right;
-            word-wrap: anywhere;
-        }
-    }
-        .matched-residues-text {
-        white-space: normal;
-        word-break: break-all;
-        max-width: none;
+    .result-table .long {
+        min-height: 48px;
+        padding-bottom: 0;
     }
 }
-
-.alignment {
-    position:absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 999;
-    box-shadow: 0 3px 5px -1px rgba(0,0,0,.2),0 6px 10px 0 rgba(0,0,0,.14),0 1px 18px 0 rgba(0,0,0,.12) !important;
-
-    .residues {
-        font-family: Protsolata, Inconsolata, Consolas, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Monospace", "Source Code Pro", "Fira Mono", "Droid Sans Mono", "Courier New", monospace;
-        white-space: pre;
-    }
-
-    .theme--dark & {
-        .residues {
-            color: #fff;
-        }
-    }
-}
-
 </style>

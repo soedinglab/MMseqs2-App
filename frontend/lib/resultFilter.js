@@ -53,6 +53,10 @@ export function rangeBounds(alignments, key) {
     return min <= max ? { min, max, minPositive } : null;
 }
 
+export function isIntegerScale(key) {
+    return key === 'node';
+}
+
 export function isLogScale(key, mode = '') {
     return key === 'eval' && mode !== 'tmalign' && mode !== 'lolalign';
 }
