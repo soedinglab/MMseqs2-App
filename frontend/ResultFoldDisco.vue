@@ -119,6 +119,8 @@
                         :selectedStates="selectedStates[entryidx]" :selectedCounts="selectedCountPerDb[entryidx]"
                         :totalSelectedCounts="selectedCounts" :selectUpperbound="selectUpperbound" :alignment="alignment"
                         :onlyOne="hits.results.length == 1"
+                        :tableState="tableStates[entry.db]"
+                        @update:tableState="(state) => $set(tableStates, entry.db, state)"
                         @forwardDropdown="(e, h) => forwardDropdown(e, h)"
                         @showAlignment="(i, e) => showAlignment(i, entry.db, e)"
                         @updateToggleSource="(db) => updateToggleSourceDb(db)"
@@ -249,6 +251,7 @@ export default {
             selectedSets: new Set(),
             scrollOffsetArr: [],
             clusterInfoPerDb: {},
+            tableStates: {},
         }
     },
     created() {
@@ -390,6 +393,9 @@ export default {
                     this.selectedStates = obj
                     this.selectedCountPerDb = obj2
                     this.dbToIdx = obj3
+                    if (n !== o) {
+                        this.tableStates = {}
+                    }
 
                     this.$nextTick(() => {
                         setTimeout(() => {
