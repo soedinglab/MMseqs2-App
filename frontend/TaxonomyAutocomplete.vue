@@ -1,12 +1,13 @@
 <template>
-    <v-tooltip open-delay="300" top>
+    <v-tooltip open-delay="300" top :disabled="isLocal">
         <template v-slot:activator="{ on }">
             <v-autocomplete
                 :value="value"
-                label="Taxonomic filter"
-                placeholder="Start typing scientific name to search"
-                hide-no-data
-                :items="items"
+                :label="isLocal ? undefined : 'Taxonomic filter'"
+                :placeholder="isLocal ? 'Search scientific name' : 'Start typing scientific name to search'"
+                :hide-no-data="!isLocal"
+                no-data-text="No matching taxon in the hits"
+                :items="isLocal ? localItems : items"
                 :loading="isLoading"
                 :search-input.sync="search"
                 @input="change"
@@ -14,9 +15,21 @@
                 auto-select-first
                 :allow-overflow="false"
                 dense
-                chips
-                deletable-chips
-            ></v-autocomplete>
+                :chips="!isLocal"
+                :deletable-chips="!isLocal"
+                :outlined="isLocal"
+                :hide-details="isLocal"
+                :clearable="isLocal"
+                :prepend-inner-icon="isLocal ? $MDI.Magnify : undefined"
+                :menu-props="isLocal ? { maxHeight: 280 } : undefined"
+            >
+                <template v-if="isLocal" v-slot:item="{ item }">
+                    <v-list-item-content>
+                        <v-list-item-title>{{ item.text }}</v-list-item-title>
+                        <v-list-item-subtitle>{{ [item.rank, item.count + (item.count == 1 ? ' hit' : ' hits')].filter(Boolean).join(' · ') }}</v-list-item-subtitle>
+                    </v-list-item-content>
+                </template>
+            </v-autocomplete>
         </template>
         <span>Restrict results to taxonomic clade</span>
     </v-tooltip>
@@ -27,13 +40,25 @@ import { create } from 'axios';
 import { debounce } from './lib/debounce';
 
 export default {
-    props: ['value'],
+    props: {
+        value: null,
+        // Local mode: suggest only these options instead of querying NCBI.
+        localItems: {
+            type: Array,
+            default: null,
+        },
+    },
     data() {
         return {
             items: [],
             isLoading: false,
             search: null,
         }
+    },
+    computed: {
+        isLocal() {
+            return this.localItems != null;
+        },
     },
     mounted() {
         this.items = [ this.value ];
@@ -43,7 +68,7 @@ export default {
             this.items = [ this.value ];
         },
         search (val) {
-            val && val.length > 2 && val !== this.value && this.querySelections(val)
+            !this.isLocal && val && val.length > 2 && val !== this.value && this.querySelections(val)
         },
     },
     methods: {

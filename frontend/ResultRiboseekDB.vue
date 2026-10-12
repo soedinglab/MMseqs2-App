@@ -50,8 +50,8 @@
         </v-sheet>
 
         <v-flex v-if="hasEntries && hasTaxonomyReport && isSankeyVisible[entry.db]" class="mb-2">
-            <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db"
-                :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb"
+            <SankeyDiagram :rawData="entry.taxonomyreports[0]"
+                :currentSelectedNodeId="localSelectedTaxId"
                 @selectTaxon="handleSankeySelect"></SankeyDiagram>
         </v-flex>
 
@@ -194,7 +194,6 @@ export default {
             sortKey: 'score',
             sortOrder: -1,
             renderLimit: 100,
-            selectedDb: "",
         };
     },
     created() {

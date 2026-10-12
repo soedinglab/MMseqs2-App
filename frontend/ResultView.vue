@@ -122,6 +122,8 @@
                         :mode="mode" :selectedStates="selectedStates[entryidx]" :selectedCounts="selectedCountPerDb[entryidx]"
                         :totalSelectedCounts="selectedCounts" :selectUpperbound="selectUpperbound" :alignment="alignment"
                         :onlyOne="hits.results.length == 1" :isComplex="isComplex" :searchType="searchType"
+                        :tableState="tableStates[entry.db]"
+                        @update:tableState="(state) => $set(tableStates, entry.db, state)"
                         @switchTableMode="(n) => switchTableMode(n)" 
                         @forwardDropdown="(e, h) => forwardDropdown(e, h)"
                         @showAlignment="(i, e) => showAlignment(i, entry.db, e)"
@@ -226,6 +228,7 @@ export default {
             tabOffset: 140,
             selectUpperbound: 1000,
             sheetHeights: null,
+            tableStates: {},
         }
     },
     props: {
@@ -287,6 +290,9 @@ export default {
                     this.selectedStates = obj
                     this.selectedCountPerDb = obj2
                     this.dbToIdx = obj3
+                    if (n !== o) {
+                        this.tableStates = {}
+                    }
                     this.$nextTick(() => {
                         setTimeout(() => {
                             this.updateScrollOffsetArr()

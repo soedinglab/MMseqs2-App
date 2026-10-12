@@ -532,8 +532,7 @@ export default {
         },
         handleChangeDatabase() {
             this.closeAlignment();
-            this.localSelectedTaxId = null;
-            this.filteredHitsTaxIds = [];
+            this.filters = {};
         },
         clearAllEntries() {
             if (!this.selectedStates) {
