@@ -6,14 +6,21 @@ export default {
     data() {
         return {
             isSankeyVisible: {}, // Track visibility for each db's Sankey Diagram
-            localSelectedTaxId: null,
-            filteredHitsTaxIds: [],
+            // Column key -> filter value; `tax` is { taxId, name, ids }.
+            filters: {},
         }
     },
+    computed: {
+        localSelectedTaxId() {
+            return this.filters.tax ? String(this.filters.tax.taxId) : null;
+        },
+        filteredHitsTaxIds() {
+            return this.filters.tax ? this.filters.tax.ids : [];
+        },
+    },
     watch: {
-        selectedTaxId(newVal) {
-            this.localSelectedTaxId = newVal;
-            this.handleSankeySelect({ nodeId: newVal, db: this.selectedDb });
+        selectedTaxId() {
+            this.setFilter('tax', null);
         }
     },
     methods: {
@@ -21,11 +28,22 @@ export default {
             // Toggle visibility for the specific entry.db
             this.$set(this.isSankeyVisible, db, !this.isSankeyVisible[db]);
         },
-        handleSankeySelect({ nodeId, descendantIds, db }) {
+        setFilter(key, value) {
+            const next = { ...this.filters };
+            if (value == null) {
+                delete next[key];
+            } else {
+                next[key] = value;
+            }
+            this.filters = next;
+        },
+        handleSankeySelect({ nodeId, descendantIds, name }) {
             this.closeAlignment();
-            this.localSelectedTaxId = nodeId;
-            this.filteredHitsTaxIds = descendantIds ? descendantIds.map(Number) : null; 
-            this.selectedDb = db;
+            this.setFilter('tax', descendantIds == null ? null : {
+                taxId: nodeId,
+                name,
+                ids: descendantIds.map(Number),
+            });
         },
     }
 }

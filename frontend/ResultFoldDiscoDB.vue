@@ -155,7 +155,7 @@
             </v-flex>
         </v-sheet>
         <v-flex v-if="hasEntries && entry.hasTaxonomy && isSankeyVisible[entry.db]">
-            <SankeyDiagram :rawData="entry.taxonomyreports[0]" :db="entry.db" :currentSelectedNodeId="localSelectedTaxId" :currentSelectedDb="selectedDb" @selectTaxon="handleSankeySelect"></SankeyDiagram>
+            <SankeyDiagram :rawData="entry.taxonomyreports[0]" :currentSelectedNodeId="localSelectedTaxId" @selectTaxon="handleSankeySelect"></SankeyDiagram>
         </v-flex>
 
         <table class="v-table result-table" style="position:relative; margin-bottom: 3em;"
@@ -334,7 +334,6 @@ export default {
             toggleSourceIdx: -1,
             // Keyed by group id, assigned wholesale so it stays reactive.
             visibilityTable: {},
-            selectedDb: "",
             sortKey: 'idf',
             isCollapsed: false,
             sortOrder: -1,
@@ -455,7 +454,6 @@ export default {
     mounted() {
         if (this.entry && Object.keys(this.visibilityTable).length == 0) {
             this.updateVisibility()
-            this.selectedDb = this.db
             this.$nextTick(() => {
                 setTimeout(() => {
                     this.reflectSelectionState()

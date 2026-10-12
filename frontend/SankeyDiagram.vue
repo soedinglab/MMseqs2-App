@@ -21,17 +21,8 @@ export default {
 			type: String,
 			default: null,
 		},
-		db: {
-			type: String,
-			required: true,
-		},
-		currentSelectedDb: {
-			type: String,
-			default: null,
-		}
 	},
     data: () => ({
-		currentSelectedNode: null, // Track the currently selected node
 		unclassifiedNodes: [], // Store unclassified nodes
 		
 		// Data for graph rendering
@@ -73,16 +64,9 @@ export default {
 				});
 			},
 		},
-		currentSelectedDb: {
-			immediate: true,
-			handler(newValue) {
-				if (newValue !== this.db) {
-					// Reset the selected node when switching databases
-					this.currentSelectedNode = null;
-					this.createSankey(this.rawData);
-				}
-			}
-		}
+		currentSelectedNodeId() {
+			this.applySelection();
+		},
     },
     methods: {
 		// Function for processing/parsing data
@@ -429,51 +413,28 @@ export default {
 					d3.select(".tooltip").remove();
 				})
 				.on("click", (event, d) => {
-					// Deselect any previously selected nodes
-					svg.selectAll("rect.node").style("stroke", null).style("stroke-width", null);
-					svg.selectAll("text.label").style("font-weight", null);
-
-					// If the same node is clicked again, deselect it
-					if (this.currentSelectedNode && this.currentSelectedNode.id === d.id) {
-						this.currentSelectedNode = null;
-						this.$emit("selectTaxon", { nodeId: null, descendantIds: null, db: this.db }); // Emit an empty array to show all IDs
+					if (this.currentSelectedNodeId === d.id) {
+						this.$emit("selectTaxon", { nodeId: null, descendantIds: null, name: null });
 						return;
 					}
 
-					// Highlight the selected node
-					d3.select(`.taxid-${d.id} rect`)
-						.style("stroke", "black")
-						.style("stroke-width", "2px");
-
-					d3.select(`.taxid-${d.id} text.label`)
-						.style("font-weight", "bold");
-
-
-					// Function to collect all IDs of the current node and its descendants
 					const collectIds = (node) => {
 						let childrenIds = [node.taxon_id];
 						childrenIds = childrenIds.concat(this.findChildren(this.rawData, node));
 						return childrenIds;
 					};
 
-					// Collect all taxIds for children nodes
 					let allNodeIds = [];
 					if (d.type === "unclassified") {
-						// Handle unclassified nodes
 						allNodeIds.push('0');
 						this.unclassifiedNodes.forEach(node => {
 							allNodeIds.push(...collectIds(node));
 						});
 					} else {
-						// Collect IDs for other node types
 						allNodeIds = collectIds(d);
 					}
 
-					// Update the currently selected node
-        			this.currentSelectedNode = d;
-
-					// Emit the IDs array
-					this.$emit("selectTaxon", { nodeId: d.taxon_id, descendantIds: allNodeIds, db: this.db });
+					this.$emit("selectTaxon", { nodeId: d.taxon_id, descendantIds: allNodeIds, name: d.name });
 				});
 			;
 
@@ -500,7 +461,7 @@ export default {
 				.text((d) => d.name)
 				.style("font-size", "9px")
 				.style("cursor", "pointer")
-				.style("font-weight", (d) =>  "normal");
+				.style("font-weight", (d) => this.currentSelectedNodeId === d.id ? "bold" : "normal");
 
 			// Add label above node (proportion/clade reads)
 			nodeGroup
@@ -516,6 +477,15 @@ export default {
 				.style("cursor", "pointer");
 		},
 
+		applySelection() {
+			const selected = this.currentSelectedNodeId;
+			const svg = d3.select(this.$refs.sankeyContainer);
+			svg.selectAll("rect.node")
+				.style("stroke", (d) => selected === d.id ? "black" : null)
+				.style("stroke-width", (d) => selected === d.id ? "2px" : "0px");
+			svg.selectAll("text.label")
+				.style("font-weight", (d) => selected === d.id ? "bold" : "normal");
+		},
 		formatCladeReads(value) {
 			if (value >= 1000) {
 				return `${(value / 1000).toFixed(2)}k`;

@@ -46,6 +46,8 @@ import {
   mdiCursorMove as CursorMove,
   mdiRefresh as Refresh,
   mdiSort as Sort,
+  mdiFilter as Filter,
+  mdiFilterOutline as FilterOutline,
   mdiAlphaQ as IncludeQuery,
 } from "@mdi/js";
 
@@ -132,6 +134,8 @@ export default {
   CursorMove,
   Refresh,
   Sort,
+  Filter,
+  FilterOutline,
   IncludeQuery,
   ExcludeQuery,
 };
