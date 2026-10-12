@@ -52,6 +52,38 @@ export const threeToOne = {
   XAA: "X",
 };
 
+function formatAtomName(name, element) {
+  const value = String(name || '').slice(0, 4);
+  return element.length === 1 && value.length < 4
+    ? ` ${value.padEnd(3)}`
+    : value.padStart(4);
+}
+
+export function atomToPdbRow(atom) {
+  const atomName = formatAtomName(atom.atomName || 'CA', atom.element || atom.atomName?.[0] || 'C');
+  return [
+    (atom.group || 'ATOM').padEnd(6).slice(0, 6),
+    String(atom.serial).padStart(5).slice(-5),
+    ' ',
+    atomName,
+    atom.altId || ' ',
+    String(atom.resName || 'ALA').padStart(3).slice(-3),
+    ' ',
+    String(atom.chain || 'A').slice(0, 1),
+    String(atom.resno).padStart(4).slice(-4),
+    atom.insCode || ' ',
+    '   ',
+    atom.x.toFixed(3).padStart(8),
+    atom.y.toFixed(3).padStart(8),
+    atom.z.toFixed(3).padStart(8),
+    (Number.isFinite(atom.occupancy) ? atom.occupancy : 1).toFixed(2).padStart(6),
+    (Number.isFinite(atom.bFactor) ? atom.bFactor : 0).toFixed(2).padStart(6),
+    '          ',
+    String(atom.element || '').trim().slice(0, 2).padStart(2),
+    String(atom.charge || '').padStart(2).slice(-2),
+  ].join('');
+}
+
 /**
  * Create a mock PDB from Ca data
  * Follows the spacing spec from https://www.wwpdb.org/documentation/file-format-content/format33/sect9.html#ATOM

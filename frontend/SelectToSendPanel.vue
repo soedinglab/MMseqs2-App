@@ -92,6 +92,7 @@ import { StorageWrapper} from './lib/HistoryMixin.js';
 import { encodeMultimer, getAccession, makeCgPDBFromText, mockPDB, sleep, storeChains } from './Utilities';
 import { BlobDatabase } from './lib/BlobDatabase';
 import { structureRemarkLine, structureRemarkPrefix } from './lib/structureRemark.js';
+import { extractChains, listChains, normalizePdb } from './lib/structureText.js';
 
 const localDb = BlobDatabase()
 
@@ -279,7 +280,7 @@ export default {
                 const settled = await inBatches(this.getMultipleSelectionInfo(), this.batchSize, async (i, s) => await this.getMockPdb(i, s), signal)
                 settled.filter(r => r.status == 'rejected').map(r => console.warn(r.reason))
                 const values = settled.filter(r => r.status == "fulfilled" && !(!r.value?.pdb)).map(r => {
-                    return {text: r.value?.pdb, name: r.value?.name};
+                    return {text: normalizePdb(r.value?.pdb), name: r.value?.name};
                 })
                 // const failed = settled.filter(r => r.status == "fulfilled" && !r.value?.pdb).map(r=> r.value?.name)
                 await saveAsChunk(values, this.chunkSize, signal)
@@ -302,7 +303,7 @@ export default {
                     } else {
                         try {
                             const request = await this.$axios.get("api/result/" + this.$route.params.ticket + '/query');
-                            queryPdb = request.data;
+                            queryPdb = normalizePdb(request.data);
                         } catch (e) {
                             queryPdb = "";
                         }
@@ -338,10 +339,16 @@ export default {
                             queryName += result.suffix
                         }
                     } else {
-                        // If no extension is appended to the query's file name, cif query file could be parsed as pdb file,
-                        // resulting in unexpected drop. So manually add extension suffix.
-                        // As multimer query is automatically converted to pdb file, this process is unnecessary for that case.
-                        queryName += isCif ? ".cif" : ".pdb"
+                        const chain = await this.queryChain(queryPdb)
+                        if (chain) {
+                            queryPdb = await extractChains(queryPdb, [chain], { name: `query_${chain}` })
+                            queryName += `_${chain}.cif`
+                        } else {
+                            // If no extension is appended to the query's file name, cif query file could be parsed as pdb file,
+                            // resulting in unexpected drop. So manually add extension suffix.
+                            // As multimer query is automatically converted to pdb file, this process is unnecessary for that case.
+                            queryName += isCif ? ".cif" : ".pdb"
+                        }
                         queryBlob = new Blob([queryPdb], {type: "text/plain"})
                     }
                     await localDb.setItem("msa.query.forwarded_query", queryBlob)
@@ -361,6 +368,15 @@ export default {
                 return
             }
             this.$router.push({name:'foldmason'})
+        },
+        // A monomer search splits a multi-chain upload into one query per chain, named <file>_<chain>.
+        async queryChain(text) {
+            const chains = (await listChains(text)).map(c => c.chain)
+            if (chains.length < 2) return null
+            const name = this.hits?.queries?.[0]?.header?.split(/\s+/)[0] ?? ''
+            const cut = name.lastIndexOf('_')
+            const chain = cut === -1 ? '' : name.slice(cut + 1)
+            return chains.includes(chain) ? chain : null
         },
         async sendToFoldDisco() {
             if (this.loading) { 
@@ -421,6 +437,7 @@ export default {
             this.$emit('clearAll')
         },
         prependRemark(structure, accession, db) {
+            structure = normalizePdb(structure)
             const line = structureRemarkLine(structure, `Accession: ${accession}, DB: ${db}`, 99)
             return line + '\n' + structureRemarkPrefix(structure, 99) + this.remarkStr + structure
         },
