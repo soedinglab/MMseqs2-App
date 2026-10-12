@@ -84,11 +84,11 @@ export default {
     },
     methods: {
         getSelectionStart(i, side) {
-            const highlights = side === 'query' ? this.queryHighlights : this.highlights;
+            const highlights = (side === 'query' ? this.queryHighlights : this.highlights) || [];
             return (i > 0 && i <= highlights.length) ? highlights[i-1][0] : 0;
         },
         getSelectionEnd(i, side) {
-            const highlights = side === 'query' ? this.queryHighlights : this.highlights;
+            const highlights = (side === 'query' ? this.queryHighlights : this.highlights) || [];
             return (i > 0 && i <= highlights.length) ? highlights[i-1][1] : 0;
         },
         getHoverOffset(i, side) {
