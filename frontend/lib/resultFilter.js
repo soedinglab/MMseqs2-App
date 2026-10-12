@@ -10,11 +10,31 @@ const RANGE_FIELD = {
     idf: 'idfscore', rmsd: 'rmsd', node: 'nodecount',
 };
 
+const CHOICE_FIELD = { strand: 'strand' };
+const CHOICE_LABEL = { strand: { '+': 'Plus (+)', '-': 'Minus (−)' } };
+
+function choiceLabel(key, value) {
+    return CHOICE_LABEL[key]?.[value] ?? String(value);
+}
+
 export function filterKind(key) {
     if (key === 'tax') return 'tax';
     if (key in TEXT_FIELD) return 'text';
     if (key in RANGE_FIELD) return 'range';
+    if (key in CHOICE_FIELD) return 'choice';
     return null;
+}
+
+/** Distinct values of a categorical column as `{ value, text }`, sorted by value. */
+export function choiceValues(alignments, key) {
+    const field = CHOICE_FIELD[key];
+    const values = new Set();
+    for (const group of Object.values(alignments || {})) {
+        for (const item of group) {
+            if (item[field] != null) values.add(item[field]);
+        }
+    }
+    return [...values].sort().map(value => ({ value, text: choiceLabel(key, value) }));
 }
 
 /** { min, max, minPositive } over every chain, or null when the column has no numbers. */
@@ -107,6 +127,10 @@ function chainTest(key, value) {
             const ids = new Set(value.ids);
             return item => ids.has(Number(item.taxId));
         }
+        case 'choice': {
+            const field = CHOICE_FIELD[key];
+            return item => item[field] === value;
+        }
         case 'range': {
             const [lo, hi] = value;
             const field = RANGE_FIELD[key];
@@ -140,6 +164,7 @@ export function formatFilterValue(key, value, log = false) {
     switch (filterKind(key)) {
         case 'text': return `"${value}"`;
         case 'tax': return value.name;
+        case 'choice': return choiceLabel(key, value);
         case 'range': return `${formatFilterNumber(value[0], log)} – ${formatFilterNumber(value[1], log)}`;
         default: return String(value);
     }

@@ -4,12 +4,12 @@ import ResultColumnMenu from './ResultColumnMenu.vue';
 import ResultFilterMenu from './ResultFilterMenu.vue';
 import { defaultSortOrder } from './lib/resultSort.js';
 import {
-    filterKind, rangeBounds, isLogScale, taxonOptions, taxFilterFor, formatFilterValue,
+    filterKind, rangeBounds, choiceValues, isLogScale, taxonOptions, taxFilterFor, formatFilterValue,
 } from './lib/resultFilter.js';
 
 // Column sort/filter state shared by the per-database result tables.
 // The table provides `entry`, `filterKeys`, `columnLabels`, `sortKey`, `sortOrder`,
-// `entryLength` and `filteredTotal`.
+// `entryLength` and `filteredTotal`; it may override `sortKeys`, `filterGroups` and `defaultOrderFor`.
 export default {
     name: 'ResultTableFilterMixin',
     mixins: [ ResultSankeyMixin ],
@@ -34,6 +34,13 @@ export default {
         taxonomyReport() {
             return this.hasTaxonomyReport ? this.entry.taxonomyreports[0] : null
         },
+        sortKeys() {
+            return this.filterKeys
+        },
+        // Hits as groups of chains; a table with ungrouped hits wraps each one.
+        filterGroups() {
+            return this.entry.alignments
+        },
         persistedState() {
             return { sortKey: this.sortKey, sortOrder: this.sortOrder, filters: this.filters }
         },
@@ -41,13 +48,13 @@ export default {
             const bounds = {}
             for (const key of this.filterKeys) {
                 if (filterKind(key) == 'range') {
-                    bounds[key] = rangeBounds(this.entry.alignments, key)
+                    bounds[key] = rangeBounds(this.filterGroups, key)
                 }
             }
             return bounds
         },
         taxOptions() {
-            return this.entry.hasTaxonomy ? taxonOptions(this.taxonomyReport, this.entry.alignments) : null
+            return this.entry.hasTaxonomy ? taxonOptions(this.taxonomyReport, this.filterGroups) : null
         },
         mobileFilterColumns() {
             return this.filterKeys.map(key => ({
@@ -76,6 +83,9 @@ export default {
         },
     },
     methods: {
+        defaultOrderFor(key) {
+            return defaultSortOrder(key, { mode: this.mode })
+        },
         formatFilter(key) {
             return formatFilterValue(key, this.filters[key], isLogScale(key, this.mode))
         },
@@ -88,14 +98,16 @@ export default {
                 bounds: this.rangeBoundsByKey[key] ?? null,
                 logScale: isLogScale(key, this.mode),
                 taxOptions: key == 'tax' ? this.taxOptions : null,
+                choices: filterKind(key) == 'choice' ? choiceValues(this.filterGroups, key) : null,
             }
         },
         columnMenuProps(key) {
             return {
                 ...this.filterFieldProps(key),
+                sortable: this.sortKeys.includes(key),
                 sortSelected: this.sortKey == key,
                 sortOrder: this.sortOrder,
-                defaultSortOrder: defaultSortOrder(key, { mode: this.mode }),
+                defaultSortOrder: this.defaultOrderFor(key),
             }
         },
         onColumnFilter(key, value) {

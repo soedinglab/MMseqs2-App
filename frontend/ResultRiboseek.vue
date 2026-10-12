@@ -88,6 +88,8 @@
                     <ResultRiboseekDB v-if="topEntry"
                         :entryidx="0" :entry="topEntry" :tableMode="tableMode"
                         :alignment="alignment" :onlyOne="onlyOne" merged
+                        :tableState="tableStates[topEntry.db]"
+                        @update:tableState="(state) => $set(tableStates, topEntry.db, state)"
                         @switchTableMode="(n) => tableMode = n"
                         @showAlignment="(item, e) => showAlignment(item, e)"
                         @forwardDropdown="(e, h) => forwardDropdown(e, h)"
@@ -99,6 +101,8 @@
                     v-if="onlyOne || entryidx == selectedDatabase - 1"
                     :entryidx="entryidx" :entry="entry" :tableMode="tableMode"
                     :alignment="alignment" :onlyOne="onlyOne" :closeAlignment="closeAlignment"
+                    :tableState="tableStates[entry.db]"
+                    @update:tableState="(state) => $set(tableStates, entry.db, state)"
                     @switchTableMode="(n) => tableMode = n"
                     @showAlignment="(item, e) => showAlignment(item, e)"
                     @forwardDropdown="(e, h) => forwardDropdown(e, h)"
@@ -172,6 +176,7 @@ export default {
             menuItems: [],
             scrollOffsetArr: [],
             tabOffset: 140,
+            tableStates: {},
         };
     },
     mounted() {
@@ -260,6 +265,7 @@ export default {
             this.hits = null;
             this.query = null;
             this.selectedDatabase = 0;
+            this.tableStates = {};
             this.closeAlignment();
 
             try {
