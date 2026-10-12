@@ -7,7 +7,11 @@
             dense outlined hide-details clearable
         ></v-text-field>
         <div v-else-if="kind == 'choice'">
-            <div class="text-caption text--secondary mb-2">Show only hits on one {{ label.toLowerCase() }}</div>
+            <div class="field-hint text-caption text--secondary mb-2">
+                <v-icon small class="mr-2" style="margin-top: 2px;">{{ $MDI.FilterOutline }}</v-icon>
+                Show only hits on one 
+                {{ label.toLowerCase() }}
+            </div>
             <v-btn-toggle :value="value" @change="v => $emit('filter', v ?? null)" :color="color" dense>
                 <v-btn v-for="choice in choices" :key="choice.value" :value="choice.value" small style="text-transform: none;">
                     {{ choice.text }}
@@ -19,12 +23,13 @@
             @input="onTaxon"
         ></TaxonomyAutocomplete>
         <div v-else-if="kind == 'range' && bounds">
-            <div class="range-hint text-caption text--secondary">
+            <div class="field-hint range-hint text-caption text--secondary">
+                <v-icon small class="mr-2" style="margin-top: 2px;">{{ $MDI.FilterOutline }}</v-icon>
                 {{ singleValue ? 'All hits have the same value' : 'Drag the handles to filter by range' }}
             </div>
             <v-range-slider
                 :value="singleValue ? [0, 1] : sliderValue" @change="onSlider" @end="releaseThumb"
-                :min="singleValue ? 0 : scale.min" :max="singleValue ? 1 : scale.max" step="0"
+                :min="singleValue ? 0 : scale.min" :max="singleValue ? 1 : scale.max" :step="integer && !singleValue ? 1 : 0"
                 :disabled="singleValue"
                 :color="color" :track-color="color"
                 thumb-label :thumb-size="44"
@@ -62,6 +67,7 @@ export default {
         color: { type: String, default: undefined },
         bounds: { type: Object, default: null },
         logScale: { type: Boolean, default: false },
+        integer: { type: Boolean, default: false },
         taxOptions: { type: Array, default: null },
         choices: { type: Array, default: null },
     },
@@ -127,6 +133,10 @@ export default {
             this.emitRange(next[0], next[1]);
         },
         emitRange(lo, hi) {
+            if (this.integer) {
+                lo = Math.round(lo);
+                hi = Math.round(hi);
+            }
             this.$emit('filter', normalizeRange(lo, hi, this.bounds));
         },
     },
@@ -134,6 +144,10 @@ export default {
 </script>
 
 <style scoped>
+.field-hint {
+    display: flex;
+    align-items: flex-start;
+}
 .range-hint {
     height: 36px;
 }

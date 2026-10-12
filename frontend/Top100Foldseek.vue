@@ -75,16 +75,16 @@
                 <col style="min-width: 10%;" />
                 <col v-if="hasDescription" style="min-width: 25%;" />
                 <col v-if="hasTaxonomy" style="min-width: 15%;" />
-                <col v-if="searchType !== 'interfacesearch'" style="width: 6%;" />
-                <col style="width: 6%;" />
-                <col v-if="searchType !== 'interfacesearch'" style="width: 6%;" />
+                <col v-if="searchType !== 'interfacesearch'" style="width: 7%;" />
+                <col style="width: 8%;" />
+                <col v-if="searchType !== 'interfacesearch'" style="width: 7%;" />
                 <template v-if="tableMode == 0">
                     <col style="min-width: 20%;" />
                 </template>
                 <template v-else>
-                    <col v-if="mode !== 'lolalign'" style="width: 4%;" />
-                    <col :style="{ width: mode !== 'lolalign' ? '8%' : '10%' }" />
-                    <col :style="{ width: mode !== 'lolalign' ? '8%' : '10%' }" />
+                    <col v-if="mode !== 'lolalign'" style="width: 6%;" />
+                    <col :style="{ width: mode !== 'lolalign' ? '9%' : '11%' }" />
+                    <col :style="{ width: mode !== 'lolalign' ? '9%' : '11%' }" />
                 </template>
                 <col style="width: 6%;" />
             </colgroup>
@@ -114,21 +114,21 @@
                     <template v-if="isComplex">
                         <!-- <th class="thin">ID</th> -->
                         <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'qtm', 'sort-down': this.sortOrder < 0}"
-                            :title="searchType === 'interfacesearch' ? 'Query Interface TM-score' : 'Query TM-score'">qTM<ResultColumnMenu v-bind="columnMenuProps('qtm')" @sort="changeSortMode('qtm')" @filter="v => onColumnFilter('qtm', v)" /></th>
+                            :title="searchType === 'interfacesearch' ? 'Query Interface TM-score' : 'Query TM-score'"><span class="th-label">qTM</span><ResultColumnMenu v-bind="columnMenuProps('qtm')" @sort="changeSortMode('qtm')" @filter="v => onColumnFilter('qtm', v)" /></th>
                         <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'ttm', 'sort-down': this.sortOrder < 0}"
-                            :title="searchType === 'interfacesearch' ? 'Target Interface TM-score' : 'Target TM-score'" style="border-right: 1px solid #333; ">tTM<ResultColumnMenu v-bind="columnMenuProps('ttm')" @sort="changeSortMode('ttm')" @filter="v => onColumnFilter('ttm', v)" /></th>
+                            :title="searchType === 'interfacesearch' ? 'Target Interface TM-score' : 'Target TM-score'" style="border-right: 1px solid #333; "><span class="th-label">tTM</span><ResultColumnMenu v-bind="columnMenuProps('ttm')" @sort="changeSortMode('ttm')" @filter="v => onColumnFilter('ttm', v)" /></th>
                     </template>
                     <th :class="[`wide-${3 - hasDescription - hasTaxonomy}`, {'sort-selected': sortKey == 'target', 'sort-down': sortOrder < 0}]" class="sort-criterion">
-                        <template v-if="isComplex">
+                        <span class="th-label"><template v-if="isComplex">
                             Chain pairing
                         </template>
                         <template v-else>
                             Target
-                        </template>
+                        </template></span>
                         <ResultColumnMenu v-bind="columnMenuProps('target')" @sort="changeSortMode('target')" @filter="v => onColumnFilter('target', v)" />
                     </th>
                     <th v-if="hasDescription" class="sort-criterion has-help" :class="{'sort-selected': sortKey == 'desc', 'sort-down': sortOrder < 0}">
-                        Description
+                        <span class="th-label">Description</span>
                         <v-tooltip open-delay="300" top>
                             <template v-slot:activator="{ on }">
                                 <v-icon v-on="on" class="th-help">{{ $MDI.HelpCircleOutline }}</v-icon>
@@ -138,31 +138,31 @@
                         <ResultColumnMenu v-bind="columnMenuProps('desc')" @sort="changeSortMode('desc')" @filter="v => onColumnFilter('desc', v)" />
                     </th>
                     <th v-if="hasTaxonomy" class="sort-criterion" :class="{'sort-selected': sortKey == 'tax', 'sort-down': sortOrder < 0}">
-                        Scientific Name
+                        <span class="th-label">Scientific Name</span>
                         <ResultColumnMenu v-bind="columnMenuProps('tax')" @sort="changeSortMode('tax')" @filter="v => onColumnFilter('tax', v)" />
                     </th>
                     <th v-if="searchType !== 'interfacesearch'" class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'prob', 'sort-down': this.sortOrder < 0}" 
                         title="Probability">
-                        Prob.
+                        <span class="th-label">Prob.</span>
                         <ResultColumnMenu v-bind="columnMenuProps('prob')" @sort="changeSortMode('prob')" @filter="v => onColumnFilter('prob', v)" />
                     </th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected':this.sortKey == 'seqId', 'sort-down': this.sortOrder < 0}"
                         title="Sequence identity">
-                        Seq. Id.
+                        <span class="th-label">Seq. Id.</span>
                         <ResultColumnMenu v-bind="columnMenuProps('seqId')" @sort="changeSortMode('seqId')" @filter="v => onColumnFilter('seqId', v)" />
                     </th>
                     <th v-if="searchType !== 'interfacesearch'" class="thin sort-criterion" :class="{'sort-selected':this.sortKey == 'eval', 'sort-down': this.sortOrder < 0, 'default-down': mode == 'lolalign' || mode == 'tmalign'}"
                         :title="scoreColumnName">
-                        {{ scoreColumnName }}
+                        <span class="th-label">{{ compactHeader ? compactScoreName : scoreColumnName }}</span>
                         <ResultColumnMenu v-bind="columnMenuProps('eval')" @sort="changeSortMode('eval')" @filter="v => onColumnFilter('eval', v)" />
                     </th>
                     <th class="thin sort-criterion default-down" v-if="mode !== 'lolalign'" :class="{'sort-selected':this.sortKey == 'score', 'sort-down': this.sortOrder < 0}"
                         v-show="tableMode == 1" title="Score">
-                        Score
+                        <span class="th-label">Score</span>
                         <ResultColumnMenu v-bind="columnMenuProps('score')" @sort="changeSortMode('score')" @filter="v => onColumnFilter('score', v)" />
                     </th>
-                    <th v-show="tableMode == 1">Query Pos.</th>
-                    <th v-show="tableMode == 1">Target Pos.</th>
+                    <th v-show="tableMode == 1" class="clip" title="Query position">Query Pos.</th>
+                    <th v-show="tableMode == 1" class="clip" title="Target position">Target Pos.</th>
                     <th v-show="tableMode == 0">
                         {{ searchType === 'interfacesearch' ? 'Position in query interface' : 'Position in query' }}
                         <v-tooltip open-delay="300" top>
@@ -246,8 +246,8 @@
                     <td class="thin" data-label="Sequence Identity">{{ item.seqId }}</td>
                     <td v-if="searchType !== 'interfacesearch'" class="thin" :data-label="scoreColumnName">{{ item.eval }}</td>
                     <td class="thin" v-if="mode !== 'lolalign'" v-show="tableMode == 1" data-label="Score">{{ item.score }}</td>
-                    <td v-show="tableMode == 1" data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
-                    <td v-show="tableMode == 1" data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
+                    <td v-show="tableMode == 1" class="clip" data-label="Query Position" :title="`${item.qStartPos}-${item.qEndPos} (${item.qLen})`">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
+                    <td v-show="tableMode == 1" class="clip" data-label="Target Position" :title="`${item.dbStartPos}-${item.dbEndPos} (${item.dbLen})`">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
                     <td class="graphical" :data-label="searchType === 'interfacesearch' ? 'Position in query interface' : 'Position'" v-show="tableMode == 0">
                         <Ruler :length="item.qLen" :start="item.qStartPos" :end="item.qEndPos" :color="item.color" :label="index == 0"></Ruler>
                     </td>
@@ -640,443 +640,5 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-
-.result-table {
-    transform: translateY(0);
-    a.anchor {
-        display: block;
-        position: relative;
-        top: -125px;
-        visibility: hidden;
-    }
-
-    a:not([href]) {
-        color: #333;
-        &:not([href]):hover {
-            text-decoration: none;
-        }
-    }
-
-    tbody {
-        counter-reset: row;
-    }
-
-    tbody tr.hit {
-        counter-increment: row;
-    }
-
-    td, th {
-        padding: 0 6px;
-        text-align: left;
-    }
-
-    .hit.active {
-        background: #f9f9f9;
-    }
-
-    // tbody:hover td[rowspan], tbody tr:hover {
-    //     background: #eee;
-    // }
-
-    .alignment-action {
-        text-align: center;
-        word-wrap: normal;
-    }
-}
-
-.theme--dark {
-    .result-table {
-        a:not([href])  {
-            color: #eee;
-        }
-
-        .hit.active {
-            background: #333;
-        }
-
-        // tbody:hover td[rowspan], tbody tr:hover {
-        //     background: #333;
-        // }
-    }
-}
-
-
-// Sticky thead border
-thead.sticky-thead th {
-    position: relative;
-    padding-top: 4px;
-    padding-bottom: 4px;
-}
-
-thead.sticky-thead th::before {
-    content: "";
-    width: 100%;
-    bottom: 0;
-    left: 0;
-    background-color: rgba(0, 0, 0, 0.12);
-    position: absolute;
-    height: 1px;
-    display: block;
-    z-index: inherit;
-}
-.theme--dark thead.sticky-thead th::before {
-    background-color: rgba(255, 255, 255, 0.12);
-}
-
-thead.sticky-thead th.sort-criterion {
-    background-color: transparent;
-    transition: color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion::before {
-    transition: background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), height 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), bottom 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion::after {
-    transform-origin: bottom center;
-    content: "";
-    width: 0;
-    height: 0;
-    bottom: 1px;
-    right: 0;
-    position: absolute;
-    display: block;
-    z-index: inherit;
-    border-bottom: 7px solid transparent;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    background-color: transparent;
-    transition: transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), border-bottom-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), bottom 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected::before {
-    background-color: var(--active-color);
-    height: 2px;
-    bottom: -1px;
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected::after {
-    border-bottom-color: var(--active-color);
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected:not(.sort-down)::after {
-    bottom: 1px;
-}
-
-thead.sticky-thead th.sort-criterion.sort-selected.sort-down::after {
-    bottom: -1px;
-    transform: scaleY(-1);
-}
-
-tr.hit .entry-checkbox:not(.selected) path.checked {
-    opacity: 0;
-}
-
-tr.hit .entry-checkbox.selected path.unchecked{
-    opacity: 0;
-}
-
-th.select-all-th .select-all path.undeterminate {
-    opacity: 0;
-}
-
-th.select-all-th .select-all.any-selected:not(.all-selected) path.undeterminate {
-    opacity: 1;
-}
-
-th.select-all-th .select-all:not(.all-selected) path.checked {
-    opacity: 0;
-}
-
-th.select-all-th .select-all.any-selected path.unchecked {
-    opacity: 0;
-}
-
-tr.hit .entry-checkbox svg, .select-all svg {
-    transition: opacity 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-    transition: background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-}
-
-tr.hit .entry-checkbox, .select-all {
-    position: relative;
-}
-
-.custom-checkbox::before,
-.custom-checkbox::after {
-    content: '';
-    transition: opacity  0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color  0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-    border-radius: 50%;
-    cursor: pointer;
-    width: 34px;
-    height: 34px;
-    top: calc(50% - 17px);
-    left: calc(50% - 17px);
-    position: absolute;
-    background-color: inherit;
-}
-
-:not(.selected) > .custom-checkbox:not(.any-selected)::before,
-:not(.selected) > .custom-checkbox:not(.any-selected)::after {
-    background-color: rgba(0,0,0,0.54);
-}
-
-.theme--dark :not(.selected) > .custom-checkbox:not(.any-selected)::before,
-.theme--dark :not(.selected) > .custom-checkbox:not(.any-selected)::after {
-    background-color: #fff;
-}
-
-.selected .custom-checkbox::before,
-.selected .custom-checkbox::after,
-.custom-checkbox.any-selected::before,
-.custom-checkbox.any-selected::after
-{
-    background-color: var(--active-color);
-}
-
-.custom-checkbox:not(:hover)::before {
-    opacity: 0;
-}
-
-.custom-checkbox:hover::before {
-    opacity: 0.2;
-}
-
-.custom-checkbox::after {
-    opacity: 0;
-    transition: opacity  0.3s cubic-bezier(0.075, 0.82, 0.165, 1), background-color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), transform 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-    transform: scale(0);
-    transform-origin: center center;
-}
-
-.custom-checkbox:active::after {
-    opacity: 0.2;
-    transform: scale(1);
-}
-
-tr.hit .entry-checkbox.selected svg, .select-all.any-selected svg {
-    fill: var(--active-color);
-}
-
-tr.hit:has(.invisible) {
-    display: none;
-}
-thead.sticky-thead th.sort-criterion {
-    padding-right: 24px;
-}
-
-thead.sticky-thead th.has-help {
-    padding-right: 54px;
-}
-
-thead.sticky-thead th.has-help ::v-deep .column-menu-btn {
-    right: 32px;
-}
-
-.th-help {
-    position: absolute;
-    top: 50%;
-    right: 4px;
-    transform: translateY(-50%);
-    font-size: 16px !important;
-}
-
-.mobile-table-actions {
-    display: flex;
-    align-self: flex-end;
-    margin-bottom: 16px;
-    margin-left: 8px;
-}
-
-.result-title {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    white-space: nowrap;
-}
-
-.filter-chips {
-    display: inline-flex;
-    min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: thin;
-}
-
-th.sort-criterion.sort-selected {
-    color: var(--active-color);
-}
-
-
-@media print, screen and (min-width: 961px) {
-    .result-table {
-        table-layout: fixed;
-        border-collapse: collapse;
-        width: 100%;
-        th.thin, td.thin {
-            white-space: nowrap;
-        }
-        .long {
-            overflow: hidden;
-            word-break: keep-all;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        th {
-            // overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        td:has(.border-td) {
-            position: relative;
-            overflow-y: unset;
-        }
-        div.border-td {
-            background-color: var(--active-color);
-            position: absolute;
-            left: calc(100% - 2.5px);
-            top: 0;
-            font-size: 0.7rem;
-            font-weight: 600;
-            color: white;
-            width: auto;
-            max-width: 5px;
-            padding: 4px 0 4px 5px;
-            height: 100%;
-            transition: all 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-            cursor: pointer;
-        }
-        div.border-td::before {
-            content: attr(data-text);
-            background-color: var(--active-color);
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 1.375rem;
-            max-width: 5px;
-            overflow: hidden;
-            white-space: nowrap;
-            padding-left: 5px;
-            transition: all 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
-        }
-        div.border-td:hover::before {
-            max-width: 120px;
-            padding: 0 5px;
-        }
-    }
-}
-
-@media print {
-    .result-table .alignment-action {
-        display: none;
-    }
-}
-
-@media screen and (max-width: 960px) {
-    .result-table {
-        width: 100%;
-        col {
-            width: auto !important;
-        }
-        .long {
-            height: 100% !important;
-            white-space: normal !important;
-            padding-bottom: 0.5em;
-            // min-height: 48px;
-        }
-        .hits {
-            min-width: 300px;
-        }
-
-        tbody td a {
-            min-width: 100px;
-        }
-        tbody td.graphical div.ruler {
-            margin: 10px 0;
-        }
-        
-        td.entry-checkbox {
-            display: none;
-        }
-
-        thead {
-            display: none;
-        }
-        tfoot th {
-            border: 0;
-            display: inherit;
-        }
-        tr.hit {
-            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.1);
-            max-width: 100%;
-            position: relative;
-            display: block;
-            padding: 2em;
-            margin-left: 2em;
-            margin-right: 2em;
-            cursor: pointer;
-        }
-
-        tr.hit:has(.selected) {
-            outline: 4px solid color-mix(in srgb, var(--active-color) 60%, transparent);
-            outline-offset: -2px;
-        }
-
-        tr:not(.hit) {
-            position: relative
-        }
-
-        tr:not(.hit)::after {
-            content: "";
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: 0;
-            height: 1px;
-            background-color: #cfcfcf;
-        }
-
-        tr td {
-            border: 0;
-            display: inherit;
-        }
-        tr td:last-child {
-            border-bottom: 0;
-        }
-        tr:not(:last-child) {
-            margin-bottom: 1rem;
-        }
-        tr:not(.is-selected) {
-            background: inherit;
-        }
-        tr:not(.is-selected):hover {
-            background-color: inherit;
-        }
-        tr.detail {
-            margin-top: -1rem;
-        }
-        tr:not(.detail):not(.is-empty):not(.table-footer) td:not(.entry-checkbox) {
-            display: flex;
-            border-bottom: 1px solid #eee;
-            flex-direction: row;
-
-            &:last-child {
-                border-bottom: 0;
-            }
-        }
-        tr:not(.detail):not(.is-empty):not(.table-footer) td:before {
-            content: attr(data-label);
-            font-weight: 600;
-            margin-right: auto;
-            padding-right: 0.5em;
-            word-break: keep-all;
-            flex: 1;
-            white-space: nowrap;
-        }
-
-        tbody td a, tbody td span {
-            flex: 2;
-            margin-left: auto;
-            text-align: right;
-            word-wrap: anywhere;
-        }
-    }
-}
+@import "result-table";
 </style>

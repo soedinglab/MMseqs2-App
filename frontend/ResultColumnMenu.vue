@@ -1,5 +1,5 @@
 <template>
-    <v-menu v-model="open" offset-y :left="openLeft" :close-on-content-click="false" :z-index="99999"
+    <v-menu ref="menu" v-model="open" offset-y :nudge-bottom="16" :left="openLeft" :close-on-content-click="false" :z-index="99999"
         transition="fade-transition"
         min-width="300" max-width="340">
         <template v-slot:activator="{ on, attrs }">
@@ -12,7 +12,10 @@
         </template>
         <v-card>
             <v-list v-if="sortable" dense class="py-0">
-                <v-list-item @click="$emit('sort')">
+                <v-list-item style="padding: 0 12px;" @click="$emit('sort')">
+                    <div style="display: flex; align-items: center; margin-right: 12px;">
+                        <v-icon small>{{ $MDI.Sort }}</v-icon>
+                    </div>
                     <v-list-item-content>
                         <v-list-item-title>Sort by {{ label }}</v-list-item-title>
                     </v-list-item-content>
@@ -26,7 +29,7 @@
             <v-divider v-if="sortable"></v-divider>
             <ResultFilterField ref="field" class="pa-3"
                 :label="label" :kind="kind" :value="value" :color="color"
-                :bounds="bounds" :logScale="logScale" :taxOptions="taxOptions" :choices="choices"
+                :bounds="bounds" :logScale="logScale" :integer="integer" :taxOptions="taxOptions" :choices="choices"
                 @filter="v => $emit('filter', v)"
             ></ResultFilterField>
         </v-card>
@@ -35,9 +38,11 @@
 
 <script>
 import ResultFilterField from './ResultFilterField.vue';
+import menuFollow from './lib/menuFollow.js';
 
 export default {
     name: 'ResultColumnMenu',
+    mixins: [ menuFollow ],
     components: { ResultFilterField },
     props: {
         label: { type: String, required: true },
@@ -50,6 +55,7 @@ export default {
         color: { type: String, default: undefined },
         bounds: { type: Object, default: null },
         logScale: { type: Boolean, default: false },
+        integer: { type: Boolean, default: false },
         taxOptions: { type: Array, default: null },
         choices: { type: Array, default: null },
     },
@@ -104,7 +110,14 @@ th:hover .column-menu-btn,
 .column-menu-btn:focus-visible {
     opacity: 1;
 }
+/* Opaque, so it covers the end of a header label it overlaps. */
+.column-menu-btn {
+    background-color: #fff;
+}
+.theme--dark .column-menu-btn {
+    background-color: #1e1e1e;
+}
 .column-menu-btn:hover {
-    background-color: rgba(128, 128, 128, 0.2);
+    box-shadow: inset 0 0 0 11px rgba(128, 128, 128, 0.2);
 }
 </style>

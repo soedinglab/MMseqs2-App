@@ -4,7 +4,7 @@ import ResultColumnMenu from './ResultColumnMenu.vue';
 import ResultFilterMenu from './ResultFilterMenu.vue';
 import { defaultSortOrder } from './lib/resultSort.js';
 import {
-    filterKind, rangeBounds, choiceValues, isLogScale, taxonOptions, taxFilterFor, formatFilterValue,
+    filterKind, rangeBounds, choiceValues, isLogScale, isIntegerScale, taxonOptions, taxFilterFor, formatFilterValue,
 } from './lib/resultFilter.js';
 
 // Column sort/filter state shared by the per-database result tables.
@@ -77,6 +77,13 @@ export default {
                 .filter(key => this.filters[key] != null)
                 .map(key => ({ key, text: this.columnLabels[key] + ': ' + this.formatFilter(key) }))
         },
+        // Header labels shorten below this width; the full name stays in the title and the menu.
+        compactHeader() {
+            return this.$vuetify.breakpoint.width < 1440
+        },
+        compactScoreName() {
+            return this.mode == 'tmalign' ? 'TM' : this.mode == 'lolalign' ? 'Score' : 'E-val.'
+        },
         hitCountLabel() {
             const unit = this.entryLength == 1 ? 'hit' : 'hits'
             if (this.filteredTotal < this.entryLength) {
@@ -108,6 +115,7 @@ export default {
                 color: this.entry.color,
                 bounds: this.rangeBoundsByKey[key] ?? null,
                 logScale: isLogScale(key, this.mode),
+                integer: isIntegerScale(key),
                 taxOptions: key == 'tax' ? this.taxOptions : null,
                 choices: filterKind(key) == 'choice' ? choiceValues(this.filterGroups, key) : null,
             }

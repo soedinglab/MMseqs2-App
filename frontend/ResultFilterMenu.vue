@@ -1,5 +1,5 @@
 <template>
-    <v-menu v-model="open" bottom left offset-y :close-on-content-click="false" :z-index="99999"
+    <v-menu ref="menu" v-model="open" bottom left offset-y :close-on-content-click="false" :z-index="99999"
         transition="fade-transition" min-width="300" max-width="340">
         <template v-slot:activator="{ on, attrs }">
             <v-btn icon v-bind="attrs" v-on="on" title="Filter options">
@@ -38,9 +38,11 @@
 
 <script>
 import ResultFilterField from './ResultFilterField.vue';
+import menuFollow from './lib/menuFollow.js';
 
 export default {
     name: 'ResultFilterMenu',
+    mixins: [ menuFollow ],
     components: { ResultFilterField },
     props: {
         // [{ key, label, summary, field: ResultFilterField props }]

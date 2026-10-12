@@ -70,7 +70,7 @@
                 <col :style="{ width: entry.hasDescription || entry.hasTaxonomy ? '18%' : '28%' }" />
                 <col v-if="entry.hasDescription" />
                 <col v-if="entry.hasTaxonomy" />
-                <col style="width: 7%;" />
+                <col style="width: 8%;" />
                 <col style="width: 8%;" />
                 <template v-if="tableMode == 0">
                     <col style="min-width: 20%;" />
@@ -89,40 +89,40 @@
                     <th class="thin phantom-checkbox"></th>
                     <th :class="[`wide-${3 - entry.hasDescription - entry.hasTaxonomy}`, {'sort-selected': sortKey == 'target', 'sort-down': sortOrder < 0}]"
                         class="sort-criterion">
-                        Target
+                        <span class="th-label">Target</span>
                         <ResultColumnMenu v-bind="columnMenuProps('target')" @sort="changeSortMode('target')" @filter="v => onColumnFilter('target', v)" />
                     </th>
                     <th v-if="entry.hasDescription" class="sort-criterion"
                         :class="{'sort-selected': sortKey == 'desc', 'sort-down': sortOrder < 0}">
-                        Description
+                        <span class="th-label">Description</span>
                         <ResultColumnMenu v-bind="columnMenuProps('desc')" @sort="changeSortMode('desc')" @filter="v => onColumnFilter('desc', v)" />
                     </th>
                     <th v-if="entry.hasTaxonomy" class="sort-criterion"
                         :class="{'sort-selected': sortKey == 'tax', 'sort-down': sortOrder < 0}">
-                        Scientific Name
+                        <span class="th-label">Scientific Name</span>
                         <ResultColumnMenu v-bind="columnMenuProps('tax')" @sort="changeSortMode('tax')" @filter="v => onColumnFilter('tax', v)" />
                     </th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected': sortKey == 'seqId', 'sort-down': sortOrder < 0}"
                         title="Sequence identity">
-                        Seq. Id.
+                        <span class="th-label">Seq. Id.</span>
                         <ResultColumnMenu v-bind="columnMenuProps('seqId')" @sort="changeSortMode('seqId')" @filter="v => onColumnFilter('seqId', v)" />
                     </th>
                     <th class="thin sort-criterion" :class="{'sort-selected': sortKey == 'eval', 'sort-down': sortOrder < 0}"
                         title="E-value">
-                        E-Value
+                        <span class="th-label">{{ compactHeader ? 'E-val.' : 'E-Value' }}</span>
                         <ResultColumnMenu v-bind="columnMenuProps('eval')" @sort="changeSortMode('eval')" @filter="v => onColumnFilter('eval', v)" />
                     </th>
                     <th class="thin sort-criterion default-down" :class="{'sort-selected': sortKey == 'score', 'sort-down': sortOrder < 0}"
                         v-show="tableMode == 1" title="Score">
-                        Score
+                        <span class="th-label">Score</span>
                         <ResultColumnMenu v-bind="columnMenuProps('score')" @sort="changeSortMode('score')" @filter="v => onColumnFilter('score', v)" />
                     </th>
                     <th class="thin filter-only" v-show="tableMode == 1" title="Strand">
-                        Strand
+                        <span class="th-label">Strand</span>
                         <ResultColumnMenu v-bind="columnMenuProps('strand')" @filter="v => onColumnFilter('strand', v)" />
                     </th>
-                    <th v-show="tableMode == 1">Query Pos.</th>
-                    <th v-show="tableMode == 1">Target Pos.</th>
+                    <th v-show="tableMode == 1" class="clip" title="Query position">Query Pos.</th>
+                    <th v-show="tableMode == 1" class="clip" title="Target position">Target Pos.</th>
                     <th v-show="tableMode == 0">
                         Position in query
                         <v-tooltip open-delay="300" top>
@@ -163,8 +163,8 @@
                     <td class="thin" data-label="E-Value">{{ item.evalStr }}</td>
                     <td class="thin" v-show="tableMode == 1" data-label="Score">{{ item.score }}</td>
                     <td class="thin" v-show="tableMode == 1" data-label="Strand">{{ item.strand }}</td>
-                    <td v-show="tableMode == 1" data-label="Query Position">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
-                    <td v-show="tableMode == 1" data-label="Target Position">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
+                    <td v-show="tableMode == 1" class="clip" data-label="Query Position" :title="`${item.qStartPos}-${item.qEndPos} (${item.qLen})`">{{ item.qStartPos }}-{{ item.qEndPos }} ({{ item.qLen }})</td>
+                    <td v-show="tableMode == 1" class="clip" data-label="Target Position" :title="`${item.dbStartPos}-${item.dbEndPos} (${item.dbLen})`">{{ item.dbStartPos }}-{{ item.dbEndPos }} ({{ item.dbLen }})</td>
                     <td class="graphical" data-label="Position" v-show="tableMode == 0"
                         :title="`${Math.min(item.qStartPos, item.qEndPos)}-${Math.max(item.qStartPos, item.qEndPos)} on the ${item.strand == '-' ? 'minus' : 'plus'} strand`">
                         <Ruler :length="item.qLen" :start="item.qStartPos" :end="item.qEndPos" :color="item.color" :label="true"></Ruler>

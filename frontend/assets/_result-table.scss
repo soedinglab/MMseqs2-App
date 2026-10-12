@@ -2,6 +2,34 @@
     border-left: 5px solid black;
 }
 
+.mobile-table-actions {
+    display: flex;
+    align-self: flex-end;
+    margin-bottom: 16px;
+    margin-left: 8px;
+}
+
+.result-title {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.filter-chips {
+    display: inline-flex;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.matched-residues-text {
+    display: inline-block;
+    max-width: 100%;
+    overflow: scroll;
+    scrollbar-width: none;
+}
+
 .result-table {
     transform: translateY(0);
     a.anchor {
@@ -221,31 +249,36 @@ tr.hit .entry-checkbox.selected svg, .select-all.any-selected svg {
 tr.invisible {
     display: none !important;
 }
+.th-label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
-thead.sticky-thead th.sort-criterion,
-thead.sticky-thead th.filter-only {
+thead.sticky-thead th.sort-criterion:has(.column-menu-btn.is-active),
+thead.sticky-thead th.filter-only:has(.column-menu-btn.is-active) {
     padding-right: 24px;
 }
 
-.mobile-table-actions {
-    display: flex;
-    align-self: flex-end;
-    margin-bottom: 16px;
-    margin-left: 8px;
+thead.sticky-thead th.has-help {
+    padding-right: 26px;
 }
 
-.result-title {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    white-space: nowrap;
+thead.sticky-thead th.has-help:has(.column-menu-btn.is-active) {
+    padding-right: 54px;
 }
 
-.filter-chips {
-    display: inline-flex;
-    min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: thin;
+thead.sticky-thead th.has-help ::v-deep .column-menu-btn {
+    right: 32px;
+}
+
+.th-help {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    font-size: 16px !important;
 }
 
 th.sort-criterion.sort-selected {
@@ -260,6 +293,47 @@ th.sort-criterion.sort-selected {
         width: 100%;
         th.thin, td.thin {
             white-space: nowrap;
+        }
+        th.clip, td.clip {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        td:has(.border-td) {
+            position: relative;
+            overflow-y: unset;
+        }
+        div.border-td {
+            background-color: var(--active-color);
+            position: absolute;
+            left: calc(100% - 2.5px);
+            top: 0;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: white;
+            width: auto;
+            max-width: 5px;
+            padding: 4px 0 4px 5px;
+            height: 100%;
+            transition: all 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+            cursor: pointer;
+        }
+        div.border-td::before {
+            content: attr(data-text);
+            background-color: var(--active-color);
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 1.375rem;
+            max-width: 5px;
+            overflow: hidden;
+            white-space: nowrap;
+            padding-left: 5px;
+            transition: all 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+        }
+        div.border-td:hover::before {
+            max-width: 120px;
+            padding: 0 5px;
         }
         .long {
             overflow: hidden;
@@ -389,5 +463,10 @@ th.sort-criterion.sort-selected {
             text-align: right;
             word-wrap: anywhere;
         }
+    }
+    .matched-residues-text {
+        white-space: normal;
+        word-break: break-all;
+        max-width: none;
     }
 }
