@@ -23,6 +23,45 @@ type ConfigGfaidx struct {
 	TimeoutSeconds int    `json:"timeoutseconds" validate:"omitempty,gte=1"`
 	// Threads is controlled by the server and applies to every gfaidx query.
 	Threads int `json:"threads" validate:"omitempty,gte=1"`
+	// MaxOutputMB is a hard cap on every result file; gfaidx is stopped once it is exceeded.
+	MaxOutputMB int `json:"maxoutputmb" validate:"omitempty,gte=1"`
+	// DisplayLimitMB is the largest result served without ?download=true, i.e. to the frontend.
+	DisplayLimitMB int `json:"displaylimitmb" validate:"omitempty,gte=1"`
+}
+
+// Defaults used when the server configuration omits the matching setting.
+const (
+	gfaidxDefaultMaxOutputMB    = 1024
+	gfaidxDefaultDisplayLimitMB = 200
+	// gfaidxDefaultHaplotypeGap bounds haplotype runs in repeat-rich regions of all-haplotype queries.
+	gfaidxDefaultHaplotypeGap = "10kb"
+	// gfaidxMaxHaplotypeGapBases (1mb) caps client-chosen gaps; larger ones are for local gfaidx runs.
+	gfaidxMaxHaplotypeGapBases = 1_000_000
+)
+
+// validateGfaidxHaplotypeGap checks the gap format and size, using gfaidx's
+// decimal units (1kb = 1,000 bases).
+func validateGfaidxHaplotypeGap(gap string) error {
+	match := validHaplotypeGap.FindStringSubmatch(gap)
+	if match == nil {
+		return errors.New("invalid haplotype_gap")
+	}
+	multiplier := map[string]uint64{"": 1, "bp": 1, "kb": 1_000, "mb": 1_000_000, "gb": 1_000_000_000}[strings.ToLower(match[2])]
+	// Comparing against max/multiplier avoids overflow for very large values.
+	bases, err := strconv.ParseUint(match[1], 10, 64)
+	if err != nil || bases > gfaidxMaxHaplotypeGapBases/multiplier {
+		return errors.New("haplotype_gap must be at most 1mb")
+	}
+	return nil
+}
+
+// gfaidxLimitBytes converts a configured megabyte limit to bytes, falling back
+// to the default when the setting is omitted or not positive.
+func gfaidxLimitBytes(configuredMB, defaultMB int) int64 {
+	if configuredMB <= 0 {
+		configuredMB = defaultMB
+	}
+	return int64(configuredMB) * 1024 * 1024
 }
 
 // GfaidxParams is the server-owned metadata stored in one <graph-id>.params
@@ -97,7 +136,8 @@ type GfaidxJob struct {
 
 // GfaidxCacheVersion can be incremented if result semantics change without a
 // corresponding change in the public request fields.
-const GfaidxCacheVersion = "v1"
+// v2: gfaidx 2.1.0 with an explicit --mode and a default haplotype_gap.
+const GfaidxCacheVersion = "v2"
 
 // Hash makes identical queries reuse the existing MMseqs job cache and ticket
 // behavior. The graph version prevents results surviving a graph replacement.
@@ -258,7 +298,22 @@ func validateGfaidxText(name, value string, required bool) (string, error) {
 	if strings.IndexFunc(value, unicode.IsControl) >= 0 {
 		return "", fmt.Errorf("%s contains a control character", name)
 	}
+	// gfaidx would parse a leading "-" as a command-line option (e.g. "--idx=/path").
+	if strings.HasPrefix(value, "-") {
+		return "", fmt.Errorf("%s cannot start with '-'", name)
+	}
 	return value, nil
+}
+
+// gfaidxMaxNodes bounds BFS size; gfaidx reserves memory in proportion to max_nodes up front.
+const gfaidxMaxNodes = 1_000_000
+
+// validateGfaidxMaxNodes checks a client-chosen BFS node budget.
+func validateGfaidxMaxNodes(maxNodes uint64) error {
+	if maxNodes < 1 || maxNodes > gfaidxMaxNodes {
+		return fmt.Errorf("max_nodes must be between 1 and %d", gfaidxMaxNodes)
+	}
+	return nil
 }
 
 // validateGfaidxFlags enforces combinations that gfaidx itself cannot use.
@@ -280,8 +335,8 @@ func NewGfaidxSubgraphJobRequest(input GfaidxSubgraphRequest, config ConfigGfaid
 	if err != nil {
 		return JobRequest{}, err
 	}
-	if input.MaxNodes < 1 {
-		return JobRequest{}, errors.New("max_nodes must be at least 1")
+	if err := validateGfaidxMaxNodes(input.MaxNodes); err != nil {
+		return JobRequest{}, err
 	}
 	if err := validateGfaidxFlags(input.NoPaths, input.WithCoords); err != nil {
 		return JobRequest{}, err
@@ -326,14 +381,25 @@ func NewGfaidxRegionJobRequest(input GfaidxRegionRequest, config ConfigGfaidx) (
 	if input.HaplotypeGap != "" && !input.AllHaplotypes {
 		return JobRequest{}, errors.New("haplotype_gap requires all_haplotypes")
 	}
-	if input.HaplotypeGap != "" && !validHaplotypeGap.MatchString(input.HaplotypeGap) {
-		return JobRequest{}, errors.New("invalid haplotype_gap")
+	if input.HaplotypeGap != "" {
+		if err := validateGfaidxHaplotypeGap(input.HaplotypeGap); err != nil {
+			return JobRequest{}, err
+		}
+	}
+
+	haplotypeGap := input.HaplotypeGap
+	if input.AllHaplotypes && haplotypeGap == "" {
+		// Clients can still pass their own gap, up to gfaidxMaxHaplotypeGapBases.
+		haplotypeGap = gfaidxDefaultHaplotypeGap
 	}
 
 	maxNodes := uint64(0)
 	if !input.AllHaplotypes {
-		if input.MaxNodes == nil || *input.MaxNodes < 1 {
-			return JobRequest{}, errors.New("max_nodes must be at least 1 for BFS region extraction")
+		if input.MaxNodes == nil {
+			return JobRequest{}, errors.New("max_nodes is required for BFS region extraction")
+		}
+		if err := validateGfaidxMaxNodes(*input.MaxNodes); err != nil {
+			return JobRequest{}, err
 		}
 		maxNodes = *input.MaxNodes
 	}
@@ -348,7 +414,7 @@ func NewGfaidxRegionJobRequest(input GfaidxRegionRequest, config ConfigGfaidx) (
 		MaxNodes:      maxNodes,
 		Reference:     reference,
 		AllHaplotypes: input.AllHaplotypes,
-		HaplotypeGap:  input.HaplotypeGap,
+		HaplotypeGap:  haplotypeGap,
 		NoPaths:       input.NoPaths,
 		WithCoords:    input.WithCoords,
 	}

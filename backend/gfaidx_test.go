@@ -134,11 +134,47 @@ func TestGfaidxRegionJob(t *testing.T) {
 	got := gfaidxCommand(job, graph, "/jobs/result.gfa.tmp", config)
 	want := []string{
 		config.Binary, "get_region", graphPath, "chr22:100-200", "/jobs/result.gfa.tmp",
-		"--all_haplotypes", "--threads", "2", "--reference", "CHM13",
+		"--mode", "all", "--threads", "2", "--reference", "CHM13",
 		"--haplotype_gap", "10kb", "--with_coords",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("command = %#v, want %#v", got, want)
+	}
+}
+
+// TestGfaidxRegionJobModes verifies that BFS is requested explicitly and that
+// all-haplotype queries without a gap receive the server default.
+func TestGfaidxRegionJobModes(t *testing.T) {
+	config, graphPath := newTestGfaidxConfig(t)
+	graph, err := resolveGfaidxGraph("example", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxNodes := uint64(500)
+	for name, tc := range map[string]struct {
+		input GfaidxRegionRequest
+		flags []string
+	}{
+		"bfs": {
+			GfaidxRegionRequest{GraphID: "example", Sequence: "CHM13#0#chr21", Start: 0, End: 10, MaxNodes: &maxNodes},
+			[]string{"--mode", "bfs", "--max_nodes", "500", "--threads", "2"},
+		},
+		"default gap": {
+			GfaidxRegionRequest{GraphID: "example", Sequence: "CHM13#0#chr21", Start: 0, End: 10, AllHaplotypes: true},
+			[]string{"--mode", "all", "--threads", "2", "--haplotype_gap", gfaidxDefaultHaplotypeGap},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			request, err := NewGfaidxRegionJobRequest(tc.input, config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := gfaidxCommand(request.Job.(GfaidxJob), graph, "/jobs/result.gfa.tmp", config)
+			want := append([]string{config.Binary, "get_region", graphPath, "CHM13#0#chr21:0-10", "/jobs/result.gfa.tmp"}, tc.flags...)
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("command = %#v, want %#v", got, want)
+			}
+		})
 	}
 }
 
@@ -160,6 +196,31 @@ func TestGfaidxRequestValidation(t *testing.T) {
 		GraphID: "example", Sequence: "chr22", Start: 20, End: 10, AllHaplotypes: true,
 	}, config); err == nil {
 		t.Fatal("reversed region was accepted")
+	}
+	// Values that gfaidx could parse as options, and oversized node budgets, are rejected.
+	tooMany := uint64(gfaidxMaxNodes + 1)
+	for name, input := range map[string]GfaidxRegionRequest{
+		"option as sequence":  {GraphID: "example", Sequence: "--cdx=/etc/hosts", Start: 10, End: 20, AllHaplotypes: true},
+		"option as reference": {GraphID: "example", Sequence: "chr22", Reference: "-x", Start: 10, End: 20, AllHaplotypes: true},
+		"too many max_nodes":  {GraphID: "example", Sequence: "chr22", Start: 10, End: 20, MaxNodes: &tooMany},
+	} {
+		if _, err := NewGfaidxRegionJobRequest(input, config); err == nil {
+			t.Fatalf("%s was accepted", name)
+		}
+	}
+	if _, err := NewGfaidxSubgraphJobRequest(GfaidxSubgraphRequest{
+		GraphID: "example", StartNode: "--help", MaxNodes: 10,
+	}, config); err == nil {
+		t.Fatal("option as start_node was accepted")
+	}
+	// haplotype_gap is capped at 1mb in any unit.
+	for gap, wantOK := range map[string]bool{"1mb": true, "1000kb": true, "1001kb": false, "2mb": false, "1gb": false} {
+		_, err := NewGfaidxRegionJobRequest(GfaidxRegionRequest{
+			GraphID: "example", Sequence: "chr22", Start: 10, End: 20, AllHaplotypes: true, HaplotypeGap: gap,
+		}, config)
+		if (err == nil) != wantOK {
+			t.Fatalf("haplotype_gap %q: err = %v, want accepted = %v", gap, err, wantOK)
+		}
 	}
 }
 
@@ -214,6 +275,22 @@ func TestGfaidxApiSubmissionAndResult(t *testing.T) {
 	}
 	if contentType := recorder.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "text/plain") {
 		t.Fatalf("result Content-Type = %q", contentType)
+	}
+
+	// A result above the display limit is refused unless ?download=true is given.
+	gfaidxConfig.DisplayLimitMB = 1
+	if err := os.WriteFile(filepath.Join(resultBase, "result.gfa"), bytes.Repeat([]byte("S\n"), 1024*1024), 0644); err != nil {
+		t.Fatal(err)
+	}
+	for url, wantCode := range map[string]int{
+		"/result/gfaidx/" + string(ticket.Id):                    http.StatusRequestEntityTooLarge,
+		"/result/gfaidx/" + string(ticket.Id) + "?download=true": http.StatusOK,
+	} {
+		recorder = httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, url, nil))
+		if recorder.Code != wantCode {
+			t.Fatalf("GET %s status = %d, want %d", url, recorder.Code, wantCode)
+		}
 	}
 }
 
@@ -271,15 +348,23 @@ func TestGfaidxGraphDiscovery(t *testing.T) {
 func TestGfaidxRegionPathParsing(t *testing.T) {
 	output := "gfaidx informational output\n" +
 		"source\treference\thaplotype\tsequence\tstart\tend\tentries\tcoordinate_access\n" +
-		"W\tCHM13\t0\tchr22\t0\t51324926\t1439527\ton_the_fly\n"
+		"W\tCHM13\t0\tchr22\t0\t51324926\t1439527\ton_the_fly\n" +
+		// P lines outside .cdx report an unknown end, and unavailable rows are dropped.
+		"P\t\t0\tHG00097#1#CM094072.1\t0\t*\t4667046\ton_the_fly\n" +
+		"W\tHG00097\t1\tchr22\t*\t*\t10\tunavailable\n"
 	paths, err := parseGfaidxRegionPaths(output)
 	if err != nil {
 		t.Fatal(err)
 	}
+	end := uint64(51324926)
 	want := []GfaidxRegionPath{{
 		Source: "W", Reference: "CHM13", Haplotype: "0", Sequence: "chr22",
-		Start: 0, End: 51324926, Entries: 1439527,
+		Start: 0, End: &end, Entries: 1439527,
 		Label: "CHM13 hap0 chr22 (0-51324926)",
+	}, {
+		Source: "P", Reference: "", Haplotype: "0", Sequence: "HG00097#1#CM094072.1",
+		Start: 0, End: nil, Entries: 4667046,
+		Label: "HG00097#1#CM094072.1",
 	}}
 	if !reflect.DeepEqual(paths, want) {
 		t.Fatalf("region paths = %#v, want %#v", paths, want)

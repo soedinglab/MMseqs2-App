@@ -34,7 +34,7 @@ You can now navigate with a web browser to your server's IP address and use the 
 
 ### Serving indexed genome graphs with gfaidx
 
-The backend image includes the checksum-verified gfaidx 1.9.8 Linux release
+The backend image includes the checksum-verified gfaidx 2.1.0 Linux release
 executable, but its HTTP API is opt-in and restricted to Foldseek deployments.
 Set `APP=foldseek` and enable the gfaidx Compose overlay:
 
@@ -48,6 +48,12 @@ containers; gfaidx indexing must be completed before starting the server.
 `GFAIDX_TIMEOUT_SECONDS` limits each extraction's runtime, and
 `GFAIDX_THREADS` sets the server-controlled thread count used for every query
 and defaults to one; clients cannot select or override it.
+A query is stopped once its output passes 1 GB (`-gfaidx.maxoutputmb`).
+Results above 200 MB (`-gfaidx.displaylimitmb`) are refused by
+`/api/result/gfaidx/{ticket}` so the frontend does not load graphs it cannot
+render; add `?download=true` to download them anyway. All-haplotype region
+queries default to a `haplotype_gap` of 10kb unless the request sets one, up
+to a maximum of 1mb.
 
 Each graph is registered by a JSON `<graph-id>.params` file. The params
 filename, without `.params`, is the stable ID accepted by browser requests.
