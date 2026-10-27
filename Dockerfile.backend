@@ -81,14 +81,14 @@ FROM $downloader AS downloader
 # every backend build while retaining reproducible, checksum-verified inputs.
 FROM --platform=$BUILDPLATFORM debian:stable-slim AS gfaidx-downloader
 ARG TARGETARCH
-ARG GFAIDX_VERSION=1.9.8
+ARG GFAIDX_VERSION=2.1.0
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates wget \
     && rm -rf /var/lib/apt/lists/*
 RUN set -eu; \
     case "$TARGETARCH" in \
-      amd64) release_arch="x86_64"; checksum="65806146ebda4022dd77a4cebf7408d72aed07ee0665d50d5cf3de8571a212d0" ;; \
-      arm64) release_arch="aarch64"; checksum="c7ac434f59615a6e13ae8de0f4b482620ed1bbb783efce810741ba8f7959c8af" ;; \
+      amd64) release_arch="x86_64"; checksum="c097cdb68e45027481fb15a2d85a2508a64fddf4a410f11692cb169dd0ecfb53" ;; \
+      arm64) release_arch="aarch64"; checksum="1800d4e2fc9d676e3a0b16cd295d60ed54d7f6a94aef948789016c4e9117e179" ;; \
       *) echo "Unsupported gfaidx target architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
     archive="gfaidx-v${GFAIDX_VERSION}-linux-${release_arch}.tar.gz"; \

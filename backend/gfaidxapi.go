@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
@@ -147,7 +149,22 @@ func RegisterGfaidxApi(r *mux.Router, jobsystem JobSystem, config ConfigRoot, su
 			return
 		}
 		defer file.Close()
+		info, err := file.Stat()
+		if err != nil {
+			http.Error(w, "gfaidx result was not found", http.StatusInternalServerError)
+			return
+		}
+		// The frontend fetches without ?download=true, so results too large to render are
+		// refused with a hint; scripted clients can still download them in full.
+		displayLimit := gfaidxLimitBytes(config.Gfaidx.DisplayLimitMB, gfaidxDefaultDisplayLimitMB)
+		if info.Size() > displayLimit && req.URL.Query().Get("download") != "true" {
+			message := fmt.Sprintf("gfaidx result is %d MB, larger than the %d MB display limit; download it with GET %s?download=true",
+				info.Size()/(1024*1024), displayLimit/(1024*1024), req.URL.Path)
+			http.Error(w, message, http.StatusRequestEntityTooLarge)
+			return
+		}
 
+		w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Content-Disposition", "inline; filename=\"gfaidx_"+string(ticket.Id)+".gfa\"")
 		w.Header().Set("Cache-Control", "public, max-age=3600")

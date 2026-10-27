@@ -58,8 +58,8 @@ func validateQueuedGfaidxJob(job GfaidxJob, config ConfigGfaidx) (GfaidxGraph, e
 		if _, err := validateGfaidxText("start_node", job.StartNode, true); err != nil {
 			return GfaidxGraph{}, err
 		}
-		if job.MaxNodes < 1 {
-			return GfaidxGraph{}, errors.New("max_nodes must be at least 1")
+		if err := validateGfaidxMaxNodes(job.MaxNodes); err != nil {
+			return GfaidxGraph{}, err
 		}
 	case GfaidxGetRegion:
 		if _, err := validateGfaidxText("sequence", job.Sequence, true); err != nil {
@@ -71,14 +71,22 @@ func validateQueuedGfaidxJob(job GfaidxJob, config ConfigGfaidx) (GfaidxGraph, e
 		if job.End <= job.Start {
 			return GfaidxGraph{}, errors.New("end must be greater than start")
 		}
-		if !job.AllHaplotypes && job.MaxNodes < 1 {
-			return GfaidxGraph{}, errors.New("max_nodes must be at least 1 for BFS region extraction")
+		// reference is passed to gfaidx too, so persisted or remote jobs get the same text checks.
+		if _, err := validateGfaidxText("reference", job.Reference, false); err != nil {
+			return GfaidxGraph{}, err
+		}
+		if !job.AllHaplotypes {
+			if err := validateGfaidxMaxNodes(job.MaxNodes); err != nil {
+				return GfaidxGraph{}, err
+			}
 		}
 		if job.HaplotypeGap != "" && !job.AllHaplotypes {
 			return GfaidxGraph{}, errors.New("haplotype_gap requires all_haplotypes")
 		}
-		if job.HaplotypeGap != "" && !validHaplotypeGap.MatchString(job.HaplotypeGap) {
-			return GfaidxGraph{}, errors.New("invalid haplotype_gap")
+		if job.HaplotypeGap != "" {
+			if err := validateGfaidxHaplotypeGap(job.HaplotypeGap); err != nil {
+				return GfaidxGraph{}, err
+			}
 		}
 	default:
 		return GfaidxGraph{}, errors.New("unsupported gfaidx command")
@@ -98,9 +106,14 @@ func gfaidxCommand(job GfaidxJob, graph GfaidxGraph, outputPath string, config C
 		parameters = append(parameters, graph.Path, region, outputPath)
 	}
 
+	// gfaidx 2.x defaults get_region to --mode all and then ignores --max_nodes,
+	// so region queries always name their mode; get_subgraph has no modes.
 	if job.AllHaplotypes {
-		parameters = append(parameters, "--all_haplotypes")
+		parameters = append(parameters, "--mode", "all")
 	} else {
+		if job.Command == GfaidxGetRegion {
+			parameters = append(parameters, "--mode", "bfs")
+		}
 		parameters = append(parameters, "--max_nodes", strconv.FormatUint(job.MaxNodes, 10))
 	}
 	// Thread allocation is taken only from server configuration, never from a request.
@@ -159,32 +172,53 @@ func executeGfaidx(parameters []string, graph GfaidxGraph, outputPath string, co
 	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
+	// Poll the output size so an oversized result is stopped while it is written, not after.
+	sizeCheck := time.NewTicker(time.Second)
+	defer sizeCheck.Stop()
+	maxOutput := gfaidxLimitBytes(config.MaxOutputMB, gfaidxDefaultMaxOutputMB)
 
-	select {
-	case <-timer.C:
+	// stop kills gfaidx and gives it a short opportunity to be reaped without blocking the worker indefinitely.
+	stop := func() {
 		if err := KillCommand(cmd); err != nil {
 			log.Printf("Failed to kill gfaidx: %s\n", err)
 		}
-		// Give the killed process a short opportunity to be reaped without blocking the worker indefinitely.
 		select {
 		case <-done:
 		case <-time.After(5 * time.Second):
 		}
-		return &JobTimeoutError{}
-	case err := <-done:
-		if verbose && (stdout.Len() > 0 || stderr.Len() > 0) {
-			// Verbose configurations already log other backend binaries; keep gfaidx consistent.
-			logOutput := strings.TrimSpace(stdout.String() + "\n" + stderr.String())
-			if logOutput != "" {
-				log.Print(logOutput)
-			}
-		}
-		if err != nil {
-			output := strings.TrimSpace(stdout.String() + "\n" + stderr.String())
-			return &JobUserError{sanitizedGfaidxError(output, graph, outputPath, config)}
-		}
-		return nil
 	}
+
+	for {
+		select {
+		case <-sizeCheck.C:
+			if info, err := os.Stat(outputPath); err == nil && info.Size() > maxOutput {
+				stop()
+				return gfaidxOutputLimitError(config)
+			}
+		case <-timer.C:
+			stop()
+			return &JobTimeoutError{}
+		case err := <-done:
+			if verbose && (stdout.Len() > 0 || stderr.Len() > 0) {
+				// Verbose configurations already log other backend binaries; keep gfaidx consistent.
+				logOutput := strings.TrimSpace(stdout.String() + "\n" + stderr.String())
+				if logOutput != "" {
+					log.Print(logOutput)
+				}
+			}
+			if err != nil {
+				output := strings.TrimSpace(stdout.String() + "\n" + stderr.String())
+				return &JobUserError{sanitizedGfaidxError(output, graph, outputPath, config)}
+			}
+			return nil
+		}
+	}
+}
+
+// gfaidxOutputLimitError tells the user how to narrow a query whose result exceeded the server cap.
+func gfaidxOutputLimitError(config ConfigGfaidx) error {
+	limitMB := gfaidxLimitBytes(config.MaxOutputMB, gfaidxDefaultMaxOutputMB) / (1024 * 1024)
+	return &JobUserError{fmt.Sprintf("gfaidx output exceeded the %d MB server limit; try a smaller region, a lower max_nodes or haplotype_gap, or no_paths", limitMB)}
 }
 
 // RunGfaidxJob executes one query inside its existing ticket directory and
@@ -216,6 +250,10 @@ func RunGfaidxJob(job GfaidxJob, requestID Id, config ConfigRoot) error {
 	}
 	if !info.Mode().IsRegular() || info.Size() == 0 {
 		return &JobExecutionError{errors.New("gfaidx produced an empty output file")}
+	}
+	// gfaidx can finish between size checks, so the completed file gets the same cap.
+	if info.Size() > gfaidxLimitBytes(config.Gfaidx.MaxOutputMB, gfaidxDefaultMaxOutputMB) {
+		return gfaidxOutputLimitError(*config.Gfaidx)
 	}
 	if err := os.Rename(temporaryPath, resultPath); err != nil {
 		return &JobExecutionError{err}

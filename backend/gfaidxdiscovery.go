@@ -29,9 +29,10 @@ type GfaidxRegionPath struct {
 	Haplotype string `json:"haplotype"`
 	Sequence  string `json:"sequence"`
 	Start     uint64 `json:"start"`
-	End       uint64 `json:"end"`
-	Entries   uint64 `json:"entries"`
-	Label     string `json:"label"`
+	// End is null when gfaidx does not know the path length (P lines outside .cdx).
+	End     *uint64 `json:"end"`
+	Entries uint64  `json:"entries"`
+	Label   string  `json:"label"`
 }
 
 // gfaidxRegionPathListingTimeout keeps this synchronous metadata request short;
@@ -126,6 +127,10 @@ func parseGfaidxRegionPaths(output string) ([]GfaidxRegionPath, error) {
 		if len(record) == 0 || (len(record) == 1 && strings.TrimSpace(record[0]) == "") {
 			continue
 		}
+		// Paths without resolvable coordinates cannot be queried, so they are not listed.
+		if index, ok := columns["coordinate_access"]; ok && index < len(record) && strings.TrimSpace(record[index]) == "unavailable" {
+			continue
+		}
 
 		// value reads one required column without trusting a short TSV row.
 		value := func(name string) (string, error) {
@@ -166,17 +171,29 @@ func parseGfaidxRegionPaths(output string) ([]GfaidxRegionPath, error) {
 		}
 
 		start, startErr := strconv.ParseUint(startText, 10, 64)
-		end, endErr := strconv.ParseUint(endText, 10, 64)
 		entries, entriesErr := strconv.ParseUint(entriesText, 10, 64)
-		if startErr != nil || endErr != nil || entriesErr != nil || source == "" || sequence == "" || end < start {
+		if startErr != nil || entriesErr != nil || source == "" || sequence == "" {
 			return nil, errors.New("gfaidx returned an invalid region path table")
 		}
+		// gfaidx prints "*" for an unknown end; such paths are still queryable on the fly.
+		var end *uint64
+		rangeSuffix := ""
+		if endText != "*" {
+			parsedEnd, endErr := strconv.ParseUint(endText, 10, 64)
+			if endErr != nil || parsedEnd < start {
+				return nil, errors.New("gfaidx returned an invalid region path table")
+			}
+			end = &parsedEnd
+			rangeSuffix = fmt.Sprintf(" (%d-%d)", start, parsedEnd)
+		}
 
+		// P lines carry the whole PanSN name in sequence and no reference, and
+		// gfaidx always reports haplotype 0 for them, so only W lines get a suffix.
 		haplotypeSuffix := ""
-		if haplotype != "" {
+		if haplotype != "" && reference != "" {
 			haplotypeSuffix = " hap" + haplotype
 		}
-		label := strings.TrimSpace(fmt.Sprintf("%s%s %s (%d-%d)", reference, haplotypeSuffix, sequence, start, end))
+		label := strings.TrimSpace(fmt.Sprintf("%s%s %s%s", reference, haplotypeSuffix, sequence, rangeSuffix))
 		paths = append(paths, GfaidxRegionPath{
 			Source:    source,
 			Reference: reference,
