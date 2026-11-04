@@ -137,23 +137,18 @@ func GatherTemplates(w io.Writer, templates []string, a3m Reader[string], hhm *R
 
 		reader, err := gzip.NewReader(file)
 		if err != nil {
+			file.Close()
 			return err
 		}
 
 		cif, err := io.ReadAll(reader)
+		reader.Close()
+		file.Close()
 		if err != nil {
 			return err
 		}
 
 		if err := AddTarEntry(tw, pdbacc+".cif", string(cif), now); err != nil {
-			return err
-		}
-
-		if err := reader.Close(); err != nil {
-			return err
-		}
-
-		if err := file.Close(); err != nil {
 			return err
 		}
 	}

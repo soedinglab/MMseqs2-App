@@ -668,6 +668,7 @@ func ResultArchive(w io.Writer, id Id, base string) (err error) {
 		}
 		err = reader.Make(dbpaths(name))
 		if err != nil {
+			result.Close()
 			return err
 		}
 		for i := int64(0); i < reader.Size(); i++ {
