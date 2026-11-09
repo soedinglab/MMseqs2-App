@@ -276,20 +276,34 @@ func TestGfaidxApiSubmissionAndResult(t *testing.T) {
 	if contentType := recorder.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "text/plain") {
 		t.Fatalf("result Content-Type = %q", contentType)
 	}
+	if disposition := recorder.Header().Get("Content-Disposition"); !strings.HasPrefix(disposition, "inline;") {
+		t.Fatalf("result Content-Disposition = %q, want inline", disposition)
+	}
 
-	// A result above the display limit is refused unless ?download=true is given.
+	// A result above the display limit is refused unless ?download=true is given,
+	// which also makes browsers save it as a file.
 	gfaidxConfig.DisplayLimitMB = 1
 	if err := os.WriteFile(filepath.Join(resultBase, "result.gfa"), bytes.Repeat([]byte("S\n"), 1024*1024), 0644); err != nil {
 		t.Fatal(err)
 	}
-	for url, wantCode := range map[string]int{
-		"/result/gfaidx/" + string(ticket.Id):                    http.StatusRequestEntityTooLarge,
-		"/result/gfaidx/" + string(ticket.Id) + "?download=true": http.StatusOK,
+	for _, test := range []struct {
+		url         string
+		code        int
+		disposition string
+	}{
+		{"/result/gfaidx/" + string(ticket.Id), http.StatusRequestEntityTooLarge, ""},
+		{"/result/gfaidx/" + string(ticket.Id) + "?download=true", http.StatusOK, "attachment;"},
 	} {
 		recorder = httptest.NewRecorder()
-		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, url, nil))
-		if recorder.Code != wantCode {
-			t.Fatalf("GET %s status = %d, want %d", url, recorder.Code, wantCode)
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, test.url, nil))
+		if recorder.Code != test.code {
+			t.Fatalf("GET %s status = %d, want %d", test.url, recorder.Code, test.code)
+		}
+		if disposition := recorder.Header().Get("Content-Disposition"); !strings.HasPrefix(disposition, test.disposition) {
+			t.Fatalf("GET %s Content-Disposition = %q, want %q", test.url, disposition, test.disposition)
+		}
+		if test.code == http.StatusRequestEntityTooLarge && strings.Contains(recorder.Body.String(), "/result/gfaidx/") {
+			t.Fatalf("display limit message exposes the internal path: %q", recorder.Body.String())
 		}
 	}
 }

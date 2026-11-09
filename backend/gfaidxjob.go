@@ -137,7 +137,8 @@ type GfaidxJob struct {
 // GfaidxCacheVersion can be incremented if result semantics change without a
 // corresponding change in the public request fields.
 // v2: gfaidx 2.1.0 with an explicit --mode and a default haplotype_gap.
-const GfaidxCacheVersion = "v2"
+// v3: gfaidx 2.3.2.
+const GfaidxCacheVersion = "v3"
 
 // Hash makes identical queries reuse the existing MMseqs job cache and ticket
 // behavior. The graph version prevents results surviving a graph replacement.

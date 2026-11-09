@@ -156,17 +156,24 @@ func RegisterGfaidxApi(r *mux.Router, jobsystem JobSystem, config ConfigRoot, su
 		}
 		// The frontend fetches without ?download=true, so results too large to render are
 		// refused with a hint; scripted clients can still download them in full.
+		download := req.URL.Query().Get("download") == "true"
 		displayLimit := gfaidxLimitBytes(config.Gfaidx.DisplayLimitMB, gfaidxDefaultDisplayLimitMB)
-		if info.Size() > displayLimit && req.URL.Query().Get("download") != "true" {
-			message := fmt.Sprintf("gfaidx result is %d MB, larger than the %d MB display limit; download it with GET %s?download=true",
-				info.Size()/(1024*1024), displayLimit/(1024*1024), req.URL.Path)
+		if info.Size() > displayLimit && !download {
+			// Behind the nginx /api prefix req.URL.Path is not the public URL, so only the flag is named.
+			message := fmt.Sprintf("gfaidx result is %d MB, larger than the %d MB display limit; add ?download=true to the result URL to download it",
+				info.Size()/(1024*1024), displayLimit/(1024*1024))
 			http.Error(w, message, http.StatusRequestEntityTooLarge)
 			return
 		}
 
+		// ?download=true makes a plain browser link save the file instead of opening it.
+		disposition := "inline"
+		if download {
+			disposition = "attachment"
+		}
 		w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("Content-Disposition", "inline; filename=\"gfaidx_"+string(ticket.Id)+".gfa\"")
+		w.Header().Set("Content-Disposition", disposition+"; filename=\"gfaidx_"+string(ticket.Id)+".gfa\"")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		if _, err := io.Copy(w, bufio.NewReader(file)); err != nil {
 			return

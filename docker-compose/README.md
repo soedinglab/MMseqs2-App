@@ -34,7 +34,7 @@ You can now navigate with a web browser to your server's IP address and use the 
 
 ### Serving indexed genome graphs with gfaidx
 
-The backend image includes the checksum-verified gfaidx 2.1.0 Linux release
+The backend image includes the checksum-verified gfaidx 2.3.2 Linux release
 executable, but its HTTP API is opt-in and restricted to Foldseek deployments.
 Set `APP=foldseek` and enable the gfaidx Compose overlay:
 
