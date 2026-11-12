@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -214,9 +216,49 @@ func gfaidxRegionPathCommand(graph GfaidxGraph, config ConfigGfaidx) []string {
 	return []string{config.Binary, "get_region", graph.Path, "--print_path_names"}
 }
 
-// listGfaidxRegionPaths runs the small discovery command synchronously. Large
-// graph extraction remains in the existing asynchronous worker queue.
+// gfaidxRegionPathsSuffix names the precomputed region path table stored next
+// to <graph-id>.params, i.e. <graph-id>.paths.tsv.
+const gfaidxRegionPathsSuffix = ".paths.tsv"
+
+// readGfaidxRegionPathsFile loads a precomputed
+// `gfaidx get_region <graph> --print_path_names` table for the graph. found is
+// false only when no table exists, so callers can fall back to running gfaidx.
+func readGfaidxRegionPathsFile(graph GfaidxGraph, config ConfigGfaidx) (paths []GfaidxRegionPath, found bool, err error) {
+	databaseDir, err := filepath.Abs(filepath.Clean(config.Databases))
+	if err != nil {
+		return nil, false, errors.New("resolve gfaidx database directory")
+	}
+	// graph.ID was validated against validGfaidxGraphID, so it cannot leave databaseDir.
+	file, err := os.Open(filepath.Join(databaseDir, graph.ID+gfaidxRegionPathsSuffix))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, true, errors.New("open gfaidx region path table")
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(io.LimitReader(file, gfaidxRegionPathOutputLimit+1))
+	if err != nil {
+		return nil, true, errors.New("read gfaidx region path table")
+	}
+	if len(data) > gfaidxRegionPathOutputLimit {
+		return nil, true, errors.New("gfaidx region path table exceeded the server limit")
+	}
+	paths, err = parseGfaidxRegionPaths(string(data))
+	return paths, true, err
+}
+
+// listGfaidxRegionPaths serves the precomputed <graph-id>.paths.tsv when it
+// exists, so a server that delegates gfaidx jobs to remote workers needs only
+// the .params and .paths.tsv files, not the graph indexes. Without the table
+// it runs the small discovery command synchronously. Large graph extraction
+// remains in the existing asynchronous worker queue.
 func listGfaidxRegionPaths(graph GfaidxGraph, config ConfigGfaidx) ([]GfaidxRegionPath, error) {
+	if paths, found, err := readGfaidxRegionPathsFile(graph, config); found {
+		return paths, err
+	}
+
 	parameters := gfaidxRegionPathCommand(graph, config)
 	cmd := exec.Command(parameters[0], parameters[1:]...)
 	SetSysProcAttr(cmd)

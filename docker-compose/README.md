@@ -87,6 +87,23 @@ The `.lnx` and `.pcx` files support efficient coordinate-aware queries, while
 `.cdx` is optional when gfaidx can resolve coordinates from `.pdx` and `.lnx`.
 Only files with a valid `.params` entry are exposed.
 
+The coordinate tracks offered for region queries
+(`/api/gfaidx/graphs/{graph_id}/region-paths`) are read from an optional
+`<graph-id>.paths.tsv` next to the `.params` file. Generate it once per graph,
+and again whenever the graph is re-indexed (bump `version` in the `.params`
+at the same time):
+
+```
+gfaidx get_region hprc_v2_mc.indexed.gfa.gz --print_path_names > hprc_v2_mc.paths.tsv
+```
+
+Without it, the server runs this command itself on every request. With it, a
+server that delegates gfaidx jobs to remote workers (`"delegate": ["gfaidx"]`)
+does not need the graph indexes at all: it only reads the `.params` and
+`.paths.tsv` files, plus an empty placeholder for the graph file named in
+`path`. The workers need the complete graph directory, with `.params` files
+whose `version` matches the server's.
+
 For a local backend source build, combine the normal development and gfaidx
 overlays. The application is built locally, while gfaidx itself is downloaded
 from its pinned binary release:

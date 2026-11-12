@@ -388,6 +388,58 @@ func TestGfaidxRegionPathParsing(t *testing.T) {
 	}
 }
 
+// TestGfaidxRegionPathFile verifies that a precomputed <graph-id>.paths.tsv is
+// served without executing gfaidx, and that a missing table falls back to it.
+func TestGfaidxRegionPathFile(t *testing.T) {
+	// The configured binary does not exist, so any attempt to run it fails.
+	config, _ := newTestGfaidxConfig(t)
+	graph, err := resolveGfaidxGraph("example", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := listGfaidxRegionPaths(graph, config); err == nil {
+		t.Fatal("missing region path table did not fall back to running gfaidx")
+	}
+
+	tablePath := filepath.Join(config.Databases, "example.paths.tsv")
+	table := "source\treference\thaplotype\tsequence\tstart\tend\tentries\tcoordinate_access\n" +
+		"W\tCHM13\t0\tchr22\t0\t51324926\t1439527\ton_the_fly\n"
+	if err := os.WriteFile(tablePath, []byte(table), 0644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := listGfaidxRegionPaths(graph, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	end := uint64(51324926)
+	want := []GfaidxRegionPath{{
+		Source: "W", Reference: "CHM13", Haplotype: "0", Sequence: "chr22",
+		Start: 0, End: &end, Entries: 1439527,
+		Label: "CHM13 hap0 chr22 (0-51324926)",
+	}}
+	if !reflect.DeepEqual(paths, want) {
+		t.Fatalf("region paths = %#v, want %#v", paths, want)
+	}
+
+	// A header-only table lists no paths instead of falling back.
+	if err := os.WriteFile(tablePath, []byte("source\treference\thaplotype\tsequence\tstart\tend\tentries\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err = listGfaidxRegionPaths(graph, config)
+	if err != nil || len(paths) != 0 {
+		t.Fatalf("header-only table = %#v, %v, want no paths", paths, err)
+	}
+
+	// A malformed table is reported instead of silently running gfaidx.
+	if err := os.WriteFile(tablePath, []byte("not a table\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := listGfaidxRegionPaths(graph, config); err == nil || !strings.Contains(err.Error(), "region path table") {
+		t.Fatalf("malformed table error = %v", err)
+	}
+}
+
 // TestGfaidxRegionPathCommand verifies that metadata discovery uses only the
 // registered graph path and the supported get_region listing flag.
 func TestGfaidxRegionPathCommand(t *testing.T) {
