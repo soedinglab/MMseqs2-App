@@ -89,7 +89,7 @@
 <script>
 
 import { StorageWrapper} from './lib/HistoryMixin.js';
-import { encodeMultimer, getAccession, makeCgPDBFromText, mockPDB, sleep, storeChains } from './Utilities';
+import { encodeMultimer, getAccession, mockPDB, sleep } from './Utilities';
 import { BlobDatabase } from './lib/BlobDatabase';
 import { structureRemarkLine, structureRemarkPrefix } from './lib/structureRemark.js';
 import { extractChains, listChains, normalizePdb } from './lib/structureText.js';
@@ -308,36 +308,19 @@ export default {
                             queryPdb = "";
                         }
                     }
-                    // FIXME: concatenate query if it has multiple chains
                     const isComplex = this.hits?.type == "complexsearch" || this.hits?.queries?.length > 1
                     const isCif = typeof queryPdb === 'string'
                         && (queryPdb.trimStart().startsWith("data_") || queryPdb.trimStart().startsWith("#"))
                     let queryName = "query"
                     let queryBlob = null
                     if (isComplex) {
-                        let ext = "pdb"
-                        if (isCif) {
-                            queryPdb = queryPdb.replaceAll("_chem_comp.", "_chem_comp_SKIP_HACK.")
-                            ext = 'cif'
+                        const chains = await listChains(queryPdb)
+                        if (chains.length === 0) {
+                            throw new Error("query structure has no CA atoms")
                         }
-                        queryBlob = new Blob([queryPdb], {type: "text/plain"})
-                        let processedQuery = makeCgPDBFromText(queryPdb)
-                        // I have to manually break down 
-                        const chains = storeChains(processedQuery)
-                        const pdbs = processedQuery.trim().split("\nTER").filter(s => !!s).map(s => s + "\nTER")
-                        if (pdbs.length != chains.length) {
-                            console.warn("chain info and pdb differ")
-                            console.log(chains, pdbs)
-                            queryBlob = new Blob([processedQuery], {type: "text/plain"})
-                        } else {
-                            let arr = []
-                            for (let i = 0; i < pdbs.length; i++) {
-                                arr.push({pdb: pdbs[i], chain: chains[i]})
-                            }
-                            const result = encodeMultimer(arr)
-                            queryBlob = new Blob([result.pdb], {type: "text/plain"})
-                            queryName += result.suffix
-                        }
+                        const result = encodeMultimer(chains.map(c => ({pdb: mockPDB(c.ca, c.seq, c.chain), chain: c.chain})))
+                        queryBlob = new Blob([result.pdb], {type: "text/plain"})
+                        queryName += result.suffix
                     } else {
                         const chain = await this.queryChain(queryPdb)
                         if (chain) {

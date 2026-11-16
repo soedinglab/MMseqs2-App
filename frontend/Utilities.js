@@ -105,28 +105,6 @@ export function makePositionMap(realStart, alnString) {
 }
 
 
-export function makeCgPDBFromText(text) {
-  const pdb = [];
-  let lastResidue = null;
-  let lastChain = null;
-  for (const line of String(text || "").split("\n")) {
-    if (!line.startsWith("ATOM")) continue;
-    const atomname = line.slice(12, 16).trim();
-    const element = (line.slice(76, 78).trim() || atomname[0]).toUpperCase();
-    const chain = line.slice(21, 22).trim() || "A";
-    const resno = line.slice(22, 26).trim();
-    const key = `${chain}:${resno}`;
-    if (atomname !== "CA" || element !== "C" || key === lastResidue) continue;
-    if (lastChain && lastChain !== chain) pdb.push("TER");
-    pdb.push(line.padEnd(80));
-    lastResidue = key;
-    lastChain = chain;
-  }
-  if (pdb.length) pdb.push("TER");
-  return pdb.join("\n");
-}
-
-
 /* ------ The rotation matrix to rotate Chain_1 to Chain_2 ------ */
 /* m               t[m]        u[m][0]        u[m][1]        u[m][2] */
 /* 0     161.2708425765   0.0663961888  -0.6777150909  -0.7323208325 */
