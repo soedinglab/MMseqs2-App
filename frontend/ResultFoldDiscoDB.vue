@@ -257,7 +257,7 @@
                                 type="button"
                                 class="v-btn v-btn--icon v-btn--round v-btn--text v-size--default"
                                 :class="{ 
-                                            'v-btn--outlined' : alignment && item.target == alignment.target,
+                                            'v-btn--outlined' : alignment === item,
                                             'theme--dark' : $vuetify.theme.dark
                                         }"
                                 >
