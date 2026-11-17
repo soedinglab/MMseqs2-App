@@ -23,6 +23,7 @@ const TargetColor = 0xffc107;
 const QueryLightColor = 0xa5cff5;
 const TargetLightColor = 0xffe699;
 const MotifRadius = 0.20;
+const UnmatchedAlpha = 0.3;
 
 async function addRepresentation(plugin, structure, label, expression, color, alpha = 1, type = 'cartoon', qualityPreset = 'viewer') {
     return addUniformRepresentation(
@@ -81,6 +82,19 @@ function motifExpression(motif) {
     return mergeExpressions(parseMotif(motif).residues.map(({ chain, residue }) => residueExpression(chain, residue)));
 }
 
+// Query motif residues split by whether the hit has a partner for them ('_' marks a missing partner).
+function splitQueryMotif(queryResidues = '', targetResidues = '') {
+    const query = String(queryResidues).split(',');
+    const target = String(targetResidues).split(',');
+    const matched = [];
+    const unmatched = [];
+    query.forEach((residue, i) => {
+        const partner = target[i]?.trim();
+        (partner && partner !== '_' ? matched : unmatched).push(residue);
+    });
+    return { matched: matched.join(','), unmatched: unmatched.join(',') };
+}
+
 function chainSetExpression(motif) {
     return mergeExpressions(parseMotif(motif).chains.map(chain => chainExpression(chain, { scheme: 'auth' })));
 }
@@ -122,7 +136,9 @@ async function applyRepresentations(plugin, state, input) {
     state.reprKey = key;
     await deleteReprGroup(plugin, state);
 
-    const queryMotif = motifExpression(input.alignment?.queryresidues);
+    const queryMotifSplit = splitQueryMotif(input.alignment?.queryresidues, input.alignment?.targetresidues);
+    const queryMotif = motifExpression(queryMotifSplit.matched);
+    const queryUnmatched = motifExpression(queryMotifSplit.unmatched);
     const targetMotif = motifExpression(input.alignment?.targetresidues);
     const queryChains = chainSetExpression(input.alignment?.queryresidues);
     const targetChains = chainSetExpression(input.alignment?.targetresidues);
@@ -134,6 +150,7 @@ async function applyRepresentations(plugin, state, input) {
         await addRepr(plugin, state, input, state.query, 'query-matched', queryChains, QueryLightColor, 0.8, 'cartoon');
     }
     await addRepr(plugin, state, input, state.query, 'query-motif', queryMotif, QueryColor, 1, 'ball-and-stick');
+    await addRepr(plugin, state, input, state.query, 'query-motif-unmatched', queryUnmatched, QueryColor, UnmatchedAlpha, 'ball-and-stick');
 
     if (input.showTarget === 2) {
         await addRepr(plugin, state, input, state.target, 'target-rest', nonChainSetExpression(input.alignment?.targetresidues), TargetLightColor, 0.3, 'cartoon');
@@ -154,6 +171,8 @@ function resetSceneState(state) {
 async function rebuildScene(plugin, state, input) {
     await plugin.clear();
     resetSceneState(state);
+    // Faded residues stay hoverable; molstar only picks objects at least this opaque.
+    plugin.canvas3d?.setProps({ renderer: { pickingAlphaThreshold: UnmatchedAlpha } });
 
     state.query = await loadStructureFromData(plugin, normalizedPdbSourceFromText(input.queryPdb, 'queryStructure'));
     const targetSource = normalizedPdbSourceFromText(input.targetPdb, 'targetStructure', { dropConect: true });
