@@ -687,6 +687,7 @@ export default {
             }
             const chain = isGap ? null : entry.chains?.[residueNumber];
             const structureResidueNumber = isGap ? null : entry.resns?.[residueNumber];
+            const isMultiChain = Object.keys(entry.offsets || {}).length > 1;
             this.cellHover = {
                 visible: true,
                 x: detail.originalEvent?.clientX ?? this.cellHover.x,
@@ -694,7 +695,11 @@ export default {
                 name: entry.name || detail.record?.name || `Sequence ${rowIndex + 1}`,
                 alignmentRow: String(rowIndex),
                 alignmentColumn: String(rawColumn + 1),
-                residueLabel: isGap ? "Gap" : `${formatted}${residueNumber}`,
+                residueLabel: isGap
+                    ? "Gap"
+                    : isMultiChain && chain && structureResidueNumber != null
+                        ? `${formatted}${structureResidueNumber} (chain ${chain})`
+                        : `${formatted}${residueNumber}`,
                 structureLabel: chain && structureResidueNumber != null
                     ? `${structureResidueNumber}:${chain}`
                     : "",
