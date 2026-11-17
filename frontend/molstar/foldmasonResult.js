@@ -215,10 +215,7 @@ function residueExpressionForColumn(entry, column) {
     if (residueIndex < 1) return null;
     const chain = entry.chains?.[residueIndex] || 'A';
     const residue = entry.resns?.[residueIndex] || residueIndex;
-    return mergeExpressions([
-        residueExpression(chain, residue),
-        residueExpression(null, residueIndex),
-    ]);
+    return residueExpression(chain, residue);
 }
 
 function structureEvent(state, current, type) {
