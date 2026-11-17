@@ -345,20 +345,29 @@ export async function addUniformRepresentation(plugin, structure, options) {
     };
 }
 
-export function chainExpression(chain) {
-    const test = chainTest(chain);
+export function chainExpression(chain, { scheme } = {}) {
+    const test = scheme ? chainEqTest(chain, scheme) : chainTest(chain);
     return test ? MS.struct.generator.atomGroups({
         'chain-test': test,
         'residue-test': residueAtomTest(),
     }) : null;
 }
 
-export function residueExpression(chain, residue) {
+/**
+ * Atoms of one residue.
+ * @param {{scheme?: 'auth'|'label'}} [options]  which chain and residue numbering to match.
+ */
+export function residueExpression(chain, residue, { scheme = 'auth' } = {}) {
+    const { eq } = MS.core.rel;
+    const { macromolecular } = MS.struct.atomProperty;
+    const seqId = scheme === 'label' ? macromolecular.label_seq_id() : macromolecular.auth_seq_id();
     const tests = {
-        'residue-test': MS.core.logic.and([residueAtomTest(), residueEqTest(residue)]),
+        'residue-test': MS.core.logic.and([residueAtomTest(), eq([seqId, residue])]),
     };
-    const chainExpr = chainTest(chain);
-    if (chainExpr) tests['chain-test'] = chainExpr;
+    if (chain) {
+        const asymId = scheme === 'label' ? macromolecular.label_asym_id() : macromolecular.auth_asym_id();
+        tests['chain-test'] = eq([asymId, chain]);
+    }
     return MS.struct.generator.atomGroups(tests);
 }
 
@@ -448,6 +457,13 @@ function residueRangeTest(property, start, end) {
     return tests.length === 1 ? tests[0] : and(tests);
 }
 
+function chainEqTest(chain, scheme) {
+    if (!chain) return null;
+    const { macromolecular } = MS.struct.atomProperty;
+    const asymId = scheme === 'label' ? macromolecular.label_asym_id() : macromolecular.auth_asym_id();
+    return MS.core.rel.eq([asymId, chain]);
+}
+
 function chainTest(chain) {
     if (!chain) return null;
     const { or } = MS.core.logic;
@@ -459,15 +475,6 @@ function chainTest(chain) {
     ]);
 }
 
-function residueEqTest(residue) {
-    const { or } = MS.core.logic;
-    const { eq } = MS.core.rel;
-    const { macromolecular } = MS.struct.atomProperty;
-    return or([
-        eq([macromolecular.auth_seq_id(), residue]),
-        eq([macromolecular.label_seq_id(), residue]),
-    ]);
-}
 
 function residueAtomTest() {
     return MS.core.logic.not([MS.struct.atomProperty.macromolecular.isHet()]);

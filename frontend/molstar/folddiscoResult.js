@@ -82,7 +82,7 @@ function motifExpression(motif) {
 }
 
 function chainSetExpression(motif) {
-    return mergeExpressions(parseMotif(motif).chains.map(chainExpression));
+    return mergeExpressions(parseMotif(motif).chains.map(chain => chainExpression(chain, { scheme: 'auth' })));
 }
 
 function nonChainSetExpression(motif) {
