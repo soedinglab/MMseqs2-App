@@ -148,7 +148,8 @@ function structureElementLocationFromLoci(loci) {
 
     const loc = StructureElement.Location.create(loci.structure);
     loc.unit = entry.unit;
-    loc.element = OrderedSet.getAt(entry.indices, 0);
+    // Loci indices point into the unit's element list, not into the model's atoms.
+    loc.element = entry.unit.elements[OrderedSet.getAt(entry.indices, 0)];
     return loc;
 }
 
@@ -248,10 +249,11 @@ export function caResiduesByChain(structureRef) {
     return residuesByChain;
 }
 
+// A hovered component is a subset of its structure, so two structures match when they share a root.
 export function structuresMatch(a, b) {
     if (!a || !b) return false;
     if (a === b) return true;
-    return a.root === b.root && a.elementCount === b.elementCount;
+    return (a.root ?? a) === (b.root ?? b);
 }
 
 export function focusCurrentLoci(plugin, current, options = {}) {

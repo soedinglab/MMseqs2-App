@@ -180,8 +180,9 @@ function structureEvent(state, current, type) {
         type,
         side,
         hasLoci: true,
-        chain: residue.chain,
-        residue: residue.residue,
+        chain: residue.authChain || residue.chain,
+        // Motifs are written in author numbering.
+        residue: residue.authResidue ?? residue.residue,
         residueName: residue.threeLetter,
     };
 }
