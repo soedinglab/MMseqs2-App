@@ -1,5 +1,5 @@
 import { OrderedSet } from 'molstar/lib/mol-data/int';
-import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
+import { structuresToCif } from './structureExport.js';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { tmalign, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
 import { pulchra } from 'pulchra-wasm';
@@ -395,12 +395,10 @@ async function structurePDB(entry) {
 }
 
 function makeCIF(state) {
-    const blocks = [];
-    for (const item of state.structures?.values?.() || []) {
-        const structure = item.structure?.cell?.obj?.data;
-        if (structure) blocks.push(to_mmCIF(`structure_${item.index}`, structure, false, { copyAllCategories: false }));
-    }
-    return blocks.join('\n');
+    return structuresToCif(Array.from(state.structures?.values?.() || [], item => ({
+        name: item.entry?.name || `structure_${item.index}`,
+        structure: item.structure?.cell?.obj?.data,
+    })));
 }
 
 export const foldmasonResult = {

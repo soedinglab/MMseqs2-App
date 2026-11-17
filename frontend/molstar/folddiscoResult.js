@@ -1,4 +1,4 @@
-import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
+import { structuresToCif } from './structureExport.js';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import {
     addUniformRepresentation,
@@ -207,12 +207,10 @@ function structureEvent(state, current, type) {
 }
 
 function makeCIF(state) {
-    const blocks = [];
-    const query = state.query?.cell?.obj?.data;
-    const target = state.target?.cell?.obj?.data;
-    if (query) blocks.push(to_mmCIF('query', query, false, { copyAllCategories: false }));
-    if (target) blocks.push(to_mmCIF('target', target, false, { copyAllCategories: false }));
-    return blocks.join('\n');
+    return structuresToCif([
+        { name: 'query', structure: state.query?.cell?.obj?.data },
+        { name: 'target', structure: state.target?.cell?.obj?.data },
+    ]);
 }
 
 export const folddiscoResult = {

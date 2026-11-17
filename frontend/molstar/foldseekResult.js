@@ -1,8 +1,8 @@
-import { to_mmCIF } from 'molstar/lib/mol-model/structure/export/mmcif';
 import { Vec3 } from 'molstar/lib/mol-math/linear-algebra';
 import { StructureElement } from 'molstar/lib/mol-model/structure';
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms';
+import { structuresToCif } from './structureExport.js';
 import {
     addUniformRepresentation,
     addRepresentationToSet,
@@ -784,18 +784,10 @@ function mergeProjectionBounds(bounds) {
 }
 
 function makeCIF(state) {
-    const queryStructure = state.query?.structure?.cell?.obj?.data;
-    const targetStructure = state.target?.structure?.cell?.obj?.data;
-    if (!queryStructure && !targetStructure) return '';
-
-    const blocks = [];
-    if (queryStructure) {
-        blocks.push(to_mmCIF('query', queryStructure, false, { copyAllCategories: false }));
-    }
-    if (targetStructure) {
-        blocks.push(to_mmCIF('target', targetStructure, false, { copyAllCategories: false }));
-    }
-    return blocks.join('\n');
+    return structuresToCif([
+        { name: 'query', structure: state.query?.structure?.cell?.obj?.data },
+        { name: 'target', structure: state.target?.structure?.cell?.obj?.data },
+    ]);
 }
 
 export const foldseekResult = {
@@ -854,7 +846,7 @@ export const foldseekResult = {
         focusVisibleStructure(plugin, state?.target || state?.query, options);
     },
 
-    async makeCIF(plugin, state, input) {
-        return makeCIF(state, input);
+    async makeCIF(plugin, state) {
+        return makeCIF(state);
     },
 };
