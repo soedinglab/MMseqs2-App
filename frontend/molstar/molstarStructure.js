@@ -81,7 +81,7 @@ export function caChainIds(structureRef) {
         location.unit = unit;
         for (let index = 0; index < OrderedSet.size(unit.elements); index++) {
             location.element = OrderedSet.getAt(unit.elements, index);
-            if (StructureProperties.atom.label_atom_id(location) !== 'CA') continue;
+            if (!isAlphaCarbon(location)) continue;
             const authChain = normalizeChainId(StructureProperties.chain.auth_asym_id(location));
             const labelChain = normalizeChainId(StructureProperties.chain.label_asym_id(location));
             ids.add(authChain || labelChain);
@@ -206,6 +206,13 @@ export function nearestResidue(residues, [x, y, z]) {
     return nearest;
 }
 
+// A calcium ion is also named CA, so the element tells the two apart.
+export function isAlphaCarbon(location) {
+    if (StructureProperties.atom.label_atom_id(location) !== 'CA') return false;
+    const element = String(StructureProperties.atom.type_symbol(location) || '').toUpperCase();
+    return element === '' || element === 'C';
+}
+
 export function caResiduesByChain(structureRef) {
     const structure = structureRef?.cell?.obj?.data || structureRef;
     const residuesByChain = new Map();
@@ -218,7 +225,7 @@ export function caResiduesByChain(structureRef) {
         location.unit = unit;
         for (let index = 0; index < OrderedSet.size(unit.elements); index++) {
             location.element = OrderedSet.getAt(unit.elements, index);
-            if (StructureProperties.atom.label_atom_id(location) !== 'CA') continue;
+            if (!isAlphaCarbon(location)) continue;
 
             const authChain = normalizeChainId(StructureProperties.chain.auth_asym_id(location));
             const labelChain = normalizeChainId(StructureProperties.chain.label_asym_id(location));
@@ -238,12 +245,10 @@ export function caResiduesByChain(structureRef) {
                 y: StructureProperties.atom.y(location),
                 z: StructureProperties.atom.z(location),
             };
-            const chains = new Set([authChain, labelChain].filter(Boolean));
-            if (chains.size === 0) chains.add('');
-            for (const chain of chains) {
-                if (!residuesByChain.has(chain)) residuesByChain.set(chain, []);
-                residuesByChain.get(chain).push(residue);
-            }
+            // Search results name chains by their author id; the label id may belong to another chain.
+            const chain = authChain || labelChain || '';
+            if (!residuesByChain.has(chain)) residuesByChain.set(chain, []);
+            residuesByChain.get(chain).push(residue);
         }
     }
     return residuesByChain;
@@ -345,8 +350,13 @@ export async function addUniformRepresentation(plugin, structure, options) {
     };
 }
 
-export function chainExpression(chain, { scheme } = {}) {
-    const test = scheme ? chainEqTest(chain, scheme) : chainTest(chain);
+/**
+ * Polymer atoms of one chain.
+ * @param {{scheme?: 'auth'|'label'}} [options]  which chain id to match; a file may reuse a name across the
+ *   two schemes for different chains.
+ */
+export function chainExpression(chain, { scheme = 'auth' } = {}) {
+    const test = chainEqTest(chain, scheme);
     return test ? MS.struct.generator.atomGroups({
         'chain-test': test,
         'residue-test': residueAtomTest(),
@@ -464,16 +474,6 @@ function chainEqTest(chain, scheme) {
     return MS.core.rel.eq([asymId, chain]);
 }
 
-function chainTest(chain) {
-    if (!chain) return null;
-    const { or } = MS.core.logic;
-    const { eq } = MS.core.rel;
-    const { macromolecular } = MS.struct.atomProperty;
-    return or([
-        eq([macromolecular.auth_asym_id(), chain]),
-        eq([macromolecular.label_asym_id(), chain]),
-    ]);
-}
 
 
 function residueAtomTest() {

@@ -1,7 +1,7 @@
 import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { StructureElement, StructureProperties, Unit } from 'molstar/lib/mol-model/structure';
 import { tmalign, parse as parseTMOutput, parseMatrix as parseTMMatrix } from 'tmalign-wasm';
-import { atomToPdbRow, caChainIds, mat4FromRotationTranslation, normalizeChainId, transformStructureConformation } from './molstarStructure.js';
+import { atomToPdbRow, caChainIds, isAlphaCarbon, mat4FromRotationTranslation, normalizeChainId, transformStructureConformation } from './molstarStructure.js';
 import { rangesByChain } from './foldseekAlignmentMapping.js';
 
 export async function prepareSuperposedTarget(plugin, target, query, input, state) {
@@ -60,11 +60,11 @@ function makeAlignedCaPdb(structureRef, ranges) {
         loc.unit = unit;
         for (let index = 0; index < OrderedSet.size(unit.elements); index++) {
             loc.element = OrderedSet.getAt(unit.elements, index);
-            if (StructureProperties.atom.label_atom_id(loc) !== 'CA') continue;
+            if (!isAlphaCarbon(loc)) continue;
 
             const authChain = normalizeChainId(StructureProperties.chain.auth_asym_id(loc));
             const labelChain = normalizeChainId(StructureProperties.chain.label_asym_id(loc));
-            const chain = ranges.has(authChain) ? authChain : (ranges.has(labelChain) ? labelChain : null);
+            const chain = ranges.has(authChain) ? authChain : null;
             const spans = chain ? ranges.get(chain) : soleSpans;
             if (!spans) continue;
 

@@ -96,7 +96,7 @@ function splitQueryMotif(queryResidues = '', targetResidues = '') {
 }
 
 function chainSetExpression(motif) {
-    return mergeExpressions(parseMotif(motif).chains.map(chain => chainExpression(chain, { scheme: 'auth' })));
+    return mergeExpressions(parseMotif(motif).chains.map(chain => chainExpression(chain)));
 }
 
 function nonChainSetExpression(motif) {

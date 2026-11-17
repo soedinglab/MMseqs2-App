@@ -82,9 +82,9 @@ function buildSideAlignmentMaps(structureRef, input, side, sourceStructureRef = 
                 if (residue) toStructure.set(start + offset, residue);
             });
         } else {
-            const lookup = residueNumberLookup(residues);
+            // Alignment positions count residues along the chain from 1, whatever their numbering.
             for (const position of alignmentPositions(alignment, side)) {
-                const residue = lookup.label.get(position) || lookup.auth.get(position);
+                const residue = residues[position - 1];
                 if (residue) toStructure.set(position, residue);
             }
         }

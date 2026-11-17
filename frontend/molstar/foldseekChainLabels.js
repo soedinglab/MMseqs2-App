@@ -224,7 +224,6 @@ function structureChainAnchors(structureRef) {
     if (!structure?.units?.length) return { byChain: new Map(), list: [] };
 
     const residuesByChain = new Map();
-    const aliases = new Map();
     const seen = new Set();
     const loc = StructureElement.Location.create(structure);
 
@@ -250,21 +249,10 @@ function structureChainAnchors(structureRef) {
             ], unit.conformation.operator.matrix);
             if (!residuesByChain.has(chain)) residuesByChain.set(chain, []);
             residuesByChain.get(chain).push({ x: point[0], y: point[1], z: point[2] });
-            if (!aliases.has(chain)) aliases.set(chain, new Set());
-            if (auth) aliases.get(chain).add(auth);
-            if (label) aliases.get(chain).add(label);
         }
     }
 
-    const anchors = anchorsFromResidues(residuesByChain);
-    for (const [chain, names] of aliases) {
-        const anchor = anchors.byChain.get(chain);
-        if (!anchor) continue;
-        for (const name of names) {
-            if (!anchors.byChain.has(name)) anchors.byChain.set(name, anchor);
-        }
-    }
-    return anchors;
+    return anchorsFromResidues(residuesByChain);
 }
 
 function chainLabelEntry({ queryChain, targetChain, queryLabel, targetLabel, query, target }, sceneCenter, input, index, total) {
