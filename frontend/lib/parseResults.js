@@ -10,14 +10,15 @@ function tryLinkTargetToDB(target, db) {
     if (res.startsWith("pfam")) {
       return "https://www.ebi.ac.uk/interpro/entry/pfam/" + target;
     } else if (res.startsWith("pdb")) {
-      return (
-        "https://www.rcsb.org/structure/" +
-        target
-          .replaceAll(/-assembly[0-9]+/g, "")
-          .replaceAll(/\.(cif|pdb|ent)(\.gz)?/g, "")
-          .replaceAll(/[0-9]+DI_/g, "") // For interface cluster, should we link to cluster web?
-          .split("_")[0]
-      );
+      const accession = target
+        .replaceAll(/-assembly[0-9]+/g, "")
+        .replaceAll(/\.(cif|pdb|ent)(\.gz)?/g, "")
+        .replaceAll(/[0-9]+DI_/g, "") // For interface cluster, should we link to cluster web?
+        .match(/^(pdb_)?[^_]+/i)[0];
+      return [
+        { label: "RCSB PDB", accession: accession, href: "https://www.rcsb.org/structure/" + accession },
+        { label: "PDBe", accession: accession, href: "https://www.ebi.ac.uk/pdbe/entry/pdb/" + accession.toLowerCase() },
+      ];
     } else if (res.startsWith("humanppi")) {
       return (
         "http://prodata.swmed.edu/humanPPI/results/" +
